@@ -1,6 +1,6 @@
 import { Command } from "commander";
 
-import { CLIError } from "../types/json-output.js";
+import { CLIError, type ErrorCode } from "../types/json-output.js";
 import { formatError } from "../utils/error.js";
 import {
   ConsoleLogger,
@@ -33,7 +33,7 @@ export function wrapCommand({
   loggerFactory = createLogger,
 }: {
   name: string;
-  errorCode: string;
+  errorCode: ErrorCode;
   handler: (
     logger: Logger,
     options: unknown,

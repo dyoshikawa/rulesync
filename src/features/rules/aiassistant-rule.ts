@@ -125,7 +125,6 @@ export class AiassistantRule extends ToolRule {
   static getSettablePaths(
     _options: {
       global?: boolean;
-      excludeToolDir?: boolean;
     } = {},
   ): AiassistantRuleSettablePaths {
     return {

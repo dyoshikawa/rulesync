@@ -19,14 +19,14 @@ import {
   type RulesyncSourceSettablePaths,
 } from "../../utils/rulesync-source-path.js";
 
-export type RulesyncHooksParams = RulesyncFileParams;
+type RulesyncHooksParams = RulesyncFileParams;
 
-export type RulesyncHooksFromFileParams = Pick<
+type RulesyncHooksFromFileParams = Pick<
   RulesyncFileFromFileParams,
   "outputRoot" | "validate" | "relativeDirPath"
 >;
 
-export type RulesyncHooksSettablePaths = RulesyncSourceSettablePaths;
+type RulesyncHooksSettablePaths = RulesyncSourceSettablePaths;
 
 export class RulesyncHooks extends RulesyncFile {
   private readonly json: HooksConfig;

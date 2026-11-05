@@ -14,7 +14,7 @@ import { PROTOTYPE_POLLUTION_KEYS } from "../../utils/prototype-pollution.js";
 import { isRecord } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
-  parseSharedConfig,
+  parseSharedConfigFile,
   sharedConfigFileKey,
 } from "../shared/shared-config-gateway.js";
 import {
@@ -34,21 +34,6 @@ import {
   ToolMcpParams,
   ToolMcpSettablePaths,
 } from "./tool-mcp.js";
-
-/**
- * Single spelling of the config.json codec/policy, matching the
- * `SHARED_CONFIG_OWNERSHIP` declaration for both scopes: fail closed on an
- * unparseable root rather than replacing the user's primary ZCode config with
- * generated output.
- */
-function parseZcodeConfig(fileContent: string, filePath?: string): Record<string, unknown> {
-  return parseSharedConfig({
-    format: "json",
-    fileContent,
-    filePath,
-    invalidRootPolicy: "error",
-  });
-}
 
 /**
  * The keys each OAuth flow of ZCode's per-server `oauth` union accepts on a
@@ -455,10 +440,11 @@ export class ZcodeMcp extends ToolMcp {
 
   constructor(params: ToolMcpParams) {
     super(params);
-    this.json = parseZcodeConfig(
-      this.fileContent ?? "",
-      join(this.relativeDirPath, this.relativeFilePath),
-    );
+    this.json = parseSharedConfigFile({
+      fileKey: sharedConfigFileKey(ZcodeMcp.getSettablePaths({ global: this.global })),
+      fileContent: this.fileContent ?? "",
+      filePath: join(this.relativeDirPath, this.relativeFilePath),
+    });
   }
 
   getJson(): Record<string, unknown> {
@@ -507,7 +493,11 @@ export class ZcodeMcp extends ToolMcp {
     const paths = this.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const existingContent = (await readFileContentOrNull(filePath)) ?? "";
-    const existing = parseZcodeConfig(existingContent, filePath);
+    const existing = parseSharedConfigFile({
+      fileKey: sharedConfigFileKey(paths),
+      fileContent: existingContent,
+      filePath,
+    });
 
     const converted = convertToZcodeFormat({
       mcpServers: rulesyncMcp.getMcpServers(),

@@ -5,7 +5,6 @@ import {
   COPILOT_SKILLS_GLOBAL_DIR_PATH,
 } from "../../constants/copilot-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
-import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import {
@@ -130,16 +129,7 @@ export class CopilotSkill extends ToolSkill {
       ...(Object.keys(copilotSection).length > 0 && { copilot: copilotSection }),
     };
 
-    return new RulesyncSkill({
-      outputRoot: this.outputRoot,
-      relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
-      dirName: this.getDirName(),
-      frontmatter: rulesyncFrontmatter,
-      body: this.getBody(),
-      otherFiles: this.getOtherFiles(),
-      validate: true,
-      global: this.global,
-    });
+    return this.toRulesyncSkillWith(rulesyncFrontmatter);
   }
 
   static fromRulesyncSkill({
@@ -201,49 +191,15 @@ export class CopilotSkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("copilot");
-  }
+  protected static override readonly toolTarget = "copilot";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<CopilotSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: CopilotSkill.getSettablePaths,
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({
-      schema: CopilotSkillFrontmatterSchema,
-      loaded,
-    });
-
-    return new CopilotSkill({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new CopilotSkill(
+      await this.loadStandardSkillParams({ params, schema: CopilotSkillFrontmatterSchema }),
+    );
   }
 
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-  }: ToolSkillForDeletionParams): CopilotSkill {
-    return new CopilotSkill({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      otherFiles: [],
-      validate: false,
-      global,
-    });
+  static forDeletion(params: ToolSkillForDeletionParams): CopilotSkill {
+    return new CopilotSkill(this.forDeletionParams(params));
   }
 }

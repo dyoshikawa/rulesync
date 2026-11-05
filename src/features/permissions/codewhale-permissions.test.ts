@@ -656,4 +656,26 @@ describe("CodewhalePermissions", () => {
       expect(second.getFileContent()).toBe(first.getFileContent());
     });
   });
+
+  describe("tool names that match Object.prototype members", () => {
+    it("skips a canonical category named like a prototype member as unsupported", async () => {
+      const logger = createMockLogger();
+      const perms = await generate({ permission: { toString: { "src/**": "allow" } } }, logger);
+
+      expect(parseRules(perms)).toEqual([]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('skipping unsupported category "toString"'),
+      );
+    });
+
+    it("does not map a native tool named like a prototype member to a path category", () => {
+      const perms = fromContent(
+        smolToml.stringify({
+          rules: [{ tool: "toString", path: "src/**", action: "allow" }],
+        }),
+      );
+
+      expect(perms.toRulesyncPermissions().getJson().permission).toEqual({});
+    });
+  });
 });

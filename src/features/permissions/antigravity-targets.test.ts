@@ -2,7 +2,10 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import type { PermissionAction } from "../../types/permissions.js";
-import { buildAntigravityPermissionEntry } from "./antigravity-targets.js";
+import {
+  buildAntigravityPermissionEntry,
+  convertAntigravityToRulesyncPermissions,
+} from "./antigravity-targets.js";
 
 function build({
   action,
@@ -633,5 +636,22 @@ describe("buildAntigravityPermissionEntry", () => {
         expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("NOT enforced"));
       },
     );
+  });
+});
+
+describe("convertAntigravityToRulesyncPermissions with prototype-pollution names", () => {
+  it("drops __proto__ entries without replacing the permission block's prototype", () => {
+    const { permission } = convertAntigravityToRulesyncPermissions({
+      allow: ["read_file(src/**)", "__proto__(x)"],
+      ask: [],
+      deny: ["__proto__"],
+      toCategory: (action) => (action === "read_file" ? "read" : action),
+      toolLabel: "Antigravity",
+      logger: createMockLogger(),
+    });
+
+    expect(Object.getPrototypeOf(permission)).toBe(Object.prototype);
+    expect(Object.hasOwn(permission, "__proto__")).toBe(false);
+    expect(permission).toEqual({ read: { "src/**": "allow" } });
   });
 });

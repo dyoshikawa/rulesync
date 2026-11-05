@@ -1,42 +1,30 @@
 import { join } from "node:path";
 
-import { optional, z } from "zod/mini";
+import { z } from "zod/mini";
 
 import { OPENCODE_LAYOUT, type OpencodeLayout } from "../../constants/opencode-paths.js";
-import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import { formatError } from "../../utils/error.js";
-import { readFileContent } from "../../utils/file.js";
-import {
-  parseFrontmatter,
-  stringifyFrontmatter,
-  validateFrontmatterSchema,
-} from "../../utils/frontmatter.js";
+import type { ToolTarget } from "../../types/tool-targets.js";
 import {
   asOpencodeEntries,
   getOpencodeCommandEntries,
   mergeOpencodeEntryLayers,
   readOpencodeConfigLayers,
 } from "../opencode-config.js";
-import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
-import {
-  ToolCommand,
-  ToolCommandForDeletionParams,
-  ToolCommandFromFileParams,
-  ToolCommandFromRulesyncCommandParams,
-  ToolCommandSettablePaths,
-} from "./tool-command.js";
+import { FrontmatterMarkdownToolCommand } from "./frontmatter-markdown-command.js";
+import type { RulesyncCommandFrontmatter } from "./rulesync-command.js";
+import type { ToolCommandSettablePaths } from "./tool-command.js";
 
 export const OpenCodeCommandFrontmatterSchema = z.looseObject({
   description: z.optional(z.string()),
-  agent: optional(z.string()),
-  subtask: optional(z.boolean()),
+  agent: z.optional(z.string()),
+  subtask: z.optional(z.boolean()),
   // OpenCode V2 spelling of `subtask` (V2 keeps `subtask` as a deprecated
   // alias). OpenCode V1 only knows `subtask`, so rulesync folds `subagent`
   // into `subtask` on both import and generate; see `foldSubagentAlias`.
-  subagent: optional(z.boolean()),
-  model: optional(z.string()),
+  subagent: z.optional(z.boolean()),
+  model: z.optional(z.string()),
   // Default model variant for the command (e.g. a provider reasoning preset).
-  variant: optional(z.string()),
+  variant: z.optional(z.string()),
 });
 
 export type OpenCodeCommandFrontmatter = z.infer<typeof OpenCodeCommandFrontmatterSchema>;
@@ -92,36 +80,9 @@ function raiseToOpencodeV2CommandFields<T extends Record<string, unknown>>(
   return raised;
 }
 
-export type OpenCodeCommandParams = {
-  frontmatter: OpenCodeCommandFrontmatter;
-  body: string;
-} & Omit<AiFileParams, "fileContent">;
-
-export class OpenCodeCommand extends ToolCommand {
+export class OpenCodeCommand extends FrontmatterMarkdownToolCommand<OpenCodeCommandFrontmatter> {
   /** Directory layout; OpenCode forks (MiMo Code) override it. */
   protected static readonly layout: OpencodeLayout = OPENCODE_LAYOUT;
-
-  private readonly frontmatter: OpenCodeCommandFrontmatter;
-  private readonly body: string;
-
-  constructor({ frontmatter, body, ...rest }: OpenCodeCommandParams) {
-    if (rest.validate) {
-      const result = OpenCodeCommandFrontmatterSchema.safeParse(frontmatter);
-      if (!result.success) {
-        throw new Error(
-          `Invalid frontmatter in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${formatError(result.error)}`,
-        );
-      }
-    }
-
-    super({
-      ...rest,
-      fileContent: stringifyFrontmatter(body, frontmatter),
-    });
-
-    this.frontmatter = frontmatter;
-    this.body = body;
-  }
 
   static getSettablePaths({ global }: { global?: boolean } = {}): ToolCommandSettablePaths {
     // OpenCode's canonical directory is the plural `commands/`. The singular
@@ -133,15 +94,31 @@ export class OpenCodeCommand extends ToolCommand {
     };
   }
 
-  getBody(): string {
-    return this.body;
+  /** Also the tool-scoped section of the Rulesync frontmatter. */
+  protected static override getToolTarget(): ToolTarget {
+    return this.layout.toolTarget;
   }
 
-  getFrontmatter(): Record<string, unknown> {
-    return this.frontmatter;
+  protected static override getFrontmatterSchema() {
+    return OpenCodeCommandFrontmatterSchema;
   }
 
-  toRulesyncCommand(): RulesyncCommand {
+  protected static override toToolFrontmatter(
+    rulesyncFrontmatter: RulesyncCommandFrontmatter,
+  ): OpenCodeCommandFrontmatter {
+    const toolSection = rulesyncFrontmatter[this.layout.toolTarget] ?? {};
+    const opencodeFields =
+      this.layout.configVersion === "v2"
+        ? raiseToOpencodeV2CommandFields(toolSection)
+        : foldSubagentAlias(toolSection);
+
+    return {
+      description: rulesyncFrontmatter.description,
+      ...opencodeFields,
+    };
+  }
+
+  protected override toRulesyncFrontmatter(): RulesyncCommandFrontmatter {
     const { description, ...toolFields } = this.frontmatter;
     const { toolTarget, configVersion } = (this.constructor as typeof OpenCodeCommand).layout;
     const restFields =
@@ -149,97 +126,11 @@ export class OpenCodeCommand extends ToolCommand {
         ? raiseToOpencodeV2CommandFields(toolFields)
         : foldSubagentAlias(toolFields);
 
-    const rulesyncFrontmatter: RulesyncCommandFrontmatter = {
+    return {
       targets: ["*"],
       description,
       ...(Object.keys(restFields).length > 0 && { [toolTarget]: restFields }),
     };
-
-    return new RulesyncCommand({
-      outputRoot: process.cwd(),
-      frontmatter: rulesyncFrontmatter,
-      body: this.body,
-      relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
-      relativeFilePath: this.relativeFilePath,
-      validate: true,
-    });
-  }
-
-  static fromRulesyncCommand({
-    outputRoot = process.cwd(),
-    rulesyncCommand,
-    validate = true,
-    global = false,
-  }: ToolCommandFromRulesyncCommandParams): OpenCodeCommand {
-    const rulesyncFrontmatter = rulesyncCommand.getFrontmatter();
-    const toolSection = rulesyncFrontmatter[this.layout.toolTarget] ?? {};
-    const opencodeFields =
-      this.layout.configVersion === "v2"
-        ? raiseToOpencodeV2CommandFields(toolSection)
-        : foldSubagentAlias(toolSection);
-
-    const opencodeFrontmatter: OpenCodeCommandFrontmatter = {
-      description: rulesyncFrontmatter.description,
-      ...opencodeFields,
-    };
-
-    const body = rulesyncCommand.getBody();
-    const paths = this.getSettablePaths({ global });
-
-    return new this({
-      outputRoot: outputRoot,
-      frontmatter: opencodeFrontmatter,
-      body,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: rulesyncCommand.getRelativeFilePath(),
-      validate,
-    });
-  }
-
-  validate(): ValidationResult {
-    if (!this.frontmatter) {
-      return { success: true, error: null };
-    }
-
-    return validateFrontmatterSchema({
-      schema: OpenCodeCommandFrontmatterSchema,
-      frontmatter: this.frontmatter,
-      relativeDirPath: this.relativeDirPath,
-      relativeFilePath: this.relativeFilePath,
-    });
-  }
-
-  static async fromFile({
-    outputRoot = process.cwd(),
-    relativeFilePath,
-    validate = true,
-    global = false,
-  }: ToolCommandFromFileParams): Promise<OpenCodeCommand> {
-    const paths = this.getSettablePaths({ global });
-    const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
-    const fileContent = await readFileContent(filePath);
-    const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
-
-    const result = OpenCodeCommandFrontmatterSchema.safeParse(frontmatter);
-    if (!result.success) {
-      throw new Error(`Invalid frontmatter in ${filePath}: ${formatError(result.error)}`);
-    }
-
-    return new this({
-      outputRoot: outputRoot,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath,
-      frontmatter: result.data,
-      body: content.trim(),
-      validate,
-    });
-  }
-
-  static isTargetedByRulesyncCommand(rulesyncCommand: RulesyncCommand): boolean {
-    return this.isTargetedByRulesyncCommandDefault({
-      rulesyncCommand,
-      toolTarget: this.layout.toolTarget,
-    });
   }
 
   /**
@@ -310,20 +201,5 @@ export class OpenCodeCommand extends ToolCommand {
     }
 
     return commands;
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolCommandForDeletionParams): OpenCodeCommand {
-    return new this({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      frontmatter: { description: "" },
-      body: "",
-      validate: false,
-    });
   }
 }

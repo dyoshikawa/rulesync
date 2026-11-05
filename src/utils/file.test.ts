@@ -33,6 +33,7 @@ import {
   PathOutsideRootError,
   posixRelativePathEscapesRoot,
   readFileBufferOrNull,
+  readFileContentOrNull,
   readFileContent,
   relativeWriteLanding,
   removeDirectory,
@@ -52,6 +53,7 @@ import {
   writeFileBuffer,
   writeFileContent,
 } from "./file.js";
+import { withWriteLandingCache } from "./write-landing-cache.js";
 
 describe("file utilities", () => {
   let testDir: string;
@@ -601,6 +603,47 @@ describe("file utilities", () => {
 
         expect(result).not.toBeNull();
         expect(result?.equals(fileBuffer)).toBe(true);
+      });
+
+      it("should return null when an ancestor of the path is a file", async () => {
+        const filePath = join(testDir, "plain.txt");
+        await writeFileContent(filePath, "content");
+
+        expect(await readFileBufferOrNull(join(filePath, "child.bin"))).toBeNull();
+      });
+
+      it("should throw the read error when the path is a directory", async () => {
+        await ensureDir(join(testDir, "a-directory"));
+
+        await expect(readFileBufferOrNull(join(testDir, "a-directory"))).rejects.toThrow(/EISDIR/);
+      });
+    });
+
+    describe("readFileContentOrNull", () => {
+      it("should return null when the file does not exist", async () => {
+        expect(await readFileContentOrNull(join(testDir, "missing", "file.md"))).toBeNull();
+      });
+
+      it("should return the content of an existing file", async () => {
+        const filePath = join(testDir, "existing.md");
+        await writeFileContent(filePath, "# Title\n");
+
+        expect(await readFileContentOrNull(filePath)).toBe("# Title\n");
+      });
+
+      it("should return null when an ancestor of the path is a file", async () => {
+        const filePath = join(testDir, "plain.md");
+        await writeFileContent(filePath, "content");
+
+        expect(await readFileContentOrNull(join(filePath, "child.md"))).toBeNull();
+      });
+
+      it("should throw the read error when the path is a directory", async () => {
+        await ensureDir(join(testDir, "another-directory"));
+
+        await expect(readFileContentOrNull(join(testDir, "another-directory"))).rejects.toThrow(
+          /EISDIR/,
+        );
       });
     });
 
@@ -1400,6 +1443,75 @@ describe("file utilities", () => {
         expect(
           await relativeWriteLanding({ rootPath: root, targetPath: join(root, "a", "file.md") }),
         ).toBeNull();
+      });
+    });
+
+    describe("withWriteLandingCache", () => {
+      it.skipIf(process.platform === "win32")(
+        "should follow a link planted where the scope only saw a missing entry",
+        async () => {
+          const root = join(testDir, "root");
+          const outside = join(testDir, "outside");
+          await ensureDir(root);
+          await ensureDir(outside);
+
+          await withWriteLandingCache(async () => {
+            const targetPath = join(root, "new", "file.md");
+            expect(await writablePathEscapesRoot({ rootPath: root, targetPath })).toBe(false);
+
+            await symlink(outside, join(root, "new"));
+
+            expect(await writablePathEscapesRoot({ rootPath: root, targetPath })).toBe(true);
+          });
+        },
+      );
+
+      it.skipIf(process.platform === "win32")(
+        "should follow a link on every walk, not only the first",
+        async () => {
+          const root = join(testDir, "root");
+          const outside = join(testDir, "outside");
+          await ensureDir(root);
+          await ensureDir(outside);
+          await symlink(outside, join(root, "link"));
+
+          await withWriteLandingCache(async () => {
+            const targetPath = join(root, "link", "file.md");
+            expect(await writablePathEscapesRoot({ rootPath: root, targetPath })).toBe(true);
+            expect(await writablePathEscapesRoot({ rootPath: root, targetPath })).toBe(true);
+          });
+        },
+      );
+
+      it.skipIf(process.platform === "win32")(
+        "should look every segment up again outside a scope",
+        async () => {
+          const root = join(testDir, "root");
+          const outside = join(testDir, "outside");
+          await ensureDir(join(root, "dir"));
+          await ensureDir(outside);
+          const targetPath = join(root, "dir", "file.md");
+          expect(await writablePathEscapesRoot({ rootPath: root, targetPath })).toBe(false);
+
+          await removeDirectory(join(root, "dir"));
+          await symlink(outside, join(root, "dir"));
+
+          expect(await writablePathEscapesRoot({ rootPath: root, targetPath })).toBe(true);
+        },
+      );
+
+      it("should give the same landing as an unscoped walk", async () => {
+        const root = join(testDir, "root");
+        await ensureDir(join(root, "skills", "foo"));
+        const targetPath = join(root, "skills", "foo", "SKILL.md");
+
+        const unscoped = await relativeWriteLanding({ rootPath: root, targetPath });
+        const scoped = await withWriteLandingCache(async () => [
+          await relativeWriteLanding({ rootPath: root, targetPath }),
+          await relativeWriteLanding({ rootPath: root, targetPath }),
+        ]);
+
+        expect(scoped).toEqual([unscoped, unscoped]);
       });
     });
 

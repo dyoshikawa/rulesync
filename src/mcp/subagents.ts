@@ -1,12 +1,9 @@
 import { dirname, join, relative, resolve } from "node:path";
 
-import { z } from "zod/mini";
-
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import {
   RulesyncSubagent,
   type RulesyncSubagentFrontmatter,
-  RulesyncSubagentFrontmatterSchema,
 } from "../features/subagents/rulesync-subagent.js";
 import { formatError } from "../utils/error.js";
 import {
@@ -19,12 +16,10 @@ import {
   writeFileContent,
 } from "../utils/file.js";
 import { ConsoleLogger } from "../utils/logger.js";
+import { assertEntryCountWithinLimit, assertEntrySizeWithinLimit } from "./entry-limits.js";
 import { assertNoSymlinkInFeaturePath, isFeatureSymlinkRefusal } from "./feature-symlinks.js";
 
 const logger = new ConsoleLogger({ verbose: false, silent: true });
-
-const maxSubagentSizeBytes = 1024 * 1024; // 1MB
-const maxSubagentsCount = 1000;
 
 function getSubagentRelativeFilePath(relativePathFromCwd: string): string {
   checkPathTraversal({
@@ -183,11 +178,7 @@ async function putSubagent({
 
   // Check file size constraint
   const estimatedSize = JSON.stringify(frontmatter).length + body.length;
-  if (estimatedSize > maxSubagentSizeBytes) {
-    throw new Error(
-      `Subagent size ${estimatedSize} bytes exceeds maximum ${maxSubagentSizeBytes} bytes (1MB) for ${relativePathFromCwd}`,
-    );
-  }
+  assertEntrySizeWithinLimit({ label: "Subagent", estimatedSize, path: relativePathFromCwd });
 
   try {
     // Check subagent count constraint
@@ -198,11 +189,12 @@ async function putSubagent({
         join(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, relativeFilePath),
     );
 
-    if (!isUpdate && existingSubagents.length >= maxSubagentsCount) {
-      throw new Error(
-        `Maximum number of subagents (${maxSubagentsCount}) reached in ${RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH}`,
-      );
-    }
+    assertEntryCountWithinLimit({
+      plural: "subagents",
+      dirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+      existingCount: existingSubagents.length,
+      isUpdate,
+    });
 
     // Create a new RulesyncSubagent instance
     const subagent = new RulesyncSubagent({
@@ -270,31 +262,10 @@ async function deleteSubagent({ relativePathFromCwd }: { relativePathFromCwd: st
 }
 
 /**
- * Schema for subagent-related tool parameters
- */
-const subagentToolSchemas = {
-  listSubagents: z.object({}),
-  getSubagent: z.object({
-    relativePathFromCwd: z.string(),
-  }),
-  putSubagent: z.object({
-    relativePathFromCwd: z.string(),
-    frontmatter: RulesyncSubagentFrontmatterSchema,
-    body: z.string(),
-  }),
-  deleteSubagent: z.object({
-    relativePathFromCwd: z.string(),
-  }),
-} as const;
-
-/**
  * Tool definitions for subagent-related operations
  */
 export const subagentTools = {
   listSubagents: {
-    name: "listSubagents",
-    description: `List all subagents from ${join(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "**/*.md")} with their frontmatter.`,
-    parameters: subagentToolSchemas.listSubagents,
     execute: async () => {
       const subagents = await listSubagents();
       const output = { subagents };
@@ -302,20 +273,12 @@ export const subagentTools = {
     },
   },
   getSubagent: {
-    name: "getSubagent",
-    description:
-      "Get detailed information about a specific subagent. relativePathFromCwd parameter is required.",
-    parameters: subagentToolSchemas.getSubagent,
     execute: async (args: { relativePathFromCwd: string }) => {
       const result = await getSubagent({ relativePathFromCwd: args.relativePathFromCwd });
       return JSON.stringify(result, null, 2);
     },
   },
   putSubagent: {
-    name: "putSubagent",
-    description:
-      "Create or update a subagent (upsert operation). relativePathFromCwd, frontmatter, and body parameters are required.",
-    parameters: subagentToolSchemas.putSubagent,
     execute: async (args: {
       relativePathFromCwd: string;
       frontmatter: RulesyncSubagentFrontmatter;
@@ -330,9 +293,6 @@ export const subagentTools = {
     },
   },
   deleteSubagent: {
-    name: "deleteSubagent",
-    description: "Delete a subagent file. relativePathFromCwd parameter is required.",
-    parameters: subagentToolSchemas.deleteSubagent,
     execute: async (args: { relativePathFromCwd: string }) => {
       const result = await deleteSubagent({ relativePathFromCwd: args.relativePathFromCwd });
       return JSON.stringify(result, null, 2);

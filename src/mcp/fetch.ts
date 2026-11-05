@@ -64,10 +64,6 @@ export async function executeFetch(options: FetchOptions): Promise<McpCommandRes
 
 export const fetchTools = {
   executeFetch: {
-    name: "executeFetch",
-    description:
-      "Execute the rulesync fetch command to download rulesync (or tool-specific, converted) files from a GitHub repository into the project. Uses GITHUB_TOKEN / GH_TOKEN from the environment for private repositories.",
-    parameters: fetchOptionsSchema,
     execute: async (options: FetchOptions): Promise<string> =>
       stringifyResult(await executeFetch(options)),
   },

@@ -2,10 +2,7 @@ import { z } from "zod/mini";
 
 import { CODEBUDDY_COMMANDS_DIR_PATH } from "../../constants/codebuddy-paths.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
-import {
-  FrontmatterMarkdownToolCommand,
-  type FrontmatterMarkdownToolCommandParams,
-} from "./frontmatter-markdown-command.js";
+import { FrontmatterMarkdownToolCommand } from "./frontmatter-markdown-command.js";
 import type { RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import type { ToolCommandSettablePaths } from "./tool-command.js";
 
@@ -27,9 +24,6 @@ const CodebuddyCommandFrontmatterSchema = z.looseObject({
 });
 
 export type CodebuddyCommandFrontmatter = z.infer<typeof CodebuddyCommandFrontmatterSchema>;
-
-export type CodebuddyCommandParams =
-  FrontmatterMarkdownToolCommandParams<CodebuddyCommandFrontmatter>;
 
 export class CodebuddyCommand extends FrontmatterMarkdownToolCommand<CodebuddyCommandFrontmatter> {
   static getSettablePaths(_options: { global?: boolean } = {}): ToolCommandSettablePaths {

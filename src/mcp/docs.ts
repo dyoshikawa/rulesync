@@ -41,10 +41,6 @@ export async function executeDocs(options: DocsOptions = {}): Promise<McpCommand
 
 export const docsTools = {
   executeDocs: {
-    name: "executeDocs",
-    description:
-      "Read the documentation bundled with rulesync: a document's Markdown by identifier (e.g. 'guide/configuration'), ranked search matches, or, with no options, the list of document identifiers.",
-    parameters: docsOptionsSchema,
     execute: async (options: DocsOptions = {}): Promise<string> =>
       stringifyResult(await executeDocs(options)),
   },

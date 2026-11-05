@@ -72,16 +72,6 @@ describe("CopilotcliPermissions", () => {
     });
   });
 
-  describe("isDeletable", () => {
-    it("is not deletable (shared settings file)", () => {
-      const permissions = CopilotcliPermissions.forDeletion({
-        relativeDirPath: PROJECT_DIR,
-        relativeFilePath: SETTINGS_FILE,
-      });
-      expect(permissions.isDeletable()).toBe(false);
-    });
-  });
-
   describe("fromRulesyncPermissions", () => {
     it("writes deniedUrls at project scope and omits ask patterns", async () => {
       const permissions = await CopilotcliPermissions.fromRulesyncPermissions({
@@ -520,6 +510,24 @@ describe("CopilotcliPermissions", () => {
       expect(() => permissions.toRulesyncPermissions()).toThrow(
         /Failed to parse Copilot CLI settings/,
       );
+    });
+  });
+
+  describe("names that match Object.prototype members on import", () => {
+    it("imports an allowed URL named like a prototype member as an allow rule", async () => {
+      await writeSettings({
+        testDir,
+        relativeDirPath: GLOBAL_DIR,
+        settings: { allowedUrls: ["toString"] },
+      });
+
+      const permissions = await CopilotcliPermissions.fromFile({
+        outputRoot: testDir,
+        global: true,
+      });
+      expect(permissions.toRulesyncPermissions().getJson().permission).toEqual({
+        webfetch: { toString: "allow" },
+      });
     });
   });
 });

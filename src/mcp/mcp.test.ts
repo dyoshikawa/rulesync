@@ -46,7 +46,7 @@ describe("MCP Tools", () => {
         JSON.stringify(mcpConfig, null, 2),
       );
 
-      const result = await mcpTools.getMcpFile.execute();
+      const result = await mcpTools.getFile.execute();
       const parsed = JSON.parse(result);
 
       expect(parsed.relativePathFromCwd).toBe(RULESYNC_MCP_RELATIVE_FILE_PATH);
@@ -59,7 +59,7 @@ describe("MCP Tools", () => {
       const rulesyncDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
       await ensureDir(rulesyncDir);
 
-      await expect(mcpTools.getMcpFile.execute()).rejects.toThrow();
+      await expect(mcpTools.getFile.execute()).rejects.toThrow();
     });
 
     it("should support legacy .mcp.json file", async () => {
@@ -79,7 +79,7 @@ describe("MCP Tools", () => {
 
       await writeFileContent(join(rulesyncDir, ".mcp.json"), JSON.stringify(mcpConfig, null, 2));
 
-      const result = await mcpTools.getMcpFile.execute();
+      const result = await mcpTools.getFile.execute();
       const parsed = JSON.parse(result);
 
       expect(parsed.relativePathFromCwd).toBe(".rulesync/.mcp.json");
@@ -121,7 +121,7 @@ describe("MCP Tools", () => {
         JSON.stringify(mcpConfig, null, 2),
       );
 
-      const result = await mcpTools.getMcpFile.execute();
+      const result = await mcpTools.getFile.execute();
       const parsed = JSON.parse(result);
 
       const contentParsed = JSON.parse(parsed.content);
@@ -154,7 +154,7 @@ describe("MCP Tools", () => {
         JSON.stringify(mcpConfig, null, 2),
       );
 
-      const result = await mcpTools.getMcpFile.execute();
+      const result = await mcpTools.getFile.execute();
       const parsed = JSON.parse(result);
 
       const contentParsed = JSON.parse(parsed.content);
@@ -179,7 +179,7 @@ describe("MCP Tools", () => {
         },
       };
 
-      const result = await mcpTools.putMcpFile.execute({
+      const result = await mcpTools.putFile.execute({
         content: JSON.stringify(mcpConfig, null, 2),
       });
       const parsed = JSON.parse(result);
@@ -188,7 +188,7 @@ describe("MCP Tools", () => {
       expect(parsed.content).toContain("serena");
 
       // Verify file was created
-      const getResult = await mcpTools.getMcpFile.execute();
+      const getResult = await mcpTools.getFile.execute();
       const getParsed = JSON.parse(getResult);
       const contentParsed = JSON.parse(getParsed.content);
       expect(contentParsed.mcpServers.serena).toBeDefined();
@@ -227,7 +227,7 @@ describe("MCP Tools", () => {
         },
       };
 
-      const result = await mcpTools.putMcpFile.execute({
+      const result = await mcpTools.putFile.execute({
         content: JSON.stringify(updatedConfig, null, 2),
       });
       const parsed = JSON.parse(result);
@@ -244,7 +244,7 @@ describe("MCP Tools", () => {
       await ensureDir(rulesyncDir);
 
       await expect(
-        mcpTools.putMcpFile.execute({
+        mcpTools.putFile.execute({
           content: "not valid json {{{",
         }),
       ).rejects.toThrow(/Invalid JSONC format/i);
@@ -266,7 +266,7 @@ describe("MCP Tools", () => {
       });
 
       await expect(
-        mcpTools.putMcpFile.execute({
+        mcpTools.putFile.execute({
           content: largeContent,
         }),
       ).rejects.toThrow(/exceeds maximum/i);
@@ -286,7 +286,7 @@ describe("MCP Tools", () => {
         },
       };
 
-      const result = await mcpTools.putMcpFile.execute({
+      const result = await mcpTools.putFile.execute({
         content: JSON.stringify(mcpConfig, null, 2),
       });
       const parsed = JSON.parse(result);
@@ -322,7 +322,7 @@ describe("MCP Tools", () => {
         },
       };
 
-      const result = await mcpTools.putMcpFile.execute({
+      const result = await mcpTools.putFile.execute({
         content: JSON.stringify(complexConfig, null, 2),
       });
       const parsed = JSON.parse(result);
@@ -349,7 +349,7 @@ describe("MCP Tools", () => {
         },
       };
 
-      const result = await mcpTools.putMcpFile.execute({
+      const result = await mcpTools.putFile.execute({
         content: JSON.stringify(configWithTargets, null, 2),
       });
       const parsed = JSON.parse(result);
@@ -366,7 +366,7 @@ describe("MCP Tools", () => {
         mcpServers: {},
       };
 
-      const result = await mcpTools.putMcpFile.execute({
+      const result = await mcpTools.putFile.execute({
         content: JSON.stringify(emptyConfig, null, 2),
       });
       const parsed = JSON.parse(result);
@@ -385,7 +385,7 @@ describe("MCP Tools", () => {
         '{ "mcpServers": { /* comment */ "serena": { "command": "uvx", } } }',
       );
 
-      const result = await mcpTools.getMcpFile.execute();
+      const result = await mcpTools.getFile.execute();
       const parsed = JSON.parse(result);
 
       expect(parsed.relativePathFromCwd).toBe(join(RULESYNC_RELATIVE_DIR_PATH, "mcp.jsonc"));
@@ -397,13 +397,13 @@ describe("MCP Tools", () => {
       await ensureDir(rulesyncDir);
       await writeFileContent(join(rulesyncDir, "mcp.jsonc"), '{ "mcpServers": {} }');
 
-      const result = await mcpTools.putMcpFile.execute({
+      const result = await mcpTools.putFile.execute({
         content:
           '{ // JSONC remains accepted\n "mcpServers": { "updated": { "command": "node", }, }, }',
       });
 
       expect(JSON.parse(result).relativePathFromCwd).toBe(RULESYNC_MCP_RELATIVE_FILE_PATH);
-      expect(await mcpTools.getMcpFile.execute()).toContain("updated");
+      expect(await mcpTools.getFile.execute()).toContain("updated");
     });
 
     it("should delete the mcp.jsonc variant too", async () => {
@@ -411,9 +411,9 @@ describe("MCP Tools", () => {
       await ensureDir(rulesyncDir);
       await writeFileContent(join(rulesyncDir, "mcp.jsonc"), '{ "mcpServers": {} }');
 
-      await mcpTools.deleteMcpFile.execute();
+      await mcpTools.deleteFile.execute();
 
-      await expect(mcpTools.getMcpFile.execute()).rejects.toThrow();
+      await expect(mcpTools.getFile.execute()).rejects.toThrow();
     });
   });
 
@@ -440,16 +440,16 @@ describe("MCP Tools", () => {
       );
 
       // Verify it exists
-      await expect(mcpTools.getMcpFile.execute()).resolves.toBeDefined();
+      await expect(mcpTools.getFile.execute()).resolves.toBeDefined();
 
       // Delete it
-      const result = await mcpTools.deleteMcpFile.execute();
+      const result = await mcpTools.deleteFile.execute();
       const parsed = JSON.parse(result);
 
       expect(parsed.relativePathFromCwd).toBe(RULESYNC_MCP_RELATIVE_FILE_PATH);
 
       // Verify it's deleted
-      await expect(mcpTools.getMcpFile.execute()).rejects.toThrow();
+      await expect(mcpTools.getFile.execute()).rejects.toThrow();
     });
 
     it("should succeed when deleting non-existent MCP file (idempotent)", async () => {
@@ -457,7 +457,7 @@ describe("MCP Tools", () => {
       await ensureDir(rulesyncDir);
 
       // Deleting a non-existent file should succeed (idempotent operation)
-      const result = await mcpTools.deleteMcpFile.execute();
+      const result = await mcpTools.deleteFile.execute();
       const parsed = JSON.parse(result);
 
       expect(parsed.relativePathFromCwd).toBe(RULESYNC_MCP_RELATIVE_FILE_PATH);
@@ -486,10 +486,10 @@ describe("MCP Tools", () => {
       await writeFileContent(join(rulesyncDir, ".mcp.json"), JSON.stringify(mcpConfig, null, 2));
 
       // Delete them
-      await mcpTools.deleteMcpFile.execute();
+      await mcpTools.deleteFile.execute();
 
       // Verify both are deleted
-      await expect(mcpTools.getMcpFile.execute()).rejects.toThrow();
+      await expect(mcpTools.getFile.execute()).rejects.toThrow();
     });
   });
 
@@ -510,12 +510,12 @@ describe("MCP Tools", () => {
         },
       };
 
-      await mcpTools.putMcpFile.execute({
+      await mcpTools.putFile.execute({
         content: JSON.stringify(createConfig, null, 2),
       });
 
       // Read
-      let result = await mcpTools.getMcpFile.execute();
+      let result = await mcpTools.getFile.execute();
       let parsed = JSON.parse(result);
       let contentParsed = JSON.parse(parsed.content);
       expect(contentParsed.mcpServers.serena).toBeDefined();
@@ -532,20 +532,20 @@ describe("MCP Tools", () => {
         },
       };
 
-      await mcpTools.putMcpFile.execute({
+      await mcpTools.putFile.execute({
         content: JSON.stringify(updateConfig, null, 2),
       });
 
-      result = await mcpTools.getMcpFile.execute();
+      result = await mcpTools.getFile.execute();
       parsed = JSON.parse(result);
       contentParsed = JSON.parse(parsed.content);
       expect(contentParsed.mcpServers.context7).toBeDefined();
       expect(contentParsed.mcpServers.serena).toBeUndefined();
 
       // Delete
-      await mcpTools.deleteMcpFile.execute();
+      await mcpTools.deleteFile.execute();
 
-      await expect(mcpTools.getMcpFile.execute()).rejects.toThrow();
+      await expect(mcpTools.getFile.execute()).rejects.toThrow();
     });
 
     it("should handle multiple servers and complex configurations", async () => {
@@ -580,12 +580,12 @@ describe("MCP Tools", () => {
         },
       };
 
-      await mcpTools.putMcpFile.execute({
+      await mcpTools.putFile.execute({
         content: JSON.stringify(complexConfig, null, 2),
       });
 
       // Read and verify
-      const result = await mcpTools.getMcpFile.execute();
+      const result = await mcpTools.getFile.execute();
       const parsed = JSON.parse(result);
       const contentParsed = JSON.parse(parsed.content);
 

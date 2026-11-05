@@ -2,10 +2,14 @@ import { z } from "zod/mini";
 
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { REPLIT_SKILLS_DIR_PATH } from "../../constants/replit-paths.js";
-import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
-import { resolveCompatibility, resolveLicense, resolveMetadata } from "./skills-utils.js";
+import {
+  pickStandardSkillFields,
+  resolveStandardSkillFields,
+  toAllowedToolsArray,
+  toAllowedToolsString,
+} from "./skills-utils.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -106,19 +110,11 @@ export class ReplitSkill extends ToolSkill {
     // `DeepagentsSkill`, so a generate → import round trip is stable.
     const allowedTools = frontmatter["allowed-tools"];
     const allowedToolsArray =
-      allowedTools === undefined
-        ? undefined
-        : Array.isArray(allowedTools)
-          ? allowedTools
-          : allowedTools.split(/\s+/).filter((tool) => tool.length > 0);
+      allowedTools === undefined ? undefined : toAllowedToolsArray(allowedTools);
     const replitBlock = {
       ...(allowedToolsArray !== undefined &&
         allowedToolsArray.length > 0 && { "allowed-tools": allowedToolsArray }),
-      ...(frontmatter.license !== undefined && { license: frontmatter.license }),
-      ...(frontmatter.compatibility !== undefined && {
-        compatibility: frontmatter.compatibility,
-      }),
-      ...(frontmatter.metadata !== undefined && { metadata: frontmatter.metadata }),
+      ...pickStandardSkillFields(frontmatter),
     };
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name: frontmatter.name,
@@ -127,16 +123,7 @@ export class ReplitSkill extends ToolSkill {
       ...(Object.keys(replitBlock).length > 0 && { replit: replitBlock }),
     };
 
-    return new RulesyncSkill({
-      outputRoot: this.outputRoot,
-      relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
-      dirName: this.getDirName(),
-      frontmatter: rulesyncFrontmatter,
-      body: this.getBody(),
-      otherFiles: this.getOtherFiles(),
-      validate: true,
-      global: this.global,
-    });
+    return this.toRulesyncSkillWith(rulesyncFrontmatter);
   }
 
   static fromRulesyncSkill({
@@ -152,31 +139,21 @@ export class ReplitSkill extends ToolSkill {
     // space-separated string, so a canonical rulesync array is joined rather
     // than emitted as a YAML sequence. Mirrors `DeepagentsSkill`.
     const { "allowed-tools": allowedTools, ...replitSection } = rulesyncFrontmatter.replit ?? {};
-    const allowedToolsString = Array.isArray(allowedTools) ? allowedTools.join(" ") : allowedTools;
+    const allowedToolsString =
+      allowedTools === undefined ? undefined : toAllowedToolsString(allowedTools);
     // The Agent Skills standard fields fall back to the root-level rulesync
     // value when the `replit` section omits them. Every resolver already prefers
     // a defined section value, so re-applying them after the spread never
     // discards one.
-    const license = resolveLicense({
-      rootFrontmatter: rulesyncFrontmatter,
-      section: replitSection,
-    });
-    const compatibility = resolveCompatibility({
-      rootFrontmatter: rulesyncFrontmatter,
-      section: replitSection,
-    });
-    const metadata = resolveMetadata({
-      rootFrontmatter: rulesyncFrontmatter,
-      section: replitSection,
-    });
     const replitFrontmatter: ReplitSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
       ...(allowedToolsString && { "allowed-tools": allowedToolsString }),
       ...replitSection,
-      ...(license !== undefined && { license }),
-      ...(compatibility !== undefined && { compatibility }),
-      ...(metadata !== undefined && { metadata }),
+      ...resolveStandardSkillFields({
+        rootFrontmatter: rulesyncFrontmatter,
+        section: replitSection,
+      }),
     };
 
     return new ReplitSkill({
@@ -191,49 +168,15 @@ export class ReplitSkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("replit");
-  }
+  protected static override readonly toolTarget = "replit";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<ReplitSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: ReplitSkill.getSettablePaths,
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({
-      schema: ReplitSkillFrontmatterSchema,
-      loaded,
-    });
-
-    return new ReplitSkill({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new ReplitSkill(
+      await this.loadStandardSkillParams({ params, schema: ReplitSkillFrontmatterSchema }),
+    );
   }
 
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-  }: ToolSkillForDeletionParams): ReplitSkill {
-    return new ReplitSkill({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      otherFiles: [],
-      validate: false,
-      global,
-    });
+  static forDeletion(params: ToolSkillForDeletionParams): ReplitSkill {
+    return new ReplitSkill(this.forDeletionParams(params));
   }
 }

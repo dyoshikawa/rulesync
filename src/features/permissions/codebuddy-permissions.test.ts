@@ -72,15 +72,6 @@ describe("CodebuddyPermissions", () => {
     expect(CodebuddyPermissions.getSettablePaths({ global: true })).toEqual(expected);
   });
 
-  it("is never deletable", () => {
-    const permissions = CodebuddyPermissions.forDeletion({
-      outputRoot: testDir,
-      relativeDirPath: SETTINGS_DIR,
-      relativeFilePath: SETTINGS_FILE,
-    });
-    expect(permissions.isDeletable()).toBe(false);
-  });
-
   describe("fromRulesyncPermissions", () => {
     it("maps categories to Claude-style CodeBuddy rules", async () => {
       const settings = await generate(testDir, {
@@ -416,6 +407,18 @@ describe("CodebuddyPermissions", () => {
       const settings = await generateWithOverride(codebuddy, { global: true });
 
       expect(importOverride(settings, { global: true })).toEqual(codebuddy);
+    });
+  });
+
+  describe("names that match Object.prototype members on import", () => {
+    it("imports a tool and a pattern named like a prototype member into their own buckets", () => {
+      const permission = importFrom(testDir, {
+        permissions: { allow: ["toString", "Bash(toString)"] },
+      });
+
+      expect(permission).toEqual({ toString: { "*": "allow" }, bash: { toString: "allow" } });
+      expect(Object.hasOwn(Object.prototype.toString, "*")).toBe(false);
+      expect(Object.hasOwn(Object.prototype.toString, "toString")).toBe(false);
     });
   });
 });

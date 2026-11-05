@@ -503,7 +503,7 @@ function envVarMcpFileSpellings({ fileName }: { fileName: string }): string[] {
   return [`$HOME/${tail}`, `\${HOME}/${tail}`];
 }
 
-export type ExistingPointerClassification =
+type ExistingPointerClassification =
   | { kind: "unset" }
   | { kind: "already-generated" }
   | { kind: "documented-default" }

@@ -2,12 +2,12 @@ import { join } from "node:path";
 
 import { CURSOR_DIR, CURSOR_MCP_FILE_NAME } from "../../constants/cursor-paths.js";
 import { isMcpServers } from "../../types/mcp.js";
-import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import {
   convertEnvVarRefsFromToolFormat,
   convertEnvVarRefsToToolFormat,
 } from "./mcp-env-var-format.js";
+import { parseMcpJsonOrThrow } from "./mcp-json-config.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -30,14 +30,11 @@ export class CursorMcp extends ToolMcp {
   constructor(params: ToolMcpParams) {
     super(params);
     if (this.fileContent !== undefined) {
-      try {
-        this.json = JSON.parse(this.fileContent);
-      } catch (error) {
-        throw new Error(
-          `Failed to parse Cursor MCP config at ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatError(error)}`,
-          { cause: error },
-        );
-      }
+      this.json = parseMcpJsonOrThrow({
+        fileContent: this.fileContent,
+        relativePath: join(this.relativeDirPath, this.relativeFilePath),
+        label: "Cursor",
+      });
     } else {
       this.json = {};
     }
@@ -66,15 +63,11 @@ export class CursorMcp extends ToolMcp {
     const paths = this.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const fileContent = (await readFileContentOrNull(filePath)) ?? '{"mcpServers":{}}';
-    let json: Record<string, unknown>;
-    try {
-      json = JSON.parse(fileContent);
-    } catch (error) {
-      throw new Error(
-        `Failed to parse Cursor MCP config at ${join(paths.relativeDirPath, paths.relativeFilePath)}: ${formatError(error)}`,
-        { cause: error },
-      );
-    }
+    const json = parseMcpJsonOrThrow({
+      fileContent,
+      relativePath: join(paths.relativeDirPath, paths.relativeFilePath),
+      label: "Cursor",
+    });
     const newJson = { ...json, mcpServers: json.mcpServers ?? {} };
 
     return new CursorMcp({
@@ -99,15 +92,11 @@ export class CursorMcp extends ToolMcp {
       (await readFileContentOrNull(
         join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
       )) ?? JSON.stringify({ mcpServers: {} }, null, 2);
-    let json: Record<string, unknown>;
-    try {
-      json = JSON.parse(fileContent);
-    } catch (error) {
-      throw new Error(
-        `Failed to parse Cursor MCP config at ${join(paths.relativeDirPath, paths.relativeFilePath)}: ${formatError(error)}`,
-        { cause: error },
-      );
-    }
+    const json = parseMcpJsonOrThrow({
+      fileContent,
+      relativePath: join(paths.relativeDirPath, paths.relativeFilePath),
+      label: "Cursor",
+    });
 
     // Use getMcpServers() (not getJson()) so rulesync-only fields and
     // codex-only fields (`envVars`) are stripped before writing the

@@ -13,13 +13,13 @@ import { shortenToWidth } from "../../utils/display-width.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { fallbackLogger, type Logger } from "../../utils/logger.js";
+import { lookupOwn } from "../../utils/own-lookup.js";
 import { toStringArray } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { honorAllToolsOnBash } from "./shell-command-categories.js";
+import { honorAllToolsOnBash, MCP_CATEGORY_PREFIX } from "./shell-command-categories.js";
 import {
   ToolPermissions,
-  type ToolPermissionsForDeletionParams,
   type ToolPermissionsFromFileParams,
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
@@ -160,9 +160,6 @@ const VIBE_FAN_OUT_PERMISSION_KEYS = [
 
 /** The only key `vibe.permission.<category>` can express. */
 const VIBE_OVERRIDE_SUPPORTED_KEY = "sensitive_patterns";
-
-/** Canonical per-tool MCP category prefix: `mcp__<server>__<tool>`. */
-const MCP_CANONICAL_PREFIX = "mcp__";
 
 /** Glob metacharacters that make an MCP category impossible to address as one table. */
 const MCP_WILDCARD_PATTERN = /[*?[\]]/;
@@ -549,22 +546,6 @@ export class VibePermissions extends ToolPermissions {
         error: new Error(`Failed to parse Vibe permissions TOML: ${formatError(error)}`),
       };
     }
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-    global = false,
-  }: ToolPermissionsForDeletionParams): VibePermissions {
-    return new VibePermissions({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: smolToml.stringify({}),
-      validate: false,
-      global,
-    });
   }
 }
 
@@ -1233,13 +1214,11 @@ function resolveVibeToolNames({
     return undefined;
   }
 
-  if (category.startsWith(MCP_CANONICAL_PREFIX)) {
+  if (category.startsWith(MCP_CATEGORY_PREFIX)) {
     return toVibeMcpToolName(category);
   }
 
-  const builtin = Object.hasOwn(CANONICAL_TO_VIBE_TOOL_NAMES, category)
-    ? CANONICAL_TO_VIBE_TOOL_NAMES[category]
-    : undefined;
+  const builtin = lookupOwn({ record: CANONICAL_TO_VIBE_TOOL_NAMES, key: category });
   if (builtin === undefined) {
     return CANONICAL_PERMISSION_CATEGORIES.has(category) ? undefined : [category];
   }
@@ -1278,7 +1257,7 @@ function resolveVibeToolNames({
  * @see https://github.com/mistralai/mistral-vibe/blob/main/vibe/core/mcp/tools.py
  */
 function toVibeMcpToolName(category: string): string[] | undefined {
-  const [server, ...toolParts] = category.slice(MCP_CANONICAL_PREFIX.length).split("__");
+  const [server, ...toolParts] = category.slice(MCP_CATEGORY_PREFIX.length).split("__");
   const tool = toolParts.join("__");
   if (!server || !tool) {
     return undefined;
@@ -1780,11 +1759,11 @@ function warnOnUnreachableToolName({
   warned.add(category);
   // Only the prefix decides whether translation kicks in — a server or tool name
   // may legitimately be capitalized, and those ARE translated.
-  const prefix = category.slice(0, MCP_CANONICAL_PREFIX.length);
-  if (prefix !== MCP_CANONICAL_PREFIX && prefix.toLowerCase() === MCP_CANONICAL_PREFIX) {
+  const prefix = category.slice(0, MCP_CATEGORY_PREFIX.length);
+  if (prefix !== MCP_CATEGORY_PREFIX && prefix.toLowerCase() === MCP_CATEGORY_PREFIX) {
     logger?.warn(
       `The '${category}' category looks like an MCP category, but the canonical prefix is ` +
-        `lowercase '${MCP_CANONICAL_PREFIX}'; it is written verbatim to [tools.${category}] ` +
+        `lowercase '${MCP_CATEGORY_PREFIX}'; it is written verbatim to [tools.${category}] ` +
         `instead of being translated to Vibe's MCP tool name.`,
     );
   }
@@ -1814,9 +1793,7 @@ function warnOnUnreachableToolName({
 }
 
 function toCanonicalToolName(vibeToolName: string): string {
-  return Object.hasOwn(VIBE_TO_CANONICAL_TOOL_NAMES, vibeToolName)
-    ? (VIBE_TO_CANONICAL_TOOL_NAMES[vibeToolName] ?? vibeToolName)
-    : vibeToolName;
+  return lookupOwn({ record: VIBE_TO_CANONICAL_TOOL_NAMES, key: vibeToolName }) ?? vibeToolName;
 }
 
 /**

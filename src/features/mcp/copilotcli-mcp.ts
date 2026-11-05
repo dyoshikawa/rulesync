@@ -18,7 +18,7 @@ import type { Logger } from "../../utils/logger.js";
 import { isPlainObject, isStringArray } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
-  parseSharedConfig,
+  parseSharedConfigFile,
   sharedConfigFileKey,
 } from "../shared/shared-config-gateway.js";
 import {
@@ -302,11 +302,10 @@ async function readCopilotCliSettings({
       join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
     )) ?? "";
   try {
-    const document = parseSharedConfig({
-      format: "json",
+    const document = parseSharedConfigFile({
+      fileKey: sharedConfigFileKey(paths),
       fileContent: existingContent,
       filePath: join(paths.relativeDirPath, paths.relativeFilePath),
-      invalidRootPolicy: "error",
     });
     return { paths, existingContent, document };
   } catch (error) {

@@ -1,6 +1,6 @@
 import { COMMANDCODE_DIR, COMMANDCODE_RULE_FILE_NAME } from "../../constants/commandcode-paths.js";
 import { SingleRootFileRule } from "./single-root-file-rule.js";
-import { ToolRuleSettablePaths } from "./tool-rule.js";
+import { ToolRuleRootOnlySettablePaths } from "./tool-rule.js";
 
 /**
  * Rule generator for Command Code, the open-source terminal coding agent.
@@ -15,21 +15,12 @@ import { ToolRuleSettablePaths } from "./tool-rule.js";
  *
  * @see https://commandcode.ai/docs/memory
  */
-export type CommandcodeRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
-  root: {
-    relativeDirPath: string;
-    relativeFilePath: string;
-  };
-  nonRoot?: undefined;
-};
-
 export class CommandcodeRule extends SingleRootFileRule {
   static getSettablePaths({
     global = false,
   }: {
     global?: boolean;
-    excludeToolDir?: boolean;
-  } = {}): CommandcodeRuleSettablePaths {
+  } = {}): ToolRuleRootOnlySettablePaths {
     return {
       root: {
         // The workspace file sits at the project root; the user file sits

@@ -3,7 +3,6 @@ import { join } from "node:path";
 import { z } from "zod/mini";
 
 import { KIRO_IDE_HOOKS_DIR_PATH, KIRO_IDE_HOOKS_FILE_NAME } from "../../constants/kiro-paths.js";
-import type { AiFileParams } from "../../types/ai-file.js";
 import type { HookConfirm, HookDefinition, HooksConfig } from "../../types/hooks.js";
 import {
   CANONICAL_TO_KIRO_IDE_EVENT_NAMES,
@@ -13,7 +12,6 @@ import {
   KIRO_LEGACY_TO_KIRO_IDE_TRIGGER_NAMES,
   safeString,
 } from "../../types/hooks.js";
-import { readFileContentOrNull } from "../../utils/file.js";
 import { lookupOwn } from "../../utils/own-lookup.js";
 import {
   isPrototypePollutionKey,
@@ -23,8 +21,6 @@ import type { RulesyncHooks } from "./rulesync-hooks.js";
 import { buildImportedHooksConfig } from "./tool-hooks-converter.js";
 import {
   ToolHooks,
-  type ToolHooksForDeletionParams,
-  type ToolHooksFromFileParams,
   type ToolHooksFromRulesyncHooksParams,
   type ToolHooksSettablePaths,
 } from "./tool-hooks.js";
@@ -246,13 +242,6 @@ function kiroIdeHooksToCanonical(entries: KiroIdeHookEntry[]): HooksConfig["hook
  * @see https://kiro.dev/docs/hooks/
  */
 export class KiroIdeHooks extends ToolHooks {
-  constructor(params: AiFileParams) {
-    super({
-      ...params,
-      fileContent: params.fileContent ?? JSON.stringify({ version: "v1", hooks: [] }, null, 2),
-    });
-  }
-
   static getSettablePaths(_options: { global?: boolean } = {}): ToolHooksSettablePaths {
     return {
       relativeDirPath: KIRO_IDE_HOOKS_DIR_PATH,
@@ -260,23 +249,12 @@ export class KiroIdeHooks extends ToolHooks {
     };
   }
 
-  static async fromFile({
-    outputRoot = process.cwd(),
-    validate = true,
-    global = false,
-  }: ToolHooksFromFileParams): Promise<KiroIdeHooks> {
-    const paths = this.getSettablePaths({ global });
-    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    const fileContent =
-      (await readFileContentOrNull(filePath)) ??
-      JSON.stringify({ version: "v1", hooks: [] }, null, 2);
-    return new this({
-      outputRoot,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: paths.relativeFilePath,
-      fileContent,
-      validate,
-    });
+  protected static override getMissingFileContent(): string {
+    return JSON.stringify({ version: "v1", hooks: [] }, null, 2);
+  }
+
+  protected static override getDeletionFileContent(): string {
+    return JSON.stringify({ version: "v1", hooks: [] }, null, 2);
   }
 
   static async fromRulesyncHooks({
@@ -321,20 +299,6 @@ export class KiroIdeHooks extends ToolHooks {
         null,
         2,
       ),
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolHooksForDeletionParams): KiroIdeHooks {
-    return new this({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: JSON.stringify({ version: "v1", hooks: [] }, null, 2),
-      validate: false,
     });
   }
 }

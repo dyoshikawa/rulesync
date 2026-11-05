@@ -48,7 +48,6 @@ export class GrokcliRule extends ToolRule {
     global = false,
   }: {
     global?: boolean;
-    excludeToolDir?: boolean;
   } = {}): GrokcliRuleSettablePaths {
     // Project instructions live in the repository-root `AGENTS.md`; user-level
     // instructions live in `~/.grok/AGENTS.md` (the home directory is resolved

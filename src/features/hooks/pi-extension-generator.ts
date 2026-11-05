@@ -1,5 +1,6 @@
-import { CONTROL_CHARS, HooksConfig } from "../../types/hooks.js";
+import { HooksConfig } from "../../types/hooks.js";
 import { buildBlockReasonSanitizerLines } from "./hook-block-reason.js";
+import { sanitizeMatcherRegex } from "./hook-matcher-regex.js";
 
 /**
  * Pi extension events fired per tool invocation; handlers for these receive
@@ -98,7 +99,7 @@ const OMP_SESSION_STOP_BLOCKING_EVENT = "session_stop";
  *
  * @see https://github.com/can1357/oh-my-pi/blob/40e9368ef0458fd9073329cdff4174895f91bc6b/packages/coding-agent/src/extensibility/extensions/types.ts
  */
-export type PiExtensionDialect = {
+type PiExtensionDialect = {
   /** Tool-scoped override block in `hooks.json` merged over the shared hooks. */
   overrideKey: "pi" | "omp";
   /** Package the generated module imports `ExtensionAPI` and friends from. */
@@ -258,19 +259,7 @@ const STOP_HOOK_HELPER_LINES = [
  * string-literal (JSON.stringify quoting) safe to embed in generated code.
  */
 function matcherToEmbeddedLiteral(matcher: string): string {
-  let sanitized = matcher;
-  for (const char of CONTROL_CHARS) {
-    sanitized = sanitized.replaceAll(char, "");
-  }
-  if (sanitized === "*") {
-    sanitized = ".*";
-  }
-  try {
-    new RegExp(sanitized);
-  } catch {
-    throw new Error(`Invalid regex pattern in hook matcher: ${sanitized}`);
-  }
-  return JSON.stringify(sanitized);
+  return JSON.stringify(sanitizeMatcherRegex(matcher));
 }
 
 type Handler = { command: string; matcher?: string; onlyOnError: boolean };

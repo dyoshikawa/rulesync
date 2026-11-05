@@ -63,14 +63,14 @@ export async function readOpencodeConfig({
 }
 
 /** One parsed OpenCode config file and the directory its relative paths resolve against. */
-export type OpencodeConfigLayer = {
+type OpencodeConfigLayer = {
   /** Absolute directory holding the file. */
   configDir: string;
   config: Record<string, unknown>;
 };
 
 /** A `.opencode/` config file, with its path relative to `outputRoot` for messages. */
-export type OpencodeDotDirConfigLayer = OpencodeConfigLayer & { relativeFilePath: string };
+type OpencodeDotDirConfigLayer = OpencodeConfigLayer & { relativeFilePath: string };
 
 /**
  * Reads the project-scope config files OpenCode merges over the root
@@ -507,7 +507,7 @@ type OpencodeV2DropReason = "unsupported" | "conflict";
  * that the lowering drops, so the caller can say so instead of the value
  * vanishing without a word.
  */
-export type OpencodeV2DropReporter = (path: string, reason: OpencodeV2DropReason) => void;
+type OpencodeV2DropReporter = (path: string, reason: OpencodeV2DropReason) => void;
 
 function lowerOpencodeV2OAuth(
   oauth: Record<string, unknown>,

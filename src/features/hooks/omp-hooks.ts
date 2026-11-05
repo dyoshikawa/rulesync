@@ -5,7 +5,6 @@ import {
   OMP_GLOBAL_EXTENSIONS_DIR_PATH,
   OMP_HOOKS_FILE_NAME,
 } from "../../constants/omp-paths.js";
-import type { AiFileParams } from "../../types/ai-file.js";
 import { CANONICAL_TO_OMP_EVENT_NAMES, OMP_HOOK_EVENTS } from "../../types/hooks.js";
 import { readFileContent } from "../../utils/file.js";
 import { generatePiExtensionCode, OMP_EXTENSION_DIALECT } from "./pi-extension-generator.js";
@@ -29,13 +28,6 @@ import {
  * @see https://github.com/can1357/oh-my-pi/blob/40e9368ef0458fd9073329cdff4174895f91bc6b/docs/extension-loading.md
  */
 export class OmpHooks extends ToolHooks {
-  constructor(params: AiFileParams) {
-    super({
-      ...params,
-      fileContent: params.fileContent ?? "",
-    });
-  }
-
   static getSettablePaths(options?: { global?: boolean }): ToolHooksSettablePaths {
     return {
       relativeDirPath: options?.global ? OMP_GLOBAL_EXTENSIONS_DIR_PATH : OMP_EXTENSIONS_DIR_PATH,

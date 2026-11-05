@@ -1,4 +1,4 @@
-import { CONTROL_CHARS, type HooksConfig } from "../../types/hooks.js";
+import { stripControlChars, type HooksConfig } from "../../types/hooks.js";
 
 /**
  * Marker line every generated hook script carries. Cline resolves hooks by
@@ -10,14 +10,6 @@ export const CLINE_HOOK_SCRIPT_MARKER = "rulesync-owned: cline-hooks";
 
 /** Exit code a hook command uses to cancel the task (Claude Code convention). */
 const CANCEL_EXIT_CODE = 2;
-
-function sanitizeCommand(command: string): string {
-  let sanitized = command;
-  for (const char of CONTROL_CHARS) {
-    sanitized = sanitized.replaceAll(char, "");
-  }
-  return sanitized;
-}
 
 /** Single-quote a string for POSIX shells. */
 function shellQuote(value: string): string {
@@ -43,7 +35,7 @@ export function collectClineHookCommands({
 
     const commands = definitions
       .filter((definition) => (definition.type ?? "command") === "command" && definition.command)
-      .map((definition) => sanitizeCommand(definition.command as string))
+      .map((definition) => stripControlChars(definition.command as string))
       .filter((command) => command.trim() !== "");
     if (commands.length === 0) continue;
 

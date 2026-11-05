@@ -35,7 +35,6 @@ import type { RulesyncHooks } from "./rulesync-hooks.js";
 import { buildImportedHooksConfig } from "./tool-hooks-converter.js";
 import {
   ToolHooks,
-  type ToolHooksForDeletionParams,
   type ToolHooksFromFileParams,
   type ToolHooksFromRulesyncHooksParams,
   type ToolHooksSettablePaths,
@@ -535,10 +534,7 @@ export class CopilotcliHooks extends ToolHooks {
   private readonly disableAllHooks: boolean | undefined;
 
   constructor({ settingsFile, disableAllHooks, ...params }: CopilotcliHooksParams) {
-    super({
-      ...params,
-      fileContent: params.fileContent ?? "{}",
-    });
+    super(params);
     this.settingsFile = settingsFile;
     this.disableAllHooks = disableAllHooks;
   }
@@ -645,20 +641,6 @@ export class CopilotcliHooks extends ToolHooks {
         null,
         2,
       ),
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolHooksForDeletionParams): CopilotcliHooks {
-    return new CopilotcliHooks({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: JSON.stringify({ hooks: {} }, null, 2),
-      validate: false,
     });
   }
 }

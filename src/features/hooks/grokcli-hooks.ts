@@ -1,13 +1,9 @@
-import { join } from "node:path";
-
 import { GROKCLI_HOOKS_DIR_PATH, GROKCLI_HOOKS_FILE_NAME } from "../../constants/grokcli-paths.js";
-import type { AiFileParams } from "../../types/ai-file.js";
 import {
   CANONICAL_TO_GROKCLI_EVENT_NAMES,
   GROKCLI_HOOK_EVENTS,
   GROKCLI_TO_CANONICAL_EVENT_NAMES,
 } from "../../types/hooks.js";
-import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { isRecord } from "../../utils/type-guards.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
@@ -19,8 +15,6 @@ import {
 } from "./tool-hooks-converter.js";
 import {
   ToolHooks,
-  type ToolHooksForDeletionParams,
-  type ToolHooksFromFileParams,
   type ToolHooksFromRulesyncHooksParams,
   type ToolHooksSettablePaths,
 } from "./tool-hooks.js";
@@ -114,13 +108,6 @@ export const GROKCLI_CONVERTER_CONFIG: ToolHooksConverterConfig = {
  * @see https://docs.x.ai/build/features/hooks
  */
 export class GrokcliHooks extends ToolHooks {
-  constructor(params: AiFileParams) {
-    super({
-      ...params,
-      fileContent: params.fileContent ?? "{}",
-    });
-  }
-
   static getSettablePaths(_options: { global?: boolean } = {}): ToolHooksSettablePaths {
     // Grok resolves project vs global scope by the directory it runs in, so both
     // scopes share the same relative layout (`.grok/hooks/rulesync.json`).
@@ -128,23 +115,6 @@ export class GrokcliHooks extends ToolHooks {
       relativeDirPath: GROKCLI_HOOKS_DIR_PATH,
       relativeFilePath: GROKCLI_HOOKS_FILE_NAME,
     };
-  }
-
-  static async fromFile({
-    outputRoot = process.cwd(),
-    validate = true,
-    global = false,
-  }: ToolHooksFromFileParams): Promise<GrokcliHooks> {
-    const paths = GrokcliHooks.getSettablePaths({ global });
-    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    const fileContent = (await readFileContentOrNull(filePath)) ?? '{"hooks":{}}';
-    return new GrokcliHooks({
-      outputRoot,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: paths.relativeFilePath,
-      fileContent,
-      validate,
-    });
   }
 
   static async fromRulesyncHooks({
@@ -194,20 +164,6 @@ export class GrokcliHooks extends ToolHooks {
         null,
         2,
       ),
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolHooksForDeletionParams): GrokcliHooks {
-    return new GrokcliHooks({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: JSON.stringify({ hooks: {} }, null, 2),
-      validate: false,
     });
   }
 }

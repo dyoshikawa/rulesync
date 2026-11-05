@@ -115,6 +115,10 @@ export const RULESYNC_PERMISSIONS_SCHEMA_URL =
 
 // Size limits
 export const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+export const MAX_FILE_SIZE_MB = MAX_FILE_SIZE / 1024 / 1024;
+
+/** Formats a byte count as megabytes with two decimals, for size-limit messages. */
+export const formatMegabytes = (bytes: number): string => (bytes / 1024 / 1024).toFixed(2);
 
 // Concurrency limits
 export const FETCH_CONCURRENCY_LIMIT = 10;

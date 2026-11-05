@@ -10,15 +10,16 @@ import type { AiFileParams } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { fallbackLogger } from "../../utils/logger.js";
+import { lookupOwn } from "../../utils/own-lookup.js";
 import {
   convertAntigravityToRulesyncPermissions,
   convertRulesyncToAntigravityPermissions,
 } from "./antigravity-targets.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+import { MCP_CATEGORY_PREFIX } from "./shell-command-categories.js";
 import { parseToolPatternEntry } from "./tool-pattern-entry.js";
 import {
   ToolPermissions,
-  type ToolPermissionsForDeletionParams,
   type ToolPermissionsFromFileParams,
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
@@ -75,14 +76,14 @@ function toIdeAction(canonical: string): string {
   // Every `mcp__...` category is written as an `mcp(...)` entry, so it
   // manages all of them, as the bare `mcp` category does: a hand-written
   // `mcp(...)` entry is replaced once any MCP category is configured.
-  if (canonical.startsWith("mcp__")) {
+  if (canonical.startsWith(MCP_CATEGORY_PREFIX)) {
     return "mcp";
   }
-  return CANONICAL_TO_IDE_ACTION[canonical] ?? canonical;
+  return lookupOwn({ record: CANONICAL_TO_IDE_ACTION, key: canonical }) ?? canonical;
 }
 
 function toCanonicalCategory(ideAction: string): string {
-  return IDE_ACTION_TO_CANONICAL[ideAction] ?? ideAction;
+  return lookupOwn({ record: IDE_ACTION_TO_CANONICAL, key: ideAction }) ?? ideAction;
 }
 
 /**
@@ -212,20 +213,6 @@ export class AntigravityIdePermissions extends ToolPermissions {
 
     return this.toRulesyncPermissionsDefault({
       fileContent: JSON.stringify(config, null, 2),
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolPermissionsForDeletionParams): AntigravityIdePermissions {
-    return new AntigravityIdePermissions({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: JSON.stringify({ permissions: {} }, null, 2),
-      validate: false,
     });
   }
 }

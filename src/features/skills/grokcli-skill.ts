@@ -2,14 +2,11 @@ import { z } from "zod/mini";
 
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { GROKCLI_SKILLS_DIR_PATH } from "../../constants/grokcli-paths.js";
-import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import {
-  resolveCompatibility,
   resolveDisableModelInvocation,
-  resolveLicense,
-  resolveMetadata,
+  resolveStandardSkillFields,
   resolveUserInvocable,
 } from "./skills-utils.js";
 import {
@@ -149,16 +146,7 @@ export class GrokcliSkill extends ToolSkill {
       targets: ["*"],
     };
 
-    return new RulesyncSkill({
-      outputRoot: this.outputRoot,
-      relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
-      dirName: this.getDirName(),
-      frontmatter: rulesyncFrontmatter,
-      body: this.getBody(),
-      otherFiles: this.getOtherFiles(),
-      validate: true,
-      global: this.global,
-    });
+    return this.toRulesyncSkillWith(rulesyncFrontmatter);
   }
 
   static fromRulesyncSkill({
@@ -181,18 +169,6 @@ export class GrokcliSkill extends ToolSkill {
     // to the root-level rulesync value when the section omits them. Every
     // resolver prefers a defined section value, so re-applying the resolved
     // values over the spread never discards one.
-    const license = resolveLicense({
-      rootFrontmatter: rulesyncFrontmatter,
-      section: grokcliSection,
-    });
-    const compatibility = resolveCompatibility({
-      rootFrontmatter: rulesyncFrontmatter,
-      section: grokcliSection,
-    });
-    const metadata = resolveMetadata({
-      rootFrontmatter: rulesyncFrontmatter,
-      section: grokcliSection,
-    });
     const resolvedUserInvocable = resolveUserInvocable({
       rootFrontmatter: rulesyncFrontmatter,
       section: grokcliSection,
@@ -206,9 +182,10 @@ export class GrokcliSkill extends ToolSkill {
       ...grokcliSection,
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
-      ...(license !== undefined && { license }),
-      ...(compatibility !== undefined && { compatibility }),
-      ...(metadata !== undefined && { metadata }),
+      ...resolveStandardSkillFields({
+        rootFrontmatter: rulesyncFrontmatter,
+        section: grokcliSection,
+      }),
       ...(resolvedUserInvocable !== undefined && { "user-invocable": resolvedUserInvocable }),
       ...(resolvedDisableModelInvocation !== undefined && {
         "disable-model-invocation": resolvedDisableModelInvocation,
@@ -227,49 +204,15 @@ export class GrokcliSkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("grokcli");
-  }
+  protected static override readonly toolTarget = "grokcli";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<GrokcliSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: GrokcliSkill.getSettablePaths,
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({
-      schema: GrokcliSkillFrontmatterSchema,
-      loaded,
-    });
-
-    return new GrokcliSkill({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new GrokcliSkill(
+      await this.loadStandardSkillParams({ params, schema: GrokcliSkillFrontmatterSchema }),
+    );
   }
 
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-  }: ToolSkillForDeletionParams): GrokcliSkill {
-    return new GrokcliSkill({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      otherFiles: [],
-      validate: false,
-      global,
-    });
+  static forDeletion(params: ToolSkillForDeletionParams): GrokcliSkill {
+    return new GrokcliSkill(this.forDeletionParams(params));
   }
 }

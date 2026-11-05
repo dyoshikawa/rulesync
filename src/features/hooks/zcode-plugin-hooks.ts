@@ -5,7 +5,6 @@ import {
   ZCODE_PLUGIN_HOOKS_FILE_NAME,
 } from "../../constants/plugin-paths.js";
 import { formatError } from "../../utils/error.js";
-import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { isRecord } from "../../utils/type-guards.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
@@ -17,8 +16,6 @@ import {
 } from "./tool-hooks-converter.js";
 import {
   ToolHooks,
-  type ToolHooksForDeletionParams,
-  type ToolHooksFromFileParams,
   type ToolHooksFromRulesyncHooksParams,
   type ToolHooksSettablePaths,
 } from "./tool-hooks.js";
@@ -73,22 +70,6 @@ export class ZcodePluginHooks extends ToolHooks {
     };
   }
 
-  static async fromFile({
-    outputRoot = process.cwd(),
-    validate = true,
-  }: ToolHooksFromFileParams): Promise<ZcodePluginHooks> {
-    const paths = this.getSettablePaths();
-    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    const fileContent = (await readFileContentOrNull(filePath)) ?? '{"hooks":{}}';
-    return new ZcodePluginHooks({
-      outputRoot,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: paths.relativeFilePath,
-      fileContent,
-      validate,
-    });
-  }
-
   static async fromRulesyncHooks({
     outputRoot = process.cwd(),
     rulesyncHooks,
@@ -131,20 +112,6 @@ export class ZcodePluginHooks extends ToolHooks {
         null,
         2,
       ),
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolHooksForDeletionParams): ZcodePluginHooks {
-    return new ZcodePluginHooks({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: JSON.stringify({ hooks: {} }, null, 2),
-      validate: false,
     });
   }
 }

@@ -19,7 +19,6 @@ import {
   ToolRuleParams,
   ToolRuleSettablePaths,
   ToolRuleSettablePathsGlobal,
-  buildToolPath,
 } from "./tool-rule.js";
 
 /**
@@ -219,17 +218,15 @@ export class ClineRule extends ToolRule {
 
   static getSettablePaths({
     global = false,
-    excludeToolDir,
   }: {
     global?: boolean;
-    excludeToolDir?: boolean;
   } = {}): ClineRuleSettablePaths | ClineRuleSettablePathsGlobal {
     if (global) {
       // Cline reads global agent rules from the cross-tool `~/.agents/AGENTS.md`
       // location (the agents.md standard), not a `.cline`-prefixed tool dir.
       return {
         root: {
-          relativeDirPath: buildToolPath(AGENTSMD_DIR, ".", excludeToolDir),
+          relativeDirPath: join(AGENTSMD_DIR, "."),
           relativeFilePath: AGENTSMD_RULE_FILE_NAME,
         },
         // Global modular rules: `~/Documents/Cline/Rules/*.md` is read by the
@@ -242,7 +239,6 @@ export class ClineRule extends ToolRule {
     }
     return {
       nonRoot: {
-        // .clinerules is a flat directory, so excludeToolDir has no effect
         relativeDirPath: CLINERULES_DIR,
       },
     };

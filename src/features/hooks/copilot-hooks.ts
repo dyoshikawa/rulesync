@@ -8,7 +8,6 @@ import {
   COPILOT_HOOKS_DIR_PATH,
   COPILOT_HOOKS_FILE_NAME,
 } from "../../constants/copilot-paths.js";
-import type { AiFileParams } from "../../types/ai-file.js";
 import type { HooksConfig } from "../../types/hooks.js";
 import {
   COPILOT_TO_CANONICAL_EVENT_NAMES,
@@ -24,7 +23,6 @@ import type { RulesyncHooks } from "./rulesync-hooks.js";
 import { buildImportedHooksConfig } from "./tool-hooks-converter.js";
 import {
   ToolHooks,
-  type ToolHooksForDeletionParams,
   type ToolHooksFromFileParams,
   type ToolHooksFromRulesyncHooksParams,
   type ToolHooksSettablePaths,
@@ -253,13 +251,6 @@ function copilotHooksToCanonical(copilotHooks: unknown, logger?: Logger): HooksC
 }
 
 export class CopilotHooks extends ToolHooks {
-  constructor(params: AiFileParams) {
-    super({
-      ...params,
-      fileContent: params.fileContent ?? "{}",
-    });
-  }
-
   static getSettablePaths({ global = false }: { global?: boolean } = {}): ToolHooksSettablePaths {
     if (global) {
       return {
@@ -325,20 +316,6 @@ export class CopilotHooks extends ToolHooks {
         null,
         2,
       ),
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolHooksForDeletionParams): CopilotHooks {
-    return new CopilotHooks({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: JSON.stringify({ hooks: {} }, null, 2),
-      validate: false,
     });
   }
 }

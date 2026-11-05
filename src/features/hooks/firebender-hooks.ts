@@ -13,7 +13,6 @@ import {
   type ToolHooksForDeletionParams,
   type ToolHooksFromFileParams,
   type ToolHooksFromRulesyncHooksParams,
-  type ToolHooksParams,
   type ToolHooksSettablePaths,
 } from "./tool-hooks.js";
 
@@ -31,13 +30,6 @@ import {
  * @see https://docs.firebender.com/multi-agent/hooks
  */
 export class FirebenderHooks extends ToolHooks {
-  constructor(params: ToolHooksParams) {
-    super({
-      ...params,
-      fileContent: params.fileContent ?? "{}",
-    });
-  }
-
   static getSettablePaths(_options: { global?: boolean } = {}): ToolHooksSettablePaths {
     // The same `.firebender/hooks.json` in both scopes; the home-directory
     // root is applied by the processor in global mode.

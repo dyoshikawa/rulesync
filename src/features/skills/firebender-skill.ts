@@ -1,6 +1,5 @@
 import { FIREBENDER_SKILLS_DIR_PATH } from "../../constants/firebender-paths.js";
 import { AgentsSkillsSkill } from "./agentsskills-skill.js";
-import { RulesyncSkill } from "./rulesync-skill.js";
 import { ToolSkillSettablePaths } from "./tool-skill.js";
 
 /**
@@ -19,8 +18,5 @@ export class FirebenderSkill extends AgentsSkillsSkill {
     return { relativeDirPath: FIREBENDER_SKILLS_DIR_PATH };
   }
 
-  static override isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("firebender");
-  }
+  protected static override readonly toolTarget = "firebender";
 }

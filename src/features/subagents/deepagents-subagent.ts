@@ -21,6 +21,7 @@ import {
 } from "../../utils/frontmatter.js";
 import { RulesyncSubagent, RulesyncSubagentFrontmatter } from "./rulesync-subagent.js";
 import {
+  parseGeneratedSubagentFrontmatter,
   ToolSubagent,
   ToolSubagentForDeletionParams,
   ToolSubagentFromFileParams,
@@ -158,14 +159,13 @@ export class DeepagentsSubagent extends ToolSubagent {
       ...deepagentsSection,
     };
 
-    const result = DeepagentsSubagentFrontmatterSchema.safeParse(rawFrontmatter);
-    if (!result.success) {
-      throw new Error(
-        `Invalid deepagents subagent frontmatter in ${rulesyncSubagent.getRelativeFilePath()}: ${formatError(result.error)}`,
-      );
-    }
+    const deepagentsFrontmatter = parseGeneratedSubagentFrontmatter({
+      schema: DeepagentsSubagentFrontmatterSchema,
+      frontmatter: rawFrontmatter,
+      toolTarget: "deepagents",
+      rulesyncSubagent,
+    });
 
-    const deepagentsFrontmatter = result.data;
     const body = rulesyncSubagent.getBody();
     const fileContent = stringifyFrontmatter(body, deepagentsFrontmatter);
 

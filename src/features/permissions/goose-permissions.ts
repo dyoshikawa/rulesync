@@ -8,14 +8,15 @@ import type { PermissionAction, PermissionsConfig } from "../../types/permission
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
-import { isRecord, isStringArray } from "../../utils/type-guards.js";
+import { getOrCreateOwn, lookupOwn } from "../../utils/own-lookup.js";
+import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
+import { isRecord, isStringArray, toRecord } from "../../utils/type-guards.js";
 import { loadYaml } from "../../utils/yaml.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { honorAllToolsOnBash } from "./shell-command-categories.js";
+import { CATCH_ALL_PATTERN, honorAllToolsOnBash } from "./shell-command-categories.js";
 import { PERMISSION_ACTION_PRIORITY, failSafeCatchAllAction } from "./single-action-collapse.js";
 import {
   ToolPermissions,
-  type ToolPermissionsForDeletionParams,
   type ToolPermissionsFromFileParams,
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
@@ -29,11 +30,6 @@ const GOOSE_GLOBAL_ONLY_MESSAGE =
 // decisions and are preserved verbatim.
 // https://github.com/aaif-goose/goose/blob/main/crates/goose/src/config/permission.rs
 const GOOSE_USER_KEY = "user";
-
-// The catch-all rulesync pattern. Goose permission lists hold whole tool names
-// (not per-command/per-path globs), so only a category's catch-all maps onto a
-// Goose tool. Non-catch-all patterns cannot be expressed and are reported.
-const CATCH_ALL_PATTERN = "*";
 
 // Goose's built-in Developer extension exposes its tools unprefixed (`shell`,
 // `write`, `edit`, `tree`, `read_image`), and permission.yaml is matched against
@@ -217,27 +213,12 @@ export class GoosePermissions extends ToolPermissions {
       );
     }
 
-    const config = isRecord(parsed) ? parsed : {};
-    const userPermission = isRecord(config[GOOSE_USER_KEY]) ? config[GOOSE_USER_KEY] : {};
+    const config = toRecord(parsed);
+    const userPermission = toRecord(config[GOOSE_USER_KEY]);
     const rulesyncConfig = convertGoosePermissionConfigToRulesync(userPermission);
 
     return this.toRulesyncPermissionsDefault({
       fileContent: JSON.stringify(rulesyncConfig, null, 2),
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolPermissionsForDeletionParams): GoosePermissions {
-    return new GoosePermissions({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: "",
-      validate: false,
-      global: true,
     });
   }
 }
@@ -262,7 +243,7 @@ function convertRulesyncToGoosePermissionConfig({
   const assigned = new Map<string, PermissionAction>();
 
   for (const [category, rules] of Object.entries(honorAllToolsOnBash(config.permission))) {
-    const toolName = RULESYNC_TO_GOOSE_TOOL_NAME[category] ?? category;
+    const toolName = lookupOwn({ record: RULESYNC_TO_GOOSE_TOOL_NAME, key: category }) ?? category;
 
     for (const [pattern, action] of Object.entries(rules)) {
       if (pattern !== CATCH_ALL_PATTERN) {
@@ -339,9 +320,15 @@ function convertGoosePermissionConfigToRulesync(
     const toolNames = isStringArray(userPermission[key]) ? userPermission[key] : [];
     const action = GOOSE_LIST_TO_ACTION[key];
     for (const toolName of toolNames) {
-      for (const category of GOOSE_TO_RULESYNC_TOOL_NAMES[toolName] ?? [toolName]) {
-        permission[category] ??= {};
-        permission[category][CATCH_ALL_PATTERN] = action;
+      for (const category of lookupOwn({ record: GOOSE_TO_RULESYNC_TOOL_NAMES, key: toolName }) ?? [
+        toolName,
+      ]) {
+        // A `__proto__` or `constructor` name would not land as a plain own key,
+        // so such entries are dropped, as the other permissions adapters do.
+        if (isPrototypePollutionKey(category)) continue;
+        getOrCreateOwn({ record: permission, key: category, create: () => ({}) })[
+          CATCH_ALL_PATTERN
+        ] = action;
       }
     }
   }

@@ -20,7 +20,6 @@ import {
   ToolRuleNestedFilePatterns,
   ToolRuleSettablePaths,
   ToolRuleSettablePathsGlobal,
-  buildToolPath,
 } from "./tool-rule.js";
 
 export type RooRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
@@ -73,15 +72,13 @@ export class RooRule extends ToolRule {
 
   static getSettablePaths({
     global,
-    excludeToolDir,
   }: {
     global?: boolean;
-    excludeToolDir?: boolean;
   } = {}): RooRuleSettablePaths | RooRuleSettablePathsGlobal {
     // The relative directory is identical for project and global scope; global
     // mode differs only by output root (the home directory), so `~/.roo/rules/`
     // is produced without a separate branch here.
-    const rulesDirPath = buildToolPath(ROO_DIR, "rules", excludeToolDir);
+    const rulesDirPath = join(ROO_DIR, "rules");
 
     if (global) {
       // Home scope has exactly two roots, `~/.roo` and `~/.agents`; the root
@@ -119,7 +116,7 @@ export class RooRule extends ToolRule {
     const relativeDirPath =
       overrideDirPath !== undefined && RooRule.extractModeFromDirPath(overrideDirPath) !== undefined
         ? overrideDirPath
-        : (paths.nonRoot?.relativeDirPath ?? buildToolPath(ROO_DIR, "rules"));
+        : (paths.nonRoot?.relativeDirPath ?? join(ROO_DIR, "rules"));
 
     const fileContent = await readFileContent(join(outputRoot, relativeDirPath, relativeFilePath));
 

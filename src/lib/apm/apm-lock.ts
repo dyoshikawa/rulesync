@@ -1,15 +1,14 @@
 import { join } from "node:path";
 
-import { dump } from "js-yaml";
-import { nonnegative, optional, refine, z } from "zod/mini";
+import { nonnegative, optional, z } from "zod/mini";
 
 import {
-  assertWritablePathInsideRoot,
-  fileExists,
-  readFileContent,
-  writeFileContent,
-} from "../../utils/file.js";
-import { loadYaml } from "../../utils/yaml.js";
+  parseYamlLockfile,
+  readYamlLockfile,
+  ResolvedCommitShaSchema,
+  serializeYamlLockfile,
+  writeYamlLockfile,
+} from "../yaml-lockfile.js";
 
 /**
  * Filename of the rulesync-managed apm-compatible lockfile. Rulesync uses a
@@ -21,14 +20,6 @@ const APM_LOCKFILE_FILE_NAME = "rulesync-apm.lock.yaml";
 export const APM_LOCKFILE_VERSION = "1" as const;
 
 /**
- * Shape of content_hash values that rulesync writes. Used by `--frozen`
- * integrity checks to decide whether a prior hash is comparable: any value
- * not matching this regex (e.g. written by the upstream `apm` CLI) is
- * skipped rather than throwing so that cross-tool interop works.
- */
-export const RULESYNC_CONTENT_HASH_REGEX = /^sha256:[0-9a-f]{64}$/;
-
-/**
  * Single dependency entry in `rulesync-apm.lock.yaml`. Mirrors the subset of the
  * APM v1 lockfile schema that rulesync currently populates. Extra fields
  * from the spec (content_hash, is_dev, virtual_path, ...) are preserved
@@ -37,11 +28,7 @@ export const RULESYNC_CONTENT_HASH_REGEX = /^sha256:[0-9a-f]{64}$/;
  */
 const ApmLockDependencySchema = z.looseObject({
   repo_url: z.string(),
-  resolved_commit: optional(
-    z
-      .string()
-      .check(refine((v) => /^[0-9a-f]{40}$/.test(v), "resolved_commit must be a 40-char hex SHA")),
-  ),
+  resolved_commit: optional(ResolvedCommitShaSchema),
   resolved_ref: optional(z.string()),
   version: optional(z.string()),
   depth: z.int().check(nonnegative()),
@@ -109,50 +96,23 @@ export function createEmptyApmLock(params: {
  * discarding a corrupt lockfile would erase previously pinned commits.
  */
 export function parseApmLock(content: string): ApmLock | null {
-  if (!content.trim()) {
-    return null;
-  }
-  let loaded: unknown;
-  try {
-    loaded = loadYaml(content);
-  } catch {
-    return null;
-  }
-  if (!loaded || typeof loaded !== "object") {
-    return null;
-  }
-  const parsed = ApmLockSchema.safeParse(loaded);
-  if (!parsed.success) {
-    const issues = parsed.error.issues
-      .map((issue) => `  - ${issue.path.join(".") || "<root>"}: ${issue.message}`)
-      .join("\n");
-    throw new Error(`Invalid ${APM_LOCKFILE_FILE_NAME}:\n${issues}`);
-  }
-  return parsed.data;
+  return parseYamlLockfile({ content, schema: ApmLockSchema, fileName: APM_LOCKFILE_FILE_NAME });
 }
 
 export async function readApmLock(projectRoot: string): Promise<ApmLock | null> {
-  const path = getApmLockPath(projectRoot);
-  if (!(await fileExists(path))) {
-    return null;
-  }
-  const content = await readFileContent(path);
-  return parseApmLock(content);
+  return readYamlLockfile({ path: getApmLockPath(projectRoot), parse: parseApmLock });
 }
 
 export async function writeApmLock(params: { projectRoot: string; lock: ApmLock }): Promise<void> {
-  const path = getApmLockPath(params.projectRoot);
-  const content = serializeApmLock(params.lock);
-  // The lockfile is committed with the project; refuse to follow a link that
-  // would make this write overwrite a file elsewhere.
-  await assertWritablePathInsideRoot({ rootPath: params.projectRoot, targetPath: path });
-  await writeFileContent(path, content);
+  await writeYamlLockfile({
+    projectRoot: params.projectRoot,
+    path: getApmLockPath(params.projectRoot),
+    content: serializeApmLock(params.lock),
+  });
 }
 
 export function serializeApmLock(lock: ApmLock): string {
-  // `noRefs: true` avoids YAML anchors/aliases; `lineWidth: -1` keeps long
-  // URLs on a single line so the file stays diff-friendly.
-  return dump(lock, { noRefs: true, lineWidth: -1, sortKeys: false });
+  return serializeYamlLockfile(lock);
 }
 
 /**

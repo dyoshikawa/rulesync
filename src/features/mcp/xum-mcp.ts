@@ -9,7 +9,7 @@ import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isPlainObject, isStringArray } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
-  parseSharedConfig,
+  parseSharedConfigFile,
   sharedConfigFileKey,
 } from "../shared/shared-config-gateway.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
@@ -395,12 +395,10 @@ export class XumMcp extends ToolMcp {
 
   constructor(params: ToolMcpParams) {
     super(params);
-    this.json = parseSharedConfig({
-      format: "jsonc",
+    this.json = parseSharedConfigFile({
+      fileKey: sharedConfigFileKey(XumMcp.getSettablePaths({ global: this.global })),
       fileContent: this.fileContent,
       filePath: join(this.relativeDirPath, this.relativeFilePath),
-      invalidRootPolicy: "error",
-      jsoncParseErrors: "error",
     });
   }
 

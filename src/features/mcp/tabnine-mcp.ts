@@ -14,7 +14,7 @@ import {
 import { isRecord } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
-  parseSharedConfig,
+  parseSharedConfigFile,
   sharedConfigFileKey,
   undefinedWhenEmpty,
 } from "../shared/shared-config-gateway.js";
@@ -214,11 +214,10 @@ export class TabnineMcp extends ToolMcp {
     // Fail closed on malformed JSON or a non-object root (`null`, an array, a
     // scalar), matching the write path's shared-config declaration, so a
     // broken settings file is surfaced rather than partially imported.
-    this.json = parseSharedConfig({
-      format: "json",
+    this.json = parseSharedConfigFile({
+      fileKey: sharedConfigFileKey(TabnineMcp.getSettablePaths({ global: this.global })),
       fileContent: this.fileContent || "{}",
       filePath: join(this.relativeDirPath, this.relativeFilePath),
-      invalidRootPolicy: "error",
     });
   }
 

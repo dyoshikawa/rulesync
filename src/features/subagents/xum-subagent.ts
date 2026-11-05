@@ -15,6 +15,7 @@ import {
 import { isPlainObject } from "../../utils/type-guards.js";
 import { RulesyncSubagent, RulesyncSubagentFrontmatter } from "./rulesync-subagent.js";
 import {
+  parseGeneratedSubagentFrontmatter,
   ToolSubagent,
   ToolSubagentForDeletionParams,
   ToolSubagentFromFileParams,
@@ -144,34 +145,34 @@ export class XumSubagent extends ToolSubagent {
     ]);
 
     const subagentSection = xumSection.subagent;
-    const result = XumSubagentFrontmatterSchema.safeParse({
-      name: rulesyncFrontmatter.name,
-      // Xum requires a non-empty `description` when one is present and drops a
-      // definition whose frontmatter fails to parse, so an empty one is omitted.
-      ...(rulesyncFrontmatter.description && { description: rulesyncFrontmatter.description }),
-      ...(xumSection.base === undefined &&
-        xumSection.tools === undefined && { base: XUM_DEFAULT_BASE_AGENT }),
-      ...xumSection,
-      subagent: {
-        runnable: true,
-        ...(isPlainObject(subagentSection) ? subagentSection : {}),
+    const xumFrontmatter = parseGeneratedSubagentFrontmatter({
+      schema: XumSubagentFrontmatterSchema,
+      frontmatter: {
+        name: rulesyncFrontmatter.name,
+        // Xum requires a non-empty `description` when one is present and drops a
+        // definition whose frontmatter fails to parse, so an empty one is omitted.
+        ...(rulesyncFrontmatter.description && { description: rulesyncFrontmatter.description }),
+        ...(xumSection.base === undefined &&
+          xumSection.tools === undefined && { base: XUM_DEFAULT_BASE_AGENT }),
+        ...xumSection,
+        subagent: {
+          runnable: true,
+          ...(isPlainObject(subagentSection) ? subagentSection : {}),
+        },
       },
+      toolTarget: "xum",
+      rulesyncSubagent,
     });
-    if (!result.success) {
-      throw new Error(
-        `Invalid xum subagent frontmatter in ${rulesyncSubagent.getRelativeFilePath()}: ${formatError(result.error)}`,
-      );
-    }
 
     const body = rulesyncSubagent.getBody();
 
     return new XumSubagent({
       outputRoot,
-      frontmatter: result.data,
+      frontmatter: xumFrontmatter,
       body,
       relativeDirPath: this.getSettablePaths({ global }).relativeDirPath,
       relativeFilePath: rulesyncSubagent.getRelativeFilePath(),
-      fileContent: stringifyFrontmatter(body, result.data),
+      fileContent: stringifyFrontmatter(body, xumFrontmatter),
       validate,
     });
   }

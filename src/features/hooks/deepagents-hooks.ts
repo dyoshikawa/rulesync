@@ -1,7 +1,6 @@
 import { join } from "node:path";
 
 import { DEEPAGENTS_DIR, DEEPAGENTS_HOOKS_FILE_NAME } from "../../constants/deepagents-paths.js";
-import type { AiFileParams } from "../../types/ai-file.js";
 import type { HookDefinition, HooksConfig } from "../../types/hooks.js";
 import {
   CANONICAL_TO_DEEPAGENTS_EVENT_NAMES,
@@ -20,7 +19,6 @@ import type { RulesyncHooks } from "./rulesync-hooks.js";
 import { buildImportedHooksConfig } from "./tool-hooks-converter.js";
 import {
   ToolHooks,
-  type ToolHooksForDeletionParams,
   type ToolHooksFromFileParams,
   type ToolHooksFromRulesyncHooksParams,
   type ToolHooksSettablePaths,
@@ -181,13 +179,6 @@ function deepagentsLegacyToCanonicalHooks(entries: unknown[]): HooksConfig["hook
 }
 
 export class DeepagentsHooks extends ToolHooks {
-  constructor(params: AiFileParams) {
-    super({
-      ...params,
-      fileContent: params.fileContent ?? JSON.stringify({ hooks: {} }, null, 2),
-    });
-  }
-
   override isDeletable(): boolean {
     return true;
   }
@@ -265,20 +256,6 @@ export class DeepagentsHooks extends ToolHooks {
         null,
         2,
       ),
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolHooksForDeletionParams): DeepagentsHooks {
-    return new DeepagentsHooks({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: JSON.stringify({ hooks: {} }, null, 2),
-      validate: false,
     });
   }
 }

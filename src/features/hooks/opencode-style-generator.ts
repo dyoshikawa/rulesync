@@ -1,6 +1,7 @@
 // cspell:ignore nothrow subshell redirections -- Bun Shell API and shell terms
-import { HooksConfig, CONTROL_CHARS } from "../../types/hooks.js";
+import { HooksConfig } from "../../types/hooks.js";
 import { buildBlockReasonSanitizerLines } from "./hook-block-reason.js";
+import { sanitizeMatcherRegex } from "./hook-matcher-regex.js";
 
 /**
  * Tool events emitted as named `(input, ...)` hooks rather than through the
@@ -122,7 +123,7 @@ const STDIN_PAYLOAD_EVENTS: Record<string, string> = {
  *   non-zero exit aborted the call. Keeping that preserves guards that block
  *   with `exit 1`, rather than silently failing them open.
  */
-export const PRE_TOOL_USE_RESULT_HELPER = "__rulesyncEnforcePreToolUseResult";
+const PRE_TOOL_USE_RESULT_HELPER = "__rulesyncEnforcePreToolUseResult";
 
 export const PRE_TOOL_USE_RESULT_HELPER_LINES: readonly string[] = [
   ...buildBlockReasonSanitizerLines({ typed: false }),
@@ -156,23 +157,12 @@ export const PRE_TOOL_USE_RESULT_HELPER_LINES: readonly string[] = [
   "};",
 ];
 
-export function escapeForTemplateLiteral(command: string): string {
+function escapeForTemplateLiteral(command: string): string {
   return command.replace(/\\/g, "\\\\").replace(/`/g, "\\`").replace(/\$\{/g, "\\${");
 }
 
 export function validateAndSanitizeMatcher(matcher: string): string {
-  let sanitized = matcher;
-  for (const char of CONTROL_CHARS) {
-    sanitized = sanitized.replaceAll(char, "");
-  }
-  if (sanitized === "*") {
-    sanitized = ".*";
-  }
-  try {
-    new RegExp(sanitized);
-  } catch {
-    throw new Error(`Invalid regex pattern in hook matcher: ${sanitized}`);
-  }
+  const sanitized = sanitizeMatcherRegex(matcher);
   return sanitized.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
@@ -288,7 +278,7 @@ function buildGenericEventBodyLines(genericEventHandlers: HandlerGroup): string[
   return bodyLines;
 }
 
-function stdinPayloadVariable(stdinEvent: string): string {
+export function stdinPayloadVariable(stdinEvent: string): string {
   return `__rulesync${stdinEvent}Input`;
 }
 
@@ -297,7 +287,7 @@ function stdinPayloadVariable(stdinEvent: string): string {
  * pipes the payload in and hands the result to the deny-aware helper; every
  * other handler keeps Bun Shell's default mode, where a non-zero exit throws.
  */
-function buildRunStatement(handler: Handler): string {
+export function buildRunStatement(handler: { command: string; stdinEvent?: string }): string {
   const escapedCommand = escapeForTemplateLiteral(handler.command);
   if (handler.stdinEvent) {
     const payload = stdinPayloadVariable(handler.stdinEvent);

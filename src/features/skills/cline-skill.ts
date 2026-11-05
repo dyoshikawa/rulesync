@@ -1,75 +1,21 @@
-import { join } from "node:path";
-
-import { z } from "zod/mini";
-
 import { CLINE_SKILLS_DIR_PATH } from "../../constants/cline-paths.js";
-import { SKILL_FILE_NAME } from "../../constants/general.js";
-import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
-import { ValidationResult } from "../../types/ai-dir.js";
-import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
-import {
-  ToolSkill,
-  ToolSkillForDeletionParams,
-  ToolSkillFromDirParams,
-  ToolSkillFromRulesyncSkillParams,
-  ToolSkillSettablePaths,
-} from "./tool-skill.js";
-
-const ClineSkillFrontmatterSchema = z.looseObject({
-  name: z.string(),
-  description: z.string(),
-});
-
-export type ClineSkillFrontmatter = z.infer<typeof ClineSkillFrontmatterSchema>;
-
-export type ClineSkillParams = {
-  outputRoot?: string;
-  relativeDirPath?: string;
-  dirName: string;
-  frontmatter: ClineSkillFrontmatter;
-  body: string;
-  otherFiles?: SkillFile[];
-  validate?: boolean;
-  global?: boolean;
-};
+import { SectionPassthroughSkill } from "./section-passthrough-skill.js";
+import { ToolSkillSettablePaths } from "./tool-skill.js";
 
 /**
  * Represents a Cline Code skill directory.
  * Skills are stored under .cline/skills/ directories with SKILL.md files.
  * Cline also scans roots owned by other targets; a same-name skill in a later
  * root (`.claude/skills/`, `.agents/skills/`, user scope) wins in Cline.
+ *
+ * Keys beyond name/description — most usefully the `disabled: true` (or
+ * `enabled: false`) toggle Cline writes into SKILL.md when a skill is switched
+ * off in its UI — round-trip through the `cline` section.
  */
-export class ClineSkill extends ToolSkill {
-  constructor({
-    outputRoot = process.cwd(),
-    relativeDirPath = CLINE_SKILLS_DIR_PATH,
-    dirName,
-    frontmatter,
-    body,
-    otherFiles = [],
-    validate = true,
-    global = false,
-  }: ClineSkillParams) {
-    super({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      mainFile: {
-        name: SKILL_FILE_NAME,
-        body,
-        frontmatter: { ...frontmatter },
-      },
-      otherFiles,
-      global,
-    });
+export class ClineSkill extends SectionPassthroughSkill {
+  protected static override readonly toolTarget = "cline";
 
-    if (validate) {
-      const result = this.validate();
-      if (!result.success) {
-        throw result.error;
-      }
-    }
-  }
+  protected static override readonly sectionKey = "cline";
 
   static getSettablePaths(_options: { global?: boolean } = {}): ToolSkillSettablePaths {
     // Cline Code skills use the same relative path for both project and global modes
@@ -79,132 +25,5 @@ export class ClineSkill extends ToolSkill {
     return {
       relativeDirPath: CLINE_SKILLS_DIR_PATH,
     };
-  }
-
-  getFrontmatter(): ClineSkillFrontmatter {
-    const result = ClineSkillFrontmatterSchema.parse(this.requireMainFileFrontmatter());
-    return result;
-  }
-
-  validate(): ValidationResult {
-    return this.validateMainFileFrontmatterAndDirName(ClineSkillFrontmatterSchema);
-  }
-
-  toRulesyncSkill(): RulesyncSkill {
-    // Keys beyond name/description — most usefully the `disabled: true` (or
-    // `enabled: false`) toggle Cline writes into SKILL.md when a skill is
-    // switched off in its UI — are lifted into the `cline` section so they
-    // survive the round-trip (mirrors roo-skill.ts).
-    const { name, description, ...clineSection } = this.getFrontmatter();
-    const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
-      name,
-      description,
-      targets: ["*"],
-      ...(Object.keys(clineSection).length > 0 && { cline: clineSection }),
-    };
-
-    return new RulesyncSkill({
-      outputRoot: this.outputRoot,
-      relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
-      dirName: this.getDirName(),
-      frontmatter: rulesyncFrontmatter,
-      body: this.getBody(),
-      otherFiles: this.getOtherFiles(),
-      validate: true,
-      global: this.global,
-    });
-  }
-
-  static fromRulesyncSkill({
-    outputRoot = process.cwd(),
-    rulesyncSkill,
-    validate = true,
-    global = false,
-  }: ToolSkillFromRulesyncSkillParams): ClineSkill {
-    const settablePaths = ClineSkill.getSettablePaths({ global });
-    const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
-
-    // The `cline` section carries Cline-specific frontmatter (`disabled`,
-    // etc.); canonical name/description always win over a stray same-named
-    // key in the section.
-    const {
-      name: _sectionName,
-      description: _sectionDescription,
-      ...clineSection
-    } = rulesyncFrontmatter.cline ?? {};
-    const clineFrontmatter: ClineSkillFrontmatter = {
-      ...clineSection,
-      name: rulesyncFrontmatter.name,
-      description: rulesyncFrontmatter.description,
-    };
-
-    return new ClineSkill({
-      outputRoot,
-      relativeDirPath: settablePaths.relativeDirPath,
-      dirName: clineFrontmatter.name,
-      frontmatter: clineFrontmatter,
-      body: rulesyncSkill.getBody(),
-      otherFiles: rulesyncSkill.getOtherFiles(),
-      validate,
-      global,
-    });
-  }
-
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("cline");
-  }
-
-  static async fromDir(params: ToolSkillFromDirParams): Promise<ClineSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: ClineSkill.getSettablePaths,
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({
-      schema: ClineSkillFrontmatterSchema,
-      loaded,
-    });
-
-    if (frontmatter.name !== loaded.dirName) {
-      const skillFilePath = join(
-        loaded.outputRoot,
-        loaded.relativeDirPath,
-        loaded.dirName,
-        SKILL_FILE_NAME,
-      );
-      throw new Error(
-        `Frontmatter name (${frontmatter.name}) must match directory name (${loaded.dirName}) in ${skillFilePath}`,
-      );
-    }
-
-    return new ClineSkill({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-  }: ToolSkillForDeletionParams): ClineSkill {
-    return new ClineSkill({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      otherFiles: [],
-      validate: false,
-      global,
-    });
   }
 }

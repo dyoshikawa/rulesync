@@ -43,10 +43,6 @@ export async function executeReleaseNotes(options: ReleaseNotesOptions): Promise
 
 export const releaseNotesTools = {
   executeReleaseNotes: {
-    name: "executeReleaseNotes",
-    description:
-      "Execute the rulesync release-notes command to read GitHub release notes for a repository ('owner/repo'). Uses GITHUB_TOKEN / GH_TOKEN from the environment when set.",
-    parameters: releaseNotesOptionsSchema,
     execute: async (options: ReleaseNotesOptions): Promise<string> =>
       stringifyResult(await executeReleaseNotes(options)),
   },

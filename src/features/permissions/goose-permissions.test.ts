@@ -433,14 +433,31 @@ describe("GoosePermissions", () => {
     });
   });
 
-  describe("forDeletion", () => {
-    it("is not deletable", () => {
-      const perms = GoosePermissions.forDeletion({
+  describe("tool names that match Object.prototype members", () => {
+    it("generates a category named like a prototype member as its own tool name", async () => {
+      const perms = await GoosePermissions.fromRulesyncPermissions({
         outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({ toString: { "*": "ask" } }),
+        global: true,
+      });
+
+      expect(userPermissionOf(perms.getFileContent()).ask_before).toEqual(["toString"]);
+    });
+
+    it("imports a native tool named like a prototype member as its own category", () => {
+      const perms = new GoosePermissions({
         relativeDirPath: join(".config", "goose"),
         relativeFilePath: "permission.yaml",
+        fileContent: dump({
+          user: { always_allow: [], ask_before: ["toString"], never_allow: [] },
+        }),
+        validate: false,
       });
-      expect(perms.isDeletable()).toBe(false);
+
+      expect(perms.toRulesyncPermissions().getJson().permission).toEqual({
+        toString: { "*": "ask" },
+      });
+      expect(Object.hasOwn(Object.prototype.toString, "*")).toBe(false);
     });
   });
 });

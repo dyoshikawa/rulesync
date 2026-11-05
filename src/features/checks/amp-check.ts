@@ -35,7 +35,7 @@ export const AmpCheckFrontmatterSchema = z.looseObject({
 
 export type AmpCheckFrontmatter = z.infer<typeof AmpCheckFrontmatterSchema>;
 
-export type AmpCheckParams = {
+type AmpCheckParams = {
   frontmatter: AmpCheckFrontmatter;
   body: string;
 } & Omit<AiFileParams, "fileContent"> & {

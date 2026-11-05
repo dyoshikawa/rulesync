@@ -27,7 +27,7 @@ import { bashRulesHonoringAllTools } from "./shell-command-categories.js";
 import { isStricterAction } from "./single-action-collapse.js";
 import {
   ToolPermissions,
-  type ToolPermissionsForDeletionParams,
+  type ToolPermissionsAuxiliaryFilesParams,
   type ToolPermissionsFromFileParams,
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
@@ -137,6 +137,15 @@ type CodexProfileParseResult = {
 type UnknownTable = Record<string, unknown>;
 
 export class CodexcliPermissions extends ToolPermissions {
+  /** The bash rules file Codex CLI reads beside `config.toml`. */
+  static getAuxiliaryFiles({
+    outputRoot,
+    config,
+    logger,
+  }: ToolPermissionsAuxiliaryFilesParams): ToolFile[] {
+    return [createCodexcliBashRulesFile({ outputRoot, config, logger })];
+  }
+
   static getSettablePaths(_options: { global?: boolean } = {}): ToolPermissionsSettablePaths {
     return {
       relativeDirPath: CODEXCLI_DIR,
@@ -336,23 +345,9 @@ export class CodexcliPermissions extends ToolPermissions {
       fileContent: JSON.stringify(result, null, 2),
     });
   }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolPermissionsForDeletionParams): CodexcliPermissions {
-    return new CodexcliPermissions({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: smolToml.stringify({}),
-      validate: false,
-    });
-  }
 }
 
-export class CodexcliRulesFile extends ToolFile {
+class CodexcliRulesFile extends ToolFile {
   validate(): ValidationResult {
     return { success: true, error: null };
   }

@@ -3030,19 +3030,6 @@ describe("ClaudecodePermissions", () => {
     });
   });
 
-  describe("forDeletion", () => {
-    it("should create minimal instance for deletion", () => {
-      const instance = ClaudecodePermissions.forDeletion({
-        outputRoot: testDir,
-        relativeDirPath: ".claude",
-        relativeFilePath: "settings.json",
-      });
-
-      expect(instance).toBeInstanceOf(ClaudecodePermissions);
-      expect(instance.isDeletable()).toBe(false);
-    });
-  });
-
   describe("validate", () => {
     it("should always return success", () => {
       const instance = new ClaudecodePermissions({
@@ -3054,6 +3041,61 @@ describe("ClaudecodePermissions", () => {
       const result = instance.validate();
       expect(result.success).toBe(true);
       expect(result.error).toBeNull();
+    });
+  });
+
+  describe("tool names that match Object.prototype members", () => {
+    it("generates a canonical category named like a prototype member verbatim", async () => {
+      const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: { valueOf: { x: "allow", y: "deny" }, toString: { "*": "ask" } },
+          }),
+        }),
+      });
+
+      const content = JSON.parse(instance.getFileContent());
+      expect(content.permissions.allow).toEqual(["valueOf(x)"]);
+      expect(content.permissions.ask).toEqual(["toString"]);
+      expect(content.permissions.deny).toEqual(["valueOf(y)"]);
+    });
+
+    it("imports a native tool named like a prototype member as its own category", () => {
+      const instance = new ClaudecodePermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".claude",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          permissions: { allow: ["valueOf(foo)", "toString"] },
+        }),
+      });
+
+      const config = instance.toRulesyncPermissions().getJson();
+      expect(config.permission).toEqual({
+        valueOf: { foo: "allow" },
+        toString: { "*": "allow" },
+      });
+    });
+  });
+
+  describe("prototype-pollution tool names on import", () => {
+    it("drops __proto__ entries without replacing the imported block's prototype", () => {
+      const instance = new ClaudecodePermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".claude",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          permissions: { allow: ["Bash(ls)", "__proto__(bash)"], deny: ["__proto__"] },
+        }),
+      });
+
+      const { permission } = instance.toRulesyncPermissions().getJson();
+      expect(permission).toEqual({ bash: { ls: "allow" } });
+      expect(Object.getPrototypeOf(permission)).toBe(Object.prototype);
+      expect(Object.hasOwn(permission, "__proto__")).toBe(false);
     });
   });
 });

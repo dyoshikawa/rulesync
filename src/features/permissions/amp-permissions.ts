@@ -6,6 +6,7 @@ import { AMP_DIR, AMP_GLOBAL_DIR, AMP_SETTINGS_FILE_NAME } from "../../constants
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
+import { getOrCreateOwn, lookupOwn } from "../../utils/own-lookup.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { isPlainObject } from "../../utils/type-guards.js";
 import { parseAmpSettings, resolveAmpSettingsFile } from "../shared/amp-settings.js";
@@ -14,7 +15,6 @@ import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { isStricterAction } from "./single-action-collapse.js";
 import {
   ToolPermissions,
-  type ToolPermissionsForDeletionParams,
   type ToolPermissionsFromFileParams,
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
@@ -183,15 +183,6 @@ export class AmpPermissions extends ToolPermissions {
       ...params,
       fileContent: params.fileContent ?? "{}",
     });
-  }
-
-  /**
-   * The settings file may carry other Amp settings (e.g. `amp.mcpServers`), so
-   * we never delete it; only the managed `amp.tools.disable` /
-   * `amp.permissions` keys are rewritten.
-   */
-  override isDeletable(): boolean {
-    return false;
   }
 
   static getSettablePaths({
@@ -367,20 +358,6 @@ export class AmpPermissions extends ToolPermissions {
       };
     }
   }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolPermissionsForDeletionParams): AmpPermissions {
-    return new AmpPermissions({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: JSON.stringify({ [AMP_TOOLS_DISABLE_KEY]: [] }, null, 2),
-      validate: false,
-    });
-  }
 }
 
 /**
@@ -553,8 +530,8 @@ function convertAmpToRulesync({
   const assign = (tool: string, pattern: string, action: PermissionAction): void => {
     if (isPrototypePollutionKey(tool)) return;
     if (isPrototypePollutionKey(pattern)) return;
-    const bucket = (permission[tool] ??= {});
-    const existing = bucket[pattern];
+    const bucket = getOrCreateOwn({ record: permission, key: tool, create: () => ({}) });
+    const existing = lookupOwn({ record: bucket, key: pattern });
     if (isStricterAction({ action, existing })) {
       bucket[pattern] = action;
     }

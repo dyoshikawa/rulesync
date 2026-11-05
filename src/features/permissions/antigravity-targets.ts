@@ -1,6 +1,8 @@
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { parseGlobPattern } from "../../utils/glob.js";
 import type { Logger } from "../../utils/logger.js";
+import { getOrCreateOwn } from "../../utils/own-lookup.js";
+import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import {
   ANTIGRAVITY_COMMAND_ACTIONS as COMMAND_ACTIONS,
   BRACE_ALTERNATIVES,
@@ -9,7 +11,7 @@ import {
   toAntigravityCommandLiteralPrefix,
   toAntigravityCommandTarget,
 } from "./antigravity-command-patterns.js";
-import { honorAllToolsOnBash } from "./shell-command-categories.js";
+import { honorAllToolsOnBash, MCP_CATEGORY_PREFIX } from "./shell-command-categories.js";
 import { parseToolPatternEntry } from "./tool-pattern-entry.js";
 
 /**
@@ -156,8 +158,6 @@ function toTarget(action: string, pattern: string): TargetResult {
   }
   return { target: pattern };
 }
-
-const MCP_CATEGORY_PREFIX = "mcp__";
 
 // Characters that would change how Antigravity reads `mcp(server/tool)`.
 const MCP_TARGET_SEPARATORS = /[/()]/;
@@ -461,10 +461,12 @@ export function convertAntigravityToRulesyncPermissions({
             toolLabel,
           })
         : target;
-      if (!permission[canonical]) {
-        permission[canonical] = {};
+      // A `__proto__` or `constructor` name would not land as a plain own key,
+      // so such entries are dropped, as the other permissions adapters do.
+      if (isPrototypePollutionKey(canonical) || isPrototypePollutionKey(pattern)) {
+        continue;
       }
-      permission[canonical][pattern] = action;
+      getOrCreateOwn({ record: permission, key: canonical, create: () => ({}) })[pattern] = action;
     }
   };
 

@@ -20,8 +20,16 @@ export const SHELL_PERMISSION_CATEGORY = "bash";
  */
 export const ALL_TOOLS_PERMISSION_CATEGORY = "*";
 
+/**
+ * The prefix of a canonical per-tool MCP category: `mcp__<server>__<tool>`.
+ */
+export const MCP_CATEGORY_PREFIX = "mcp__";
+
+/** The canonical catch-all pattern: a rule about the whole tool or category. */
+export const CATCH_ALL_PATTERN = "*";
+
 /** One canonical rule that governs shell commands, and where it was written. */
-export type ShellCommandRule = {
+type ShellCommandRule = {
   pattern: string;
   action: PermissionAction;
   /**
@@ -32,7 +40,7 @@ export type ShellCommandRule = {
   fromAllToolsCategory: boolean;
 };
 
-export type ShellCommandRules = {
+type ShellCommandRules = {
   /** The rules that govern shell commands, in the order the source file wrote them. */
   rules: ShellCommandRule[];
   /**
@@ -177,7 +185,7 @@ export function createShadowingRestrictionsTest(
 }
 
 /** The allow/deny lists a command-only tool writes, and what was withheld. */
-export type CommandListPartition = {
+type CommandListPartition = {
   /** Patterns to auto-approve. */
   allow: string[];
   /** Patterns to block. */
@@ -474,7 +482,7 @@ export function warnAboutUnwrittenCommandRules({
 }
 
 /** The `bash` map plus allow/deny lists after all-tools `*` restrictions apply. */
-export type ResolvedShellCommandLists = {
+type ResolvedShellCommandLists = {
   allow: string[];
   deny: string[];
   /**

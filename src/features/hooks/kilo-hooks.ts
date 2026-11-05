@@ -7,7 +7,6 @@ import {
   KILO_PLUGIN_DIR_PATH,
   KILO_PLUGINS_DIR_PATH,
 } from "../../constants/kilo-paths.js";
-import type { AiFileParams } from "../../types/ai-file.js";
 import { CANONICAL_TO_KILO_EVENT_NAMES, KILO_HOOK_EVENTS } from "../../types/hooks.js";
 import { readFileContent, readFileContentOrNull } from "../../utils/file.js";
 import { generateOpencodeStylePluginCode } from "./opencode-style-generator.js";
@@ -21,13 +20,6 @@ import {
 } from "./tool-hooks.js";
 
 export class KiloHooks extends ToolHooks {
-  constructor(params: AiFileParams) {
-    super({
-      ...params,
-      fileContent: params.fileContent ?? "",
-    });
-  }
-
   static getSettablePaths(options?: { global?: boolean }): ToolHooksSettablePaths {
     return {
       relativeDirPath: options?.global ? KILO_GLOBAL_PLUGINS_DIR_PATH : KILO_PLUGINS_DIR_PATH,

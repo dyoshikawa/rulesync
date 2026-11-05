@@ -4,7 +4,8 @@ import {
   TRAE_HOOK_EVENTS,
   TRAE_TO_CANONICAL_EVENT_NAMES,
 } from "../../types/hooks.js";
-import { invertToolNames, replaceMatcherNames } from "./hook-matcher-tool-names.js";
+import { invertRecord } from "../../utils/own-lookup.js";
+import { replaceMatcherNames } from "./hook-matcher-tool-names.js";
 import { SettingsJsonHooks, type SettingsJsonHooksSpec } from "./settings-json-hooks.js";
 import type { ToolHooksConverterConfig } from "./tool-hooks-converter.js";
 import type { ToolHooksSettablePaths } from "./tool-hooks.js";
@@ -21,7 +22,7 @@ const TRAE_NO_MATCHER_EVENTS: ReadonlySet<string> = new Set([
 // Grep, WebSearch, WebFetch, AskUserQuestion, Skill, `mcp__<server>__<tool>`)
 // except for the terminal tool, which TRAE calls `RunCommand`.
 const CANONICAL_TO_TRAE_TOOL_NAMES: Readonly<Record<string, string>> = { Bash: "RunCommand" };
-const TRAE_TO_CANONICAL_TOOL_NAMES = invertToolNames(CANONICAL_TO_TRAE_TOOL_NAMES);
+const TRAE_TO_CANONICAL_TOOL_NAMES = invertRecord(CANONICAL_TO_TRAE_TOOL_NAMES);
 
 // Only `command` handlers exist, with `timeout` in seconds (the canonical
 // unit). TRAE runs hooks from the project root and uses PowerShell on Windows,

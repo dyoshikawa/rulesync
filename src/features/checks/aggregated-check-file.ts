@@ -40,7 +40,7 @@ export function unescapeCheckMarkers(content: string): string {
   return content.replace(ESCAPED_MARKER_PATTERN, "$1$2");
 }
 
-export type CheckMarker = { name: string; start: number; end: number };
+type CheckMarker = { name: string; start: number; end: number };
 
 export function findCheckMarkers(fileContent: string): CheckMarker[] {
   // Reset lastIndex explicitly: the pattern is module-level and global.

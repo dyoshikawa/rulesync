@@ -666,9 +666,32 @@ describe("HooksProcessor", () => {
       // The event list must be part of the same message, and must name only the
       // events that actually carry a disabled hook.
       expect(logger.warn).toHaveBeenCalledWith(
-        'Emitting "enabled: false" hook(s) as active for claudecode (only the kiro-cli / kiro-ide / zcode hooks formats support the flag): preToolUse',
+        'Emitting "enabled: false" hook(s) as active for claudecode (only the kiro-cli / kiro-ide / cortexcode / zcode / zcode-plugin hooks formats support the flag): preToolUse',
       );
     });
+
+    it.each(["cortexcode", "kiro-ide", "kiro-cli", "zcode", "zcode-plugin"] as const)(
+      "should write a disabled hook for %s without warning that it stays active",
+      async (toolTarget) => {
+        const config = {
+          version: 1,
+          hooks: { preToolUse: [{ type: "command", command: "lint.sh", enabled: false }] },
+        };
+        const rulesyncHooks = new RulesyncHooks({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: "hooks.json",
+          fileContent: JSON.stringify(config),
+          validate: false,
+        });
+
+        const processor = new HooksProcessor({ logger, outputRoot: testDir, toolTarget });
+        const toolFiles = await processor.convertRulesyncFilesToToolFiles([rulesyncHooks]);
+
+        expect(toolFiles.some((f) => /"enabled":\s*false/.test(f.getFileContent()))).toBe(true);
+        expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining('"enabled: false"'));
+      },
+    );
 
     it("should not warn about a disabled hook on an event the target cannot emit", async () => {
       const config = {
@@ -1571,6 +1594,8 @@ describe("toolHooksFactories capability table", () => {
         supportedEvents: KIRO_IDE_HOOK_EVENTS,
         supportedHookTypes: ["command", "prompt"],
         supportsMatcher: true,
+        supportsPerHookEnabled: true,
+        supportsPerHookConfirm: true,
       },
     ],
     [
@@ -1580,6 +1605,8 @@ describe("toolHooksFactories capability table", () => {
         supportedEvents: KIRO_IDE_HOOK_EVENTS,
         supportedHookTypes: ["command", "prompt"],
         supportsMatcher: true,
+        supportsPerHookEnabled: true,
+        supportsPerHookConfirm: true,
       },
     ],
     [
@@ -1666,6 +1693,7 @@ describe("toolHooksFactories capability table", () => {
         meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
         supportedEvents: CORTEXCODE_HOOK_EVENTS,
         supportedHookTypes: ["command", "prompt"],
+        supportsPerHookEnabled: true,
         supportsMatcher: true,
         matcherEvents: [
           "preToolUse",
@@ -1820,6 +1848,7 @@ describe("toolHooksFactories capability table", () => {
         supportedEvents: ZCODE_HOOK_EVENTS,
         supportedHookTypes: ["command"],
         supportsMatcher: true,
+        supportsPerHookEnabled: true,
       },
     ],
     [
@@ -1829,6 +1858,7 @@ describe("toolHooksFactories capability table", () => {
         supportedEvents: ZCODE_HOOK_EVENTS,
         supportedHookTypes: ["command"],
         supportsMatcher: true,
+        supportsPerHookEnabled: true,
       },
     ],
   ]);

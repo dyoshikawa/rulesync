@@ -6,10 +6,12 @@ import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { fallbackLogger } from "../../utils/logger.js";
 import {
   collectSkillNameViolations,
+  pickStandardSkillFields,
   resolveCompatibility,
   resolveDisableModelInvocation,
   resolveLicense,
   resolveMetadata,
+  resolveStandardSkillFields,
   resolveUserInvocable,
   SKILL_NAME_MAX_LENGTH,
   warnSkillViolations,
@@ -340,5 +342,38 @@ describe("warnSkillViolations", () => {
     } finally {
       warn.mockRestore();
     }
+  });
+});
+
+describe("pickStandardSkillFields", () => {
+  it("keeps the defined fields in license, compatibility, metadata order", () => {
+    const picked = pickStandardSkillFields({
+      metadata: { a: "1" },
+      compatibility: "node",
+      license: "MIT",
+    });
+    expect(picked).toEqual({ license: "MIT", compatibility: "node", metadata: { a: "1" } });
+    expect(Object.keys(picked)).toEqual(["license", "compatibility", "metadata"]);
+  });
+
+  it("leaves out undefined fields", () => {
+    expect(Object.keys(pickStandardSkillFields({ license: undefined, metadata: {} }))).toEqual([
+      "metadata",
+    ]);
+  });
+});
+
+describe("resolveStandardSkillFields", () => {
+  it("prefers section values and falls back to the root per field", () => {
+    expect(
+      resolveStandardSkillFields({
+        rootFrontmatter: { license: "MIT", compatibility: "node", metadata: { root: "1" } },
+        section: { compatibility: "deno" },
+      }),
+    ).toEqual({ license: "MIT", compatibility: "deno", metadata: { root: "1" } });
+  });
+
+  it("returns an empty object when nothing is set", () => {
+    expect(resolveStandardSkillFields({ rootFrontmatter: {}, section: undefined })).toEqual({});
   });
 });

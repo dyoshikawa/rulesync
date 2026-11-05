@@ -1,7 +1,6 @@
 import { join } from "node:path";
 
 import { REASONIX_DIR, REASONIX_SETTINGS_FILE_NAME } from "../../constants/reasonix-paths.js";
-import type { AiFileParams } from "../../types/ai-file.js";
 import {
   CANONICAL_TO_REASONIX_EVENT_NAMES,
   type HookDefinition,
@@ -13,12 +12,11 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { lookupOwn } from "../../utils/own-lookup.js";
+import { isPlainObject } from "../../utils/type-guards.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import { buildImportedHooksConfig, isSafeEnvEntry } from "./tool-hooks-converter.js";
 import {
   ToolHooks,
-  type ToolHooksForDeletionParams,
-  type ToolHooksFromFileParams,
   type ToolHooksFromRulesyncHooksParams,
   type ToolHooksSettablePaths,
 } from "./tool-hooks.js";
@@ -244,13 +242,6 @@ function reasonixHooksToCanonical(hooks: unknown): HooksConfig["hooks"] {
  * @see https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/docs/DESKTOP_HOOKS.zh-CN.md
  */
 export class ReasonixHooks extends ToolHooks {
-  constructor(params: AiFileParams) {
-    super({
-      ...params,
-      fileContent: params.fileContent ?? "{}",
-    });
-  }
-
   override isDeletable(): boolean {
     // settings.json is not documented as holding anything besides hooks today,
     // but treat it conservatively (like claudecode-hooks.ts) in case future
@@ -262,23 +253,6 @@ export class ReasonixHooks extends ToolHooks {
     // Both project and global scope use the same `.reasonix/` relative dir;
     // the processor supplies the home directory as outputRoot in global mode.
     return { relativeDirPath: REASONIX_DIR, relativeFilePath: REASONIX_SETTINGS_FILE_NAME };
-  }
-
-  static async fromFile({
-    outputRoot = process.cwd(),
-    validate = true,
-    global = false,
-  }: ToolHooksFromFileParams): Promise<ReasonixHooks> {
-    const paths = ReasonixHooks.getSettablePaths({ global });
-    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    const fileContent = (await readFileContentOrNull(filePath)) ?? '{"hooks":{}}';
-    return new ReasonixHooks({
-      outputRoot,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: paths.relativeFilePath,
-      fileContent,
-      validate,
-    });
   }
 
   static async fromRulesyncHooks({
@@ -294,15 +268,23 @@ export class ReasonixHooks extends ToolHooks {
     const paths = ReasonixHooks.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const existingContent = (await readFileContentOrNull(filePath)) ?? JSON.stringify({}, null, 2);
-    let settings: Record<string, unknown>;
+    let parsed: unknown;
     try {
-      settings = JSON.parse(existingContent);
+      parsed = JSON.parse(existingContent);
     } catch (error) {
       throw new Error(
         `Failed to parse existing Reasonix settings at ${filePath}: ${formatError(error)}`,
         { cause: error },
       );
     }
+    // Matches the shared config gateway: a non-object root such as `[1,2]`
+    // would otherwise be spread into `{"0":1,"1":2,"hooks":...}`.
+    if (!isPlainObject(parsed)) {
+      throw new Error(
+        `Failed to parse existing Reasonix settings at ${filePath}: expected a mapping at the root`,
+      );
+    }
+    const settings = parsed;
     const config = rulesyncHooks.getJson();
     const reasonixHooks = canonicalToReasonixHooks({
       config,
@@ -332,20 +314,6 @@ export class ReasonixHooks extends ToolHooks {
         null,
         2,
       ),
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolHooksForDeletionParams): ReasonixHooks {
-    return new ReasonixHooks({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: JSON.stringify({ hooks: {} }, null, 2),
-      validate: false,
     });
   }
 }

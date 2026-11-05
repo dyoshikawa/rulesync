@@ -15,6 +15,7 @@ import {
 import { kiroAgentNameFromPath } from "./kiro-subagent.js";
 import { RulesyncSubagent, RulesyncSubagentFrontmatter } from "./rulesync-subagent.js";
 import {
+  parseGeneratedSubagentFrontmatter,
   ToolSubagent,
   ToolSubagentForDeletionParams,
   ToolSubagentFromFileParams,
@@ -120,14 +121,13 @@ export class KiroIdeSubagent extends ToolSubagent {
       ...kiroIdeSection,
     };
 
-    const result = KiroIdeSubagentFrontmatterSchema.safeParse(rawFrontmatter);
-    if (!result.success) {
-      throw new Error(
-        `Invalid kiro-ide subagent frontmatter in ${rulesyncSubagent.getRelativeFilePath()}: ${formatError(result.error)}`,
-      );
-    }
+    const frontmatter = parseGeneratedSubagentFrontmatter({
+      schema: KiroIdeSubagentFrontmatterSchema,
+      frontmatter: rawFrontmatter,
+      toolTarget: "kiro-ide",
+      rulesyncSubagent,
+    });
 
-    const frontmatter = result.data;
     const body = rulesyncSubagent.getBody();
     const fileContent = stringifyFrontmatter(body, frontmatter);
     const paths = this.getSettablePaths({ global });

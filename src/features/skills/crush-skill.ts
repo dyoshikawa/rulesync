@@ -2,11 +2,11 @@ import { z } from "zod/mini";
 
 import { CRUSH_SKILLS_GLOBAL_DIR, CRUSH_SKILLS_PROJECT_DIR } from "../../constants/crush-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
-import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { toCompatibilityString, toStringMetadata } from "./agentsskills-skill.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import {
+  pickStandardSkillFields,
   resolveCompatibility,
   resolveDisableModelInvocation,
   resolveLicense,
@@ -131,11 +131,7 @@ export class CrushSkill extends ToolSkill {
       ...(frontmatter["disable-model-invocation"] !== undefined && {
         "disable-model-invocation": frontmatter["disable-model-invocation"],
       }),
-      ...(frontmatter.license !== undefined && { license: frontmatter.license }),
-      ...(frontmatter.compatibility !== undefined && {
-        compatibility: frontmatter.compatibility,
-      }),
-      ...(frontmatter.metadata !== undefined && { metadata: frontmatter.metadata }),
+      ...pickStandardSkillFields(frontmatter),
     };
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name: frontmatter.name,
@@ -144,16 +140,7 @@ export class CrushSkill extends ToolSkill {
       ...(Object.keys(crushSection).length > 0 && { crush: crushSection }),
     };
 
-    return new RulesyncSkill({
-      outputRoot: this.outputRoot,
-      relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
-      dirName: this.getDirName(),
-      frontmatter: rulesyncFrontmatter,
-      body: this.getBody(),
-      otherFiles: this.getOtherFiles(),
-      validate: true,
-      global: this.global,
-    });
+    return this.toRulesyncSkillWith(rulesyncFrontmatter);
   }
 
   static fromRulesyncSkill({
@@ -215,49 +202,15 @@ export class CrushSkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("crush");
-  }
+  protected static override readonly toolTarget = "crush";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<CrushSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: CrushSkill.getSettablePaths,
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({
-      schema: CrushSkillFrontmatterSchema,
-      loaded,
-    });
-
-    return new CrushSkill({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new CrushSkill(
+      await this.loadStandardSkillParams({ params, schema: CrushSkillFrontmatterSchema }),
+    );
   }
 
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-  }: ToolSkillForDeletionParams): CrushSkill {
-    return new CrushSkill({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      otherFiles: [],
-      validate: false,
-      global,
-    });
+  static forDeletion(params: ToolSkillForDeletionParams): CrushSkill {
+    return new CrushSkill(this.forDeletionParams(params));
   }
 }

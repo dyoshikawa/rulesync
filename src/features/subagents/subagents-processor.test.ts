@@ -22,10 +22,11 @@ import {
   SubagentsProcessor,
   SubagentsProcessorToolTarget,
   SubagentsProcessorToolTargetSchema,
-  subagentsProcessorToolTargets,
-  subagentsProcessorToolTargetsSimulated,
   toolSubagentFactories,
 } from "./subagents-processor.js";
+
+const subagentsProcessorToolTargets = SubagentsProcessor.getToolTargets({ includeSimulated: true });
+const subagentsProcessorToolTargetsSimulated = SubagentsProcessor.getToolTargetsSimulated();
 
 /**
  * Creates a mock getFactory that throws an error for unsupported tool targets.
@@ -1955,7 +1956,6 @@ Second global content`;
       expect(toolTargets).toContain("cursor");
       expect(toolTargets).toContain("codexcli");
       expect(toolTargets).toContain("opencode");
-      expect(toolTargets).toEqual(subagentsProcessorToolTargets);
     });
 
     it("should be callable without instance", () => {
@@ -2037,7 +2037,7 @@ Second global content`;
       expect(() => SubagentsProcessorToolTargetSchema.parse("invalid")).toThrow();
     });
 
-    it("should export subagentsProcessorToolTargets constant", () => {
+    it("should list every project tool target including simulated ones", () => {
       expect(new Set(subagentsProcessorToolTargets)).toEqual(
         new Set([
           "agentsmd",
@@ -2098,7 +2098,7 @@ Second global content`;
       expect(Array.isArray(subagentsProcessorToolTargets)).toBe(true);
     });
 
-    it("should export subagentsProcessorToolTargetsSimulated constant", () => {
+    it("should list the simulated tool targets", () => {
       expect(new Set(subagentsProcessorToolTargetsSimulated)).toEqual(new Set(["agentsmd"]));
       expect(Array.isArray(subagentsProcessorToolTargetsSimulated)).toBe(true);
     });

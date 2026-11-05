@@ -5,30 +5,26 @@ import { dump } from "js-yaml";
 import { ROVODEV_CONFIG_FILE_NAME, ROVODEV_DIR } from "../../constants/rovodev-paths.js";
 import type { AiFileParams } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
-import { PermissionActionSchema } from "../../types/permissions.js";
+import { isPermissionAction } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
-import { isRecord, isStringArray } from "../../utils/type-guards.js";
+import { lookupOwn } from "../../utils/own-lookup.js";
+import { isRecord, isStringArray, toRecord } from "../../utils/type-guards.js";
 import { loadYaml } from "../../utils/yaml.js";
 import {
   ROVODEV_CONFIG_SHARED_FILE_KEY,
   applySharedConfigPatch,
 } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { honorAllToolsOnBash } from "./shell-command-categories.js";
+import { CATCH_ALL_PATTERN, honorAllToolsOnBash } from "./shell-command-categories.js";
 import { failSafeCatchAllAction } from "./single-action-collapse.js";
 import {
   ToolPermissions,
-  type ToolPermissionsForDeletionParams,
   type ToolPermissionsFromFileParams,
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
 } from "./tool-permissions.js";
-
-// The catch-all pattern in a rulesync category. It maps to a Rovo Dev per-tool
-// default level (or `bash.default`) rather than to a `bash.commands[]` regex.
-const CATCH_ALL_PATTERN = "*";
 
 // Rovo Dev's per-tool permission keys. Each holds a single level (no per-pattern
 // rules), so a whole rulesync category maps to one of these via its catch-all.
@@ -318,27 +314,12 @@ export class RovodevPermissions extends ToolPermissions {
       );
     }
 
-    const config = isRecord(parsed) ? parsed : {};
-    const toolPermissions = isRecord(config.toolPermissions) ? config.toolPermissions : {};
+    const config = toRecord(parsed);
+    const toolPermissions = toRecord(config.toolPermissions);
     const rulesyncConfig = convertRovodevToolPermissionsToRulesync(toolPermissions);
 
     return this.toRulesyncPermissionsDefault({
       fileContent: JSON.stringify(rulesyncConfig, null, 2),
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolPermissionsForDeletionParams): RovodevPermissions {
-    return new RovodevPermissions({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: "",
-      validate: false,
-      global: true,
     });
   }
 }
@@ -641,7 +622,7 @@ function convertRulesyncToRovodevToolPermissions({
       continue;
     }
 
-    const toolKeys = CATEGORY_TO_TOOL_KEYS[category];
+    const toolKeys = lookupOwn({ record: CATEGORY_TO_TOOL_KEYS, key: category });
     if (!toolKeys) {
       logger?.warn(
         `Rovo Dev permissions have no target for the "${category}" category. Skipping it.`,
@@ -909,7 +890,7 @@ function convertRovodevToolPermissionsToRulesync(
 
   // Read from `toolPermissions.tools`, falling back to the top level for a file
   // an earlier rulesync wrote at the wrong depth, so those still import.
-  const nestedTools = isRecord(toolPermissions.tools) ? toolPermissions.tools : {};
+  const nestedTools = toRecord(toolPermissions.tools);
   // The level Rovo Dev applies to a tool key the file says nothing about.
   const implicitLevel: PermissionAction = isPermissionAction(toolPermissions.default)
     ? toolPermissions.default
@@ -957,7 +938,9 @@ function convertRovodevToolPermissionsToRulesync(
       // Never widen a level already read from the tool keys: the `/directories`
       // command edits this list from inside a Rovo Dev session, so a stray `*`
       // entry would otherwise turn a `read` deny into an allow.
-      permission.read[path] ??= "allow";
+      if (!Object.hasOwn(permission.read, path)) {
+        permission.read[path] = "allow";
+      }
     }
   }
 
@@ -978,8 +961,4 @@ function strictestAction(
   return ACTION_STRICTNESS.indexOf(current) <= ACTION_STRICTNESS.indexOf(candidate)
     ? current
     : candidate;
-}
-
-function isPermissionAction(value: unknown): value is PermissionAction {
-  return PermissionActionSchema.safeParse(value).success;
 }

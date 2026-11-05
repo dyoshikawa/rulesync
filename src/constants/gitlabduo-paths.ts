@@ -1,5 +1,7 @@
 import { join } from "node:path";
 
+import { AGENTSMD_SKILLS_DIR_PATH } from "./agentsmd-paths.js";
+
 /**
  * GitLab Duo CLI keeps its project configuration under `.gitlab/duo/` and its
  * user configuration under `~/.gitlab/duo/` (on Linux/macOS). Every path here
@@ -35,7 +37,7 @@ export const GITLABDUO_GLOBAL_COMMANDS_DIR = join(GITLABDUO_DIR, "commands");
  *
  * @see https://docs.gitlab.com/user/duo_agent_platform/customize/agent_skills/
  */
-export const GITLABDUO_SKILLS_DIR = join(".agents", "skills");
+export const GITLABDUO_SKILLS_DIR = AGENTSMD_SKILLS_DIR_PATH;
 /**
  * The project-root `skills/` directory GitLab Duo also reads. Earlier rulesync
  * versions wrote project skills there; it is now an import-only root, since it

@@ -182,4 +182,17 @@ describe("LettacodePermissions", () => {
       expect(generated.toRulesyncPermissions().getJson().permission).toEqual(source);
     });
   });
+
+  describe("names that match Object.prototype members on import", () => {
+    it("imports a pattern named like a prototype member into its own entry", async () => {
+      await writeSettings(testDir, { permissions: { allow: ["Bash(toString)"] } });
+
+      const permissions = await LettacodePermissions.fromFile({ outputRoot: testDir });
+      expect(permissions.toRulesyncPermissions().getJson().permission).toEqual({
+        bash: { toString: "allow" },
+      });
+      expect(Object.hasOwn(Object.prototype.toString, "*")).toBe(false);
+      expect(Object.hasOwn(Object.prototype.toString, "toString")).toBe(false);
+    });
+  });
 });

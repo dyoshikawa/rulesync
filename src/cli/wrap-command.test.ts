@@ -2,7 +2,7 @@ import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from "vite-plus/test";
 
 import { createMockLogger, type MockLogger } from "../test-utils/mock-logger.js";
-import { CLIError } from "../types/json-output.js";
+import { CLIError, type ErrorCode } from "../types/json-output.js";
 import { fallbackLogger, JsonLogger, Logger, warnWithFallback } from "../utils/logger.js";
 import { createLogger, wrapCommand } from "./wrap-command.js";
 
@@ -30,7 +30,7 @@ function createWrappedCommand(
   overrides: {
     handler?: CommandHandler;
     name?: string;
-    errorCode?: string;
+    errorCode?: ErrorCode;
   } = {},
   mockLoggerFactory: LoggerFactory,
 ) {
@@ -40,7 +40,7 @@ function createWrappedCommand(
     handler,
     wrapped: wrapCommand({
       name: overrides.name ?? "test",
-      errorCode: overrides.errorCode ?? "TEST_FAILED",
+      errorCode: overrides.errorCode ?? "GENERATION_FAILED",
       handler,
       getVersion,
       loggerFactory: mockLoggerFactory,
@@ -231,7 +231,7 @@ describe("wrapCommand", () => {
 
   describe("error handling", () => {
     it("should handle CLIError with custom exit code", async () => {
-      const cliError = new CLIError("Config not found", "CONFIG_NOT_FOUND", 2);
+      const cliError = new CLIError("Config not found", "RULESYNC_DIR_NOT_FOUND", 2);
       const { wrapped } = createWrappedCommand(
         { handler: vi.fn().mockRejectedValue(cliError) as unknown as CommandHandler },
         mockLoggerFactory,
@@ -239,7 +239,7 @@ describe("wrapCommand", () => {
 
       await wrapped({}, createMockCommand({}));
 
-      expect(mockLogger.error).toHaveBeenCalledWith(cliError, "CONFIG_NOT_FOUND");
+      expect(mockLogger.error).toHaveBeenCalledWith(cliError, "RULESYNC_DIR_NOT_FOUND");
       expect(processExitSpy).toHaveBeenCalledWith(2);
     });
 
@@ -283,7 +283,7 @@ describe("wrapCommand", () => {
       await wrapped({}, createMockCommand({}));
 
       // formatError converts non-Error values via String(), producing "[object Object]"
-      expect(mockLogger.error).toHaveBeenCalledWith("[object Object]", "TEST_FAILED");
+      expect(mockLogger.error).toHaveBeenCalledWith("[object Object]", "GENERATION_FAILED");
       expect(processExitSpy).toHaveBeenCalledWith(1);
     });
   });

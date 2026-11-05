@@ -8,7 +8,6 @@ import {
   TAKT_DIR,
   TAKT_WORKFLOW_OVERRIDES_KEY,
 } from "../../constants/takt-paths.js";
-import type { ValidationResult } from "../../types/ai-file.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { isPlainObject } from "../../utils/type-guards.js";
@@ -19,11 +18,8 @@ import {
 } from "../shared/shared-config-gateway.js";
 import { checkStem, parseCheckOverride, slugifyCheckName } from "./check-slug.js";
 import { RulesyncCheck } from "./rulesync-check.js";
+import { SingleFileToolCheck } from "./single-file-tool-check.js";
 import {
-  ToolCheck,
-  type ToolCheckForDeletionParams,
-  type ToolCheckFromFileParams,
-  type ToolCheckFromRulesyncCheckParams,
   type ToolCheckFromRulesyncChecksParams,
   type ToolCheckSettablePaths,
 } from "./tool-check.js";
@@ -279,7 +275,7 @@ function slugForGate({
  *
  * @see https://github.com/nrslib/takt/blob/main/docs/workflows.md
  */
-export class TaktCheck extends ToolCheck {
+export class TaktCheck extends SingleFileToolCheck {
   override isDeletable(): boolean {
     // config.yaml holds the rest of Takt's settings.
     return false;
@@ -296,9 +292,8 @@ export class TaktCheck extends ToolCheck {
     return this.isTargetedByRulesyncCheckDefault({ rulesyncCheck, toolTarget: "takt" });
   }
 
-  static override fromRulesyncCheck(_params: ToolCheckFromRulesyncCheckParams): TaktCheck {
-    // Gates share one file, so they are only ever built as a set.
-    throw new Error("Takt checks are built from all checks at once; use fromRulesyncChecks.");
+  protected static override getDisplayName(): string {
+    return "Takt";
   }
 
   static async fromRulesyncChecks({
@@ -307,9 +302,11 @@ export class TaktCheck extends ToolCheck {
     global = false,
     logger,
   }: ToolCheckFromRulesyncChecksParams): Promise<TaktCheck[]> {
-    const paths = TaktCheck.getSettablePaths({ global });
-    const configFileName = paths.relativeFilePath ?? TAKT_CONFIG_FILE_NAME;
-    const filePath = join(outputRoot, paths.relativeDirPath, configFileName);
+    const {
+      relativeDirPath,
+      relativeFilePath: configFileName,
+      filePath,
+    } = this.getSingleFilePath({ outputRoot, global });
     // Read without initializing so a dry-run does not create the user's
     // config.yaml as a side effect (mirrors the Takt MCP/permissions adapters).
     const existingContent = (await readFileContentOrNull(filePath)) ?? "";
@@ -317,7 +314,7 @@ export class TaktCheck extends ToolCheck {
     const buildConfigFile = (patch: Record<string, unknown>): TaktCheck =>
       new TaktCheck({
         outputRoot,
-        relativeDirPath: paths.relativeDirPath,
+        relativeDirPath,
         relativeFilePath: configFileName,
         fileContent: applySharedConfigPatch({
           fileKey: TAKT_CONFIG_SHARED_FILE_KEY,
@@ -364,42 +361,6 @@ export class TaktCheck extends ToolCheck {
     return [
       buildConfigFile({ [TAKT_WORKFLOW_OVERRIDES_KEY]: buildWorkflowOverrides(entries, logger) }),
     ];
-  }
-
-  static async fromFile({
-    outputRoot = process.cwd(),
-    global = false,
-  }: ToolCheckFromFileParams): Promise<TaktCheck> {
-    const paths = TaktCheck.getSettablePaths({ global });
-    const configFileName = paths.relativeFilePath ?? TAKT_CONFIG_FILE_NAME;
-    const filePath = join(outputRoot, paths.relativeDirPath, configFileName);
-    return new TaktCheck({
-      outputRoot,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: configFileName,
-      fileContent: (await readFileContentOrNull(filePath)) ?? "",
-      global,
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-    global = false,
-  }: ToolCheckForDeletionParams): TaktCheck {
-    return new TaktCheck({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: "",
-      validate: false,
-      global,
-    });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   toRulesyncCheck(): RulesyncCheck {

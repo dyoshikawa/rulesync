@@ -9,10 +9,10 @@ import {
 import type { AiFileParams } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import type { Logger } from "../../utils/logger.js";
-import { lookupOwn } from "../../utils/own-lookup.js";
+import { invertRecord, lookupOwn } from "../../utils/own-lookup.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
-import { isRecord, isStringArray } from "../../utils/type-guards.js";
+import { isRecord, isStringArray, toRecord } from "../../utils/type-guards.js";
 import {
   crushConfigImportContent,
   getCrushConfigSettablePaths,
@@ -22,17 +22,18 @@ import {
 } from "../crush-config.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { ALL_TOOLS_PERMISSION_CATEGORY, honorAllToolsOnBash } from "./shell-command-categories.js";
+import {
+  ALL_TOOLS_PERMISSION_CATEGORY,
+  CATCH_ALL_PATTERN,
+  honorAllToolsOnBash,
+  MCP_CATEGORY_PREFIX,
+} from "./shell-command-categories.js";
 import {
   ToolPermissions,
-  type ToolPermissionsForDeletionParams,
   type ToolPermissionsFromFileParams,
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
 } from "./tool-permissions.js";
-
-// The catch-all rulesync pattern; a rule about the whole tool.
-const CATCH_ALL_PATTERN = "*";
 
 /**
  * A run of `*` (`**`, `***`) is the catch-all spelled another way: Crush has no
@@ -57,28 +58,25 @@ const CANONICAL_TO_CRUSH_TOOL_NAMES: Record<string, string> = {
   webfetch: "fetch",
 };
 
-const CRUSH_TO_CANONICAL_TOOL_NAMES: Record<string, string> = Object.fromEntries(
-  Object.entries(CANONICAL_TO_CRUSH_TOOL_NAMES).map(([k, v]) => [v, k]),
+const CRUSH_TO_CANONICAL_TOOL_NAMES: Record<string, string> = invertRecord(
+  CANONICAL_TO_CRUSH_TOOL_NAMES,
 );
 
-// The canonical per-tool MCP category (`mcp__<server>__<tool>`) and the name
-// Crush registers an MCP tool under (`mcp_<server>_<tool>`).
-const MCP_CANONICAL_PREFIX = "mcp__";
+// The name Crush registers an MCP tool under (`mcp_<server>_<tool>`) for the
+// canonical per-tool MCP category (`mcp__<server>__<tool>`).
 const MCP_CRUSH_PREFIX = "mcp_";
 
 // Own-property lookups only: a `constructor` category would otherwise resolve
 // to the `Object` function through the prototype chain.
 function toCrushToolName(canonical: string): string {
-  if (Object.hasOwn(CANONICAL_TO_CRUSH_TOOL_NAMES, canonical)) {
-    return CANONICAL_TO_CRUSH_TOOL_NAMES[canonical] ?? canonical;
+  const crushName = lookupOwn({ record: CANONICAL_TO_CRUSH_TOOL_NAMES, key: canonical });
+  if (crushName !== undefined) {
+    return crushName;
   }
-  if (
-    canonical.startsWith(MCP_CANONICAL_PREFIX) &&
-    canonical.length > MCP_CANONICAL_PREFIX.length
-  ) {
+  if (canonical.startsWith(MCP_CATEGORY_PREFIX) && canonical.length > MCP_CATEGORY_PREFIX.length) {
     // `mcp__server__tool` -> `mcp_server_tool`, the name Crush's permission
     // service sees for that MCP tool.
-    return `${MCP_CRUSH_PREFIX}${canonical.slice(MCP_CANONICAL_PREFIX.length).replaceAll("__", "_")}`;
+    return `${MCP_CRUSH_PREFIX}${canonical.slice(MCP_CATEGORY_PREFIX.length).replaceAll("__", "_")}`;
   }
   return canonical;
 }
@@ -88,9 +86,7 @@ function toCrushToolName(canonical: string): string {
 // ambiguous once the double underscore is gone) is kept verbatim, which
 // regenerates unchanged.
 function toCanonicalToolName(crushName: string): string {
-  return Object.hasOwn(CRUSH_TO_CANONICAL_TOOL_NAMES, crushName)
-    ? (CRUSH_TO_CANONICAL_TOOL_NAMES[crushName] ?? crushName)
-    : crushName;
+  return lookupOwn({ record: CRUSH_TO_CANONICAL_TOOL_NAMES, key: crushName }) ?? crushName;
 }
 
 function isMcpToolName(crushName: string): boolean {
@@ -280,7 +276,7 @@ export class CrushPermissions extends ToolPermissions {
     const permissions = isRecord(this.json[CRUSH_PERMISSIONS_KEY])
       ? this.json[CRUSH_PERMISSIONS_KEY]
       : {};
-    const options = isRecord(this.json[CRUSH_OPTIONS_KEY]) ? this.json[CRUSH_OPTIONS_KEY] : {};
+    const options = toRecord(this.json[CRUSH_OPTIONS_KEY]);
     const rulesyncConfig = convertCrushListsToRulesync({
       allowed: isStringArray(permissions[CRUSH_ALLOWED_TOOLS_KEY])
         ? permissions[CRUSH_ALLOWED_TOOLS_KEY]
@@ -292,24 +288,6 @@ export class CrushPermissions extends ToolPermissions {
 
     return this.toRulesyncPermissionsDefault({
       fileContent: JSON.stringify(rulesyncConfig, null, 2),
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-    global = false,
-  }: ToolPermissionsForDeletionParams): CrushPermissions {
-    // The shared config file is never deleted (isDeletable() === false), but
-    // forDeletion must still return a well-formed instance.
-    return new CrushPermissions({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: "{}",
-      validate: false,
-      global,
     });
   }
 }

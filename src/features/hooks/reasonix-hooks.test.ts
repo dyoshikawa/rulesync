@@ -414,6 +414,33 @@ describe("ReasonixHooks", () => {
       ).rejects.toThrow(/Failed to parse existing Reasonix settings/);
     });
 
+    it.each([
+      ["an array", "[1, 2]"],
+      ["null", "null"],
+      ["a string", '"text"'],
+    ])("should reject an existing settings.json whose root is %s", async (_label, content) => {
+      await ensureDir(join(testDir, ".reasonix"));
+      await writeFileContent(join(testDir, ".reasonix", "settings.json"), content);
+
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({ version: 1, hooks: { stop: [{ command: "echo" }] } }),
+        validate: false,
+      });
+
+      await expect(
+        ReasonixHooks.fromRulesyncHooks({
+          outputRoot: testDir,
+          rulesyncHooks,
+          validate: false,
+        }),
+      ).rejects.toThrow(
+        /Failed to parse existing Reasonix settings at .*: expected a mapping at the root/,
+      );
+    });
+
     it("should write to the global path when global is true", async () => {
       const config = { version: 1, hooks: { stop: [{ command: "echo" }] } };
       const rulesyncHooks = new RulesyncHooks({

@@ -11,8 +11,11 @@ import {
   ALL_GITIGNORE_ENTRIES,
   GITIGNORE_ENTRY_REGISTRY,
   HAND_MAINTAINED_GITIGNORE_ENTRIES,
-  filterGitignoreEntries,
+  resolveGitignoreEntries,
 } from "./gitignore-entries.js";
+
+const filterGitignoreEntries = (params?: Parameters<typeof resolveGitignoreEntries>[0]): string[] =>
+  resolveGitignoreEntries(params).map((entry) => entry.entry);
 
 const logger = createMockLogger();
 

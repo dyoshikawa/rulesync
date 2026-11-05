@@ -28,7 +28,6 @@ import {
   SkillsProcessor,
   SkillsProcessorToolTarget,
   SkillsProcessorToolTargetSchema,
-  skillsProcessorToolTargetsGlobal,
 } from "./skills-processor.js";
 import { TaktSkill } from "./takt-skill.js";
 import { WarpSkill } from "./warp-skill.js";
@@ -3215,72 +3214,6 @@ Content that would fail parsing`;
     });
   });
 
-  describe("getToolTargetsGlobal", () => {
-    it("should return global targets in global mode", () => {
-      const targets = SkillsProcessor.getToolTargetsGlobal();
-      expect(targets).toEqual([
-        "agentsskills",
-        "androidstudio",
-        "amp",
-        "antigravity-cli",
-        "antigravity-ide",
-        "augmentcode",
-        "bob",
-        "claudecode",
-        "claudecode-legacy",
-        "cline",
-        "codebuddy",
-        "codewhale",
-        "codexcli",
-        "commandcode",
-        "continue",
-        "copilot",
-        "copilotcli",
-        "cortexcode",
-        "crush",
-        "cursor",
-        "deepagents",
-        "factorydroid",
-        "firebender",
-        "goose",
-        "hermesagent",
-        "gitlabduo",
-        "grokcli",
-        "junie",
-        "kilo",
-        "lettacode",
-        "kimi-code",
-        "kiro-cli",
-        "kiro-ide",
-        "mimocode",
-        "musecode",
-        "omp",
-        "opencode",
-        "opencodev1",
-        "pi",
-        "pool",
-        "qoder",
-        "qwencode",
-        "reasonix",
-        "replit",
-        "roo",
-        "zoocode",
-        "rovodev",
-        "tabnine",
-        "takt",
-        "trae",
-        "vibe",
-        "warp",
-        "xum",
-        "devin",
-        "zcode",
-        "zed",
-        "dsh",
-      ]);
-      expect(targets).toEqual(skillsProcessorToolTargetsGlobal);
-    });
-  });
-
   describe("getToolTargets with global: true", () => {
     it("should return global targets when global option is true", () => {
       const targets = SkillsProcessor.getToolTargets({ global: true });
@@ -3343,7 +3276,6 @@ Content that would fail parsing`;
         "zed",
         "dsh",
       ]);
-      expect(targets).toEqual(skillsProcessorToolTargetsGlobal);
     });
 
     it("should be callable without instance", () => {

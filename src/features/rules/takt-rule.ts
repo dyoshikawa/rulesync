@@ -20,7 +20,6 @@ import {
   ToolRuleParams,
   ToolRuleSettablePaths,
   ToolRuleSettablePathsGlobal,
-  buildToolPath,
 } from "./tool-rule.js";
 
 /**
@@ -74,30 +73,20 @@ export type TaktRuleParams = Omit<ToolRuleParams, "fileContent"> & {
 export class TaktRule extends ToolRule {
   static getSettablePaths({
     global,
-    excludeToolDir,
   }: {
     global?: boolean;
-    excludeToolDir?: boolean;
   } = {}): ToolRuleSettablePaths | ToolRuleSettablePathsGlobal {
     if (global) {
       return {
         root: {
-          relativeDirPath: buildToolPath(
-            TAKT_DIR,
-            join(TAKT_FACETS_SUBDIR, DEFAULT_TAKT_RULE_DIR),
-            excludeToolDir,
-          ),
+          relativeDirPath: join(TAKT_DIR, join(TAKT_FACETS_SUBDIR, DEFAULT_TAKT_RULE_DIR)),
           relativeFilePath: TAKT_RULE_OVERVIEW_FILE_NAME,
         },
       };
     }
     return {
       nonRoot: {
-        relativeDirPath: buildToolPath(
-          TAKT_DIR,
-          join(TAKT_FACETS_SUBDIR, DEFAULT_TAKT_RULE_DIR),
-          excludeToolDir,
-        ),
+        relativeDirPath: join(TAKT_DIR, join(TAKT_FACETS_SUBDIR, DEFAULT_TAKT_RULE_DIR)),
       },
     };
   }

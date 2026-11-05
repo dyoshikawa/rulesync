@@ -37,7 +37,6 @@ import {
 } from "./sandbox-trust.js";
 import {
   ToolPermissions,
-  type ToolPermissionsForDeletionParams,
   type ToolPermissionsFromFileParams,
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
@@ -479,14 +478,6 @@ export class CopilotPermissions extends ToolPermissions {
     });
   }
 
-  /**
-   * `.vscode/settings.json` is a user-managed workspace file with unrelated
-   * settings, so it must not be deleted.
-   */
-  override isDeletable(): boolean {
-    return false;
-  }
-
   static getSettablePaths(_options: { global?: boolean } = {}): ToolPermissionsSettablePaths {
     // Project scope only. VS Code's user settings.json is at a platform-specific
     // path outside rulesync's home-relative global model.
@@ -636,20 +627,6 @@ export class CopilotPermissions extends ToolPermissions {
         null,
         2,
       ),
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolPermissionsForDeletionParams): CopilotPermissions {
-    return new CopilotPermissions({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: "{}",
-      validate: false,
     });
   }
 }

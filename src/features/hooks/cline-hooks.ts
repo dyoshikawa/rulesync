@@ -95,7 +95,7 @@ export class ClineHooks extends ToolHooks {
   private readonly scriptsByEvent: Record<string, string[]>;
 
   constructor(params: AiFileParams & { scriptsByEvent?: Record<string, string[]> }) {
-    super({ ...params, fileContent: params.fileContent ?? "" });
+    super(params);
     this.scriptsByEvent = params.scriptsByEvent ?? {};
   }
 

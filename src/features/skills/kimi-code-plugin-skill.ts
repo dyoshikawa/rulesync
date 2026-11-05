@@ -1,6 +1,5 @@
 import { KIMI_CODE_PLUGIN_SKILLS_DIR } from "../../constants/plugin-paths.js";
 import { KimiCodeSkill } from "./kimi-code-skill.js";
-import type { RulesyncSkill } from "./rulesync-skill.js";
 import type { ToolSkillSettablePaths } from "./tool-skill.js";
 
 /**
@@ -12,10 +11,7 @@ import type { ToolSkillSettablePaths } from "./tool-skill.js";
  * @see https://github.com/MoonshotAI/kimi-code/blob/%40moonshot-ai/kimi-code%402.1.1/docs/en/customization/plugins.md
  */
 export class KimiCodePluginSkill extends KimiCodeSkill {
-  static override isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("kimi-code-plugin");
-  }
+  protected static override readonly toolTarget = "kimi-code-plugin";
 
   static override getSettablePaths(): ToolSkillSettablePaths {
     return { relativeDirPath: KIMI_CODE_PLUGIN_SKILLS_DIR };

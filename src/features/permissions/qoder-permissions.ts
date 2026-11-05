@@ -7,19 +7,24 @@ import type { PermissionAction, PermissionsConfig } from "../../types/permission
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import { getOrCreateOwn, invertRecord, lookupOwn } from "../../utils/own-lookup.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
-import { isRecord, isStringArray, toStringArray } from "../../utils/type-guards.js";
+import { isRecord, isStringArray, toRecord, toStringArray } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
   parseSharedConfig,
   sharedConfigFileKey,
 } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { ALL_TOOLS_PERMISSION_CATEGORY, honorAllToolsOnBash } from "./shell-command-categories.js";
+import {
+  ALL_TOOLS_PERMISSION_CATEGORY,
+  CATCH_ALL_PATTERN,
+  honorAllToolsOnBash,
+} from "./shell-command-categories.js";
 import { isStricterAction } from "./single-action-collapse.js";
+import { splitToolRule } from "./tool-pattern-entry.js";
 import {
   ToolPermissions,
-  type ToolPermissionsForDeletionParams,
   type ToolPermissionsFromFileParams,
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
@@ -89,8 +94,6 @@ const QODER_PERMISSIVE_MODES = new Set([
   "yolo",
 ]);
 
-const CATCH_ALL_PATTERN = "*";
-
 /** Prefix of the fully qualified MCP tool names (`mcp__<server>__<tool>`). */
 const MCP_TOOL_PREFIX = "mcp__";
 
@@ -108,9 +111,7 @@ const CATEGORY_TO_QODER_TOOL: Record<string, string> = {
   agent: "Agent",
 };
 
-const QODER_TOOL_TO_CATEGORY: Record<string, string> = Object.fromEntries(
-  Object.entries(CATEGORY_TO_QODER_TOOL).map(([category, tool]) => [tool, category]),
-);
+const QODER_TOOL_TO_CATEGORY: Record<string, string> = invertRecord(CATEGORY_TO_QODER_TOOL);
 
 /**
  * Qoder checks path-scoped writes against `Edit(...)` rules (covering `Edit`,
@@ -127,28 +128,16 @@ const QODER_PATH_RULE_ALIASES: Record<string, string> = {
 
 const ACTIONS: readonly PermissionAction[] = ["allow", "ask", "deny"];
 
-/**
- * Split a rule into `Tool(payload)` or a bare `Tool`. A rule that opens a
- * parenthesis without closing it gets a `null` tool so it stays unmodeled.
- */
-function splitQoderRule(rule: string): { tool: string | null; payload: string | undefined } {
-  const match = rule.match(/^([^(]+)\(([\s\S]*)\)$/);
-  if (match) {
-    return { tool: match[1] ?? null, payload: match[2] };
-  }
-  return { tool: rule.includes("(") ? null : rule, payload: undefined };
-}
-
 /** The canonical category a Qoder rule belongs to, or `undefined` if unmodeled. */
 function categoryOfRule(rule: string): string | undefined {
-  const { tool } = splitQoderRule(rule);
+  const { tool } = splitToolRule(rule);
   if (tool === null) {
     return undefined;
   }
   if (tool === ALL_TOOLS_PERMISSION_CATEGORY || tool.startsWith(MCP_TOOL_PREFIX)) {
     return tool;
   }
-  return Object.hasOwn(QODER_TOOL_TO_CATEGORY, tool) ? QODER_TOOL_TO_CATEGORY[tool] : undefined;
+  return lookupOwn({ record: QODER_TOOL_TO_CATEGORY, key: tool });
 }
 
 /**
@@ -192,7 +181,7 @@ function toQoderRule({
     );
     return null;
   }
-  const tool = CATEGORY_TO_QODER_TOOL[category];
+  const tool = lookupOwn({ record: CATEGORY_TO_QODER_TOOL, key: category });
   if (tool === undefined) {
     return null;
   }
@@ -208,7 +197,7 @@ function fromQoderRule(rule: string): { category: string; pattern: string } | nu
   if (category === undefined) {
     return null;
   }
-  const { payload } = splitQoderRule(rule);
+  const { payload } = splitToolRule(rule);
   if (payload === undefined) {
     return { category, pattern: CATCH_ALL_PATTERN };
   }
@@ -331,14 +320,14 @@ function announcePermissiveQoderSettings({
   where: string;
   logger?: Logger;
 }): void {
-  const general = isRecord(patch.general) ? patch.general : {};
+  const general = toRecord(patch.general);
   const mode = general.defaultPermissionMode;
   if (typeof mode === "string" && QODER_PERMISSIVE_MODES.has(mode.trim().toLowerCase())) {
     logger?.warn(
       `Qoder permissions: qoder.general.defaultPermissionMode = ${JSON.stringify(mode)} was written to ${where}, so Qoder starts every session it applies to in a mode that runs actions without asking first.`,
     );
   }
-  const mcp = isRecord(patch.mcp) ? patch.mcp : {};
+  const mcp = toRecord(patch.mcp);
   if (mcp.enableAllProjectMcpServers === true) {
     logger?.warn(
       `Qoder permissions: qoder.mcp.enableAllProjectMcpServers = true was written to ${where}, so Qoder starts every project-level MCP server without asking for approval.`,
@@ -350,7 +339,7 @@ function announcePermissiveQoderSettings({
       `Qoder permissions: qoder.mcp.enabledProjectMcpServers was written to ${where}, so Qoder starts the project-level MCP servers ${enabledServers.map((name) => JSON.stringify(name)).join(", ")} without asking for approval.`,
     );
   }
-  const autoMode = isRecord(patch[QODER_AUTO_MODE_KEY]) ? patch[QODER_AUTO_MODE_KEY] : {};
+  const autoMode = toRecord(patch[QODER_AUTO_MODE_KEY]);
   if (toStringArray(autoMode.allow).length > 0) {
     logger?.warn(
       `Qoder permissions: qoder.autoMode.allow was written to ${where}, so Qoder's Auto-mode classifier leans toward approving the actions it describes.`,
@@ -395,7 +384,7 @@ function buildQoderOverridePatch({
       logger,
     });
     if (Object.keys(picked).length > 0) {
-      const existingGroup = isRecord(existing[group]) ? existing[group] : {};
+      const existingGroup = toRecord(existing[group]);
       patch[group] = { ...existingGroup, ...picked };
     }
   }
@@ -641,8 +630,12 @@ export class QoderPermissions extends ToolPermissions {
         ) {
           continue;
         }
-        const rules = (permission[parsed.category] ??= {});
-        const existing = rules[parsed.pattern];
+        const rules = getOrCreateOwn({
+          record: permission,
+          key: parsed.category,
+          create: () => ({}),
+        });
+        const existing = lookupOwn({ record: rules, key: parsed.pattern });
         // Qoder checks `deny` before `ask` and `ask` before `allow`, so the
         // stricter action wins when a rule appears in more than one list.
         if (isStricterAction({ action, existing })) {
@@ -661,22 +654,6 @@ export class QoderPermissions extends ToolPermissions {
         null,
         2,
       ),
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-    global = false,
-  }: ToolPermissionsForDeletionParams): QoderPermissions {
-    return new QoderPermissions({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: "{}",
-      validate: false,
-      global,
     });
   }
 }

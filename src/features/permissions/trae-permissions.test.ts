@@ -68,18 +68,11 @@ describe("TraePermissions", () => {
     vi.restoreAllMocks();
   });
 
-  it("uses ~/.trae/permission/global.json and is never deletable", () => {
+  it("uses ~/.trae/permission/global.json", () => {
     expect(TraePermissions.getSettablePaths({ global: true })).toEqual({
       relativeDirPath: CONFIG_DIR,
       relativeFilePath: CONFIG_FILE,
     });
-    expect(
-      TraePermissions.forDeletion({
-        outputRoot: homeDir,
-        relativeDirPath: CONFIG_DIR,
-        relativeFilePath: CONFIG_FILE,
-      }).isDeletable(),
-    ).toBe(false);
   });
 
   it("maps bash globs to exact, prefix and regex commandRules", async () => {
@@ -277,6 +270,22 @@ describe("TraePermissions", () => {
 
     expect(permissions.toRulesyncPermissions().getJson().permission).toEqual({
       webfetch: { "evil.com": "deny" },
+    });
+  });
+
+  describe("names that match Object.prototype members on import", () => {
+    it("imports a command named like a prototype member into its own entry", () => {
+      const permission = importFrom(homeDir, {
+        customProfiles: {
+          defaultCustomProfile: {
+            approval: { commandRules: { toString: { approval: "allow" } } },
+          },
+        },
+      });
+
+      expect(permission.bash).toEqual({ toString: "allow" });
+      expect(Object.hasOwn(Object.prototype.toString, "*")).toBe(false);
+      expect(Object.hasOwn(Object.prototype.toString, "toString")).toBe(false);
     });
   });
 });

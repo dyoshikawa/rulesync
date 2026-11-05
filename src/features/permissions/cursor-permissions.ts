@@ -12,13 +12,14 @@ import type { PermissionAction, PermissionsConfig } from "../../types/permission
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import { getOrCreateOwn, lookupOwn } from "../../utils/own-lookup.js";
+import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { honorAllToolsOnBash } from "./shell-command-categories.js";
+import { honorAllToolsOnBash, MCP_CATEGORY_PREFIX } from "./shell-command-categories.js";
 import { buildToolPatternEntry, parseToolPatternEntry } from "./tool-pattern-entry.js";
 import {
   ToolPermissions,
-  type ToolPermissionsForDeletionParams,
   type ToolPermissionsFromFileParams,
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
@@ -67,23 +68,19 @@ const CURSOR_TYPE_TO_CANONICAL: Record<string, string> = {
   Mcp: "mcp",
 };
 
-const MCP_CANONICAL_PREFIX = "mcp__";
-
 /**
  * Returns true if the canonical category is the per-tool MCP form
  * `mcp__<server>__<tool>`.
  */
 function isMcpScopedCategory(canonical: string): boolean {
-  return (
-    canonical.startsWith(MCP_CANONICAL_PREFIX) && canonical.length > MCP_CANONICAL_PREFIX.length
-  );
+  return canonical.startsWith(MCP_CATEGORY_PREFIX) && canonical.length > MCP_CATEGORY_PREFIX.length;
 }
 
 function toCursorType(canonical: string): string {
   if (isMcpScopedCategory(canonical)) {
     return "Mcp";
   }
-  return CANONICAL_TO_CURSOR_TYPE[canonical] ?? canonical;
+  return lookupOwn({ record: CANONICAL_TO_CURSOR_TYPE, key: canonical }) ?? canonical;
 }
 
 /**
@@ -99,7 +96,7 @@ function toCursorType(canonical: string): string {
  */
 function toCursorPattern(canonical: string, pattern: string): string {
   if (isMcpScopedCategory(canonical)) {
-    const remainder = canonical.slice(MCP_CANONICAL_PREFIX.length);
+    const remainder = canonical.slice(MCP_CATEGORY_PREFIX.length);
     const [server, ...toolParts] = remainder.split("__");
     const tool = toolParts.length > 0 ? toolParts.join("__") : "*";
     const serverName = server ?? "*";
@@ -124,11 +121,15 @@ function toCanonicalCategory(cursorType: string, pattern: string): string {
     if (match) {
       const server = match[1] ?? "*";
       const tool = match[2] ?? "*";
-      return `${MCP_CANONICAL_PREFIX}${server}__${tool}`;
+      return `${MCP_CATEGORY_PREFIX}${server}__${tool}`;
     }
-    return CURSOR_TYPE_TO_CANONICAL[cursorType] ?? cursorType.toLowerCase();
+    return (
+      lookupOwn({ record: CURSOR_TYPE_TO_CANONICAL, key: cursorType }) ?? cursorType.toLowerCase()
+    );
   }
-  return CURSOR_TYPE_TO_CANONICAL[cursorType] ?? cursorType.toLowerCase();
+  return (
+    lookupOwn({ record: CURSOR_TYPE_TO_CANONICAL, key: cursorType }) ?? cursorType.toLowerCase()
+  );
 }
 
 type CursorCliConfig = {
@@ -321,13 +322,6 @@ export class CursorPermissions extends ToolPermissions {
     });
   }
 
-  override isDeletable(): boolean {
-    // The cli.json / cli-config.json file may carry non-permissions
-    // settings (editor, model, network, attribution), so we never delete
-    // the file outright — only manage the `permissions` block.
-    return false;
-  }
-
   static getSettablePaths({
     global = false,
   }: { global?: boolean } = {}): ToolPermissionsSettablePaths {
@@ -508,20 +502,6 @@ export class CursorPermissions extends ToolPermissions {
       fileContent: JSON.stringify(result, null, 2),
     });
   }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolPermissionsForDeletionParams): CursorPermissions {
-    return new CursorPermissions({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: JSON.stringify({ permissions: {} }, null, 2),
-      validate: false,
-    });
-  }
 }
 
 /**
@@ -577,15 +557,18 @@ function convertCursorToRulesyncPermissions(params: {
     for (const entry of entries) {
       const { toolName: type, pattern } = parseToolPatternEntry(entry);
       const canonical = toCanonicalCategory(type, pattern);
-      if (!permission[canonical]) {
-        permission[canonical] = {};
-      }
       // For per-tool MCP canonical categories (`mcp__server__tool`), the server
       // and tool address is already encoded in the category name, so the
       // pattern collapses to `*` to mirror the generation path.
       const canonicalPattern =
-        type === "Mcp" && canonical.startsWith(MCP_CANONICAL_PREFIX) ? "*" : pattern;
-      permission[canonical][canonicalPattern] = action;
+        type === "Mcp" && canonical.startsWith(MCP_CATEGORY_PREFIX) ? "*" : pattern;
+      // A `__proto__` or `constructor` name would not land as a plain own key,
+      // so such entries are dropped, as the other permissions adapters do.
+      if (isPrototypePollutionKey(canonical) || isPrototypePollutionKey(canonicalPattern)) {
+        continue;
+      }
+      getOrCreateOwn({ record: permission, key: canonical, create: () => ({}) })[canonicalPattern] =
+        action;
     }
   };
 

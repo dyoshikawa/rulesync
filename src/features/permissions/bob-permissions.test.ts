@@ -63,16 +63,6 @@ describe("BobPermissions", () => {
     });
   });
 
-  describe("isDeletable", () => {
-    it("is not deletable (shared settings file)", () => {
-      const permissions = BobPermissions.forDeletion({
-        relativeDirPath: join(".bob", "settings"),
-        relativeFilePath: "settings.json",
-      });
-      expect(permissions.isDeletable()).toBe(false);
-    });
-  });
-
   describe("fromRulesyncPermissions", () => {
     it("maps bash allow/deny onto the execute_command executor and omits ask", async () => {
       const permissions = await BobPermissions.fromRulesyncPermissions({

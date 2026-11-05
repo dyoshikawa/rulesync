@@ -1,21 +1,10 @@
-import { join } from "node:path";
-
 import { z } from "zod/mini";
 
 import { JUNIE_COMMANDS_DIR_PATH } from "../../constants/junie-paths.js";
-import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import { formatError } from "../../utils/error.js";
-import { readFileContent } from "../../utils/file.js";
-import {
-  parseFrontmatter,
-  stringifyFrontmatter,
-  validateFrontmatterSchema,
-} from "../../utils/frontmatter.js";
-import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
-import {
-  ToolCommand,
-  ToolCommandForDeletionParams,
-  ToolCommandFromFileParams,
+import type { ToolTarget } from "../../types/tool-targets.js";
+import { FrontmatterMarkdownToolCommand } from "./frontmatter-markdown-command.js";
+import { RulesyncCommand, type RulesyncCommandFrontmatter } from "./rulesync-command.js";
+import type {
   ToolCommandFromRulesyncCommandParams,
   ToolCommandSettablePaths,
 } from "./tool-command.js";
@@ -60,35 +49,7 @@ function translateJunieBodyToRulesync(body: string): string {
 
 export type JunieCommandFrontmatter = z.infer<typeof JunieCommandFrontmatterSchema>;
 
-export type JunieCommandParams = {
-  frontmatter: JunieCommandFrontmatter;
-  body: string;
-} & Omit<AiFileParams, "fileContent">;
-
-export class JunieCommand extends ToolCommand {
-  private readonly frontmatter: JunieCommandFrontmatter;
-  private readonly body: string;
-
-  constructor({ frontmatter, body, ...rest }: JunieCommandParams) {
-    // Validate frontmatter before calling super to avoid validation order issues
-    if (rest.validate) {
-      const result = JunieCommandFrontmatterSchema.safeParse(frontmatter);
-      if (!result.success) {
-        throw new Error(
-          `Invalid frontmatter in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${formatError(result.error)}`,
-        );
-      }
-    }
-
-    super({
-      ...rest,
-      fileContent: stringifyFrontmatter(body, frontmatter),
-    });
-
-    this.frontmatter = frontmatter;
-    this.body = body;
-  }
-
+export class JunieCommand extends FrontmatterMarkdownToolCommand<JunieCommandFrontmatter> {
   static getSettablePaths(_options: { global?: boolean } = {}): ToolCommandSettablePaths {
     // JetBrains Junie stores commands under `.junie/commands` for both project
     // and user scope. The relative path is identical in either mode; in global
@@ -98,15 +59,15 @@ export class JunieCommand extends ToolCommand {
     };
   }
 
-  getBody(): string {
-    return this.body;
+  protected static override getToolTarget(): ToolTarget {
+    return "junie";
   }
 
-  getFrontmatter(): Record<string, unknown> {
-    return this.frontmatter;
+  protected static override getFrontmatterSchema() {
+    return JunieCommandFrontmatterSchema;
   }
 
-  toRulesyncCommand(): RulesyncCommand {
+  override toRulesyncCommand(): RulesyncCommand {
     const { description, ...junieFields } = this.frontmatter;
 
     // `$prompt` is the free-form argument only when `allowPromptArgument` is
@@ -142,7 +103,7 @@ export class JunieCommand extends ToolCommand {
     });
   }
 
-  static fromRulesyncCommand({
+  static override fromRulesyncCommand({
     outputRoot = process.cwd(),
     rulesyncCommand,
     validate = true,
@@ -174,77 +135,13 @@ export class JunieCommand extends ToolCommand {
 
     const paths = this.getSettablePaths({ global });
 
-    return new JunieCommand({
+    return new this({
       outputRoot: outputRoot,
       frontmatter: junieFrontmatter,
       body,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: rulesyncCommand.getRelativeFilePath(),
       validate,
-    });
-  }
-
-  validate(): ValidationResult {
-    // Check if frontmatter is set (may be undefined during construction)
-    if (!this.frontmatter) {
-      return { success: true, error: null };
-    }
-
-    return validateFrontmatterSchema({
-      schema: JunieCommandFrontmatterSchema,
-      frontmatter: this.frontmatter,
-      relativeDirPath: this.relativeDirPath,
-      relativeFilePath: this.relativeFilePath,
-    });
-  }
-
-  static isTargetedByRulesyncCommand(rulesyncCommand: RulesyncCommand): boolean {
-    return this.isTargetedByRulesyncCommandDefault({
-      rulesyncCommand,
-      toolTarget: "junie",
-    });
-  }
-
-  static async fromFile({
-    outputRoot = process.cwd(),
-    relativeFilePath,
-    validate = true,
-    global = false,
-  }: ToolCommandFromFileParams): Promise<JunieCommand> {
-    const paths = this.getSettablePaths({ global });
-    const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
-    // Read file content
-    const fileContent = await readFileContent(filePath);
-    const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
-
-    // Validate required fields using JunieCommandFrontmatterSchema
-    const result = JunieCommandFrontmatterSchema.safeParse(frontmatter);
-    if (!result.success) {
-      throw new Error(`Invalid frontmatter in ${filePath}: ${formatError(result.error)}`);
-    }
-
-    return new JunieCommand({
-      outputRoot: outputRoot,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath,
-      frontmatter: result.data,
-      body: content.trim(),
-      validate,
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolCommandForDeletionParams): JunieCommand {
-    return new JunieCommand({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      frontmatter: { description: "" },
-      body: "",
-      validate: false,
     });
   }
 }

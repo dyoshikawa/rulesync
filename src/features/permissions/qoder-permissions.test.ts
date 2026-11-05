@@ -73,16 +73,6 @@ describe("QoderPermissions", () => {
     expect(QoderPermissions.getSettablePaths({ global: true })).toEqual(expected);
   });
 
-  it("is never deletable", () => {
-    expect(
-      QoderPermissions.forDeletion({
-        outputRoot: testDir,
-        relativeDirPath: SETTINGS_DIR,
-        relativeFilePath: SETTINGS_FILE,
-      }).isDeletable(),
-    ).toBe(false);
-  });
-
   describe("fromRulesyncPermissions", () => {
     it("writes allow / ask / deny lists with Qoder tool names", async () => {
       const settings = await generate(testDir, {
@@ -519,6 +509,18 @@ describe("QoderPermissions", () => {
       const permissions = await QoderPermissions.fromFile({ outputRoot: testDir });
 
       expect(permissions.toRulesyncPermissions().getJson().permission).toEqual(source);
+    });
+  });
+
+  describe("names that match Object.prototype members on import", () => {
+    it("imports a pattern named like a prototype member into its own entry", () => {
+      const permission = importFrom(testDir, {
+        permissions: { allow: ["Bash(toString)"] },
+      });
+
+      expect(permission).toEqual({ bash: { toString: "allow" } });
+      expect(Object.hasOwn(Object.prototype.toString, "*")).toBe(false);
+      expect(Object.hasOwn(Object.prototype.toString, "toString")).toBe(false);
     });
   });
 });

@@ -54,11 +54,6 @@ describe("ContinueRule", () => {
       });
       expect(paths.nonRoot).toEqual({ relativeDirPath: join(".continue", "rules") });
     });
-
-    it("drops the tool directory when excludeToolDir is set", () => {
-      const paths = ContinueRule.getSettablePaths({ excludeToolDir: true });
-      expect(paths.nonRoot.relativeDirPath).toBe("rules");
-    });
   });
 
   describe("constructor", () => {

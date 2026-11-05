@@ -1,17 +1,12 @@
-import { join } from "node:path";
-
 import { z } from "zod/mini";
 
 import { COMMANDCODE_SKILLS_DIR_PATH } from "../../constants/commandcode-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
-import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import {
-  resolveCompatibility,
   resolveDisableModelInvocation,
-  resolveLicense,
-  resolveMetadata,
+  resolveStandardSkillFields,
   resolveUserInvocable,
 } from "./skills-utils.js";
 import {
@@ -125,16 +120,7 @@ export class CommandcodeSkill extends ToolSkill {
       ...(Object.keys(commandcodeSection).length > 0 && { commandcode: commandcodeSection }),
     };
 
-    return new RulesyncSkill({
-      outputRoot: this.outputRoot,
-      relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
-      dirName: this.getDirName(),
-      frontmatter: rulesyncFrontmatter,
-      body: this.getBody(),
-      otherFiles: this.getOtherFiles(),
-      validate: true,
-      global: this.global,
-    });
+    return this.toRulesyncSkillWith(rulesyncFrontmatter);
   }
 
   static fromRulesyncSkill({
@@ -157,18 +143,6 @@ export class CommandcodeSkill extends ToolSkill {
     // back to the root-level rulesync value when the section omits them
     // (mirrors `CrushSkill`). Every resolver prefers a defined section value,
     // so re-applying the resolved values over the spread never discards one.
-    const license = resolveLicense({
-      rootFrontmatter: rulesyncFrontmatter,
-      section: commandcodeSection,
-    });
-    const compatibility = resolveCompatibility({
-      rootFrontmatter: rulesyncFrontmatter,
-      section: commandcodeSection,
-    });
-    const metadata = resolveMetadata({
-      rootFrontmatter: rulesyncFrontmatter,
-      section: commandcodeSection,
-    });
     const disableModelInvocation = resolveDisableModelInvocation({
       rootFrontmatter: rulesyncFrontmatter,
       section: commandcodeSection,
@@ -181,9 +155,10 @@ export class CommandcodeSkill extends ToolSkill {
       ...commandcodeSection,
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
-      ...(license !== undefined && { license }),
-      ...(compatibility !== undefined && { compatibility }),
-      ...(metadata !== undefined && { metadata }),
+      ...resolveStandardSkillFields({
+        rootFrontmatter: rulesyncFrontmatter,
+        section: commandcodeSection,
+      }),
       ...(disableModelInvocation !== undefined && {
         "disable-model-invocation": disableModelInvocation,
       }),
@@ -202,61 +177,18 @@ export class CommandcodeSkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("commandcode");
-  }
+  protected static override readonly toolTarget = "commandcode";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<CommandcodeSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: CommandcodeSkill.getSettablePaths,
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({
-      schema: CommandcodeSkillFrontmatterSchema,
-      loaded,
-    });
-
-    if (frontmatter.name !== loaded.dirName) {
-      const skillFilePath = join(
-        loaded.outputRoot,
-        loaded.relativeDirPath,
-        loaded.dirName,
-        SKILL_FILE_NAME,
-      );
-      throw new Error(
-        `Frontmatter name (${frontmatter.name}) must match directory name (${loaded.dirName}) in ${skillFilePath}`,
-      );
-    }
-
-    return new CommandcodeSkill({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new CommandcodeSkill(
+      await this.loadStandardSkillParamsMatchingDirName({
+        params,
+        schema: CommandcodeSkillFrontmatterSchema,
+      }),
+    );
   }
 
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-  }: ToolSkillForDeletionParams): CommandcodeSkill {
-    return new CommandcodeSkill({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      otherFiles: [],
-      validate: false,
-      global,
-    });
+  static forDeletion(params: ToolSkillForDeletionParams): CommandcodeSkill {
+    return new CommandcodeSkill(this.forDeletionParams(params));
   }
 }

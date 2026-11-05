@@ -47,16 +47,6 @@ describe("RooPermissions", () => {
     });
   });
 
-  describe("isDeletable", () => {
-    it("is not deletable (shared workspace settings file)", () => {
-      const permissions = RooPermissions.forDeletion({
-        relativeDirPath: ".vscode",
-        relativeFilePath: "settings.json",
-      });
-      expect(permissions.isDeletable()).toBe(false);
-    });
-  });
-
   describe("fromRulesyncPermissions", () => {
     it("splits bash allow/deny into the two command lists and omits ask", async () => {
       const permissions = await RooPermissions.fromRulesyncPermissions({

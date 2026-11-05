@@ -55,10 +55,6 @@ export async function executeDoctor(options: DoctorOptions = {}): Promise<McpCom
 
 export const doctorTools = {
   executeDoctor: {
-    name: "executeDoctor",
-    description:
-      "Execute the rulesync doctor command to diagnose the rulesync configuration (read-only). Returns the diagnostics (severity, code, file, message, hint) and whether the configuration passed.",
-    parameters: doctorOptionsSchema,
     execute: async (options: DoctorOptions = {}): Promise<string> =>
       stringifyResult(await executeDoctor(options)),
   },

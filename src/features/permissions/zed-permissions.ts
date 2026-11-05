@@ -13,13 +13,13 @@ import type { AiFileParams } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import { invertRecord, lookupOwn } from "../../utils/own-lookup.js";
 import { isPlainObject } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { honorAllToolsOnBash } from "./shell-command-categories.js";
+import { honorAllToolsOnBash, MCP_CATEGORY_PREFIX } from "./shell-command-categories.js";
 import {
   ToolPermissions,
-  type ToolPermissionsForDeletionParams,
   type ToolPermissionsFromFileParams,
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
@@ -53,9 +53,6 @@ const ZedToolPermissionsSchema = z.looseObject({
   default: z.optional(ZedPermissionActionSchema),
   tools: z.optional(z.record(z.string(), ZedToolPermissionSchema)),
 });
-
-/** Canonical per-tool MCP category prefix: `mcp__<server>__<tool>`. */
-const MCP_CANONICAL_PREFIX = "mcp__";
 
 /** Zed's per-tool MCP name prefix: `mcp:<server>:<tool>`. */
 const MCP_ZED_PREFIX = "mcp:";
@@ -98,8 +95,8 @@ const isZedExcludedCategory = (category: string): boolean =>
   ZED_EXCLUDED_CANONICAL_CATEGORIES.has(category) ||
   ZED_EXCLUDED_TOOL_NAMES.has(toZedToolName(category));
 
-const ZED_TO_CANONICAL_TOOL_NAMES: Record<string, string> = Object.fromEntries(
-  Object.entries(CANONICAL_TO_ZED_TOOL_NAMES).map(([k, v]) => [v, k]),
+const ZED_TO_CANONICAL_TOOL_NAMES: Record<string, string> = invertRecord(
+  CANONICAL_TO_ZED_TOOL_NAMES,
 );
 
 /**
@@ -116,21 +113,21 @@ const ZED_TO_CANONICAL_TOOL_NAMES: Record<string, string> = Object.fromEntries(
  * @see https://zed.dev/docs/ai/tool-permissions
  */
 function toZedToolName(canonical: string): string {
-  if (canonical.startsWith(MCP_CANONICAL_PREFIX)) {
-    const [server, ...toolParts] = canonical.slice(MCP_CANONICAL_PREFIX.length).split("__");
+  if (canonical.startsWith(MCP_CATEGORY_PREFIX)) {
+    const [server, ...toolParts] = canonical.slice(MCP_CATEGORY_PREFIX.length).split("__");
     const address = toolParts.length > 0 ? `${server}:${toolParts.join("__")}` : (server ?? "");
     return `${MCP_ZED_PREFIX}${address}`;
   }
-  return CANONICAL_TO_ZED_TOOL_NAMES[canonical] ?? canonical;
+  return lookupOwn({ record: CANONICAL_TO_ZED_TOOL_NAMES, key: canonical }) ?? canonical;
 }
 
 function toCanonicalToolName(zedName: string): string {
   if (zedName.startsWith(MCP_ZED_PREFIX)) {
     const [server, ...toolParts] = zedName.slice(MCP_ZED_PREFIX.length).split(":");
     const address = toolParts.length > 0 ? `${server}__${toolParts.join(":")}` : (server ?? "");
-    return `${MCP_CANONICAL_PREFIX}${address}`;
+    return `${MCP_CATEGORY_PREFIX}${address}`;
   }
-  return ZED_TO_CANONICAL_TOOL_NAMES[zedName] ?? zedName;
+  return lookupOwn({ record: ZED_TO_CANONICAL_TOOL_NAMES, key: zedName }) ?? zedName;
 }
 
 /**
@@ -443,15 +440,6 @@ export class ZedPermissions extends ToolPermissions {
     });
   }
 
-  /**
-   * settings.json is a user-managed file shared with other features
-   * (e.g. MCP `context_servers`, ignore `private_files`), so it must not be
-   * deleted.
-   */
-  override isDeletable(): boolean {
-    return false;
-  }
-
   static getSettablePaths({
     global = false,
   }: { global?: boolean } = {}): ToolPermissionsSettablePaths {
@@ -558,7 +546,7 @@ export class ZedPermissions extends ToolPermissions {
     // later generate cleans up, and that import would fold back into the
     // canonical category, resurrecting rules the config no longer states.
     for (const toolName of Object.keys(existingTools)) {
-      if (toolName.startsWith(MCP_CANONICAL_PREFIX)) {
+      if (toolName.startsWith(MCP_CATEGORY_PREFIX)) {
         managedToolNames.add(toolName);
       }
     }
@@ -617,7 +605,7 @@ export class ZedPermissions extends ToolPermissions {
 
     const permission: Record<string, Record<string, PermissionAction>> = {};
     const ensure = (category: string): Record<string, PermissionAction> => {
-      const existing = permission[category];
+      const existing = lookupOwn({ record: permission, key: category });
       if (existing) {
         return existing;
       }
@@ -667,20 +655,6 @@ export class ZedPermissions extends ToolPermissions {
 
     return this.toRulesyncPermissionsDefault({
       fileContent: JSON.stringify(result, null, 2),
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolPermissionsForDeletionParams): ZedPermissions {
-    return new ZedPermissions({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: "{}",
-      validate: false,
     });
   }
 }

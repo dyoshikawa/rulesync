@@ -7,10 +7,13 @@ import { fileExists, readFileContent, writeFileContent } from "../utils/file.js"
 import { GitClientError, resolveGitExcludePath } from "./git-client.js";
 import {
   ALL_GITIGNORE_ENTRIES,
-  filterGitignoreEntries,
   RETIRED_GITIGNORE_ENTRIES,
+  resolveGitignoreEntries,
 } from "./gitignore-entries.js";
 import { gitignoreCommand } from "./gitignore.js";
+
+const filterGitignoreEntries = (params?: Parameters<typeof resolveGitignoreEntries>[0]): string[] =>
+  resolveGitignoreEntries(params).map((entry) => entry.entry);
 
 const buildRulesyncBlock = (): string => {
   const entries = filterGitignoreEntries();

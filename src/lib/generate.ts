@@ -22,6 +22,7 @@ import {
   activateHermesProjectPlugins,
   type HermesProjectPluginName,
 } from "../features/shared/hermes-project-plugin-activation.js";
+import { withRulesyncSkillCache } from "../features/skills/rulesync-skill-cache.js";
 import { RulesyncSkill } from "../features/skills/rulesync-skill.js";
 import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import { RulesyncSubagent } from "../features/subagents/rulesync-subagent.js";
@@ -54,6 +55,7 @@ import {
 import type { FeatureGenerateResult } from "../utils/result.js";
 import { resolveToolOutputRoot } from "../utils/tool-output-root.js";
 import { resetRunWarningState } from "../utils/warned-once.js";
+import { withWriteLandingCache } from "../utils/write-landing-cache.js";
 import { createFoldRootOverwriteWatch } from "./fold-root-overwrite-watch.js";
 import {
   createOrphanSweepPlan,
@@ -895,6 +897,18 @@ async function collectHermesProjectPluginNames({
  * @throws Error if generation fails
  */
 export async function generate(params: {
+  config: Config;
+  logger: Logger;
+}): Promise<GenerateResult> {
+  // Every write is checked against links on its way, and those checks look up
+  // the same ancestor directories over and over; one run shares what it found.
+  // Every target loads the same source skills too, so the run loads each once.
+  return await withWriteLandingCache(() =>
+    withRulesyncSkillCache(() => generateInWriteLandingScope(params)),
+  );
+}
+
+async function generateInWriteLandingScope(params: {
   config: Config;
   logger: Logger;
 }): Promise<GenerateResult> {

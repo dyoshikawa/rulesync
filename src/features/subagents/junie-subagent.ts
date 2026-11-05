@@ -14,6 +14,7 @@ import {
 } from "../../utils/frontmatter.js";
 import { RulesyncSubagent, RulesyncSubagentFrontmatter } from "./rulesync-subagent.js";
 import {
+  parseGeneratedSubagentFrontmatter,
   ToolSubagent,
   ToolSubagentForDeletionParams,
   ToolSubagentFromFileParams,
@@ -145,14 +146,13 @@ export class JunieSubagent extends ToolSubagent {
       ...junieSection,
     };
 
-    const result = JunieSubagentFrontmatterSchema.safeParse(rawJunieFrontmatter);
-    if (!result.success) {
-      throw new Error(
-        `Invalid junie subagent frontmatter in ${rulesyncSubagent.getRelativeFilePath()}: ${formatError(result.error)}`,
-      );
-    }
+    const junieFrontmatter = parseGeneratedSubagentFrontmatter({
+      schema: JunieSubagentFrontmatterSchema,
+      frontmatter: rawJunieFrontmatter,
+      toolTarget: "junie",
+      rulesyncSubagent,
+    });
 
-    const junieFrontmatter = result.data;
     const body = rulesyncSubagent.getBody();
     const fileContent = stringifyFrontmatter(body, junieFrontmatter);
 

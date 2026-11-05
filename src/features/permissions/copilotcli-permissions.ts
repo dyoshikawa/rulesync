@@ -21,7 +21,6 @@ import {
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ToolPermissions,
-  type ToolPermissionsForDeletionParams,
   type ToolPermissionsFromFileParams,
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
@@ -120,14 +119,6 @@ export class CopilotcliPermissions extends ToolPermissions {
       ...params,
       fileContent: params.fileContent ?? "{}",
     });
-  }
-
-  /**
-   * `settings.json` holds unrelated user settings (`model`, `effortLevel`,
-   * `hooks`, ...), so it must not be deleted.
-   */
-  override isDeletable(): boolean {
-    return false;
   }
 
   static getSettablePaths({
@@ -235,7 +226,9 @@ export class CopilotcliPermissions extends ToolPermissions {
       for (const pattern of toUrlList(settings[ALLOWED_URLS_KEY])) {
         // A pattern in both lists is a deny upstream (repository denials are
         // union-merged over the user allow list), so deny wins here too.
-        rules[pattern] ??= "allow";
+        if (!Object.hasOwn(rules, pattern)) {
+          rules[pattern] = "allow";
+        }
       }
     }
 
@@ -275,21 +268,5 @@ export class CopilotcliPermissions extends ToolPermissions {
         { cause: error },
       );
     }
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-    global = false,
-  }: ToolPermissionsForDeletionParams): CopilotcliPermissions {
-    return new CopilotcliPermissions({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: "{}",
-      validate: false,
-      global,
-    });
   }
 }

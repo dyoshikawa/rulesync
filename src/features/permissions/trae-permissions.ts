@@ -3,22 +3,23 @@ import { join } from "node:path";
 import { TRAE_PERMISSION_DIR_PATH, TRAE_PERMISSION_FILE_NAME } from "../../constants/trae-paths.js";
 import type { AiFileParams } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
+import { isPermissionAction } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import { getOrCreateOwn, lookupOwn } from "../../utils/own-lookup.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
-import { isRecord, toStringArray } from "../../utils/type-guards.js";
+import { isRecord, toRecord, toStringArray } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
   parseSharedConfig,
   sharedConfigFileKey,
 } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { honorAllToolsOnBash } from "./shell-command-categories.js";
+import { CATCH_ALL_PATTERN, honorAllToolsOnBash } from "./shell-command-categories.js";
 import { isStricterAction } from "./single-action-collapse.js";
 import {
   ToolPermissions,
-  type ToolPermissionsForDeletionParams,
   type ToolPermissionsFromFileParams,
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
@@ -36,16 +37,11 @@ const BASH_CATEGORY = "bash";
 const WEBFETCH_CATEGORY = "webfetch";
 const MCP_TOOL_PREFIX = "mcp__";
 const MCP_SEPARATOR = "__";
-const CATCH_ALL_PATTERN = "*";
 const REGEX_PREFIX = "r/";
 const REGEX_SUFFIX = "/";
 
 type NetworkAction = "allow" | "deny";
 const NETWORK_ACTIONS: readonly NetworkAction[] = ["allow", "deny"];
-
-function isPermissionAction(value: unknown): value is PermissionAction {
-  return value === "allow" || value === "ask" || value === "deny";
-}
 
 function escapeRegex(text: string): string {
   return text.replace(/[\\^$.|?*+()[\]{}/]/g, "\\$&");
@@ -134,7 +130,7 @@ function readRecord(
     }
     current = current[key];
   }
-  return isRecord(current) ? current : {};
+  return toRecord(current);
 }
 
 /**
@@ -350,7 +346,7 @@ function buildCustomProfiles({
   if (bashRules === undefined && !managesMcp) {
     return existing;
   }
-  let result: Record<string, unknown> = isRecord(existing) ? existing : {};
+  let result: Record<string, unknown> = toRecord(existing);
   if (bashRules !== undefined) {
     const commandRules = buildCommandRules({
       bashRules,
@@ -388,7 +384,7 @@ function buildResourceAuthorization({
     return existing;
   }
   const lists = buildNetworkLists({ webfetchRules, logger });
-  let result: Record<string, unknown> = isRecord(existing) ? existing : {};
+  let result: Record<string, unknown> = toRecord(existing);
   for (const action of NETWORK_ACTIONS) {
     result = withPath(result, [NETWORK_KEY, action], nonEmpty(lists[action]));
   }
@@ -506,8 +502,8 @@ export class TraePermissions extends ToolPermissions {
       if (isPrototypePollutionKey(category) || isPrototypePollutionKey(pattern)) {
         return;
       }
-      const rules = (permission[category] ??= {});
-      const existing = rules[pattern];
+      const rules = getOrCreateOwn({ record: permission, key: category, create: () => ({}) });
+      const existing = lookupOwn({ record: rules, key: pattern });
       if (isStricterAction({ action, existing })) {
         rules[pattern] = action;
       }
@@ -538,22 +534,6 @@ export class TraePermissions extends ToolPermissions {
 
     return this.toRulesyncPermissionsDefault({
       fileContent: JSON.stringify({ permission }, null, 2),
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-    global = true,
-  }: ToolPermissionsForDeletionParams): TraePermissions {
-    return new TraePermissions({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: "{}",
-      validate: false,
-      global,
     });
   }
 }

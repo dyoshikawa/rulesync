@@ -25,7 +25,6 @@ import {
   ToolRuleParams,
   ToolRuleSettablePaths,
   ToolRuleSettablePathsGlobal,
-  buildToolPath,
 } from "./tool-rule.js";
 
 /**
@@ -113,12 +112,10 @@ export class ContinueRule extends ToolRule {
 
   static getSettablePaths({
     global,
-    excludeToolDir,
   }: {
     global?: boolean;
-    excludeToolDir?: boolean;
   } = {}): ContinueRuleSettablePaths | ContinueRuleSettablePathsGlobal {
-    const rulesDirPath = buildToolPath(CONTINUE_DIR, "rules", excludeToolDir);
+    const rulesDirPath = join(CONTINUE_DIR, "rules");
     if (global) {
       return {
         root: {

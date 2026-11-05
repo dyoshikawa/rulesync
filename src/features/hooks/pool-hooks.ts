@@ -22,7 +22,7 @@ import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isRecord } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
-  parseSharedConfig,
+  parseSharedConfigFile,
   sharedConfigFileKey,
 } from "../shared/shared-config-gateway.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
@@ -60,20 +60,6 @@ const SUPPORTED_POOL_EVENTS: ReadonlySet<string> = new Set(POOL_HOOK_EVENTS);
  * authored matcher there is dropped with a warning and `*` written instead.
  */
 const POOL_MATCHER_EVENTS: ReadonlySet<string> = new Set(["PreToolUse", "PostToolUse"]);
-
-/**
- * Single spelling of the settings.yaml codec/policy, matching PoolMcp and
- * PoolPermissions: fail closed on an unparseable root rather than replacing
- * the user's primary Pool settings with generated output.
- */
-function parsePoolSettings(fileContent: string, filePath?: string): Record<string, unknown> {
-  return parseSharedConfig({
-    format: "yaml",
-    fileContent,
-    filePath,
-    invalidRootPolicy: "error",
-  });
-}
 
 /**
  * Build the `hooks` event lists of Pool's settings file from a canonical hooks
@@ -274,10 +260,11 @@ export class PoolHooks extends ToolHooks {
 
   constructor(params: AiFileParams) {
     super(params);
-    this.settings = parsePoolSettings(
-      this.fileContent ?? "",
-      join(this.relativeDirPath, this.relativeFilePath),
-    );
+    this.settings = parseSharedConfigFile({
+      fileKey: sharedConfigFileKey(PoolHooks.getSettablePaths({ global: this.global })),
+      fileContent: this.fileContent ?? "",
+      filePath: join(this.relativeDirPath, this.relativeFilePath),
+    });
   }
 
   getSettings(): Record<string, unknown> {
@@ -329,7 +316,11 @@ export class PoolHooks extends ToolHooks {
     const paths = this.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const existingContent = (await readFileContentOrNull(filePath)) ?? "";
-    const existing = parsePoolSettings(existingContent, filePath);
+    const existing = parseSharedConfigFile({
+      fileKey: sharedConfigFileKey(paths),
+      fileContent: existingContent,
+      filePath,
+    });
 
     const config = rulesyncHooks.getJson();
     const hooks = canonicalToPoolHooks({

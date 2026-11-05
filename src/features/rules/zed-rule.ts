@@ -13,18 +13,9 @@ import {
   ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
-  ToolRuleSettablePaths,
+  ToolRuleRootOnlySettablePaths,
   ToolRuleSettablePathsGlobal,
-  buildToolPath,
 } from "./tool-rule.js";
-
-export type ZedRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
-  root: {
-    relativeDirPath: string;
-    relativeFilePath: string;
-  };
-  nonRoot?: undefined;
-};
 
 export type ZedRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal;
 
@@ -40,15 +31,13 @@ export type ZedRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal;
 export class ZedRule extends ToolRule {
   static getSettablePaths({
     global,
-    excludeToolDir,
   }: {
     global?: boolean;
-    excludeToolDir?: boolean;
-  } = {}): ZedRuleSettablePaths | ZedRuleSettablePathsGlobal {
+  } = {}): ToolRuleRootOnlySettablePaths | ZedRuleSettablePathsGlobal {
     if (global) {
       return {
         root: {
-          relativeDirPath: buildToolPath(getZedGlobalDir(), ".", excludeToolDir),
+          relativeDirPath: join(getZedGlobalDir(), "."),
           relativeFilePath: ZED_GLOBAL_RULE_FILE_NAME,
         },
       };

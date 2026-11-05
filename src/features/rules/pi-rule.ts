@@ -12,15 +12,14 @@ import {
 } from "../../constants/rulesync-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
-import { RulesyncRule } from "./rulesync-rule.js";
+import { RulesyncRule, formatRulePaths } from "./rulesync-rule.js";
 import {
   ToolRule,
   ToolRuleExtraFixedFile,
   ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
-  ToolRuleSettablePaths,
-  buildToolPath,
+  ToolRuleRootOnlySettablePaths,
 } from "./tool-rule.js";
 
 export type PiRuleParams = AiFileParams & {
@@ -31,12 +30,7 @@ export type PiRuleParams = AiFileParams & {
   contextFileOverride?: boolean;
 };
 
-export type PiRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
-  root: {
-    relativeDirPath: string;
-    relativeFilePath: string;
-  };
-  nonRoot?: undefined;
+export type PiRuleSettablePaths = ToolRuleRootOnlySettablePaths & {
   /**
    * Pi's *append* system-prompt file. Rules opt into this path via the
    * `pi.systemPrompt: append` frontmatter block; multiple opted-in rules are
@@ -95,24 +89,22 @@ export class PiRule extends ToolRule {
 
   static getSettablePaths({
     global = false,
-    excludeToolDir,
     contextFile,
   }: {
     global?: boolean;
-    excludeToolDir?: boolean;
     /** `"override"` emits the root context file as `AGENTS.override.md`. */
     contextFile?: "override" | undefined;
   } = {}): PiRuleSettablePaths {
     return {
       root: {
-        relativeDirPath: global ? buildToolPath(PI_DIR, "agent", excludeToolDir) : ".",
+        relativeDirPath: global ? join(PI_DIR, "agent") : ".",
         relativeFilePath:
           contextFile === "override" ? PI_RULE_OVERRIDE_FILE_NAME : PI_RULE_FILE_NAME,
       },
       appendSystemPrompt: {
         // Project scope: `.pi/APPEND_SYSTEM.md`. Global scope: same `.pi/agent`
         // directory as the global root AGENTS.md.
-        relativeDirPath: global ? buildToolPath(PI_DIR, "agent", excludeToolDir) : PI_DIR,
+        relativeDirPath: global ? join(PI_DIR, "agent") : PI_DIR,
         relativeFilePath: PI_APPEND_SYSTEM_FILE_NAME,
       },
     };
@@ -322,6 +314,66 @@ export class PiRule extends ToolRule {
       root: isRoot,
       contextFileOverride: isOverride,
     });
+  }
+
+  /**
+   * Pi reads `AGENTS.override.md` *instead of* `AGENTS.md` from a directory, and
+   * non-root Pi rules are folded into whichever file the root emits. A mix of
+   * opted-in and opted-out rules would therefore split the output across both
+   * files and let Pi silently ignore everything in `AGENTS.md`, so the root rule
+   * decides for all of them: its `pi.contextFile` is copied onto the non-root
+   * rules, and the flag set only on a non-root rule is dropped with a warning.
+   */
+  static alignRulesyncRules(rules: RulesyncRule[]): {
+    rules: RulesyncRule[];
+    warnings: string[];
+  } {
+    const targeted = rules.filter((rule) => this.isTargetedByRulesyncRule(rule));
+    // Any root rule opting in decides for the whole output: with several root
+    // rules, honoring only one of them would leave the others in the file Pi
+    // stops reading.
+    const rootContextFile = targeted.some(
+      (rule) =>
+        rule.getFrontmatter().root === true && rule.getFrontmatter().pi?.contextFile === "override",
+    )
+      ? ("override" as const)
+      : undefined;
+    const mismatched = targeted.filter(
+      (rule) => rule.getFrontmatter().pi?.contextFile !== rootContextFile,
+    );
+    if (mismatched.length === 0) return { rules, warnings: [] };
+
+    const warnings =
+      rootContextFile === undefined
+        ? [
+            `pi.contextFile is set on ${mismatched.length} non-root rule(s) but not on the root rule, ` +
+              `so it is ignored: Pi folds every rule body into the root context file, and emitting ` +
+              `AGENTS.override.md for some of them would hide the rest. Set it on the root rule ` +
+              `instead: ${formatRulePaths(mismatched)}`,
+          ]
+        : [];
+
+    const mismatchedSet = new Set(mismatched);
+    const alignedRules = rules.map((rule) => {
+      if (!mismatchedSet.has(rule)) return rule;
+      const frontmatter = rule.getFrontmatter();
+      const { contextFile: _dropped, ...pi } = frontmatter.pi ?? {};
+      const nextPi = { ...pi, ...(rootContextFile ? { contextFile: rootContextFile } : {}) };
+      return new RulesyncRule({
+        outputRoot: rule.getOutputRoot(),
+        relativeDirPath: rule.getRelativeDirPath(),
+        relativeFilePath: rule.getRelativeFilePath(),
+        frontmatter: {
+          ...frontmatter,
+          ...(Object.keys(nextPi).length > 0 ? { pi: nextPi } : { pi: undefined }),
+        },
+        body: rule.getBody(),
+        // The source rule was already parsed under its own validate setting;
+        // only the pi block changes here.
+        validate: false,
+      });
+    });
+    return { rules: alignedRules, warnings };
   }
 
   protected static override readonly toolTarget = "pi";

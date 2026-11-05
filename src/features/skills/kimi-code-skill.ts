@@ -10,6 +10,7 @@ import {
 } from "../../constants/kimi-code-paths.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import type { ValidationResult } from "../../types/ai-dir.js";
+import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { getHomeDirectory, readFileContent } from "../../utils/file.js";
 import { parseFrontmatterWithYamlRepair } from "../../utils/frontmatter.js";
@@ -210,10 +211,7 @@ export class KimiCodeSkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("kimi-code");
-  }
+  protected static override readonly toolTarget: ToolTarget = "kimi-code";
 
   /**
    * Commands are emitted into the Kimi-specific skills tree as

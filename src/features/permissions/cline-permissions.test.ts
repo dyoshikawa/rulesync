@@ -481,15 +481,6 @@ describe("ClinePermissions", () => {
     });
   });
 
-  it("forDeletion returns non-deletable instance", () => {
-    const instance = ClinePermissions.forDeletion({
-      outputRoot: testDir,
-      relativeDirPath: ".cline",
-      relativeFilePath: "command-permissions.json",
-    });
-    expect(instance.isDeletable()).toBe(false);
-  });
-
   describe("validate()", () => {
     it("should succeed for well-formed Cline command-permissions JSON", () => {
       const instance = new ClinePermissions({
@@ -554,7 +545,7 @@ describe("ClinePermissions", () => {
     });
 
     it("should not throw when constructed with validate: false even with malformed JSON", () => {
-      // `forDeletion` and other permissive paths pass `validate: false` and
+      // Permissive paths pass `validate: false` and
       // must not be rejected at construction time.
       expect(
         () =>

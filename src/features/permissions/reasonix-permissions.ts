@@ -17,6 +17,8 @@ import type {
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, toPosixPath } from "../../utils/file.js";
 import { type Logger, warnWithFallback } from "../../utils/logger.js";
+import { getOrCreateOwn, invertRecord, lookupOwn } from "../../utils/own-lookup.js";
+import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isRecord, toStringArray } from "../../utils/type-guards.js";
 import {
@@ -41,7 +43,6 @@ import {
 import { buildToolPatternEntry, parseToolPatternEntry } from "./tool-pattern-entry.js";
 import {
   ToolPermissions,
-  type ToolPermissionsForDeletionParams,
   type ToolPermissionsFromFileParams,
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
@@ -98,24 +99,24 @@ const CANONICAL_TO_LEGACY_REASONIX_TOOL_NAMES: Record<string, string> = {
  * Reverse mapping from Reasonix tool names (current and legacy spellings) to
  * rulesync canonical names.
  */
-const REASONIX_TO_CANONICAL_TOOL_NAMES: Record<string, string> = Object.fromEntries([
-  ...Object.entries(CANONICAL_TO_LEGACY_REASONIX_TOOL_NAMES).map(([k, v]) => [v, k]),
-  ...Object.entries(CANONICAL_TO_REASONIX_TOOL_NAMES).map(([k, v]) => [v, k]),
-]);
+const REASONIX_TO_CANONICAL_TOOL_NAMES: Record<string, string> = {
+  ...invertRecord(CANONICAL_TO_LEGACY_REASONIX_TOOL_NAMES),
+  ...invertRecord(CANONICAL_TO_REASONIX_TOOL_NAMES),
+};
 
 /** Every Reasonix tool name a canonical category owns on generate. */
 function reasonixToolNamesOf(canonical: string): string[] {
-  const legacy = CANONICAL_TO_LEGACY_REASONIX_TOOL_NAMES[canonical];
+  const legacy = lookupOwn({ record: CANONICAL_TO_LEGACY_REASONIX_TOOL_NAMES, key: canonical });
   const current = toReasonixToolName(canonical);
   return legacy === undefined ? [current] : [current, legacy];
 }
 
 function toReasonixToolName(canonical: string): string {
-  return CANONICAL_TO_REASONIX_TOOL_NAMES[canonical] ?? canonical;
+  return lookupOwn({ record: CANONICAL_TO_REASONIX_TOOL_NAMES, key: canonical }) ?? canonical;
 }
 
 function toCanonicalToolName(reasonixName: string): string {
-  return REASONIX_TO_CANONICAL_TOOL_NAMES[reasonixName] ?? reasonixName;
+  return lookupOwn({ record: REASONIX_TO_CANONICAL_TOOL_NAMES, key: reasonixName }) ?? reasonixName;
 }
 
 /**
@@ -601,13 +602,6 @@ export class ReasonixPermissions extends ToolPermissions {
     this.toml = parseReasonixConfig(this.getFileContent());
   }
 
-  override isDeletable(): boolean {
-    // The Reasonix config file may hold many other settings (providers, ui,
-    // agent, MCP `[[plugins]]`, …), so it must never be deleted when no
-    // rulesync-managed permission rules remain.
-    return false;
-  }
-
   static getSettablePaths({ global }: { global?: boolean } = {}): ToolPermissionsSettablePaths {
     // Project config lives at the repository root (`./reasonix.toml`), while the
     // global config lives at `~/.reasonix/config.toml`; the home root is supplied
@@ -924,20 +918,6 @@ export class ReasonixPermissions extends ToolPermissions {
       };
     }
   }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolPermissionsForDeletionParams): ReasonixPermissions {
-    return new ReasonixPermissions({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: smolToml.stringify({}),
-      validate: false,
-    });
-  }
 }
 
 /**
@@ -1044,10 +1024,12 @@ function convertReasonixToRulesyncPermissions(params: {
     for (const entry of entries) {
       const { toolName, pattern } = parseToolPatternEntry(entry);
       const canonical = toCanonicalToolName(toolName);
-      if (!permission[canonical]) {
-        permission[canonical] = {};
+      // A `__proto__` or `constructor` name would not land as a plain own key,
+      // so such entries are dropped, as the other permissions adapters do.
+      if (isPrototypePollutionKey(canonical) || isPrototypePollutionKey(pattern)) {
+        continue;
       }
-      permission[canonical][pattern] = action;
+      getOrCreateOwn({ record: permission, key: canonical, create: () => ({}) })[pattern] = action;
     }
   };
 

@@ -16,7 +16,8 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { parseJsonc as parseJsoncStrict } from "../../utils/jsonc.js";
 import type { Logger } from "../../utils/logger.js";
-import { isRecord } from "../../utils/type-guards.js";
+import { invertRecord, lookupOwn } from "../../utils/own-lookup.js";
+import { isRecord, toRecord } from "../../utils/type-guards.js";
 import {
   lowerOpencodeV2Mcp,
   mergeOpencodeConfigValues,
@@ -32,15 +33,15 @@ import {
 } from "../shared/opencode-family-mcp-tool-keys.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { honorAllToolsOnBash } from "./shell-command-categories.js";
+import { honorAllToolsOnBash, MCP_CATEGORY_PREFIX } from "./shell-command-categories.js";
 import {
   collapseRulesToSingleAction,
   hasPatternSpecificRules,
+  isStricterAction,
   PERMISSION_ACTION_PRIORITY,
 } from "./single-action-collapse.js";
 import {
   ToolPermissions,
-  type ToolPermissionsForDeletionParams,
   type ToolPermissionsFromFileParams,
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
@@ -153,11 +154,8 @@ const CANONICAL_TO_OPENCODE_PERMISSION_KEYS: Record<string, string> = {
   agent: "task",
 };
 
-const OPENCODE_TO_CANONICAL_PERMISSION_KEYS: Record<string, string> = Object.fromEntries(
-  Object.entries(CANONICAL_TO_OPENCODE_PERMISSION_KEYS).map(([canonical, opencode]) => [
-    opencode,
-    canonical,
-  ]),
+const OPENCODE_TO_CANONICAL_PERMISSION_KEYS: Record<string, string> = invertRecord(
+  CANONICAL_TO_OPENCODE_PERMISSION_KEYS,
 );
 
 /**
@@ -179,8 +177,6 @@ const CANONICAL_TO_OPENCODE_FOLDED_PERMISSION_KEYS: Record<string, string> = {
  * they are skipped with a warning instead.
  */
 const OPENCODE_UNSUPPORTED_PERMISSION_CATEGORIES = new Set(["notebookedit"]);
-
-const MCP_CANONICAL_PREFIX = "mcp__";
 
 /**
  * OpenCode permission keys (V1) and actions (V2) that are not MCP tools, so a
@@ -221,10 +217,10 @@ const OPENCODE_BUILTIN_PERMISSION_KEYS: ReadonlySet<string> = new Set([
  * which has no OpenCode key that matches only MCP tools.
  */
 function toOpencodeMcpPermissionKey(category: string): string | undefined {
-  if (!category.startsWith(MCP_CANONICAL_PREFIX)) {
+  if (!category.startsWith(MCP_CATEGORY_PREFIX)) {
     return undefined;
   }
-  const remainder = category.slice(MCP_CANONICAL_PREFIX.length);
+  const remainder = category.slice(MCP_CATEGORY_PREFIX.length);
   const separator = remainder.indexOf("__");
   const server = separator === -1 ? remainder : remainder.slice(0, separator);
   const tool = separator === -1 ? "" : remainder.slice(separator + 2);
@@ -261,8 +257,8 @@ function fromOpencodeMcpPermissionKey(
     return undefined;
   }
   return owner.toolName === "*"
-    ? `${MCP_CANONICAL_PREFIX}${owner.serverName}`
-    : `${MCP_CANONICAL_PREFIX}${owner.serverName}__${owner.toolName}`;
+    ? `${MCP_CATEGORY_PREFIX}${owner.serverName}`
+    : `${MCP_CATEGORY_PREFIX}${owner.serverName}__${owner.toolName}`;
 }
 
 /** The MCP server names an OpenCode config declares (V1 flat map or V2 `mcp.servers`). */
@@ -273,8 +269,8 @@ function getOpencodeMcpServerNames(mcp: unknown): string[] {
 
 function toOpencodePermissionKey(canonical: string): string {
   return (
-    CANONICAL_TO_OPENCODE_PERMISSION_KEYS[canonical] ??
-    CANONICAL_TO_OPENCODE_FOLDED_PERMISSION_KEYS[canonical] ??
+    lookupOwn({ record: CANONICAL_TO_OPENCODE_PERMISSION_KEYS, key: canonical }) ??
+    lookupOwn({ record: CANONICAL_TO_OPENCODE_FOLDED_PERMISSION_KEYS, key: canonical }) ??
     canonical
   );
 }
@@ -301,10 +297,7 @@ function mergePatternRules(
   const merged: Record<string, PermissionAction> = { ...base };
   for (const [pattern, action] of Object.entries(incoming)) {
     const existing = Object.hasOwn(merged, pattern) ? merged[pattern] : undefined;
-    if (
-      existing === undefined ||
-      PERMISSION_ACTION_PRIORITY[action] > PERMISSION_ACTION_PRIORITY[existing]
-    ) {
+    if (isStricterAction({ action, existing })) {
       merged[pattern] = action;
     }
   }
@@ -316,7 +309,9 @@ function mergePatternRules(
 }
 
 function toCanonicalPermissionKey(opencodeKey: string): string {
-  return OPENCODE_TO_CANONICAL_PERMISSION_KEYS[opencodeKey] ?? opencodeKey;
+  return (
+    lookupOwn({ record: OPENCODE_TO_CANONICAL_PERMISSION_KEYS, key: opencodeKey }) ?? opencodeKey
+  );
 }
 
 function isSharedPermissionCategory(category: string): boolean {
@@ -327,7 +322,7 @@ function isSharedPermissionCategory(category: string): boolean {
   return (
     category === "*" ||
     CANONICAL_PERMISSION_CATEGORIES.has(category) ||
-    category.startsWith("mcp__")
+    category.startsWith(MCP_CATEGORY_PREFIX)
   );
 }
 
@@ -365,9 +360,7 @@ function fromOpencodeV2PermissionRules(
 ): Record<string, Record<string, PermissionAction>> {
   const permission: Record<string, Record<string, PermissionAction>> = {};
   for (const { action, resource, effect } of rules) {
-    const key = Object.hasOwn(OPENCODE_V2_TO_V1_PERMISSION_KEYS, action)
-      ? OPENCODE_V2_TO_V1_PERMISSION_KEYS[action]!
-      : action;
+    const key = lookupOwn({ record: OPENCODE_V2_TO_V1_PERMISSION_KEYS, key: action }) ?? action;
     const patterns = Object.hasOwn(permission, key) ? permission[key]! : {};
     // Re-insert so the pattern takes the position of its last occurrence.
     // `setOwnEntry` keeps a `__proto__` action or resource an own key.
@@ -402,7 +395,7 @@ function toOpencodeSharedPermission({
       continue;
     }
     let key = toOpencodePermissionKey(category);
-    if (category.startsWith(MCP_CANONICAL_PREFIX)) {
+    if (category.startsWith(MCP_CATEGORY_PREFIX)) {
       const mcpKey = toOpencodeMcpPermissionKey(category);
       if (mcpKey === undefined) {
         logger?.warn(
@@ -504,7 +497,7 @@ export class OpencodePermissions extends ToolPermissions {
     const parsed = overlays
       .map(({ config }): unknown => config)
       .reduce(mergeOpencodeConfigValues, parseJsonc(fileContent ?? "{}"));
-    const record = isRecord(parsed) ? parsed : {};
+    const record = toRecord(parsed);
     // Read as an own property rather than through the prototype chain:
     // `jsonc-parser` assigns keys with `obj[key] = value`, so a literal
     // `"__proto__": { "permission": ... }` in the config replaces this
@@ -558,8 +551,7 @@ export class OpencodePermissions extends ToolPermissions {
     for (const [key, patterns] of Object.entries(fromV2)) {
       const existing = Object.hasOwn(merged, key) ? merged[key] : undefined;
       const combined: Record<string, unknown> = {};
-      const base =
-        typeof existing === "string" ? { "*": existing } : isRecord(existing) ? existing : {};
+      const base = typeof existing === "string" ? { "*": existing } : toRecord(existing);
       for (const [resource, effect] of [...Object.entries(base), ...Object.entries(patterns)]) {
         delete combined[resource];
         setOwnEntry(combined, resource, effect);
@@ -721,20 +713,6 @@ export class OpencodePermissions extends ToolPermissions {
         error: new Error(`Failed to parse OpenCode permissions JSON: ${formatError(error)}`),
       };
     }
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolPermissionsForDeletionParams): OpencodePermissions {
-    return new this({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: JSON.stringify({ permission: {} }, null, 2),
-      validate: false,
-    });
   }
 
   /**

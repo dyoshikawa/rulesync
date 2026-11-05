@@ -42,9 +42,12 @@ describe("KiroCapabilityPermissions", () => {
   });
 
   it("is never deletable and is not created for an empty payload", () => {
-    const perms = KiroCapabilityPermissions.forDeletion({
+    const perms = new KiroCapabilityPermissions({
       relativeDirPath: join(".kiro", "settings"),
       relativeFilePath: "permissions.yaml",
+      fileContent: "",
+      validate: false,
+      global: true,
     });
     expect(perms.isDeletable()).toBe(false);
     expect(perms.shouldSkipCreationWhenPayloadEmpty()).toBe(true);
@@ -344,6 +347,46 @@ describe("KiroCapabilityPermissions", () => {
     const perms = await KiroCapabilityPermissions.fromFile({ outputRoot: testDir });
     expect(perms.toRulesyncPermissions().getJson().permission).toEqual({});
   });
+
+  describe("tool names that match Object.prototype members", () => {
+    it("skips a category named like a prototype member as having no capability", async () => {
+      const logger = createMockLogger();
+      const perms = await KiroCapabilityPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        logger,
+        rulesyncPermissions: rulesyncPermissions({
+          permission: { bash: { ls: "allow" }, toString: { "*": "allow" } },
+        }),
+      });
+
+      expect(load(perms.getFileContent())).toEqual({
+        rules: [{ capability: "shell", match: ["ls"], effect: "allow" }],
+      });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("category: toString"));
+    });
+  });
+
+  describe("names that match Object.prototype members on import", () => {
+    it("imports a match pattern named like a prototype member into its own entry", async () => {
+      await writeFileContent(
+        join(testDir, ".kiro", "settings", "permissions.yaml"),
+        [
+          "rules:",
+          "  - capability: shell",
+          "    match: ['toString']",
+          "    effect: allow",
+          "",
+        ].join("\n"),
+      );
+
+      const perms = await KiroCapabilityPermissions.fromFile({ outputRoot: testDir });
+      expect(perms.toRulesyncPermissions().getJson().permission).toEqual({
+        bash: { toString: "allow" },
+      });
+      expect(Object.hasOwn(Object.prototype.toString, "*")).toBe(false);
+      expect(Object.hasOwn(Object.prototype.toString, "toString")).toBe(false);
+    });
+  });
 });
 
 describe("KiroScopedPermissions", () => {
@@ -352,18 +395,5 @@ describe("KiroScopedPermissions", () => {
     expect(KiroScopedPermissions.getSettablePaths({ global: true })).toEqual(
       KiroCapabilityPermissions.getSettablePaths(),
     );
-    expect(
-      KiroScopedPermissions.forDeletion({
-        relativeDirPath: join(".kiro", "settings"),
-        relativeFilePath: "permissions.yaml",
-        global: true,
-      }),
-    ).toBeInstanceOf(KiroCapabilityPermissions);
-    expect(
-      KiroScopedPermissions.forDeletion({
-        relativeDirPath: join(".kiro", "agents"),
-        relativeFilePath: "default.json",
-      }),
-    ).toBeInstanceOf(KiroPermissions);
   });
 });

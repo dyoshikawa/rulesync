@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { invertToolNames, replaceMatcherNames } from "./hook-matcher-tool-names.js";
+import { replaceMatcherNames } from "./hook-matcher-tool-names.js";
 
 const NAMES = { Bash: "RunCommand", Read: "read" };
 
@@ -24,11 +24,5 @@ describe("replaceMatcherNames", () => {
 
   it("should not match inherited object keys", () => {
     expect(replaceMatcherNames("toString|constructor", NAMES)).toBe("toString|constructor");
-  });
-});
-
-describe("invertToolNames", () => {
-  it("should swap keys and values", () => {
-    expect(invertToolNames(NAMES)).toEqual({ RunCommand: "Bash", read: "Read" });
   });
 });

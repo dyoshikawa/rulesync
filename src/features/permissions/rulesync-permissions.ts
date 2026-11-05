@@ -37,7 +37,7 @@ export type RulesyncPermissionsFromFileParams = Pick<
   "outputRoot" | "validate" | "relativeDirPath"
 >;
 
-export type RulesyncPermissionsSettablePaths = RulesyncSourceSettablePaths;
+type RulesyncPermissionsSettablePaths = RulesyncSourceSettablePaths;
 
 export class RulesyncPermissions extends RulesyncFile {
   private readonly json: PermissionsConfig;

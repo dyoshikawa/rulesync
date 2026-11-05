@@ -15,12 +15,15 @@ import {
   type PermissionAction,
   type PermissionsConfig,
 } from "../../types/permissions.js";
+import type { ToolFile } from "../../types/tool-file.js";
 import { formatError } from "../../utils/error.js";
 import { fileExists, readFileContentOrNull } from "../../utils/file.js";
 import { createIntersectionBudget } from "../../utils/glob.js";
 import type { Logger } from "../../utils/logger.js";
+import { lookupOwn } from "../../utils/own-lookup.js";
 import {
   CODEWHALE_PROJECT_CONFIG_PATHS,
+  createCodewhaleProjectConfigFile,
   readCodewhaleProjectShellDisabled,
 } from "./codewhale-project-config.js";
 import {
@@ -38,7 +41,7 @@ import {
 import { PERMISSION_ACTION_PRIORITY } from "./single-action-collapse.js";
 import {
   ToolPermissions,
-  type ToolPermissionsForDeletionParams,
+  type ToolPermissionsAuxiliaryFilesParams,
   type ToolPermissionsFromFileParams,
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
@@ -80,7 +83,7 @@ function pathCategoryTools(category: string, action: PermissionAction): readonly
   if (category === "write" && action !== "allow") {
     return CODEWHALE_WRITE_RESTRICTION_TOOLS;
   }
-  return CODEWHALE_PATH_CATEGORY_TOOLS[category] ?? [];
+  return lookupOwn({ record: CODEWHALE_PATH_CATEGORY_TOOLS, key: category }) ?? [];
 }
 
 /** The canonical path categories a Codewhale file tool's rule can come from. */
@@ -520,7 +523,7 @@ function canonicalToCodewhaleRules({
     if (category === SHELL_PERMISSION_CATEGORY || category === ALL_TOOLS_PERMISSION_CATEGORY) {
       continue;
     }
-    if (CODEWHALE_PATH_CATEGORY_TOOLS[category] === undefined) {
+    if (lookupOwn({ record: CODEWHALE_PATH_CATEGORY_TOOLS, key: category }) === undefined) {
       if (Object.keys(rules).length > 0) {
         logger?.warn(
           `Codewhale permissions: skipping unsupported category "${category}"; Codewhale evaluates permission rules only for shell commands and file tools.`,
@@ -677,11 +680,13 @@ function toImportCandidates(rule: ResolvedCodewhaleRule): ImportCandidate[] {
   if (pattern === null) {
     return [];
   }
-  return (CODEWHALE_TOOL_TO_PATH_CATEGORIES[rule.tool] ?? []).map((category) => ({
-    category,
-    pattern,
-    rule,
-  }));
+  return (lookupOwn({ record: CODEWHALE_TOOL_TO_PATH_CATEGORIES, key: rule.tool }) ?? []).map(
+    (category) => ({
+      category,
+      pattern,
+      rule,
+    }),
+  );
 }
 
 /**
@@ -815,12 +820,22 @@ export class CodewhalePermissions extends ToolPermissions {
   }
 
   /**
-   * Codewhale's approval card writes to the global file, and the constitution
-   * carries repo policy rulesync does not own, so this feature never deletes
-   * either.
+   * The project overlay file, when a deny on every shell command needs it;
+   * never in global scope.
    */
-  override isDeletable(): boolean {
-    return false;
+  static async getAuxiliaryFiles({
+    outputRoot,
+    config,
+    global,
+    logger,
+  }: ToolPermissionsAuxiliaryFilesParams): Promise<ToolFile[]> {
+    if (global) return [];
+    const projectConfigFile = await createCodewhaleProjectConfigFile({
+      outputRoot,
+      config,
+      logger,
+    });
+    return projectConfigFile ? [projectConfigFile] : [];
   }
 
   override shouldSkipCreationWhenPayloadEmpty(): boolean {
@@ -958,22 +973,6 @@ export class CodewhalePermissions extends ToolPermissions {
         null,
         2,
       ),
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-    global = false,
-  }: ToolPermissionsForDeletionParams): CodewhalePermissions {
-    return new CodewhalePermissions({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: "",
-      validate: false,
-      global,
     });
   }
 }

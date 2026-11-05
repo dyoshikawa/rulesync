@@ -24,7 +24,7 @@ import { lookupOwn } from "../../utils/own-lookup.js";
  * as a command of its own, since the inner shell parses it again; a
  * double-quoted one is not, since the outer shell has already expanded it.
  */
-export type PathStartKind = "plain" | "double" | "single";
+type PathStartKind = "plain" | "double" | "single";
 
 /** The name of a POSIX-like shell, as a regular expression source. */
 const SHELL_NAME = "(?:a|ba|da|k|mk|z)?sh";

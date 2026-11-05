@@ -4,8 +4,11 @@ import type { RulesyncFeatures } from "../../types/features.js";
 import { CLIError, ErrorCodes } from "../../types/json-output.js";
 import { ALL_TOOL_TARGETS, type ToolTarget, ToolTargetSchema } from "../../types/tool-targets.js";
 import type { Logger } from "../../utils/logger.js";
-import { isPackagingToolTarget } from "../../utils/plugin-root.js";
-import { calculateTotalCount } from "../../utils/result.js";
+import {
+  buildFeatureCountSummaryParts,
+  calculateTotalCount,
+  featureCountsByFeature,
+} from "../../utils/result.js";
 
 export type ConvertOptions = Omit<
   ConfigResolverResolveParams,
@@ -33,15 +36,6 @@ export async function convertCommand(logger: Logger, options: ConvertOptions): P
   const fromTool = parseToolTarget(options.from ?? "", "source");
   const toToolsRaw = (options.to ?? []).map((t) => parseToolTarget(t, "destination"));
   const toTools = Array.from(new Set(toToolsRaw));
-
-  const packagingTarget = [fromTool, ...toTools].find(isPackagingToolTarget);
-  if (packagingTarget) {
-    throw new CLIError(
-      `Plugin packaging target '${packagingTarget}' is not supported by convert. ` +
-        "Use import --output-root and generate --output-roots with an explicit plugin directory.",
-      ErrorCodes.CONVERT_FAILED,
-    );
-  }
 
   if (toTools.includes(fromTool)) {
     throw new CLIError(
@@ -82,30 +76,11 @@ export async function convertCommand(logger: Logger, options: ConvertOptions): P
     logger.captureData("from", fromTool);
     logger.captureData("to", toTools);
     logger.captureData("dryRun", isPreview);
-    logger.captureData("features", {
-      rules: { count: result.rulesCount },
-      ignore: { count: result.ignoreCount },
-      mcp: { count: result.mcpCount },
-      commands: { count: result.commandsCount },
-      subagents: { count: result.subagentsCount },
-      skills: { count: result.skillsCount },
-      hooks: { count: result.hooksCount },
-      permissions: { count: result.permissionsCount },
-      checks: { count: result.checksCount },
-    });
+    logger.captureData("features", featureCountsByFeature(result));
     logger.captureData("totalFiles", totalConverted);
   }
 
-  const parts: string[] = [];
-  if (result.rulesCount > 0) parts.push(`${result.rulesCount} rules`);
-  if (result.ignoreCount > 0) parts.push(`${result.ignoreCount} ignore files`);
-  if (result.mcpCount > 0) parts.push(`${result.mcpCount} MCP files`);
-  if (result.commandsCount > 0) parts.push(`${result.commandsCount} commands`);
-  if (result.subagentsCount > 0) parts.push(`${result.subagentsCount} subagents`);
-  if (result.skillsCount > 0) parts.push(`${result.skillsCount} skills`);
-  if (result.hooksCount > 0) parts.push(`${result.hooksCount} hooks`);
-  if (result.permissionsCount > 0) parts.push(`${result.permissionsCount} permissions`);
-  if (result.checksCount > 0) parts.push(`${result.checksCount} checks`);
+  const parts = buildFeatureCountSummaryParts(result);
 
   const verbPhrase = isPreview ? "Would convert" : "Converted";
   const summary = `${modePrefix}${verbPhrase} ${totalConverted} file(s) total from ${fromTool} to ${toTools.join(", ")} (${parts.join(" + ")})`;

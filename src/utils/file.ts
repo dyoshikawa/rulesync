@@ -24,6 +24,7 @@ import { mapWithConcurrency } from "./concurrency.js";
 import { quoteForLog, stripControlCharacters } from "./control-characters.js";
 import { formatError } from "./error.js";
 import { isEnvTest } from "./vitest.js";
+import { getKnownNonLinkPaths } from "./write-landing-cache.js";
 
 /**
  * Whether a relative path leads out of the root it is relative to. Matching
@@ -431,6 +432,22 @@ export function toPosixPath(p: string): string {
   return p.replace(/\\/g, "/");
 }
 
+/**
+ * Normalizes a directory path to POSIX form: forward slashes, `.`/`..`
+ * segments resolved, and no trailing slash. The root comes back as `.`
+ * (or `""`), which `isRootDirPath` recognizes.
+ */
+export function normalizePosixDirPath(p: string): string {
+  return posix.normalize(toPosixPath(p)).replace(/\/+$/, "");
+}
+
+/**
+ * Whether a path produced by `normalizePosixDirPath` points at the root.
+ */
+export function isRootDirPath(normalizedPath: string): boolean {
+  return normalizedPath === "" || normalizedPath === ".";
+}
+
 export function checkPathTraversal({
   relativePath,
   intendedRootDir,
@@ -480,13 +497,34 @@ export async function readFileContent(filepath: string): Promise<string> {
 }
 
 /**
+ * Run `read`, answering `null` when the file does not exist. The read is
+ * tried first and `fileExists` is consulted only when it fails, so the
+ * common case costs one syscall instead of a `stat` plus a read, while the
+ * outcome stays what checking first gave: `null` whenever `stat` fails, and
+ * the read's own error when the path exists but cannot be read.
+ */
+async function readOrNullIfMissing<T>({
+  filepath,
+  read,
+}: {
+  filepath: string;
+  read: (filepath: string) => Promise<T>;
+}): Promise<T | null> {
+  try {
+    return await read(filepath);
+  } catch (error) {
+    if (!(await fileExists(filepath))) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+/**
  * Read file content if it exists, otherwise return null.
  */
 export async function readFileContentOrNull(filepath: string): Promise<string | null> {
-  if (await fileExists(filepath)) {
-    return readFileContent(filepath);
-  }
-  return null;
+  return readOrNullIfMissing({ filepath, read: readFileContent });
 }
 
 export async function readFileBuffer(filepath: string): Promise<Buffer> {
@@ -497,10 +535,7 @@ export async function readFileBuffer(filepath: string): Promise<Buffer> {
  * Read file as a buffer if it exists, otherwise return null.
  */
 export async function readFileBufferOrNull(filepath: string): Promise<Buffer | null> {
-  if (await fileExists(filepath)) {
-    return readFileBuffer(filepath);
-  }
-  return null;
+  return readOrNullIfMissing({ filepath, read: readFileBuffer });
 }
 
 /**
@@ -934,6 +969,7 @@ export async function writeLandingPath(targetPath: string): Promise<string | nul
   // Once a segment is missing, nothing below it can be a link.
   let exists = true;
   let linkHops = 0;
+  const knownNonLinks = getKnownNonLinkPaths();
   while (pending.length > 0) {
     const segment = pending.shift();
     if (segment === undefined || segment === "" || segment === ".") {
@@ -945,7 +981,7 @@ export async function writeLandingPath(targetPath: string): Promise<string | nul
       continue;
     }
     current = join(current, segment);
-    if (!exists) {
+    if (!exists || knownNonLinks?.has(current)) {
       continue;
     }
     let stats: Stats;
@@ -959,6 +995,7 @@ export async function writeLandingPath(targetPath: string): Promise<string | nul
       continue;
     }
     if (!stats.isSymbolicLink()) {
+      knownNonLinks?.add(current);
       continue;
     }
     linkHops += 1;

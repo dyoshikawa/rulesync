@@ -5,7 +5,6 @@ import {
   AMP_PLUGINS_GLOBAL_DIR,
   AMP_PLUGINS_PROJECT_DIR,
 } from "../../constants/amp-paths.js";
-import type { AiFileParams } from "../../types/ai-file.js";
 import {
   AMP_HOOK_EVENTS,
   AMP_OVERRIDE_ONLY_HOOK_EVENTS,
@@ -24,10 +23,6 @@ import {
 
 /** Amp hooks adapter backed by a rulesync-owned TypeScript plugin. */
 export class AmpHooks extends ToolHooks {
-  constructor(params: AiFileParams) {
-    super({ ...params, fileContent: params.fileContent ?? "" });
-  }
-
   static getSettablePaths(options?: { global?: boolean }): ToolHooksSettablePaths {
     return {
       relativeDirPath: options?.global ? AMP_PLUGINS_GLOBAL_DIR : AMP_PLUGINS_PROJECT_DIR,

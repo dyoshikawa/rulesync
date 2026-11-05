@@ -17,9 +17,10 @@ import {
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, toPosixPath } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import { getOrCreateOwn, lookupOwn } from "../../utils/own-lookup.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
-import { isRecord } from "../../utils/type-guards.js";
+import { isRecord, toRecord } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
@@ -36,7 +37,6 @@ import { collapseRulesToSingleAction, hasPatternSpecificRules } from "./single-a
 import { buildToolPatternEntry, parseToolPatternEntry } from "./tool-pattern-entry.js";
 import {
   ToolPermissions,
-  type ToolPermissionsForDeletionParams,
   type ToolPermissionsFromFileParams,
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
@@ -86,11 +86,11 @@ const DEVIN_SCOPE_TO_CANONICAL: Record<string, string> = {
 const DEVIN_BARE_ONLY_SCOPES: ReadonlySet<string> = new Set(["web_search"]);
 
 function toDevinScope(canonical: string): string {
-  return CANONICAL_TO_DEVIN_SCOPE[canonical] ?? canonical;
+  return lookupOwn({ record: CANONICAL_TO_DEVIN_SCOPE, key: canonical }) ?? canonical;
 }
 
 function toCanonicalCategory(devinScope: string): string {
-  return DEVIN_SCOPE_TO_CANONICAL[devinScope] ?? devinScope;
+  return lookupOwn({ record: DEVIN_SCOPE_TO_CANONICAL, key: devinScope }) ?? devinScope;
 }
 
 type DevinPermissionsBlock = {
@@ -218,16 +218,6 @@ export class DevinPermissions extends ToolPermissions {
     });
   }
 
-  /**
-   * config.json may carry the MCP/hooks features' keys, so it is never deleted;
-   * only the keys this feature manages are rewritten — `permissions`, plus
-   * `sandbox` (global) and the plugin governance lists (project) when the
-   * `devin` override authors them.
-   */
-  override isDeletable(): boolean {
-    return false;
-  }
-
   static getSettablePaths({
     global = false,
   }: { global?: boolean } = {}): ToolPermissionsSettablePaths {
@@ -274,7 +264,7 @@ export class DevinPermissions extends ToolPermissions {
     let settings: Record<string, unknown>;
     try {
       const parsed: unknown = JSON.parse(existingContent);
-      settings = isRecord(parsed) ? parsed : {};
+      settings = toRecord(parsed);
     } catch (error) {
       throw new Error(
         `Failed to parse existing Devin config at ${filePath}: ${formatError(error)}`,
@@ -406,7 +396,7 @@ export class DevinPermissions extends ToolPermissions {
     let settings: Record<string, unknown>;
     try {
       const parsed: unknown = JSON.parse(this.getFileContent());
-      settings = isRecord(parsed) ? parsed : {};
+      settings = toRecord(parsed);
     } catch (error) {
       throw new Error(
         `Failed to parse Devin permissions content in ${join(this.getRelativeDirPath(), this.getRelativeFilePath())}: ${formatError(error)}`,
@@ -460,22 +450,6 @@ export class DevinPermissions extends ToolPermissions {
 
     return this.toRulesyncPermissionsDefault({
       fileContent: JSON.stringify(result, null, 2),
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolPermissionsForDeletionParams): DevinPermissions {
-    // Kept for interface parity; isDeletable() returns false so the shared
-    // config.json is never removed by the permissions feature.
-    return new DevinPermissions({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: JSON.stringify({ permissions: {} }, null, 2),
-      validate: false,
     });
   }
 }
@@ -655,7 +629,7 @@ function convertDevinToRulesyncPermissions(params: {
         continue;
       }
       const canonical = toCanonicalCategory(scope);
-      (permission[canonical] ??= {})[pattern] = action;
+      getOrCreateOwn({ record: permission, key: canonical, create: () => ({}) })[pattern] = action;
     }
   };
 

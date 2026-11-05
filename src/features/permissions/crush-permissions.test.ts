@@ -288,16 +288,4 @@ describe("CrushPermissions", () => {
       expect(permissions.toRulesyncPermissions().getJson().permission).toEqual({});
     });
   });
-
-  describe("forDeletion", () => {
-    it("should return a well-formed, non-deletable instance", () => {
-      const permissions = CrushPermissions.forDeletion({
-        outputRoot: testDir,
-        relativeDirPath: ".",
-        relativeFilePath: "crush.json",
-      });
-      expect(permissions.getJson()).toEqual({});
-      expect(permissions.isDeletable()).toBe(false);
-    });
-  });
 });
