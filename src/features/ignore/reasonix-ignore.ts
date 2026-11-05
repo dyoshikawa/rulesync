@@ -138,12 +138,7 @@ export class ReasonixIgnore extends ToolIgnore {
         .filter((pattern): pattern is string => pattern !== null && pattern.length > 0),
     );
 
-    return new RulesyncIgnore({
-      outputRoot: this.outputRoot,
-      relativeDirPath: RulesyncIgnore.getSettablePaths().recommended.relativeDirPath,
-      relativeFilePath: RulesyncIgnore.getSettablePaths().recommended.relativeFilePath,
-      fileContent: rulesyncPatterns.join("\n"),
-    });
+    return this.toRulesyncIgnoreDefault({ fileContent: rulesyncPatterns.join("\n") });
   }
 
   static async fromRulesyncIgnore({

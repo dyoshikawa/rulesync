@@ -50,12 +50,6 @@ export class KiloCommand extends FrontmatterMarkdownToolCommand<KiloCommandFront
     return KiloCommandFrontmatterSchema;
   }
 
-  // Kilo has always imported with the current directory as the output root,
-  // where the other adapters pass "."; both resolve to the project root.
-  protected override getRulesyncOutputRoot(): string {
-    return process.cwd();
-  }
-
   /**
    * Refuse to write a command Kilo reserves (see
    * {@link KILO_RESERVED_COMMAND_NAMES}). The name Kilo loads is the file
