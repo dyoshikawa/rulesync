@@ -314,19 +314,24 @@ function emittedEventsWithHook(params: {
 
 /**
  * The capabilities an adapter built on the shared hooks converter already
- * declares in its converter config: the events it emits and the hook types it
- * keeps. Reading them from there keeps the processor's skip warnings in step
- * with what the converter actually writes.
+ * declares in its converter config: the events it emits, the hook types it
+ * keeps, and whether it writes the per-hook `enabled` flag. Reading them from
+ * there keeps the processor's skip and dropped-field warnings in step with
+ * what the converter actually writes.
  */
 function converterCapabilities(
   config: ToolHooksConverterConfig,
-): Pick<ToolHooksFactory, "supportedEvents" | "supportedHookTypes"> {
+): Pick<ToolHooksFactory, "supportedEvents" | "supportedHookTypes" | "supportsPerHookEnabled"> {
   if (!config.supportedHookTypes) {
     throw new Error("Hooks converter config must declare its supportedHookTypes");
   }
+  const passesThroughEnabled = (config.booleanPassthroughFields ?? []).some(
+    (field) => field.canonical === "enabled",
+  );
   return {
     supportedEvents: config.supportedEvents,
     supportedHookTypes: [...config.supportedHookTypes],
+    ...(passesThroughEnabled ? { supportsPerHookEnabled: true } : {}),
   };
 }
 
@@ -1282,7 +1287,6 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
       ...converterCapabilities(ZCODE_CONVERTER_CONFIG),
       supportsMatcher: true,
-      supportsPerHookEnabled: true,
     },
   ],
   [
@@ -1294,10 +1298,20 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       meta: { supportsProject: true, supportsGlobal: false, supportsImport: true },
       ...converterCapabilities(ZCODE_PLUGIN_CONVERTER_CONFIG),
       supportsMatcher: true,
-      supportsPerHookEnabled: true,
     },
   ],
 ]);
+
+// The targets whose hooks format carries a per-hook field, named in the
+// dropped-field warnings so the list cannot drift from the factories.
+function targetsSupporting(
+  capability: "supportsPerHookEnabled" | "supportsPerHookConfirm",
+): string {
+  return [...toolHooksFactories.entries()]
+    .filter(([, f]) => f[capability])
+    .map(([t]) => t)
+    .join(" / ");
+}
 
 // Project-mode generation/import should only expose tools that actually write
 // hooks into the workspace. This keeps global-only targets out of project
@@ -1533,8 +1547,8 @@ export class HooksProcessor extends FeatureProcessor {
   }): void {
     const { factory, sharedHooks, effectiveHooks } = params;
     // Warn that `enabled: false` cannot be expressed by targets whose hooks
-    // format carries no per-definition on-disk enable flag (`kiro-ide`,
-    // `kiro-cli` and `zcode` do); everywhere else the hook is emitted as an
+    // format carries no per-definition on-disk enable flag (see
+    // `supportsPerHookEnabled`); everywhere else the hook is emitted as an
     // ordinary, active hook, so a user who paused one hook would otherwise see
     // it keep firing with no explanation.
     if (!factory.supportsPerHookEnabled) {
@@ -1546,7 +1560,7 @@ export class HooksProcessor extends FeatureProcessor {
       });
       if (eventsWithDisabledHooks.length > 0) {
         this.logger.warn(
-          `Emitting "enabled: false" hook(s) as active for ${this.toolTarget} (only the kiro-cli / kiro-ide / zcode hooks formats support the flag): ${eventsWithDisabledHooks.join(", ")}`,
+          `Emitting "enabled: false" hook(s) as active for ${this.toolTarget} (only the ${targetsSupporting("supportsPerHookEnabled")} hooks formats support the flag): ${eventsWithDisabledHooks.join(", ")}`,
         );
       }
     }
@@ -1563,7 +1577,7 @@ export class HooksProcessor extends FeatureProcessor {
       });
       if (eventsWithConfirmHooks.length > 0) {
         this.logger.warn(
-          `Emitting hook(s) without their "confirm" prompt for ${this.toolTarget} (only the kiro-cli / kiro-ide hooks formats support it): ${eventsWithConfirmHooks.join(", ")}`,
+          `Emitting hook(s) without their "confirm" prompt for ${this.toolTarget} (only the ${targetsSupporting("supportsPerHookConfirm")} hooks formats support it): ${eventsWithConfirmHooks.join(", ")}`,
         );
       }
     }
