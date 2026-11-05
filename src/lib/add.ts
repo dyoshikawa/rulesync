@@ -2,16 +2,9 @@ import { cp, mkdtemp, realpath, rm } from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
 import { createInterface } from "node:readline/promises";
 
-import {
-  applyEdits,
-  modify,
-  parse as parseJsonc,
-  type FormattingOptions,
-  type ParseError,
-  printParseErrorCode,
-} from "jsonc-parser";
+import { applyEdits, modify, type FormattingOptions } from "jsonc-parser";
 
-import { ConfigResolver } from "../config/config-resolver.js";
+import { ConfigResolver, parseConfigFileContent } from "../config/config-resolver.js";
 import {
   ConfigFileSchema,
   getSourceTransport,
@@ -364,15 +357,7 @@ async function handleFeatureScaffoldRequest({
 }
 
 function parseConfigContent(content: string, configPath: string) {
-  const errors: ParseError[] = [];
-  const parsed = parseJsonc(content, errors, { allowTrailingComma: true });
-  const firstError = errors[0];
-  if (firstError) {
-    throw new Error(
-      `Failed to parse ${configPath}: ${printParseErrorCode(firstError.error)} at offset ${firstError.offset}.`,
-    );
-  }
-  return ConfigFileSchema.parse(parsed);
+  return ConfigFileSchema.parse(parseConfigFileContent({ content, filePath: configPath }));
 }
 
 export async function addCommand(logger: Logger, options: AddCommandOptions): Promise<void> {
