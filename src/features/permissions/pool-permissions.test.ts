@@ -705,4 +705,31 @@ describe("PoolPermissions", () => {
       expect(permissions.toRulesyncPermissions().getJson().permission).toEqual({});
     });
   });
+
+  describe("names that match Object.prototype members on import", () => {
+    it("imports allowed patterns and paths named like a prototype member as allow rules", () => {
+      const permissions = new PoolPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".poolside",
+        relativeFilePath: "settings.yaml",
+        fileContent: [
+          "tools:",
+          "  shell:",
+          "    allow: ['toString']",
+          "paths:",
+          "  allow:",
+          "    - path: valueOf",
+          "      write: true",
+          "",
+        ].join("\n"),
+      });
+
+      expect(permissions.toRulesyncPermissions().getJson().permission).toEqual({
+        bash: { toString: "allow" },
+        read: { valueOf: "allow" },
+        edit: { valueOf: "allow" },
+        write: { valueOf: "allow" },
+      });
+    });
+  });
 });

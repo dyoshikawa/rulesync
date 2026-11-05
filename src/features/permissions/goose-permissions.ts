@@ -9,6 +9,7 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { getOrCreateOwn, lookupOwn } from "../../utils/own-lookup.js";
+import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { isRecord, isStringArray, toRecord } from "../../utils/type-guards.js";
 import { loadYaml } from "../../utils/yaml.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
@@ -322,6 +323,9 @@ function convertGoosePermissionConfigToRulesync(
       for (const category of lookupOwn({ record: GOOSE_TO_RULESYNC_TOOL_NAMES, key: toolName }) ?? [
         toolName,
       ]) {
+        // A `__proto__` or `constructor` name would not land as a plain own key,
+        // so such entries are dropped, as the other permissions adapters do.
+        if (isPrototypePollutionKey(category)) continue;
         getOrCreateOwn({ record: permission, key: category, create: () => ({}) })[
           CATCH_ALL_PATTERN
         ] = action;

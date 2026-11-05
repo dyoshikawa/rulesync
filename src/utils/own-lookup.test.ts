@@ -49,6 +49,23 @@ describe("getOrCreateOwn", () => {
   );
 });
 
+describe("getOrCreateOwn with prototype-pollution keys", () => {
+  it.each(["__proto__", "constructor"])(
+    "stores %s as an own data property without touching the prototype",
+    (key) => {
+      const record: Record<string, Record<string, string>> = {};
+      const bucket = getOrCreateOwn({ record, key, create: () => ({}) });
+      bucket.x = "allow";
+
+      expect(Object.getPrototypeOf(record)).toBe(Object.prototype);
+      expect(Object.hasOwn(record, key)).toBe(true);
+      expect(Object.getOwnPropertyDescriptor(record, key)?.value).toEqual({ x: "allow" });
+      expect(({} as Record<string, unknown>).x).toBeUndefined();
+      expect(getOrCreateOwn({ record, key, create: () => ({}) })).toBe(bucket);
+    },
+  );
+});
+
 describe("invertRecord", () => {
   it("swaps keys and values", () => {
     expect(invertRecord({ Bash: "RunCommand", Read: "read" })).toEqual({

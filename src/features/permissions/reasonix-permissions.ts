@@ -18,6 +18,7 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, toPosixPath } from "../../utils/file.js";
 import { type Logger, warnWithFallback } from "../../utils/logger.js";
 import { getOrCreateOwn, invertRecord, lookupOwn } from "../../utils/own-lookup.js";
+import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isRecord, toStringArray } from "../../utils/type-guards.js";
 import {
@@ -1023,6 +1024,11 @@ function convertReasonixToRulesyncPermissions(params: {
     for (const entry of entries) {
       const { toolName, pattern } = parseToolPatternEntry(entry);
       const canonical = toCanonicalToolName(toolName);
+      // A `__proto__` or `constructor` name would not land as a plain own key,
+      // so such entries are dropped, as the other permissions adapters do.
+      if (isPrototypePollutionKey(canonical) || isPrototypePollutionKey(pattern)) {
+        continue;
+      }
       getOrCreateOwn({ record: permission, key: canonical, create: () => ({}) })[pattern] = action;
     }
   };

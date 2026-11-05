@@ -38,7 +38,14 @@ export function getOrCreateOwn<V>({
     return record[key] as V;
   }
   const created = create();
-  record[key] = created;
+  // A plain assignment of `__proto__` would run the inherited setter and swap
+  // the record's prototype instead of adding a key, so define it as data.
+  Object.defineProperty(record, key, {
+    value: created,
+    writable: true,
+    enumerable: true,
+    configurable: true,
+  });
   return created;
 }
 

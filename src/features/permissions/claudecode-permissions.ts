@@ -9,7 +9,10 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, toPosixPath } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { getOrCreateOwn, invertRecord, lookupOwn } from "../../utils/own-lookup.js";
-import { PROTOTYPE_POLLUTION_KEYS } from "../../utils/prototype-pollution.js";
+import {
+  PROTOTYPE_POLLUTION_KEYS,
+  isPrototypePollutionKey,
+} from "../../utils/prototype-pollution.js";
 import { isRecord, toRecord } from "../../utils/type-guards.js";
 import {
   applyPermissions,
@@ -1710,6 +1713,11 @@ function convertClaudeToRulesyncPermissions(params: {
     for (const entry of entries) {
       const { toolName, pattern } = parseToolPatternEntry(entry);
       const canonical = toCanonicalToolName(toolName);
+      // A `__proto__` or `constructor` name would not land as a plain own key,
+      // so such entries are dropped, as the other permissions adapters do.
+      if (isPrototypePollutionKey(canonical) || isPrototypePollutionKey(pattern)) {
+        continue;
+      }
       getOrCreateOwn({ record: permission, key: canonical, create: () => ({}) })[pattern] = action;
     }
   };

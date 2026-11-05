@@ -2,6 +2,7 @@ import type { PermissionAction, PermissionsConfig } from "../../types/permission
 import { parseGlobPattern } from "../../utils/glob.js";
 import type { Logger } from "../../utils/logger.js";
 import { getOrCreateOwn } from "../../utils/own-lookup.js";
+import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import {
   ANTIGRAVITY_COMMAND_ACTIONS as COMMAND_ACTIONS,
   BRACE_ALTERNATIVES,
@@ -460,6 +461,11 @@ export function convertAntigravityToRulesyncPermissions({
             toolLabel,
           })
         : target;
+      // A `__proto__` or `constructor` name would not land as a plain own key,
+      // so such entries are dropped, as the other permissions adapters do.
+      if (isPrototypePollutionKey(canonical) || isPrototypePollutionKey(pattern)) {
+        continue;
+      }
       getOrCreateOwn({ record: permission, key: canonical, create: () => ({}) })[pattern] = action;
     }
   };

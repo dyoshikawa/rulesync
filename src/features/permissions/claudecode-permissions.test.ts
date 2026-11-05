@@ -3080,4 +3080,22 @@ describe("ClaudecodePermissions", () => {
       });
     });
   });
+
+  describe("prototype-pollution tool names on import", () => {
+    it("drops __proto__ entries without replacing the imported block's prototype", () => {
+      const instance = new ClaudecodePermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".claude",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          permissions: { allow: ["Bash(ls)", "__proto__(bash)"], deny: ["__proto__"] },
+        }),
+      });
+
+      const { permission } = instance.toRulesyncPermissions().getJson();
+      expect(permission).toEqual({ bash: { ls: "allow" } });
+      expect(Object.getPrototypeOf(permission)).toBe(Object.prototype);
+      expect(Object.hasOwn(permission, "__proto__")).toBe(false);
+    });
+  });
 });
