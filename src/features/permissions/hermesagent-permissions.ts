@@ -684,7 +684,7 @@ export class HermesagentPermissions extends ToolPermissions {
     // (`claudecode` with `env` credentials, say); bringing them back would put
     // those secrets into `.rulesync/` again and overwrite fresher fields there.
     const hermes = buildHermesOverride(config, provenance);
-    const { $schema } = hermesProvenanceOf(provenance);
+    const { $schema } = provenance;
     const imported: PermissionsConfig = {
       ...($schema !== undefined && { $schema }),
       permission,

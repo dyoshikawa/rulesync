@@ -11,7 +11,9 @@ import {
 import type { Logger } from "../../utils/logger.js";
 import { lookupOwn } from "../../utils/own-lookup.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
+import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isPlainObject } from "../../utils/type-guards.js";
+import { capitalizedMatcherNames, replaceMatcherNames } from "./hook-matcher-tool-names.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import type { ToolHooksConverterConfig } from "./tool-hooks-converter.js";
 import {
@@ -50,6 +52,94 @@ const ANTIGRAVITY_FLAT_HANDLER_EVENTS: ReadonlySet<string> = new Set(
   ),
 );
 
+// Antigravity matches `matcher` as a regex against the tool name in the hook
+// payload (`toolCall.name`), and that name is lowercase. Observed on agy CLI
+// 1.5.1 (Windows): a PreToolUse hook fires with `write_file`, `edit_file`,
+// `read_file`, `run_command` and `search_web`, so a canonical `Edit|Write` or
+// `Bash` never matches. The hooks docs, which cover the App, the IDE and the
+// CLI, list other names for the file tools (`view_file`, `write_to_file`,
+// `replace_file_content`). Those did not fire on agy CLI 1.5.1, but the IDE
+// may send them, so the file tools are written as a non-capturing group that
+// covers both spellings. A group stays one regex unit, so an anchored matcher
+// such as `^Read$` still works.
+// https://antigravity.google/docs/hooks
+const CANONICAL_TO_ANTIGRAVITY_TOOL_NAMES: Readonly<Record<string, string>> = {
+  Bash: "run_command",
+  Read: "(?:read_file|view_file)",
+  Write: "(?:write_file|write_to_file)",
+  Edit: "(?:edit_file|replace_file_content)",
+  WebSearch: "search_web",
+};
+
+// Every Antigravity spelling of a translated tool, observed or documented,
+// mapped back to its canonical name on import.
+const ANTIGRAVITY_TO_CANONICAL_TOOL_NAMES: Readonly<Record<string, string>> = {
+  run_command: "Bash",
+  read_file: "Read",
+  view_file: "Read",
+  write_file: "Write",
+  write_to_file: "Write",
+  edit_file: "Edit",
+  replace_file_content: "Edit",
+  search_web: "WebSearch",
+};
+
+// The alternation groups rulesync writes, mapped back as a whole so a
+// round-trip yields `Read` rather than `(?:Read|Read)`.
+const ANTIGRAVITY_GROUP_TO_CANONICAL_TOOL_NAMES: ReadonlyArray<readonly [string, string]> =
+  Object.entries(CANONICAL_TO_ANTIGRAVITY_TOOL_NAMES)
+    .filter(([, name]) => name.startsWith("(?:"))
+    .map(([canonical, group]) => [group, canonical] as const);
+
+// Canonical tools left untranslated because the name Antigravity reports for
+// them has not been measured, with the name the hooks docs list for each.
+const ANTIGRAVITY_DOCUMENTED_TOOL_CANDIDATES: Readonly<Record<string, string>> = {
+  Grep: "grep_search",
+  Glob: "find_by_name",
+  WebFetch: "read_url_content",
+  MultiEdit: "multi_replace_file_content",
+};
+
+function canonicalToAntigravityMatcher({
+  matcher,
+  eventName,
+  warn,
+}: {
+  matcher: string;
+  eventName: string;
+  warn: (message: string) => void;
+}): string {
+  const translated = replaceMatcherNames(matcher, CANONICAL_TO_ANTIGRAVITY_TOOL_NAMES);
+  // Antigravity reports lowercase tool names, so a capitalized name left over
+  // (`Glob`, `WebFetch`) can never match.
+  const unmatched = capitalizedMatcherNames(translated);
+  if (unmatched.length > 0) {
+    const candidates = unmatched.flatMap((name) => {
+      const candidate = lookupOwn({ record: ANTIGRAVITY_DOCUMENTED_TOOL_CANDIDATES, key: name });
+      return candidate ? [`\`${candidate}\` for ${quoteValueForWarning(name)}`] : [];
+    });
+    warn(
+      `Antigravity reports lowercase tool names in the hook payload (\`toolCall.name\`), and ` +
+        `${unmatched.map((name) => quoteValueForWarning(name)).join(", ")} in the ` +
+        `"${eventName}" matcher ${quoteValueForWarning(matcher)} has no verified Antigravity ` +
+        `equivalent, so it is written as-is and will likely never match. Use the tool name ` +
+        `Antigravity reports instead` +
+        (candidates.length > 0
+          ? ` (the Antigravity hooks docs list ${candidates.join(", ")}, unverified).`
+          : "."),
+    );
+  }
+  return translated;
+}
+
+function antigravityToCanonicalMatcher(matcher: string): string {
+  const withoutGroups = ANTIGRAVITY_GROUP_TO_CANONICAL_TOOL_NAMES.reduce(
+    (current, [group, canonical]) => current.split(group).join(canonical),
+    matcher,
+  );
+  return replaceMatcherNames(withoutGroups, ANTIGRAVITY_TO_CANONICAL_TOOL_NAMES);
+}
+
 /**
  * Antigravity uses a Claude-Code-like `hooks.json`. The `PreToolUse` /
  * `PostToolUse` events use the matcher-based group shape, while `SessionStart`,
@@ -64,6 +154,10 @@ export const ANTIGRAVITY_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   projectDirVar: "",
   noMatcherEvents: ANTIGRAVITY_NO_MATCHER_EVENTS,
   supportedHookTypes: new Set(["command"]),
+  matcherTranslation: {
+    toTool: canonicalToAntigravityMatcher,
+    toCanonical: antigravityToCanonicalMatcher,
+  },
 };
 
 /**

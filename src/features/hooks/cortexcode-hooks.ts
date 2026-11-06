@@ -11,11 +11,7 @@ import {
 } from "../../types/hooks.js";
 import { invertRecord } from "../../utils/own-lookup.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
-import {
-  isMatcherName,
-  MATCHER_TOKEN_PATTERN,
-  replaceMatcherNames,
-} from "./hook-matcher-tool-names.js";
+import { capitalizedMatcherNames, replaceMatcherNames } from "./hook-matcher-tool-names.js";
 import { SettingsJsonHooks, type SettingsJsonHooksSpec } from "./settings-json-hooks.js";
 import type { ToolHooksConverterConfig } from "./tool-hooks-converter.js";
 import type { ToolHooksSettablePaths } from "./tool-hooks.js";
@@ -53,13 +49,11 @@ function canonicalToCortexcodeMatcher({
   warn: (message: string) => void;
 }): string {
   const translated = replaceMatcherNames(matcher, CANONICAL_TO_CORTEXCODE_TOOL_NAMES);
-  const unmatched = [...translated.matchAll(MATCHER_TOKEN_PATTERN)]
-    .map(([token]) => token)
-    .filter((token) => isMatcherName(token) && /^[A-Z]/.test(token));
+  const unmatched = capitalizedMatcherNames(translated);
   if (unmatched.length > 0) {
     warn(
       `Cortex Code matches hook matchers case-sensitively against lowercase runtime tool names, ` +
-        `and ${[...new Set(unmatched)].map((name) => quoteValueForWarning(name)).join(", ")} in the ` +
+        `and ${unmatched.map((name) => quoteValueForWarning(name)).join(", ")} in the ` +
         `"${eventName}" matcher ${quoteValueForWarning(matcher)} is not a tool Cortex Code ` +
         `documents a runtime ID for, so it is written as-is and will likely never match. ` +
         `Replace it with the lowercase name Cortex Code uses for that tool, if it has one.`,
