@@ -51,10 +51,11 @@ const MATCH_ALL_PATH_GLOBS = new Set(["*", "**", "**/*"]);
 // A trailing glob that means "everything under this directory".
 const DIRECTORY_CONTENTS_SUFFIX = /\/\*\*(?:\/\*)?$/;
 
-// A path that is `~` or starts with `~/` or a `$NAME` variable, or holds a
-// `${NAME}` reference. A `$` or `~` elsewhere is an ordinary file name
-// character (`routes/posts.$postId.tsx`, `~$report.docx`).
-const HOME_OR_VARIABLE_PATH = /^~(?:\/|$)|^\$[A-Za-z_]|\$\{[A-Za-z_]/;
+// A path that is `~`, starts with `~/`, `~\` or `~user/`, starts with a `$NAME`
+// or `%NAME%` variable, or holds a `${NAME}` reference. A `$`, `%` or `~`
+// elsewhere is an ordinary file name character (`routes/posts.$postId.tsx`,
+// `~$report.docx`).
+const HOME_OR_VARIABLE_PATH = /^~(?:[^/\\]*[/\\]|$)|^\$[A-Za-z_]|^%[A-Za-z_]\w*%|\$\{[A-Za-z_]/;
 
 // A path that is the home directory itself or starts in it, written with `~`.
 const LEADING_HOME = /^~(?:\/|$)/;
