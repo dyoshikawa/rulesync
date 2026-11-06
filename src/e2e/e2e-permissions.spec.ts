@@ -3820,7 +3820,7 @@ describe("E2E: permissions (global mode)", () => {
     expect(generated.permissions.deny).toEqual([
       "command(git push)",
       "command(rm -rf)",
-      `read_file(${homeDir}/.ssh)`,
+      `read_file(${homeDir.replaceAll("\\", "/")}/.ssh)`,
     ]);
     expect(generated.permissions.allow).toContain("read_file(src)");
     expect(generated.permissions.allow).toContain("read_url(example.com)");
