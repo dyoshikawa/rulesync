@@ -11,10 +11,12 @@ function build({
   action,
   pattern,
   decision = "allow",
+  homeDirectory,
 }: {
   action: string;
   pattern: string;
   decision?: PermissionAction;
+  homeDirectory?: string;
 }) {
   const logger = createMockLogger();
   const entry = buildAntigravityPermissionEntry({
@@ -24,6 +26,7 @@ function build({
     decision,
     logger,
     toolLabel: "Antigravity CLI",
+    homeDirectory,
   });
   return { entry, logger };
 }
@@ -150,6 +153,86 @@ describe("buildAntigravityPermissionEntry", () => {
         expect(logger.warn).not.toHaveBeenCalled();
       },
     );
+  });
+
+  describe("home directory rewrite", () => {
+    it.each([
+      ["~/x.txt", "deny", "read_file(/home/me/x.txt)"],
+      ["~/x.txt", "allow", "read_file(/home/me/x.txt)"],
+      ["~/x.txt", "ask", "read_file(/home/me/x.txt)"],
+      ["~", "deny", "read_file(/home/me)"],
+      ["~/", "deny", "read_file(/home/me/)"],
+      ["~/.ssh/**", "deny", "read_file(/home/me/.ssh)"],
+      ["~/**", "deny", "read_file(/home/me)"],
+    ] as const)(
+      "writes %s (%s) with the absolute home directory and no warning",
+      (pattern, decision, expected) => {
+        const { entry, logger } = build({
+          action: "read_file",
+          pattern,
+          decision,
+          homeDirectory: "/home/me",
+        });
+        expect(entry).toBe(expected);
+        expect(logger.warn).not.toHaveBeenCalled();
+      },
+    );
+
+    it("rewrites the lead a home deny is widened to", () => {
+      const { entry, logger } = build({
+        action: "write_file",
+        pattern: "~/.ssh/*.pem",
+        decision: "deny",
+        homeDirectory: "/home/me",
+      });
+      expect(entry).toBe("write_file(/home/me/.ssh)");
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("The deny now blocks every path under `/home/me/.ssh`"),
+      );
+    });
+
+    it("writes a Windows home directory with forward slashes", () => {
+      const { entry } = build({
+        action: "read_file",
+        pattern: "~/x.txt",
+        decision: "deny",
+        homeDirectory: "C:\\Users\\me\\",
+      });
+      expect(entry).toBe("read_file(C:/Users/me/x.txt)");
+    });
+
+    it.each(["$HOME/x.txt", "${HOME}/x.txt", "~alice/x.txt"])("keeps %s as written", (pattern) => {
+      const { entry } = build({
+        action: "read_file",
+        pattern,
+        decision: "deny",
+        homeDirectory: "/home/me",
+      });
+      expect(entry).toBe(`read_file(${pattern})`);
+    });
+
+    it("still warns that a $HOME deny may block nothing", () => {
+      const { logger } = build({
+        action: "read_file",
+        pattern: "$HOME/x.txt",
+        decision: "deny",
+        homeDirectory: "/home/me",
+      });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("this deny may block nothing"),
+      );
+    });
+
+    it("leaves non-path targets alone", () => {
+      const { entry } = build({
+        action: "command",
+        pattern: "~/bin/tool",
+        decision: "deny",
+        homeDirectory: "/home/me",
+      });
+      expect(entry).toBe("command(~/bin/tool)");
+    });
   });
 
   describe("URL targets", () => {
@@ -653,5 +736,45 @@ describe("convertAntigravityToRulesyncPermissions with prototype-pollution names
     expect(Object.getPrototypeOf(permission)).toBe(Object.prototype);
     expect(Object.hasOwn(permission, "__proto__")).toBe(false);
     expect(permission).toEqual({ read: { "src/**": "allow" } });
+  });
+});
+
+describe("convertAntigravityToRulesyncPermissions with a home directory", () => {
+  const convert = (deny: string[], homeDirectory?: string) =>
+    convertAntigravityToRulesyncPermissions({
+      allow: [],
+      ask: [],
+      deny,
+      toCategory: (action) => (action === "read_file" ? "read" : action),
+      toolLabel: "Antigravity CLI",
+      logger: createMockLogger(),
+      homeDirectory,
+    }).permission;
+
+  it("imports a path in the home directory as ~/...", () => {
+    expect(
+      convert(
+        ["read_file(/home/me/x.txt)", "read_file(/home/me)", "read_file(/home/meme/x)"],
+        "/home/me",
+      ),
+    ).toEqual({ read: { "~/x.txt": "deny", "~": "deny", "/home/meme/x": "deny" } });
+  });
+
+  it("imports a Windows home path written with forward slashes", () => {
+    expect(convert(["read_file(C:/Users/me/x.txt)"], "C:\\Users\\me")).toEqual({
+      read: { "~/x.txt": "deny" },
+    });
+  });
+
+  it("keeps absolute paths without a home directory", () => {
+    expect(convert(["read_file(/home/me/x.txt)"])).toEqual({
+      read: { "/home/me/x.txt": "deny" },
+    });
+  });
+
+  it("does not touch targets of other actions", () => {
+    expect(convert(["mcp(/home/me/x)"], "/home/me")).toEqual({
+      mcp: { "/home/me/x": "deny" },
+    });
   });
 });

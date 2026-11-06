@@ -79,6 +79,18 @@ describe("AntigravityIdePermissions", () => {
       expect(json.permissions.ask).toContain("command");
     });
 
+    it("keeps a ~/ path target as written and warns, since the file is shared", async () => {
+      const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+      const perms = await AntigravityIdePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({ read: { "~/x.txt": "deny" } }),
+      });
+
+      const json = JSON.parse(perms.getFileContent());
+      expect(json.permissions.deny).toEqual(["read_file(~/x.txt)"]);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("this deny may block nothing"));
+    });
+
     it("writes canonical MCP tool categories as mcp(server/tool) targets", async () => {
       const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
       const perms = await AntigravityIdePermissions.fromRulesyncPermissions({
