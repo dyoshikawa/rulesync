@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { replaceMatcherNames } from "./hook-matcher-tool-names.js";
+import { capitalizedMatcherNames, replaceMatcherNames } from "./hook-matcher-tool-names.js";
 
 const NAMES = { Bash: "RunCommand", Read: "read" };
 
@@ -24,5 +24,15 @@ describe("replaceMatcherNames", () => {
 
   it("should not match inherited object keys", () => {
     expect(replaceMatcherNames("toString|constructor", NAMES)).toBe("toString|constructor");
+  });
+});
+
+describe("capitalizedMatcherNames", () => {
+  it("should list each capitalized whole name once", () => {
+    expect(capitalizedMatcherNames("Glob|read|Glob|WebFetch")).toEqual(["Glob", "WebFetch"]);
+  });
+
+  it("should ignore lowercase names, longer identifiers, escapes and classes", () => {
+    expect(capitalizedMatcherNames("run_command|mcp__srv__Bash|\\Bar|[A-Z]+")).toEqual([]);
   });
 });

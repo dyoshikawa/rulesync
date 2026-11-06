@@ -10,6 +10,18 @@ export function isMatcherName(token: string): boolean {
 }
 
 /**
+ * The distinct whole names in a matcher that start with a capital letter, for
+ * adapters whose runtime tool names are all lowercase: after translation, such
+ * a name has no runtime equivalent and can never match.
+ */
+export function capitalizedMatcherNames(matcher: string): string[] {
+  const names = [...matcher.matchAll(MATCHER_TOKEN_PATTERN)]
+    .map(([token]) => token)
+    .filter((token) => isMatcherName(token) && /^[A-Z]/.test(token));
+  return [...new Set(names)];
+}
+
+/**
  * Rewrites the whole tool names inside a hook `matcher` regex through `names`,
  * leaving escapes, character classes and unknown names as written. Used by
  * adapters whose runtime tool names differ from the canonical (Claude Code)
