@@ -56,6 +56,52 @@ const DIRECTORY_CONTENTS_SUFFIX = /\/\*\*(?:\/\*)?$/;
 // character (`routes/posts.$postId.tsx`, `~$report.docx`).
 const HOME_OR_VARIABLE_PATH = /^~(?:\/|$)|^\$[A-Za-z_]|\$\{[A-Za-z_]/;
 
+// A path that is the home directory itself or starts in it, written with `~`.
+const LEADING_HOME = /^~(?:\/|$)/;
+
+/**
+ * The home directory as an Antigravity path: forward slashes, no trailing
+ * slash. agy accepts `C:/Users/...` on Windows, so one spelling serves both.
+ */
+function toAntigravityHomePath(homeDirectory: string): string {
+  return homeDirectory.replaceAll("\\", "/").replace(/\/+$/, "");
+}
+
+/**
+ * Rewrite a leading `~` or `~/` of a path target to the absolute home
+ * directory. agy 1.5.1 matches `~` literally, so a `~/...` rule would never
+ * apply (rulesync#3324). Only a file the user's own home holds, such as the
+ * global Antigravity CLI settings, may carry a machine-specific path, so the
+ * caller passes `homeDirectory` only then. `$HOME`, `${HOME}`, `%VAR%` and
+ * `~user/` are left as written (the variable forms are still warned about).
+ */
+function expandLeadingHome(target: string, homeDirectory: string | undefined): string {
+  if (homeDirectory === undefined || !LEADING_HOME.test(target)) {
+    return target;
+  }
+  const home = toAntigravityHomePath(homeDirectory);
+  return target === "~" ? home || "/" : `${home}${target.slice(1)}`;
+}
+
+/**
+ * The reverse of {@link expandLeadingHome} on import: an absolute path in the
+ * home directory goes back to `~/...`, so `.rulesync/permissions.jsonc` stays
+ * the same on every machine.
+ */
+function collapseLeadingHome(target: string, homeDirectory: string | undefined): string {
+  if (homeDirectory === undefined) {
+    return target;
+  }
+  const home = toAntigravityHomePath(homeDirectory);
+  if (home.length === 0) {
+    return target;
+  }
+  if (target === home) {
+    return "~";
+  }
+  return target.startsWith(`${home}/`) ? `~${target.slice(home.length)}` : target;
+}
+
 // Hostnames as Antigravity matches them: letters, digits, dots and hyphens.
 const HOSTNAME = /^[a-z0-9-]+(?:\.[a-z0-9-]+)*$/;
 
@@ -317,6 +363,7 @@ export function buildAntigravityPermissionEntry({
   decision,
   logger,
   toolLabel,
+  homeDirectory,
 }: {
   action: string;
   category: string;
@@ -324,6 +371,11 @@ export function buildAntigravityPermissionEntry({
   decision: PermissionAction;
   logger: Logger;
   toolLabel: string;
+  /**
+   * When set, a path target starting with `~/` (or exactly `~`) is written
+   * with this absolute home directory instead.
+   */
+  homeDirectory?: string;
 }): string | undefined {
   const isMcp = category.startsWith(MCP_CATEGORY_PREFIX);
   const action = isMcp ? "mcp" : toolAction;
@@ -334,8 +386,12 @@ export function buildAntigravityPermissionEntry({
       : toTarget(action, pattern);
   const rule = `${category}: { "${pattern}": "${decision}" }`;
   if ("skipReason" in result) {
-    const prefix =
+    const lead =
       decision !== "deny" ? undefined : isMcp ? result.lead : toWidenedDenyTarget(action, pattern);
+    const prefix =
+      lead !== undefined && PATH_ACTIONS.has(action)
+        ? expandLeadingHome(lead, homeDirectory)
+        : lead;
     if (prefix !== undefined) {
       const { entry, scope } = describeWidenedDeny({ action, prefix, isMcp });
       logger.warn(
@@ -365,8 +421,11 @@ export function buildAntigravityPermissionEntry({
       decision === "deny" ? ", so the deny also overrides any allow or ask there" : "";
     logger.warn(`${toolLabel} permissions: ${rule}: ${result.note}${consequence}.`);
   }
-  warnHomeOrVariablePath({ action, target: result.target, rule, decision, logger, toolLabel });
-  return result.target === "*" ? action : `${action}(${result.target})`;
+  const target = PATH_ACTIONS.has(action)
+    ? expandLeadingHome(result.target, homeDirectory)
+    : result.target;
+  warnHomeOrVariablePath({ action, target, rule, decision, logger, toolLabel });
+  return target === "*" ? action : `${action}(${target})`;
 }
 
 /**
@@ -379,11 +438,14 @@ export function convertRulesyncToAntigravityPermissions({
   toAction,
   toolLabel,
   logger,
+  homeDirectory,
 }: {
   config: PermissionsConfig;
   toAction: (category: string) => string;
   toolLabel: string;
   logger: Logger;
+  /** See {@link buildAntigravityPermissionEntry}. */
+  homeDirectory?: string;
 }): {
   allow: string[];
   ask: string[];
@@ -403,6 +465,7 @@ export function convertRulesyncToAntigravityPermissions({
         decision: permissionAction,
         logger,
         toolLabel,
+        homeDirectory,
       });
       if (entry === undefined) {
         continue;
@@ -438,6 +501,7 @@ export function convertAntigravityToRulesyncPermissions({
   toCategory,
   toolLabel,
   logger,
+  homeDirectory,
 }: {
   allow: string[];
   ask: string[];
@@ -445,6 +509,11 @@ export function convertAntigravityToRulesyncPermissions({
   toCategory: (action: string) => string;
   toolLabel: string;
   logger: Logger;
+  /**
+   * When set, a path target in this home directory is imported as `~/...`,
+   * undoing the rewrite of {@link convertRulesyncToAntigravityPermissions}.
+   */
+  homeDirectory?: string;
 }): PermissionsConfig {
   const permission: Record<string, Record<string, PermissionAction>> = {};
 
@@ -460,7 +529,9 @@ export function convertAntigravityToRulesyncPermissions({
             logger,
             toolLabel,
           })
-        : target;
+        : PATH_ACTIONS.has(toolName)
+          ? collapseLeadingHome(target, homeDirectory)
+          : target;
       // A `__proto__` or `constructor` name would not land as a plain own key,
       // so such entries are dropped, as the other permissions adapters do.
       if (isPrototypePollutionKey(canonical) || isPrototypePollutionKey(pattern)) {

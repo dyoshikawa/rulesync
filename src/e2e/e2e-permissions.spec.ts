@@ -3787,7 +3787,7 @@ describe("E2E: permissions (global mode)", () => {
               "rm -rf *": "deny",
               "git push * --force": "deny",
             },
-            read: { "src/**": "allow" },
+            read: { "src/**": "allow", "~/.ssh/**": "deny" },
             webfetch: { "https://example.com/*": "allow" },
           },
         },
@@ -3815,7 +3815,13 @@ describe("E2E: permissions (global mode)", () => {
     // and a `*` that spans words has no spelling. Such a deny is widened to
     // its leading literal words, so it still blocks what it was meant to.
     expect(generated.permissions.allow).toContain("command(regex:^npm$ ^run$ ^test:.*$)");
-    expect(generated.permissions.deny).toEqual(["command(git push)", "command(rm -rf)"]);
+    // agy does not expand `~`, so a `~/` path is written with the absolute
+    // home directory; the file lives in that home and is never shared.
+    expect(generated.permissions.deny).toEqual([
+      "command(git push)",
+      "command(rm -rf)",
+      `read_file(${homeDir.replaceAll("\\", "/")}/.ssh)`,
+    ]);
     expect(generated.permissions.allow).toContain("read_file(src)");
     expect(generated.permissions.allow).toContain("read_url(example.com)");
   });

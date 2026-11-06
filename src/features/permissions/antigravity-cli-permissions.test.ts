@@ -74,6 +74,69 @@ describe("AntigravityCliPermissions", () => {
     expect(settings.permissions?.deny).toEqual(["command(rm -rf)"]);
   });
 
+  describe("~/ path targets", () => {
+    const source = () =>
+      new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: {
+            read: { "~/x.txt": "deny", "~": "ask", "$HOME/y.txt": "deny" },
+            write: { "~/notes/**": "allow" },
+          },
+        }),
+      });
+
+    it("writes ~/ with the absolute home directory, since agy does not expand it", async () => {
+      const logger = createMockLogger();
+      const permissions = await AntigravityCliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: source(),
+        logger,
+      });
+
+      const settings = JSON.parse(permissions.getFileContent()) as SettingsJson;
+      expect(settings.permissions?.deny).toEqual([
+        "read_file($HOME/y.txt)",
+        `read_file(${testDir}/x.txt)`,
+      ]);
+      expect(settings.permissions?.ask).toEqual([`read_file(${testDir})`]);
+      expect(settings.permissions?.allow).toEqual([`write_file(${testDir}/notes)`]);
+      // Only the `$HOME` rule is left unexpanded, so only it is warned about.
+      const warnings = vi.mocked(logger.warn).mock.calls.map(([message]) => String(message));
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain("read_file($HOME/y.txt)");
+      expect(warnings[0]).toContain("this deny may block nothing");
+    });
+
+    it("imports the absolute home paths back as ~/ and regenerates the same file", async () => {
+      const emitted = await AntigravityCliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: source(),
+        logger: createMockLogger(),
+      });
+      await writeFileContent(
+        join(testDir, ".gemini", "antigravity-cli", "settings.json"),
+        emitted.getFileContent(),
+      );
+
+      const loaded = await AntigravityCliPermissions.fromFile({ outputRoot: testDir });
+      const json = loaded.toRulesyncPermissions().getJson();
+      expect(json.permission).toEqual({
+        read: { "~/x.txt": "deny", "~": "ask", "$HOME/y.txt": "deny" },
+        write: { "~/notes": "allow" },
+      });
+
+      const regenerated = await AntigravityCliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: source(),
+        logger: createMockLogger(),
+      });
+      expect(regenerated.getFileContent()).toBe(emitted.getFileContent());
+    });
+  });
+
   it("should write globs inside words as per-word regex rules", async () => {
     const logger = createMockLogger();
     const rulesyncPermissions = new RulesyncPermissions({

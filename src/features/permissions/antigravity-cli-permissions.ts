@@ -211,6 +211,10 @@ export class AntigravityCliPermissions extends ToolPermissions {
       toAction: toAntigravityCliToolName,
       toolLabel: "Antigravity CLI",
       logger,
+      // The settings file lives in the user's home (`outputRoot` in global
+      // mode) and is never shared, so a `~/` path target is written as the
+      // absolute home path: agy does not expand `~` (rulesync#3324).
+      homeDirectory: outputRoot,
     });
 
     // Determine which tool names are managed by the permissions config
@@ -305,6 +309,8 @@ export class AntigravityCliPermissions extends ToolPermissions {
       toCategory: toCanonicalToolName,
       toolLabel: "Antigravity CLI",
       logger: moduleLogger,
+      // Undo the `~/` rewrite of `fromRulesyncPermissions`.
+      homeDirectory: this.getOutputRoot(),
     });
 
     // Round-trip the CLI-only autonomy/sandbox knobs into the `antigravity-cli`
