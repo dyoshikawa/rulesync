@@ -902,10 +902,6 @@ const skillsProcessorToolTargetsGlobal: ToolTarget[] = [...toolSkillFactories]
 export class SkillsProcessor extends DirFeatureProcessor {
   private readonly toolTarget: SkillsProcessorToolTarget;
   private readonly global: boolean;
-
-  protected override sweepsThroughInRootLinks(): boolean {
-    return this.global;
-  }
   private readonly getFactory: GetFactory;
 
   constructor({
@@ -1434,6 +1430,10 @@ export class SkillsProcessor extends DirFeatureProcessor {
     });
   }
 
+  protected override sweepsThroughInRootLinks(): boolean {
+    return this.global;
+  }
+
   /**
    * The tool's skills roots that exist on disk, each paired with its absolute
    * path and vetted as writable inside this run's output root. Shared by the
@@ -1476,7 +1476,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
       const sweepRefusal = await sweepRefusalReason({
         rootPath: this.outputRoot,
         dirPath: skillsDirPath,
-        allowInRootLinks: this.global,
+        allowInRootLinks: this.sweepsThroughInRootLinks(),
       });
       if (sweepRefusal !== null) {
         this.logger.warn(

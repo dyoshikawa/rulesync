@@ -7,9 +7,10 @@ import { IgnoreProcessor } from "../features/ignore/ignore-processor.js";
 import { McpProcessor } from "../features/mcp/mcp-processor.js";
 import { PermissionsProcessor } from "../features/permissions/permissions-processor.js";
 import { RulesProcessor } from "../features/rules/rules-processor.js";
+import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
 import { createMockLogger } from "../test-utils/mock-logger.js";
-import type { FeatureProcessor } from "./feature-processor.js";
+import type { RulesyncSourceConsumer } from "./rulesync-source-consumer.js";
 
 /**
  * The orphan sweep follows in-root links only in global scope (a dotfiles
@@ -18,7 +19,7 @@ import type { FeatureProcessor } from "./feature-processor.js";
  * file-feature processor is pinned here.
  */
 describe("sweepsThroughInRootLinks", () => {
-  const factories: Array<[string, (global: boolean) => FeatureProcessor]> = [
+  const factories: Array<[string, (global: boolean) => RulesyncSourceConsumer]> = [
     [
       "rules",
       (global) =>
@@ -58,10 +59,15 @@ describe("sweepsThroughInRootLinks", () => {
       "ignore",
       (global) => new IgnoreProcessor({ toolTarget: "cursor", global, logger: createMockLogger() }),
     ],
+    [
+      "skills",
+      (global) =>
+        new SkillsProcessor({ toolTarget: "claudecode", global, logger: createMockLogger() }),
+    ],
   ];
 
   it.each(factories)("%s follows in-root links only in global scope", (_name, create) => {
-    const answer = (processor: FeatureProcessor): boolean =>
+    const answer = (processor: RulesyncSourceConsumer): boolean =>
       (processor as unknown as { sweepsThroughInRootLinks(): boolean }).sweepsThroughInRootLinks();
     expect(answer(create(true))).toBe(true);
     expect(answer(create(false))).toBe(false);

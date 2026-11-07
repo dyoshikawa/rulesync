@@ -1090,15 +1090,16 @@ const VCS_METADATA_DIR_NAMES: ReadonlySet<string> = new Set([".git", ".hg", ".sv
 
 function hasVcsMetadataSegment(path: string): boolean {
   // Folded the way case-insensitive and Windows filesystems fold names, so
-  // `.GIT`, `.git.`, `.git ` and `.git::$DATA` all count as `.git`.
-  return splitPathSegments(path).some((segment) =>
-    VCS_METADATA_DIR_NAMES.has(
-      segment
-        .replace(/:.*$/, "")
-        .replace(/[. ]+$/, "")
-        .toLowerCase(),
-    ),
-  );
+  // `.GIT`, `.git.`, `.git ` and `.git::$DATA` all count as `.git`, and so
+  // does a Windows short name such as `GIT~1`, which a dangling link keeps as
+  // spelled.
+  return splitPathSegments(path).some((segment) => {
+    const folded = segment
+      .replace(/:.*$/, "")
+      .replace(/[. ]+$/, "")
+      .toLowerCase();
+    return VCS_METADATA_DIR_NAMES.has(folded) || /^(git|hg|svn|jj)~\d+$/.test(folded);
+  });
 }
 
 /**

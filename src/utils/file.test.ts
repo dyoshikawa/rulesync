@@ -2498,7 +2498,7 @@ describe("file utilities", () => {
 describe("landingEntersVcsMetadata", () => {
   const root = resolve("/project");
 
-  it.each([".git", ".GIT", ".hg", ".svn", ".jj", ".git.", ".git ", ".git::$DATA"])(
+  it.each([".git", ".GIT", ".hg", ".svn", ".jj", ".git.", ".git ", ".git::$DATA", "GIT~1"])(
     "reports a landing in %s that the spelling does not name",
     (dir) => {
       expect(

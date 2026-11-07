@@ -244,6 +244,7 @@ export class HermesagentCheck extends ToolCheck {
       slug !== ".." &&
       !/[/\\<>:"|?*]/.test(slug) &&
       !/[. ]$/.test(slug) &&
+      !/^(con|prn|aux|nul|com\d|lpt\d)(\..*)?$/i.test(slug) &&
       stripControlCharacters(slug) === slug;
     if (isPlainFileName) {
       return slug;
