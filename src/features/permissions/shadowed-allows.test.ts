@@ -295,6 +295,20 @@ describe("translators never leave an allow that covers a restriction they cannot
     expect(rules.map(({ action }) => action)).toEqual(["ask", "allow"]);
   });
 
+  it("an MCP tool's skipped restriction leaves other MCP tools' allows alone", async () => {
+    const cursor = await generate({
+      generator: CursorPermissions,
+      permission: { mcp__a__x: { "*": "ask" }, mcp__b__y: { "*": "allow" } },
+    });
+    expect(cursor).toContain("b:y");
+    const antigravity = await generate({
+      generator: AntigravityCliPermissions,
+      permission: { mcp__a__x: { "owner:foo": "ask" }, mcp__b__y: { "*": "allow" } },
+      global: true,
+    });
+    expect(antigravity).toContain("b/y");
+  });
+
   it("Antigravity withholds the catch-all allow a skipped glob deny covers", async () => {
     const content = await generate({
       generator: AntigravityCliPermissions,

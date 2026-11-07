@@ -532,7 +532,9 @@ function convertRulesyncToCursorPermissions(
     }),
     toolLabel: "Cursor CLI",
     logger,
-    groupOf: toCursorType,
+    // `edit` and `write` share Cursor's `Write` surface; every per-tool MCP
+    // category names a different tool, so it is compared on its own.
+    groupOf: (category) => (isMcpScopedCategory(category) ? category : toCursorType(category)),
   });
   for (const [category, rules] of Object.entries(permission)) {
     const cursorType = toCursorType(category);

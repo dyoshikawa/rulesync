@@ -496,10 +496,15 @@ export function convertRulesyncToAntigravityPermissions({
   // `read_file` allow kept beside a skipped `**/.env` deny would auto-approve
   // the very reads the deny was for.
   const skippedRestrictionsByAction = new Map<string, string[]>();
-  for (const { action, pattern, decision, entry } of translated) {
+  // Every MCP tool category maps onto the one `mcp` action but names its own
+  // tool, so MCP restrictions are grouped by category rather than by action.
+  const groupOf = ({ action, category }: { action: string; category: string }): string =>
+    category.startsWith(MCP_CATEGORY_PREFIX) ? category : action;
+  for (const { action, category, pattern, decision, entry } of translated) {
     if (entry === undefined && decision !== "allow") {
-      skippedRestrictionsByAction.set(action, [
-        ...(skippedRestrictionsByAction.get(action) ?? []),
+      const group = groupOf({ action, category });
+      skippedRestrictionsByAction.set(group, [
+        ...(skippedRestrictionsByAction.get(group) ?? []),
         pattern,
       ]);
     }
@@ -520,7 +525,7 @@ export function convertRulesyncToAntigravityPermissions({
     }
     switch (decision) {
       case "allow":
-        if ((shadowingByAction.get(action)?.(pattern).length ?? 0) > 0) {
+        if ((shadowingByAction.get(groupOf({ action, category }))?.(pattern).length ?? 0) > 0) {
           withheld.push(`${category}: ${pattern}`);
           break;
         }
