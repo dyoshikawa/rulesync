@@ -46,10 +46,25 @@ describe("FirebenderIgnore", () => {
       rulesyncIgnore: makeRulesyncIgnore("# secrets\n**/.env*\ndist/**\n\n**/.env*\n!dist/keep\n"),
     });
 
+    // The last occurrence of a duplicate is the one kept.
     expect(JSON.parse(ignore.getFileContent())).toEqual({
-      ignore: ["**/.env*", "dist/**", "!dist/keep"],
+      ignore: ["dist/**", "**/.env*", "!dist/keep"],
     });
-    expect(ignore.getPatterns()).toEqual(["**/.env*", "dist/**", "!dist/keep"]);
+    expect(ignore.getPatterns()).toEqual(["dist/**", "**/.env*", "!dist/keep"]);
+  });
+
+  // Under last-match-wins, keeping the first copy of a duplicate would lose a
+  // re-ignore written after a negation and leave the file readable.
+  it.each([
+    [".env\n!.env\n.env\n", ["!.env", ".env"]],
+    [".env*\n!.env.example\n.env*\n", ["!.env.example", ".env*"]],
+  ])("should keep a re-ignore that follows a negation (%j)", async (content, expected) => {
+    const ignore = await FirebenderIgnore.fromRulesyncIgnore({
+      outputRoot: testDir,
+      rulesyncIgnore: makeRulesyncIgnore(content),
+    });
+
+    expect(JSON.parse(ignore.getFileContent())).toEqual({ ignore: expected });
   });
 
   it("should replace only the ignore key and keep the other keys of firebender.json", async () => {

@@ -135,7 +135,12 @@ describe("ZoocodePermissions", () => {
 
       expect(JSON.parse(permissions.toRulesyncPermissions().getFileContent())).toEqual({
         permission: {
-          bash: { "git ": "allow", "npm run ": "allow", "rm -rf": "deny" },
+          bash: {
+            "git ": "allow",
+            "npm run ": "allow",
+            "rm -rf": "deny",
+            "rm -rf *": "deny",
+          },
         },
       });
     });
@@ -165,7 +170,7 @@ describe("ZoocodePermissions", () => {
       const reimported = await ZoocodePermissions.fromFile({ outputRoot: testDir });
 
       expect(JSON.parse(reimported.toRulesyncPermissions().getFileContent())).toEqual({
-        permission: { bash: { "git ": "allow", "rm -rf": "deny" } },
+        permission: { bash: { "git ": "allow", "rm -rf": "deny", "rm -rf *": "deny" } },
       });
     });
   });
