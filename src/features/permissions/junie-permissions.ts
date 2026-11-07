@@ -12,7 +12,7 @@ import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { lookupOwn } from "../../utils/own-lookup.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { honorAllToolsOnBash } from "./shell-command-categories.js";
+import { honorAllToolsRestrictions } from "./shadowed-allows.js";
 import {
   ToolPermissions,
   type ToolPermissionsFromFileParams,
@@ -370,7 +370,12 @@ function convertRulesyncToJunieRules({
 }): Record<string, JunieRuleSet> {
   const ruleLists: Partial<Record<JunieRuleGroup, JunieRule[]>> = {};
 
-  for (const [category, patterns] of Object.entries(honorAllToolsOnBash(config.permission))) {
+  const permission = honorAllToolsRestrictions({
+    permission: config.permission,
+    toolLabel: "Junie allowlist",
+    logger,
+  });
+  for (const [category, patterns] of Object.entries(permission)) {
     const group = lookupOwn({ record: CANONICAL_TO_JUNIE_GROUP, key: category });
     if (!group) {
       if (Object.keys(patterns).length > 0) {
@@ -404,7 +409,11 @@ function convertRulesyncToJunieRules({
     }
     rules[group] = {
       ...(groupDefault !== undefined && { default: groupDefault }),
-      rules: list ?? [],
+      // Junie applies the first matching rule, so every ask (a deny is
+      // downgraded to one) goes ahead of every allow: otherwise a broader allow
+      // written first would shadow the narrower restriction for good. The sort
+      // is stable, so the authored order holds within each action.
+      rules: list === undefined ? [] : sortRestrictionsFirst(list),
     };
   }
 
@@ -414,6 +423,13 @@ function convertRulesyncToJunieRules({
   }
 
   return rules;
+}
+
+function sortRestrictionsFirst(list: readonly JunieRule[]): JunieRule[] {
+  return [
+    ...list.filter((rule) => rule.action !== "allow"),
+    ...list.filter((rule) => rule.action === "allow"),
+  ];
 }
 
 /**

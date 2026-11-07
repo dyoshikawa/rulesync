@@ -17,10 +17,10 @@ import { getOrCreateOwn, lookupOwn } from "../../utils/own-lookup.js";
 import { isRecord, isStringArray, toRecord } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+import { honorAllToolsRestrictions } from "./shadowed-allows.js";
 import {
   ALL_TOOLS_PERMISSION_CATEGORY,
   CATCH_ALL_PATTERN,
-  honorAllToolsOnBash,
   MCP_CATEGORY_PREFIX,
 } from "./shell-command-categories.js";
 import { isStricterAction, PERMISSION_ACTION_PRIORITY } from "./single-action-collapse.js";
@@ -562,7 +562,14 @@ function buildGrokPermissionArrays(
   // Map each managed entry to a single action; on collision keep the strictest
   // (and warn), so no entry ends up contradictorily in two arrays.
   const ranked = new Map<string, PermissionAction>();
-  for (const [category, rules] of Object.entries(honorAllToolsOnBash(config.permission))) {
+  for (const [category, rules] of Object.entries(
+    honorAllToolsRestrictions({
+      permission: config.permission,
+      toolLabel: "Grok CLI",
+      logger,
+      writesAllToolsCatchAll: true,
+    }),
+  )) {
     for (const [pattern, action] of Object.entries(rules)) {
       const entry = buildGrokEntry(category, pattern);
       if (entry === null) {
@@ -653,7 +660,7 @@ function warnRemovedAllToolsRestrictions({
  * Warn about entries that a bare `*` `deny`/`ask` makes ineffective: Grok
  * evaluates by severity (`deny > ask > allow`), so a specific `allow` (and,
  * under a `*` deny, a specific `ask`) never takes effect next to it. Shell
- * rules are already folded by `honorAllToolsOnBash`, so this covers the other
+ * rules are already folded by `honorAllToolsRestrictions`, so this covers the other
  * tools.
  */
 function warnEntriesShadowedByAllTools({

@@ -15,11 +15,8 @@ import {
   sharedConfigFileKey,
 } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import {
-  ALL_TOOLS_PERMISSION_CATEGORY,
-  CATCH_ALL_PATTERN,
-  honorAllToolsOnBash,
-} from "./shell-command-categories.js";
+import { honorAllToolsRestrictions } from "./shadowed-allows.js";
+import { ALL_TOOLS_PERMISSION_CATEGORY, CATCH_ALL_PATTERN } from "./shell-command-categories.js";
 import { isStricterAction } from "./single-action-collapse.js";
 import { splitToolRule } from "./tool-pattern-entry.js";
 import {
@@ -133,7 +130,7 @@ function categoryOfRule(rule: string): string | undefined {
  *   for its catch-all pattern only.
  * - The all-tools `*` category is CodeBuddy's documented standalone `*` rule
  *   for its catch-all pattern. Narrower `*` patterns are shell restrictions
- *   and reach the `Bash` rules through `honorAllToolsOnBash`.
+ *   and reach the `Bash` rules through `honorAllToolsRestrictions`.
  */
 function buildCodebuddyRule({
   category,
@@ -205,7 +202,12 @@ function buildCodebuddyRuleLists({
   existingPermissions: Record<string, unknown>;
   logger?: Logger;
 }): Record<PermissionAction, string[]> {
-  const permission = honorAllToolsOnBash(config.permission);
+  const permission = honorAllToolsRestrictions({
+    permission: config.permission,
+    toolLabel: "CodeBuddy",
+    logger,
+    writesAllToolsCatchAll: true,
+  });
   const ranked = new Map<string, PermissionAction>();
   const managedCategories = new Set<string>();
   for (const [category, rules] of Object.entries(permission)) {

@@ -11,7 +11,11 @@ import {
   toAntigravityCommandLiteralPrefix,
   toAntigravityCommandTarget,
 } from "./antigravity-command-patterns.js";
-import { honorAllToolsOnBash, MCP_CATEGORY_PREFIX } from "./shell-command-categories.js";
+import { honorAllToolsRestrictions } from "./shadowed-allows.js";
+import {
+  createShadowingRestrictionsTest,
+  MCP_CATEGORY_PREFIX,
+} from "./shell-command-categories.js";
 import { parseToolPatternEntry } from "./tool-pattern-entry.js";
 
 /**
@@ -491,33 +495,92 @@ export function convertRulesyncToAntigravityPermissions({
   const ask: string[] = [];
   const deny: string[] = [];
 
-  for (const [category, rules] of Object.entries(honorAllToolsOnBash(config.permission))) {
+  // `*` restrictions reach `bash` and withhold the allows they cover in the
+  // other categories; a pattern-specific `*` rule is never written as an inert
+  // `*(<pattern>)` entry.
+  const permission = honorAllToolsRestrictions({
+    permission: config.permission,
+    toolLabel,
+    logger,
+    dropAllToolsPatterns: true,
+  });
+  const translated: Array<{
+    action: string;
+    category: string;
+    pattern: string;
+    decision: PermissionAction;
+    entry: string | undefined;
+  }> = [];
+  for (const [category, rules] of Object.entries(permission)) {
     const action = toAction(category);
-    for (const [pattern, permissionAction] of Object.entries(rules)) {
+    for (const [pattern, decision] of Object.entries(rules)) {
       const entry = buildAntigravityPermissionEntry({
         action,
         category,
         pattern,
-        decision: permissionAction,
+        decision,
         logger,
         toolLabel,
         homeDirectory,
       });
-      if (entry === undefined) {
-        continue;
-      }
-      switch (permissionAction) {
-        case "allow":
-          allow.push(entry);
-          break;
-        case "ask":
-          ask.push(entry);
-          break;
-        case "deny":
-          deny.push(entry);
-          break;
-      }
+      translated.push({ action, category, pattern, decision, entry });
     }
+  }
+
+  // A deny or ask Antigravity cannot express is skipped, so it withholds the
+  // allows of the same action that cover it — otherwise a catch-all
+  // `read_file` allow kept beside a skipped `**/.env` deny would auto-approve
+  // the very reads the deny was for.
+  const skippedRestrictionsByAction = new Map<string, string[]>();
+  // Every MCP tool category maps onto the one `mcp` action but names its own
+  // tool, so MCP restrictions are grouped by category rather than by action.
+  const groupOf = ({ action, category }: { action: string; category: string }): string =>
+    category.startsWith(MCP_CATEGORY_PREFIX) ? category : action;
+  for (const { action, category, pattern, decision, entry } of translated) {
+    if (entry === undefined && decision !== "allow") {
+      const group = groupOf({ action, category });
+      skippedRestrictionsByAction.set(group, [
+        ...(skippedRestrictionsByAction.get(group) ?? []),
+        pattern,
+      ]);
+    }
+  }
+  const shadowingByAction = new Map(
+    [...skippedRestrictionsByAction].map(([action, patterns]) => [
+      action,
+      createShadowingRestrictionsTest(
+        patterns.map((pattern) => ({ pattern, fromAllToolsCategory: false })),
+      ),
+    ]),
+  );
+  const withheld: string[] = [];
+
+  for (const { action, category, pattern, decision, entry } of translated) {
+    if (entry === undefined) {
+      continue;
+    }
+    switch (decision) {
+      case "allow":
+        if ((shadowingByAction.get(groupOf({ action, category }))?.(pattern).length ?? 0) > 0) {
+          withheld.push(`${category}: ${pattern}`);
+          break;
+        }
+        allow.push(entry);
+        break;
+      case "ask":
+        ask.push(entry);
+        break;
+      case "deny":
+        deny.push(entry);
+        break;
+    }
+  }
+  if (withheld.length > 0) {
+    logger.warn(
+      `${toolLabel} permissions: the allow rule(s) for ${withheld.join(", ")} were not written ` +
+        `because a deny or ask rule ${toolLabel} cannot express (skipped above) covers the same ` +
+        `inputs, and the stricter rule wins.`,
+    );
   }
 
   // Two patterns can translate to the same entry (`npm run *` and

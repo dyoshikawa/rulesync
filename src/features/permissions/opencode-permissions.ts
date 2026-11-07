@@ -17,6 +17,7 @@ import { readFileContentOrNull } from "../../utils/file.js";
 import { parseJsonc as parseJsoncStrict } from "../../utils/jsonc.js";
 import type { Logger } from "../../utils/logger.js";
 import { invertRecord, lookupOwn } from "../../utils/own-lookup.js";
+import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { isRecord, toRecord } from "../../utils/type-guards.js";
 import {
   lowerOpencodeV2Mcp,
@@ -33,7 +34,13 @@ import {
 } from "../shared/opencode-family-mcp-tool-keys.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { honorAllToolsOnBash, MCP_CATEGORY_PREFIX } from "./shell-command-categories.js";
+import {
+  ALL_TOOLS_PERMISSION_CATEGORY,
+  CATCH_ALL_PATTERN,
+  createShadowingRestrictionsTest,
+  honorAllToolsOnBash,
+  MCP_CATEGORY_PREFIX,
+} from "./shell-command-categories.js";
 import {
   collapseRulesToSingleAction,
   hasPatternSpecificRules,
@@ -425,7 +432,55 @@ function toOpencodeSharedPermission({
       sharedPermission[key] = value;
     }
   }
-  return sharedPermission;
+  return restateAllToolsRestrictionsLast(sharedPermission);
+}
+
+/**
+ * OpenCode applies the last matching rule, and the `*` key comes first in the
+ * usual file, so a later key's allow overrides a pattern-specific `*` deny or
+ * ask: `{"*": {".env": "deny"}, "read": {"*": "allow"}}` would read `.env`
+ * freely. Canonically the stricter rule wins whatever its width, so each such
+ * restriction is restated at the end of every other key that holds an allow
+ * it overlaps, where it is matched after that allow. A `*` catch-all (`{"*":
+ * {"*": "ask"}}` followed by per-tool allows) is the documented way to set an
+ * OpenCode default, so it is left where it is.
+ */
+function restateAllToolsRestrictionsLast(
+  sharedPermission: Record<string, Record<string, PermissionAction>>,
+): Record<string, Record<string, PermissionAction>> {
+  const allToolsRules = Object.hasOwn(sharedPermission, ALL_TOOLS_PERMISSION_CATEGORY)
+    ? sharedPermission[ALL_TOOLS_PERMISSION_CATEGORY]
+    : undefined;
+  const restrictions = Object.entries(allToolsRules ?? {}).filter(
+    ([pattern, action]) =>
+      action !== "allow" && pattern !== CATCH_ALL_PATTERN && !isPrototypePollutionKey(pattern),
+  );
+  if (restrictions.length === 0) {
+    return sharedPermission;
+  }
+  const result: Record<string, Record<string, PermissionAction>> = {};
+  for (const [key, rules] of Object.entries(sharedPermission)) {
+    if (key === ALL_TOOLS_PERMISSION_CATEGORY) {
+      result[key] = rules;
+      continue;
+    }
+    const allows = Object.entries(rules)
+      .filter(([, action]) => action === "allow")
+      .map(([pattern]) => pattern);
+    const restated = { ...rules };
+    for (const [pattern, action] of restrictions) {
+      const shadows = createShadowingRestrictionsTest([{ pattern, fromAllToolsCategory: true }]);
+      if (!allows.some((allow) => shadows(allow).length > 0)) {
+        continue;
+      }
+      const existing = Object.hasOwn(restated, pattern) ? restated[pattern] : undefined;
+      const strictest = isStricterAction({ action, existing }) ? action : (existing ?? action);
+      delete restated[pattern];
+      restated[pattern] = strictest;
+    }
+    result[key] = restated;
+  }
+  return result;
 }
 
 const OpencodePermissionsConfigSchema = z.looseObject({

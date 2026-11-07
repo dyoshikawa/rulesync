@@ -23,6 +23,7 @@ import { type Logger, warnWithFallback } from "../../utils/logger.js";
 import { isRecord } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+import { withholdAllowsShadowedByAsks } from "./shadowed-allows.js";
 import { bashRulesHonoringAllTools } from "./shell-command-categories.js";
 import { isStricterAction } from "./single-action-collapse.js";
 import {
@@ -420,7 +421,14 @@ function convertRulesyncToCodexProfile({
     }
 
     if (toolName === "webfetch") {
-      addCodexWebfetchRules({ rules, domains, logger });
+      // Codex has no ask tier for domains: a skipped ask withholds the allows
+      // that cover it, so the domain falls back to Codex's own prompt.
+      const { webfetch: webfetchRules = {} } = withholdAllowsShadowedByAsks({
+        permission: { webfetch: rules },
+        toolLabel: "Codex CLI network domains",
+        logger,
+      });
+      addCodexWebfetchRules({ rules: webfetchRules, domains, logger });
       continue;
     }
 

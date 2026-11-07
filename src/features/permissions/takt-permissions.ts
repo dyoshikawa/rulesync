@@ -1013,8 +1013,13 @@ async function readTaktRuntimeConfig({
 /**
  * Collapse a rulesync permissions config into Takt's single coarse mode.
  *
- * Precedence: any `deny` ⇒ `readonly`; else an `edit`/`write` `allow` ⇒ `edit`;
- * else a `bash` `allow` ⇒ `full`; else the safe default `readonly`.
+ * Precedence: any `deny` or `ask` ⇒ `readonly`; else an `edit`/`write` `allow`
+ * ⇒ `edit`; else a `bash` `allow` ⇒ `full`; else the safe default `readonly`.
+ *
+ * An `ask` restricts like a `deny` here: Takt's coarse modes have no prompting
+ * tier, so a mode derived from the allows beside it (`full` for `{"git *":
+ * "allow", "git push *": "ask"}`) would auto-approve what the ask should prompt
+ * for — the canonical order is `deny > ask > allow`.
  */
 function deriveTaktPermissionMode(config: PermissionsConfig): TaktPermissionMode {
   let hasEditAllow = false;
@@ -1022,7 +1027,7 @@ function deriveTaktPermissionMode(config: PermissionsConfig): TaktPermissionMode
 
   for (const [category, rules] of Object.entries(config.permission)) {
     for (const action of Object.values(rules)) {
-      if (action === "deny") {
+      if (action === "deny" || action === "ask") {
         return "readonly";
       }
       if (action === "allow") {
