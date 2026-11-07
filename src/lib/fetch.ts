@@ -26,6 +26,7 @@ import { SubagentsProcessor } from "../features/subagents/subagents-processor.js
 import {
   caseFoldIdentity,
   groupSpellingsByCaseFoldedIdentity,
+  sweepRefusalReason,
 } from "../types/feature-processor.js";
 import type { Feature } from "../types/features.js";
 import { ALL_FEATURES } from "../types/features.js";
@@ -1352,13 +1353,21 @@ async function pruneDirectory(params: {
 async function maybePruneStaleSkillFiles(params: {
   prune: boolean;
   conflictStrategy: ConflictStrategy;
+  outputRoot: string;
   outputBasePath: string;
   fetchedFiles: CollectedFile[];
   incompleteRemoteDirs: ReadonlySet<string>;
   logger: Logger;
 }): Promise<FetchFileResult[]> {
-  const { prune, conflictStrategy, outputBasePath, fetchedFiles, incompleteRemoteDirs, logger } =
-    params;
+  const {
+    prune,
+    conflictStrategy,
+    outputRoot,
+    outputBasePath,
+    fetchedFiles,
+    incompleteRemoteDirs,
+    logger,
+  } = params;
 
   if (!prune) {
     logger.debug("Skipping the skill prune: --no-prune was given.");
@@ -1370,7 +1379,13 @@ async function maybePruneStaleSkillFiles(params: {
     return [];
   }
 
-  return pruneStaleSkillFiles({ outputBasePath, fetchedFiles, incompleteRemoteDirs, logger });
+  return pruneStaleSkillFiles({
+    outputRoot,
+    outputBasePath,
+    fetchedFiles,
+    incompleteRemoteDirs,
+    logger,
+  });
 }
 
 /**
@@ -1414,12 +1429,13 @@ function remoteSkillDirPath(params: {
  * everything else under the output directory are never touched.
  */
 async function pruneStaleSkillFiles(params: {
+  outputRoot: string;
   outputBasePath: string;
   fetchedFiles: CollectedFile[];
   incompleteRemoteDirs: ReadonlySet<string>;
   logger: Logger;
 }): Promise<FetchFileResult[]> {
-  const { outputBasePath, fetchedFiles, incompleteRemoteDirs, logger } = params;
+  const { outputRoot, outputBasePath, fetchedFiles, incompleteRemoteDirs, logger } = params;
 
   const fetchedPaths = new Set(fetchedFiles.map((file) => toPosixPath(file.relativePath)));
   const fetchedIds = await collectFetchedIds({ outputBasePath, fetchedFiles });
@@ -1525,6 +1541,22 @@ async function pruneStaleSkillFiles(params: {
     // name comes from the remote repository. It is lexical only, which is why
     // the link check below has to follow it.
     checkPathTraversal({ relativePath: skillDir, intendedRootDir: outputBasePath });
+
+    // The walk refuses a skill directory that is a link, but not a link further
+    // up: a committed `.rulesync -> .` or `.rulesync/skills -> ..` would have it
+    // deleting untracked files elsewhere in the project. Any link on the way is
+    // refused, as the generate sweep does at project scope.
+    const sweepRefusal = await sweepRefusalReason({
+      rootPath: outputRoot,
+      dirPath: join(outputBasePath, skillDir),
+      allowInRootLinks: false,
+    });
+    if (sweepRefusal !== null) {
+      logger.warn(
+        `Not pruning ${quoteForLog(skillDir)}: ${sweepRefusal}. Remove unwanted files by hand.`,
+      );
+      continue;
+    }
 
     try {
       await pruneDirectory({
@@ -1823,6 +1855,7 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
   const pruneResults = await maybePruneStaleSkillFiles({
     prune,
     conflictStrategy,
+    outputRoot,
     outputBasePath,
     fetchedFiles: filesToFetch,
     incompleteRemoteDirs,

@@ -5,6 +5,7 @@ import type { Feature, GitignoreDestination, RulesyncFeatures } from "../types/f
 import type { ToolTarget } from "../types/tool-targets.js";
 import { formatError } from "../utils/error.js";
 import {
+  assertLandingOutsideVcsMetadata,
   assertPathResolvesInsideRoot,
   fileExists,
   readFileContent,
@@ -534,6 +535,9 @@ export const gitignoreCommand = async (
   // `gitexclude` destination is Git's own `info/exclude`, located by Git.
   for (const targetPath of [gitignorePath, gitattributesPath]) {
     await assertPathResolvesInsideRoot({ rootPath: process.cwd(), targetPath });
+    // Nor into `.git/`: a committed `.gitignore -> .git/config` would append
+    // the block to Git's config and break the repository.
+    await assertLandingOutsideVcsMetadata({ rootPath: process.cwd(), targetPath });
   }
 
   const gitignoreResult = await updateRulesyncFile({

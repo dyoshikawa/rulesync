@@ -16,6 +16,7 @@ import {
   formatCuratedCaseCollisionWarning,
   groupSpellingsByCaseFoldedIdentity,
   mergeByCaseInsensitiveIdentity,
+  sweepRefusalReason,
 } from "../../types/feature-processor.js";
 import { skillsProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import { ToolTarget } from "../../types/tool-targets.js";
@@ -901,6 +902,10 @@ const skillsProcessorToolTargetsGlobal: ToolTarget[] = [...toolSkillFactories]
 export class SkillsProcessor extends DirFeatureProcessor {
   private readonly toolTarget: SkillsProcessorToolTarget;
   private readonly global: boolean;
+
+  protected override sweepsThroughInRootLinks(): boolean {
+    return this.global;
+  }
   private readonly getFactory: GetFactory;
 
   constructor({
@@ -1462,6 +1467,21 @@ export class SkillsProcessor extends DirFeatureProcessor {
         this.logger.warn(
           `Skipping the orphan sweep for ${quoteForLog(skillsDirPath)}; nothing under it is ` +
             `deleted: ${stripControlCharacters(formatError(error))}`,
+        );
+        continue;
+      }
+      // `assertWritablePathInsideRoot` checks the deepest existing path only; a
+      // link further up (a committed `.cursor -> .claude`) would let this
+      // target's sweep delete another directory's skills.
+      const sweepRefusal = await sweepRefusalReason({
+        rootPath: this.outputRoot,
+        dirPath: skillsDirPath,
+        allowInRootLinks: this.global,
+      });
+      if (sweepRefusal !== null) {
+        this.logger.warn(
+          `Skipping the orphan sweep for ${quoteForLog(skillsDirPath)}; nothing under it is ` +
+            `deleted: ${sweepRefusal}`,
         );
         continue;
       }

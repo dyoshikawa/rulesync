@@ -2548,6 +2548,30 @@ Test skill content`;
     });
 
     it.skipIf(process.platform === "win32")(
+      "should skip a project skills root reached through a linked parent directory",
+      async () => {
+        // A committed `.claude -> other` would otherwise let this target's sweep
+        // treat the skills under `other/skills` as its own orphans.
+        const logger = createMockLogger();
+        const processor = new SkillsProcessor({
+          logger,
+          outputRoot: testDir,
+          toolTarget: "claudecode",
+        });
+        await writeFileContent(
+          join(testDir, "other", "skills", "mine", "SKILL.md"),
+          "---\nname: mine\ndescription: Test skill\n---\nContent",
+        );
+        await symlink(join(testDir, "other"), join(testDir, ".claude"));
+
+        expect(await processor.loadToolDirsToDelete()).toEqual([]);
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining("it is reached through a symbolic link"),
+        );
+      },
+    );
+
+    it.skipIf(process.platform === "win32")(
       "should warn and skip a skills root that is a symbolic link, even one inside the output root",
       async () => {
         // A dotfiles checkout linked from inside the home directory. Sweeping

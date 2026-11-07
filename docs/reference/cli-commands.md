@@ -277,8 +277,14 @@ The `generate` command reads source files from one or more rulesync source trees
 > either: what the sweep would list there are files in the link's target, not
 > Rulesync's output, so each one is kept, and every directory holding them is
 > named once in a `Refusing to delete files in` warning, the same way a write
-> through such a link is refused. A link that stays
-> inside the output root is followed as usual, and an orphan that is itself a
+> through such a link is refused. A link into version-control metadata
+> (`.git`, `.hg`, `.svn`, `.jj`) is refused the same way in every scope. At
+> project scope, an output directory reached through any symbolic link — even
+> one that stays inside the project, such as a committed `.claude/rules -> ..`
+> or `.cursor -> .claude` — is not swept either, since a repository you cloned
+> could otherwise point the sweep at your untracked files. With `--global`, a
+> link that stays inside the output root (a dotfiles checkout linked into the
+> home directory) is followed as usual, and an orphan that is itself a
 > symbolic link is removed as a link, leaving its target untouched. A generated
 > skill directory linked onto the output root itself is not written either, so
 > its `SKILL.md` never overwrites a file in the root; and only a skill directory

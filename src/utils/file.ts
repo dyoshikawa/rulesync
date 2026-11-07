@@ -1089,9 +1089,15 @@ export async function relativeWriteLanding({
 const VCS_METADATA_DIR_NAMES: ReadonlySet<string> = new Set([".git", ".hg", ".svn", ".jj"]);
 
 function hasVcsMetadataSegment(path: string): boolean {
-  // Lower-cased so `.GIT` on a case-insensitive filesystem is caught as well.
+  // Folded the way case-insensitive and Windows filesystems fold names, so
+  // `.GIT`, `.git.`, `.git ` and `.git::$DATA` all count as `.git`.
   return splitPathSegments(path).some((segment) =>
-    VCS_METADATA_DIR_NAMES.has(segment.toLowerCase()),
+    VCS_METADATA_DIR_NAMES.has(
+      segment
+        .replace(/:.*$/, "")
+        .replace(/[. ]+$/, "")
+        .toLowerCase(),
+    ),
   );
 }
 
@@ -1103,8 +1109,8 @@ function hasVcsMetadataSegment(path: string): boolean {
  * through, but a checked-out repository can commit `CLAUDE.md -> .git/config`:
  * the landing is inside the root, yet a write there hands the repository author
  * the operator's next `git` command. `git clone` never transfers `.git/`, so a
- * path spelled into it is never something the repository chose; only a landing
- * the spelling does not already name is reported.
+ * path spelled into it is never something the repository chose; only a write
+ * that lands exactly where it is spelled may touch it.
  *
  * `relativeLanding` is {@link relativeWriteLanding}'s answer for the same pair,
  * passed in so a caller that already has it does not resolve the links twice.
@@ -1120,7 +1126,7 @@ export function landingEntersVcsMetadata({
 }): boolean {
   return (
     hasVcsMetadataSegment(relativeLanding) &&
-    !hasVcsMetadataSegment(relative(resolve(rootPath), resolve(targetPath)))
+    relativeLanding !== relative(resolve(rootPath), resolve(targetPath))
   );
 }
 

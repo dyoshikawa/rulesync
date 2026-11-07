@@ -4142,6 +4142,28 @@ describe("fetchFiles skill pruning", () => {
   );
 
   it.skipIf(process.platform === "win32")(
+    "should not prune through a linked skills directory above the skill",
+    async () => {
+      mockSkillRepository();
+      // A committed `.rulesync/skills -> ../notes` must not let the prune
+      // delete untracked files in `notes/skill-a/`.
+      const notes = join(testDir, "notes");
+      const mine = join(notes, "skill-a", "mine.md");
+      await writeFileContent(mine, "operator notes");
+      await ensureDir(join(testDir, ".rulesync"));
+      await symlink(join("..", "notes"), skillsRoot);
+
+      const summary = await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
+
+      expect(summary.deleted).toBe(0);
+      expect(await fileExists(mine)).toBe(true);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("it is reached through a symbolic link"),
+      );
+    },
+  );
+
+  it.skipIf(process.platform === "win32")(
     "should refuse to write a fetched file through an in-project link into .git",
     async () => {
       mockSkillRepository();
