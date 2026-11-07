@@ -6,7 +6,7 @@ import { RULESYNC_CONFIG_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.
 import { checkOutdatedSources } from "../lib/sources-outdated.js";
 import { resolveAndFetchSources } from "../lib/sources.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
-import { writeFileContent } from "../utils/file.js";
+import { toPosixPath, writeFileContent } from "../utils/file.js";
 import { executeInstall } from "./install.js";
 
 vi.mock("../lib/sources.js", async () => {
@@ -60,6 +60,60 @@ describe("executeInstall", () => {
       frozen: undefined,
       token: undefined,
     });
+  });
+
+  it("refuses a file:// source outside the project before installing anything", async () => {
+    await writeFileContent(
+      join(testDir, RULESYNC_CONFIG_RELATIVE_FILE_PATH),
+      JSON.stringify({
+        sources: [{ source: "file:///elsewhere/operator-private", transport: "git" }],
+      }),
+    );
+
+    const result = await executeInstall({});
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("A file:// source");
+    expect(resolveAndFetchSources).not.toHaveBeenCalled();
+  });
+
+  it("refuses a file:// source declared in a configPath file", async () => {
+    await writeFileContent(
+      join(testDir, ".rulesync", "mcp.jsonc"),
+      JSON.stringify({
+        mcpServers: {},
+        sources: [{ source: "file:///elsewhere/operator-private", transport: "git" }],
+      }),
+    );
+
+    const result = await executeInstall({ configPath: ".rulesync/mcp.jsonc" });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("A file:// source");
+    expect(resolveAndFetchSources).not.toHaveBeenCalled();
+  });
+
+  it("installs a file:// source inside the project", async () => {
+    await writeFileContent(join(testDir, "vendor", "skills-repo", "README.md"), "x");
+    const repoPath = toPosixPath(join(testDir, "vendor", "skills-repo"));
+    const repoUrl = repoPath.startsWith("/") ? `file://${repoPath}` : `file:///${repoPath}`;
+    await writeFileContent(
+      join(testDir, RULESYNC_CONFIG_RELATIVE_FILE_PATH),
+      JSON.stringify({
+        sources: [{ source: repoUrl, transport: "git" }],
+      }),
+    );
+    vi.mocked(resolveAndFetchSources).mockResolvedValue({
+      fetchedSkillCount: 0,
+      fetchedRuleCount: 0,
+      sourcesProcessed: 1,
+      failedSourceCount: 0,
+    });
+
+    const result = await executeInstall({});
+
+    expect(result.success).toBe(true);
+    expect(resolveAndFetchSources).toHaveBeenCalled();
   });
 
   it("reports outdated sources instead of failing", async () => {

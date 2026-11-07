@@ -1855,25 +1855,62 @@ describe("AugmentcodePermissions", () => {
 
       const config = instance.toRulesyncPermissions().getJson();
       // `rm \*` names the literal command `rm *`; importing it as glob `rm *` would allow every
-      // `rm`. The allow and ask are dropped, and the deny is broadened (fail-closed).
+      // `rm`. The allow is dropped, and the ask and deny are broadened (fail-closed); the deny
+      // outranks the broadened ask on the shared `*` pattern.
       expect(config.permission).toEqual({ bash: { "*": "deny" } });
       const messages = warnSpy.mock.calls.map((call) => String(call[0]));
-      expect(messages.filter((m) => m.includes("is not imported"))).toHaveLength(2);
+      expect(messages.filter((m) => m.includes("is not imported"))).toHaveLength(1);
+      warnSpy.mockRestore();
+    });
+
+    it("keeps an asked-about command out of a broader allow when the ask regex has no glob form", () => {
+      const warnSpy = vi.spyOn(ConsoleLogger.prototype, "warn").mockImplementation(() => {});
+      const instance = new AugmentcodePermissions({
+        relativeDirPath: ".augment",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          toolPermissions: [
+            {
+              toolName: "launch-process",
+              shellInputRegex: "^rm .+$",
+              permission: { type: "ask-user" },
+            },
+            {
+              toolName: "launch-process",
+              shellInputRegex: "^git (push|reset)",
+              permission: { type: "ask-user" },
+            },
+            {
+              toolName: "launch-process",
+              shellInputRegex: "^rm .*$",
+              permission: { type: "allow" },
+            },
+            {
+              toolName: "launch-process",
+              shellInputRegex: "^git .*$",
+              permission: { type: "allow" },
+            },
+          ],
+        }),
+      });
+
+      // Canonically deny > ask > allow, so the `*` ask still prompts for `rm -rf x` and
+      // `git push --force` although `rm *` and `git *` are allowed.
+      expect(instance.toRulesyncPermissions().getJson().permission).toEqual({
+        bash: { "*": "ask", "rm *": "allow", "git *": "allow" },
+      });
       warnSpy.mockRestore();
     });
 
     describe.each(["bash", "launch-process"])(
-      "should skip a %s allow/ask regex whose quantifier a glob would read as a wildcard",
+      "should skip a %s allow regex whose quantifier a glob would read as a wildcard",
       (toolName) => {
         it.each([
           ["^rm -rf /tmp/a*$", "allow"],
           ["^rm /tmp/x?$", "allow"],
           ["^git push origin main(-dev)*$", "allow"],
-          ["^npm run build+$", "ask-user"],
-          ["^ls a{2}$", "ask-user"],
           // Literal brackets would become a glob character class (a one-character range).
           ["^ls \\[a-z\\]$", "allow"],
-          ["^cat \\[x\\]$", "ask-user"],
         ])("%s (%s)", (regex, type) => {
           const warnSpy = vi.spyOn(ConsoleLogger.prototype, "warn").mockImplementation(() => {});
           const instance = new AugmentcodePermissions({
@@ -1891,6 +1928,28 @@ describe("AugmentcodePermissions", () => {
           expect(messages.some((m) => m.includes("is not imported"))).toBe(true);
           warnSpy.mockRestore();
         });
+
+        // Skipping an ask would leave a broader allow auto-approving the
+        // asked-about commands, so it is broadened like a deny instead: an ask
+        // on `*` only adds prompts, and deny still outranks it.
+        it.each(["^npm run build+$", "^ls a{2}$", "^cat \\[x\\]$"])(
+          "broadens an ask regex %s to the catch-all pattern (fail-closed)",
+          (regex) => {
+            const instance = new AugmentcodePermissions({
+              relativeDirPath: ".augment",
+              relativeFilePath: "settings.json",
+              fileContent: JSON.stringify({
+                toolPermissions: [
+                  { toolName, shellInputRegex: regex, permission: { type: "ask-user" } },
+                ],
+              }),
+            });
+
+            expect(instance.toRulesyncPermissions().getJson().permission).toEqual({
+              bash: { "*": "ask" },
+            });
+          },
+        );
 
         it("broadens a deny with literal brackets to the catch-all pattern (fail-closed)", () => {
           const instance = new AugmentcodePermissions({

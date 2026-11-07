@@ -230,6 +230,17 @@ describe("ReasonixIgnore", () => {
       expect(ignore.toRulesyncIgnore().getFileContent()).toBe("*.log\n*.env");
     });
 
+    it("should anchor ./ paths to the project root and skip home paths", () => {
+      const ignore = new ReasonixIgnore({
+        relativeDirPath: ".",
+        relativeFilePath: "reasonix.toml",
+        fileContent:
+          '[permissions]\ndeny = ["read_file(./.env)", "Read(./secrets/**)", "read_file(~/.aws/**)"]\n',
+      });
+
+      expect(ignore.toRulesyncIgnore().getFileContent()).toBe("/.env\n/secrets/**");
+    });
+
     it("should place the imported file in the project even when read from the global config", async () => {
       await ensureDir(join(testDir, ".reasonix"));
       await writeFileContent(

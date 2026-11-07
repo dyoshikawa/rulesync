@@ -77,6 +77,17 @@ export abstract class RulesyncSourceConsumer {
     this.logger = logger;
   }
 
+  /**
+   * Whether the orphan sweep may follow a symbolic link that stays inside the
+   * output root. Only global scope answers true: its root is the operator's
+   * own home directory, where a dotfiles checkout linked in (`~/.claude ->
+   * ~/dotfiles/claude`) is a common shape. A project checkout may carry links
+   * its author committed, so the default refuses them.
+   */
+  protected sweepsThroughInRootLinks(): boolean {
+    return false;
+  }
+
   protected recordRulesyncSourceLoadFailure(): void {
     this.rulesyncSourceLoadFailed = true;
   }

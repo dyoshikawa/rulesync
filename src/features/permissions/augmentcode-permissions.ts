@@ -1122,28 +1122,35 @@ function convertAugmentToRulesyncPermissions({
         // - `deny`: broaden to `*` (fail-closed) — over-blocking is safer than
         //   under-blocking, so a user-authored deny continues to protect
         //   against the original threat surface (and more).
-        // - `allow` / `ask`: warn but proceed with the lossy conversion. We
-        //   cannot safely broaden these because broadening an allow would
-        //   weaken security; dropping them would silently strip the user's
-        //   rule. Lossy conversion preserves the user's intent on the most
-        //   common patterns at the cost of the narrow regex semantics that
-        //   only AugmentCode supports.
-        if (action !== "deny" && !canApproximateShellRegexWithoutWidening(regex)) {
+        // - `ask`: broaden to `*` as well. Widening an ask only adds prompts,
+        //   while narrowing or skipping it would let a broader allow
+        //   auto-approve the asked-about commands.
+        // - `allow`: warn but proceed with the lossy conversion. We cannot
+        //   safely broaden it because broadening an allow would weaken
+        //   security; dropping it would silently strip the user's rule.
+        //   Lossy conversion preserves the user's intent on the most common
+        //   patterns at the cost of the narrow regex semantics that only
+        //   AugmentCode supports.
+        if (action === "allow" && !canApproximateShellRegexWithoutWidening(regex)) {
           // The lossy conversion below would leave a quantifier (or an escaped literal `*` /
           // `?`) in the glob as a wildcard and so widen the rule; an allow or ask cannot be
           // broadened safely, so skip it.
           logger?.warn(
-            `AugmentCode permissions: skipping ${action} entry for tool '${entry.toolName}': ` +
+            `AugmentCode permissions: skipping allow entry for tool '${entry.toolName}': ` +
               `shellInputRegex '${regex}' uses a quantifier or a literal '*' / '?' that a glob ` +
               `cannot express, and converting it would widen the rule. The entry is not imported.`,
           );
           continue;
         }
-        if (action === "deny") {
+        if (action !== "allow") {
+          // An ask is widened like a deny: canonically an `ask` on `*` only
+          // adds prompts (deny still outranks it), whereas skipping or
+          // narrowing it would leave a broader allow auto-approving the
+          // commands the user asked to be prompted for.
           logger?.warn(
             `AugmentCode permissions: shellInputRegex '${regex}' on tool '${entry.toolName}' ` +
-              `is not faithfully roundtrippable to a glob. Importing as the catch-all '*' ` +
-              `pattern (fail-closed) so the deny rule cannot be silently narrowed on regenerate.`,
+              `is not faithfully roundtrippable to a glob. Importing the ${action} rule as the ` +
+              `catch-all '*' pattern (fail-closed) so it cannot be silently narrowed on regenerate.`,
           );
           pattern = "*";
         } else {

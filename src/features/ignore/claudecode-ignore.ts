@@ -19,6 +19,7 @@ import {
   serializeSharedConfigFile,
   sharedConfigFileKey,
 } from "../shared/shared-config-gateway.js";
+import { claudeReadDenyPathToIgnorePattern } from "./claude-read-deny-pattern.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import {
   parseIgnorePatterns,
@@ -121,15 +122,20 @@ export class ClaudecodeIgnore extends ToolIgnore {
     // Convert ClaudecodeIgnore patterns to RulesyncIgnore format
     // ClaudecodeIgnore stores patterns as "Read(pattern)" in JSON
     // RulesyncIgnore expects plain patterns in text format
+    // `Read(./.env)` is translated to the gitignore pattern `/.env`; paths with
+    // no project-relative form are skipped with a warning.
     const rulesyncPatterns = this.patterns
       .map((pattern) => {
         // Remove "Read(" prefix and ")" suffix if present
         if (isReadDenyEntry(pattern)) {
-          return pattern.slice(5, -1);
+          return claudeReadDenyPathToIgnorePattern({
+            path: pattern.slice(5, -1),
+            toolLabel: "Claude Code",
+          });
         }
         return pattern;
       })
-      .filter((pattern) => pattern.length > 0);
+      .filter((pattern): pattern is string => pattern !== null && pattern.length > 0);
 
     // Create the content in .rulesync/.aiignore format (one pattern per line)
     const fileContent = rulesyncPatterns.join("\n");

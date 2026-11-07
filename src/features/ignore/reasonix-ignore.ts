@@ -24,6 +24,7 @@ import {
   type SharedConfigDocument,
   stringifySharedConfig,
 } from "../shared/shared-config-gateway.js";
+import { claudeReadDenyPathToIgnorePattern } from "./claude-read-deny-pattern.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import {
   parseIgnorePatterns,
@@ -70,7 +71,10 @@ const asClaudeStyleSettings = (document: SharedConfigDocument): ClaudeSettingsJs
 const readDenyPatternOf = (entry: string): string | null => {
   for (const toolName of [REASONIX_READ_TOOL_NAME, REASONIX_LEGACY_READ_TOOL_NAME]) {
     if (isReadDenyEntry(entry, toolName)) {
-      return entry.slice(toolName.length + 1, -1);
+      return claudeReadDenyPathToIgnorePattern({
+        path: entry.slice(toolName.length + 1, -1),
+        toolLabel: "Reasonix",
+      });
     }
   }
   return null;

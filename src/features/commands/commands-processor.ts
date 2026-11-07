@@ -998,6 +998,10 @@ const commandsProcessorToolTargetsGlobal: ToolTarget[] = allToolTargetKeys.filte
 export class CommandsProcessor extends FeatureProcessor {
   private readonly toolTarget: CommandsProcessorToolTarget;
   private readonly global: boolean;
+
+  protected override sweepsThroughInRootLinks(): boolean {
+    return this.global;
+  }
   private readonly getFactory: GetFactory;
   private readonly flattenedCommandNaming: FlattenedCommandNaming;
 

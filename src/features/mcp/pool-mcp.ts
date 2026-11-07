@@ -24,6 +24,7 @@ import {
   resolveHttpOrSseRemoteType,
   resolveLocalMcpCommand,
   resolveRemoteMcpUrl,
+  skipServersWithEmptyEnabledTools,
   warnAndSkipMcpServer,
 } from "./mcp-transport.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
@@ -397,7 +398,13 @@ export class PoolMcp extends ToolMcp {
     // tools' configs, so read it back off the unfiltered source JSON — the
     // same re-merge musecode does for `musecodeMode`.
     const mcpServers = Object.fromEntries(
-      Object.entries(rulesyncMcp.getMcpServers()).map(([serverName, serverConfig]) => {
+      Object.entries(
+        skipServersWithEmptyEnabledTools({
+          mcpServers: rulesyncMcp.getMcpServers(),
+          toolName: "Pool",
+          logger,
+        }),
+      ).map(([serverName, serverConfig]) => {
         const rawServer = rulesyncMcp.getRawMcpServer(serverName);
         const poolAllow = isRecord(rawServer) ? rawServer.poolAllow : undefined;
         return [serverName, { ...serverConfig, ...(isStringArray(poolAllow) && { poolAllow }) }];

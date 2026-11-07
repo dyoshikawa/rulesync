@@ -31,6 +31,7 @@ import {
   caseFoldIdentity,
   refusesAnyWriteOutsideRoot,
   refusesDirWriteOntoRoot,
+  sweepRefusalReason,
 } from "./feature-processor.js";
 import { RulesyncSourceConsumer } from "./rulesync-source-consumer.js";
 import { ToolTarget } from "./tool-targets.js";
@@ -522,6 +523,17 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
         this.logger.warn(
           `Refusing to sweep ${quotedDirPath}: ${stripControlCharacters(formatError(error))}`,
         );
+        continue;
+      }
+      // The checks above look at the deepest existing path only; a link
+      // further up (a committed `.cursor -> .claude`) is the flat sweep's rule.
+      const sweepRefusal = await sweepRefusalReason({
+        rootPath: this.outputRoot,
+        dirPath,
+        allowInRootLinks: this.sweepsThroughInRootLinks(),
+      });
+      if (sweepRefusal !== null) {
+        this.logger.warn(`Refusing to sweep ${quotedDirPath}: ${sweepRefusal}`);
         continue;
       }
 

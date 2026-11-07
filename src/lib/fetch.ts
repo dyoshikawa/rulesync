@@ -26,6 +26,7 @@ import { SubagentsProcessor } from "../features/subagents/subagents-processor.js
 import {
   caseFoldIdentity,
   groupSpellingsByCaseFoldedIdentity,
+  sweepRefusalReason,
 } from "../types/feature-processor.js";
 import type { Feature } from "../types/features.js";
 import { ALL_FEATURES } from "../types/features.js";
@@ -40,15 +41,11 @@ import type {
 } from "../types/fetch.js";
 import type { ToolTarget } from "../types/tool-targets.js";
 import { describeConfusableNames, readingFormOf } from "../utils/confusable-names.js";
-import {
-  hasDeceptiveHiddenCharacters,
-  quoteForLog,
-  stripControlCharacters,
-  stripHiddenCharacters,
-} from "../utils/control-characters.js";
+import { quoteForLog, stripControlCharacters } from "../utils/control-characters.js";
 import { formatError } from "../utils/error.js";
 import {
   applyFileMode,
+  assertLandingOutsideVcsMetadata,
   assertPathResolvesInsideRoot,
   checkPathTraversal,
   createTempDirectory,
@@ -61,6 +58,11 @@ import {
   writeFileContent,
 } from "../utils/file.js";
 import type { Logger } from "../utils/logger.js";
+import {
+  classifyRemoteName,
+  hasWindowsFoldableName,
+  type UnsafeRemoteNameReason,
+} from "../utils/remote-name.js";
 import { getRulesyncSourceCandidates } from "../utils/rulesync-source-path.js";
 import { GitHubClient, GitHubClientError } from "./github-client.js";
 import {
@@ -99,8 +101,7 @@ function validateFileSize(relativePath: string, size: number): void {
  * Result of feature conversion
  */
 type FeatureConversionResult = {
-  converted: number;
-  convertedPaths: string[];
+  results: FetchFileResult[];
 };
 
 /**
@@ -126,13 +127,15 @@ async function processFeatureConversion(params: {
   processor: FeatureProcessor;
   outputDir: string;
   outputRoot: string;
-}): Promise<{ paths: string[] }> {
-  const { processor, outputDir, outputRoot } = params;
-  const paths: string[] = [];
+  conflictStrategy: ConflictStrategy;
+  logger: Logger;
+}): Promise<{ results: FetchFileResult[] }> {
+  const { processor, outputDir, outputRoot, conflictStrategy, logger } = params;
+  const results: FetchFileResult[] = [];
 
   const toolFiles = await processor.loadToolFiles();
   if (toolFiles.length === 0) {
-    return { paths: [] };
+    return { results: [] };
   }
 
   const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(toolFiles);
@@ -140,17 +143,27 @@ async function processFeatureConversion(params: {
     const relativePath = join(file.getRelativeDirPath(), file.getRelativeFilePath());
     return { file, relativePath, outputPath: join(outputDir, relativePath) };
   });
-  // As in fetchFiles: refuse, before anything is written, an output that a
-  // symbolic link already in the project leads outside the output root.
-  for (const { outputPath } of outputs) {
+  // As in fetchFiles: refuse, before anything is written, an output whose
+  // converted name leaves the output directory (a converted name can come from
+  // remote content, e.g. a Hermes check `slug`), or that a symbolic link
+  // already in the project leads outside the output root or into `.git/`.
+  for (const { relativePath, outputPath } of outputs) {
+    checkPathTraversal({ relativePath, intendedRootDir: outputDir });
     await assertPathResolvesInsideRoot({ rootPath: outputRoot, targetPath: outputPath });
+    await assertLandingOutsideVcsMetadata({ rootPath: outputRoot, targetPath: outputPath });
   }
   for (const { file, relativePath, outputPath } of outputs) {
+    const exists = await fileExists(outputPath);
+    if (exists && conflictStrategy === "skip") {
+      logger.debug(`Skipping existing file: ${quoteForLog(relativePath)}`);
+      results.push({ relativePath, status: "skipped" });
+      continue;
+    }
     await writeFileContent(outputPath, file.getFileContent());
-    paths.push(relativePath);
+    results.push({ relativePath, status: exists ? "overwritten" : "created" });
   }
 
-  return { paths };
+  return { results };
 }
 
 /**
@@ -168,10 +181,11 @@ async function convertFetchedFilesToRulesync(params: {
   outputRoot: string;
   target: ToolTarget;
   features: Feature[];
+  conflictStrategy: ConflictStrategy;
   logger: Logger;
 }): Promise<FeatureConversionResult> {
-  const { tempDir, outputDir, outputRoot, target, features, logger } = params;
-  const convertedPaths: string[] = [];
+  const { tempDir, outputDir, outputRoot, target, features, conflictStrategy, logger } = params;
+  const results: FetchFileResult[] = [];
 
   // Feature conversion configurations
   // Each config defines how to get supported targets and create a processor
@@ -236,8 +250,14 @@ async function convertFetchedFilesToRulesync(params: {
       continue;
     }
     const processor = config.createProcessor();
-    const result = await processFeatureConversion({ processor, outputDir, outputRoot });
-    convertedPaths.push(...result.paths);
+    const result = await processFeatureConversion({
+      processor,
+      outputDir,
+      outputRoot,
+      conflictStrategy,
+      logger,
+    });
+    results.push(...result.results);
   }
 
   // Skills conversion is not yet supported in fetch command
@@ -249,7 +269,7 @@ async function convertFetchedFilesToRulesync(params: {
     );
   }
 
-  return { converted: convertedPaths.length, convertedPaths };
+  return { results };
 }
 
 /**
@@ -308,7 +328,7 @@ type SkillPathClass =
   | { readonly kind: "skill"; readonly name: string };
 
 /** Why a skill directory name is turned away; see `SkillPathClass`. */
-type UnsafeSkillNameReason = "hidden" | "foldable";
+type UnsafeSkillNameReason = UnsafeRemoteNameReason;
 
 /** Where a skill directory sits, under the output base path and in the remote. */
 const SKILLS_DIR_NAME = "skills";
@@ -321,68 +341,6 @@ const SKILLS_DIR_PREFIX = `${SKILLS_DIR_NAME}/`;
  * many times must not be something a later caller can edit for the rest.
  */
 const NON_SKILL_PATH: SkillPathClass = Object.freeze({ kind: "non-skill" });
-
-/** A name with no character in it that draws anything of its own. */
-const NOTHING_DRAWN_PATTERN = /^[\s\p{M}]*$/u;
-/**
- * The marks a name begins with. A mark is drawn over the character before it,
- * and a name has nothing before it of its own: a leading one is drawn over
- * whatever the terminal printed last — the checkbox, the quote around a name
- * in a warning — while the name reads as if it began with its first letter.
- */
-const LEADING_MARKS_PATTERN = /^\p{M}+/u;
-
-/**
- * A name ending in a dot or an ASCII space, which Win32 strips before it opens
- * the path. Only the plain space (U+0020): Win32 keeps every other trailing
- * blank, so a name ending in a no-break or an ideographic space is written
- * where it says, and is left to the whitespace note of the confusable-name
- * check rather than dropped here with Windows named as the reason.
- */
-const TRAILING_DOT_OR_SPACE_PATTERN = /[. ]$/;
-/** A name ending in the `NAME~1` shape of a Windows 8.3 short name, extension included. */
-const SHORT_NAME_ALIAS_PATTERN = /~\d+(?:\.[^.]*)?$/;
-/**
- * A name Win32 reserves for a device — `CON`, `PRN`, `AUX`, `NUL`, `CONIN$`,
- * `CONOUT$`, `COM1`–`COM9`, `LPT1`–`LPT9` — in any case and with any
- * extension: `nul.md` is the null device too, since the reservation is decided
- * on the part before the first dot, with any spaces before that dot dropped
- * first, so `nul .md` is the null device as well. The port digit may also be
- * one of the superscript digits ¹ ² ³, which Win32 reads as 1, 2 and 3
- * (`RtlIsDosDeviceName_U`; CPython's `ntpath.isreserved` follows the same
- * rules).
- */
-const RESERVED_DEVICE_NAME_PATTERN =
-  /^(?:CON|PRN|AUX|NUL|CONIN\$|CONOUT\$|COM[1-9\u00B9\u00B2\u00B3]|LPT[1-9\u00B9\u00B2\u00B3]) *(?:\..*)?$/i;
-
-/**
- * Whether Windows resolves a path segment to something other than the entry it
- * reads as.
- *
- * Win32 drops a trailing dot or ASCII space when it resolves a path, so a remote
- * `skills/deploy.` is the existing `skills/deploy` there. A name ending in the
- * `NAME~1` shape is the same class of problem: on a volume that generates
- * short names, it opens whatever long name it stands for. The shape only
- * means that at the end of a name, so `data~2parser` and `v1.0` are ordinary
- * names. A reserved device name is the extreme case: `nul` and `nul.md` are
- * not entries in any directory but the null device itself, so a write to one
- * lands nowhere, and a directory of that name cannot be created at all.
- *
- * The predicate is asked of every segment of a written path — the skill
- * directory, but equally a nested `references/notes. ` or a `scripts/con.sh`
- * — since a folded segment anywhere in a path lands the file beside, or on top
- * of, a sibling the repository never published. The check is not gated on the
- * platform: the same repository is checked out on several of them, and a name
- * that lands somewhere else on any one of them is one this tool would rather
- * turn away everywhere than write differently depending on where it runs.
- */
-function hasWindowsFoldableName(name: string): boolean {
-  return (
-    TRAILING_DOT_OR_SPACE_PATTERN.test(name) ||
-    SHORT_NAME_ALIAS_PATTERN.test(name) ||
-    RESERVED_DEVICE_NAME_PATTERN.test(name)
-  );
-}
 
 /**
  * The first segment of a remote path, other than the skill directory itself,
@@ -466,24 +424,9 @@ function classifySkillPath(relativePath: string): SkillPathClass {
   if (name === "." || name === ".." || name.includes("\\")) {
     return NON_SKILL_PATH;
   }
-  const stripped = stripHiddenCharacters(name);
-  // A name of nothing but blank space is shown as the empty string, the same as
-  // one that strips down to nothing: both draw as a row with no name on it. So
-  // is a name of nothing but combining marks, which have no character of their
-  // own to sit on and draw as a smear over whatever the terminal puts beside
-  // them. A name that merely begins with a mark is dropped for the same
-  // reason, and shown without it: the mark sits on nothing the name owns.
-  const beginsWithMark = LEADING_MARKS_PATTERN.test(stripped);
-  const display = NOTHING_DRAWN_PATTERN.test(stripped)
-    ? ""
-    : stripped.replace(LEADING_MARKS_PATTERN, "");
-  if (display === "" || beginsWithMark || hasDeceptiveHiddenCharacters(name)) {
-    return { kind: "unsafe-name", raw: name, display, reason: "hidden" };
-  }
-  // Checked after the hidden characters, so a name that is both is reported
-  // by the reason that keeps its raw form off the terminal.
-  if (hasWindowsFoldableName(name)) {
-    return { kind: "unsafe-name", raw: name, display, reason: "foldable" };
+  const verdict = classifyRemoteName(name);
+  if (verdict.kind === "unsafe") {
+    return { kind: "unsafe-name", raw: name, display: verdict.display, reason: verdict.reason };
   }
   return { kind: "skill", name };
 }
@@ -1333,13 +1276,21 @@ async function pruneDirectory(params: {
 async function maybePruneStaleSkillFiles(params: {
   prune: boolean;
   conflictStrategy: ConflictStrategy;
+  outputRoot: string;
   outputBasePath: string;
   fetchedFiles: CollectedFile[];
   incompleteRemoteDirs: ReadonlySet<string>;
   logger: Logger;
 }): Promise<FetchFileResult[]> {
-  const { prune, conflictStrategy, outputBasePath, fetchedFiles, incompleteRemoteDirs, logger } =
-    params;
+  const {
+    prune,
+    conflictStrategy,
+    outputRoot,
+    outputBasePath,
+    fetchedFiles,
+    incompleteRemoteDirs,
+    logger,
+  } = params;
 
   if (!prune) {
     logger.debug("Skipping the skill prune: --no-prune was given.");
@@ -1351,7 +1302,13 @@ async function maybePruneStaleSkillFiles(params: {
     return [];
   }
 
-  return pruneStaleSkillFiles({ outputBasePath, fetchedFiles, incompleteRemoteDirs, logger });
+  return pruneStaleSkillFiles({
+    outputRoot,
+    outputBasePath,
+    fetchedFiles,
+    incompleteRemoteDirs,
+    logger,
+  });
 }
 
 /**
@@ -1395,12 +1352,13 @@ function remoteSkillDirPath(params: {
  * everything else under the output directory are never touched.
  */
 async function pruneStaleSkillFiles(params: {
+  outputRoot: string;
   outputBasePath: string;
   fetchedFiles: CollectedFile[];
   incompleteRemoteDirs: ReadonlySet<string>;
   logger: Logger;
 }): Promise<FetchFileResult[]> {
-  const { outputBasePath, fetchedFiles, incompleteRemoteDirs, logger } = params;
+  const { outputRoot, outputBasePath, fetchedFiles, incompleteRemoteDirs, logger } = params;
 
   const fetchedPaths = new Set(fetchedFiles.map((file) => toPosixPath(file.relativePath)));
   const fetchedIds = await collectFetchedIds({ outputBasePath, fetchedFiles });
@@ -1506,6 +1464,22 @@ async function pruneStaleSkillFiles(params: {
     // name comes from the remote repository. It is lexical only, which is why
     // the link check below has to follow it.
     checkPathTraversal({ relativePath: skillDir, intendedRootDir: outputBasePath });
+
+    // The walk refuses a skill directory that is a link, but not a link further
+    // up: a committed `.rulesync -> .` or `.rulesync/skills -> ..` would have it
+    // deleting untracked files elsewhere in the project. Any link on the way is
+    // refused, as the generate sweep does at project scope.
+    const sweepRefusal = await sweepRefusalReason({
+      rootPath: outputRoot,
+      dirPath: join(outputBasePath, skillDir),
+      allowInRootLinks: false,
+    });
+    if (sweepRefusal !== null) {
+      logger.warn(
+        `Not pruning ${quoteForLog(skillDir)}: ${sweepRefusal}. Remove unwanted files by hand.`,
+      );
+      continue;
+    }
 
     try {
       await pruneDirectory({
@@ -1763,11 +1737,14 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
   // checkPathTraversal above is textual only. Refuse, before anything is
   // written, a target that a symbolic link already in the project (a
   // symlinked `.rulesync/skills/<name>`, say) leads outside the output root.
+  // A link that stays inside the project is fine (a skill linked to a shared
+  // one), except into version-control metadata: a committed
+  // `.rulesync/skills/x/SKILL.md -> ../../../.git/config` would hand the remote
+  // bytes to git.
   for (const { relativePath } of filesToFetch) {
-    await assertPathResolvesInsideRoot({
-      rootPath: outputRoot,
-      targetPath: join(outputBasePath, relativePath),
-    });
+    const targetPath = join(outputBasePath, relativePath);
+    await assertPathResolvesInsideRoot({ rootPath: outputRoot, targetPath });
+    await assertLandingOutsideVcsMetadata({ rootPath: outputRoot, targetPath });
   }
 
   // Process files in parallel with concurrency control
@@ -1801,6 +1778,7 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
   const pruneResults = await maybePruneStaleSkillFiles({
     prune,
     conflictStrategy,
+    outputRoot,
     outputBasePath,
     fetchedFiles: filesToFetch,
     incompleteRemoteDirs,
@@ -1975,7 +1953,7 @@ async function fetchAndConvertToolFiles(params: {
     target,
     outputDir,
     outputRoot,
-    conflictStrategy: _conflictStrategy,
+    conflictStrategy,
     logger,
   } = params;
 
@@ -2044,22 +2022,17 @@ async function fetchAndConvertToolFiles(params: {
     );
 
     // Convert fetched files to rulesync format
-    const { converted, convertedPaths } = await convertFetchedFilesToRulesync({
+    const { results } = await convertFetchedFilesToRulesync({
       tempDir,
       outputDir: outputBasePath,
       outputRoot,
       target,
       features: enabledFeatures,
+      conflictStrategy,
       logger,
     });
 
-    // Build results based on conversion with actual file paths
-    const results: FetchFileResult[] = convertedPaths.map((relativePath) => ({
-      relativePath,
-      status: "created" as const,
-    }));
-
-    logger.debug(`Converted ${converted} files from ${target} format to rulesync format`);
+    logger.debug(`Converted ${results.length} files from ${target} format to rulesync format`);
 
     return {
       source: `${parsed.owner}/${parsed.repo}`,

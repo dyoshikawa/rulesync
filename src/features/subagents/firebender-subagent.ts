@@ -11,13 +11,9 @@ import {
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import type { SharedWritePath } from "../../lib/shared-file-derive.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import { sweepRefusalReason, writeRefusalReason } from "../../types/feature-processor.js";
 import { formatError } from "../../utils/error.js";
-import {
-  listDirectoryEntryNames,
-  readFileContent,
-  toPosixPath,
-  writablePathEscapesRoot,
-} from "../../utils/file.js";
+import { listDirectoryEntryNames, readFileContent, toPosixPath } from "../../utils/file.js";
 import {
   parseFrontmatter,
   stringifyFrontmatter,
@@ -222,16 +218,28 @@ export class FirebenderSubagent extends ToolSubagent {
     deleteOrphans?: boolean;
   }): Promise<ToolSubagent[]> {
     const agentsDirPath = this.getSettablePaths({ global }).relativeDirPath;
-    // The writer refuses, and the sweep skips, an agent directory that a
-    // symbolic link leads out of the output root; the registry follows suit
-    // and leaves `agents` as it is rather than (un)registering files that are
-    // never written or deleted.
-    const agentsDirEscapesRoot = await writablePathEscapesRoot({
-      rootPath: outputRoot,
-      targetPath: join(outputRoot, agentsDirPath, "agent.md"),
-    });
+    // The writer refuses an agent directory that a symbolic link leads out of
+    // the output root or into version-control metadata; the registry follows
+    // suit and leaves `agents` as it is rather than (un)registering files that
+    // are never written. Under `--delete` the sweep also skips a directory
+    // reached through any link at project scope, so the registry keeps the
+    // entries of the files that sweep leaves on disk, as it does without
+    // `--delete`.
+    const agentsDirFullPath = join(outputRoot, agentsDirPath);
+    const writeRefused =
+      (await writeRefusalReason({
+        rootPath: outputRoot,
+        targetPath: join(agentsDirFullPath, "agent.md"),
+      })) !== null;
+    const sweepRefused =
+      deleteOrphans &&
+      (await sweepRefusalReason({
+        rootPath: outputRoot,
+        dirPath: agentsDirFullPath,
+        allowInRootLinks: global,
+      })) !== null;
     const existingAgentFileNames = new Set(
-      agentsDirEscapesRoot ? [] : await listDirectoryEntryNames(join(outputRoot, agentsDirPath)),
+      writeRefused ? [] : await listDirectoryEntryNames(agentsDirFullPath),
     );
     const subagents = rulesyncSubagents.map((rulesyncSubagent) =>
       this.fromRulesyncSubagent({
@@ -249,8 +257,8 @@ export class FirebenderSubagent extends ToolSubagent {
         toAgentsEntry({ relativeFilePath: subagent.getRelativeFilePath(), global }),
       ),
       existingAgentFileNames,
-      deleteOrphans,
-      frozen: agentsDirEscapesRoot,
+      deleteOrphans: deleteOrphans && !sweepRefused,
+      frozen: writeRefused,
       global,
       logger,
     });

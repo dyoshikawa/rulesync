@@ -30,7 +30,7 @@ import {
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
 } from "./tool-permissions.js";
-import { buildVscodeCommandLists } from "./vscode-command-lists.js";
+import { buildVscodeCommandLists, importVscodeCommandLists } from "./vscode-command-lists.js";
 
 /**
  * The canonical category Roo Code's command lists correspond to. Roo Code gates
@@ -306,7 +306,7 @@ export class RooPermissions extends ToolPermissions {
     });
   }
 
-  toRulesyncPermissions(): RulesyncPermissions {
+  toRulesyncPermissions({ logger }: { logger?: Logger } = {}): RulesyncPermissions {
     const constructor = this.constructor as typeof RooPermissions;
     let settings: Record<string, unknown>;
     try {
@@ -328,17 +328,14 @@ export class RooPermissions extends ToolPermissions {
       );
     }
 
-    const rules: Record<string, PermissionAction> = {};
-    for (const pattern of toStringArray(settings[constructor.getAllowedCommandsKey()])) {
-      rules[pattern] = "allow";
-    }
-    // Applied second so a pattern listed in both lists imports as `deny`,
-    // matching the extension's own precedence: with identical prefixes the
-    // denied match is not shorter than the allowed one, and auto-approval
-    // requires a strictly longer allowed match.
-    for (const pattern of toStringArray(settings[constructor.getDeniedCommandsKey()])) {
-      rules[pattern] = "deny";
-    }
+    // Native entries are command prefixes; see `importVscodeCommandLists` for
+    // how they are lowered into canonical globs without changing their reach.
+    const rules = importVscodeCommandLists({
+      allowed: toStringArray(settings[constructor.getAllowedCommandsKey()]),
+      denied: toStringArray(settings[constructor.getDeniedCommandsKey()]),
+      toolLabel: constructor.getToolLabel(),
+      logger,
+    });
 
     const permission: Record<string, Record<string, PermissionAction>> = {};
     if (Object.keys(rules).length > 0) {

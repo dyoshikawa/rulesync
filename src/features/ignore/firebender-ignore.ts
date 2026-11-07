@@ -84,7 +84,13 @@ export class FirebenderIgnore extends ToolIgnore {
     // `.rulesync/.aiignore` is retracted here too. Source order is kept
     // (gitignore-style negations depend on it) with duplicates dropped, and
     // the key is removed rather than written as `[]` when no pattern is left.
-    const managedPatterns = [...new Set(patterns)];
+    // Only the last occurrence of a duplicate is kept: under last-match-wins an
+    // earlier copy is always overridden by the later identical one, so dropping
+    // it never changes the result, while dropping the later copy would lose a
+    // re-ignore that follows a negation (`.env`, `!.env`, `.env`).
+    const managedPatterns = patterns.filter(
+      (pattern, index) => patterns.lastIndexOf(pattern) === index,
+    );
 
     return new FirebenderIgnore({
       outputRoot,

@@ -2,6 +2,7 @@ import { join, resolve, sep } from "node:path";
 
 import { getSourceTransport, type SourceEntry } from "../config/config.js";
 import { SKILL_FILE_NAME } from "../constants/general.js";
+import { quoteForLog, stripControlCharacters } from "../utils/control-characters.js";
 import {
   applyFileMode,
   checkPathTraversal,
@@ -16,6 +17,7 @@ import {
   writeFileContent,
 } from "../utils/file.js";
 import type { Logger } from "../utils/logger.js";
+import { classifyRemoteName } from "../utils/remote-name.js";
 import type { NpmLockedSource } from "./npm-sources-lock.js";
 import { parseSource } from "./source-parser.js";
 import {
@@ -231,7 +233,7 @@ export async function cleanPreviousCuratedSkills(params: {
     const prevDir = join(curatedDir, prevSkill);
     if (!resolve(prevDir).startsWith(resolvedCuratedDir + sep)) {
       logger.warn(
-        `Skipping removal of "${prevSkill}": resolved path is outside the curated directory.`,
+        `Skipping removal of ${quoteForLog(prevSkill)}: resolved path is outside the curated directory.`,
       );
       continue;
     }
@@ -256,7 +258,7 @@ export async function cleanPreviousCuratedRules(params: {
     const prevFile = join(curatedDir, `${prevRule}.md`);
     if (!resolve(prevFile).startsWith(resolvedCuratedDir + sep)) {
       logger.warn(
-        `Skipping removal of "${prevRule}": resolved path is outside the curated directory.`,
+        `Skipping removal of ${quoteForLog(prevRule)}: resolved path is outside the curated directory.`,
       );
       continue;
     }
@@ -357,19 +359,24 @@ export function shouldSkipSkill(params: {
   const { skillName, sourceKey, localSkillNames, alreadyFetchedSkillNames, logger } = params;
   if (skillName.includes("..") || skillName.includes("/") || skillName.includes("\\")) {
     logger.warn(
-      `Skipping skill with invalid name "${skillName}" from ${sourceKey}: contains path traversal characters.`,
+      `Skipping skill with invalid name ${quoteForLog(skillName)} from ${sourceKey}: contains path traversal characters.`,
     );
+    return true;
+  }
+  const unsafe = describeUnsafeRemoteName(skillName);
+  if (unsafe !== undefined) {
+    logger.warn(`Skipping skill with unsafe name ${unsafe} from ${sourceKey}.`);
     return true;
   }
   if (localSkillNames.has(skillName)) {
     logger.debug(
-      `Skipping remote skill "${skillName}" from ${sourceKey}: local skill takes precedence.`,
+      `Skipping remote skill ${quoteForLog(skillName)} from ${sourceKey}: local skill takes precedence.`,
     );
     return true;
   }
   if (alreadyFetchedSkillNames.has(skillName)) {
     logger.warn(
-      `Skipping duplicate skill "${skillName}" from ${sourceKey}: already fetched from another source.`,
+      `Skipping duplicate skill ${quoteForLog(skillName)} from ${sourceKey}: already fetched from another source.`,
     );
     return true;
   }
@@ -385,22 +392,44 @@ export function shouldSkipRule(params: {
 }): boolean {
   const { ruleName, sourceKey, localRuleNames, alreadyFetchedRuleNames, logger } = params;
   if (!isValidRuleName(ruleName)) {
-    logger.warn(`Skipping rule with invalid name "${ruleName}" from ${sourceKey}.`);
+    logger.warn(`Skipping rule with invalid name ${quoteForLog(ruleName)} from ${sourceKey}.`);
+    return true;
+  }
+  const unsafe = describeUnsafeRemoteName(ruleName);
+  if (unsafe !== undefined) {
+    logger.warn(`Skipping rule with unsafe name ${unsafe} from ${sourceKey}.`);
     return true;
   }
   if (localRuleNames.has(ruleName)) {
     logger.debug(
-      `Skipping remote rule "${ruleName}" from ${sourceKey}: local rule takes precedence.`,
+      `Skipping remote rule ${quoteForLog(ruleName)} from ${sourceKey}: local rule takes precedence.`,
     );
     return true;
   }
   if (alreadyFetchedRuleNames.has(ruleName)) {
     logger.warn(
-      `Skipping duplicate rule "${ruleName}" from ${sourceKey}: already fetched from another source.`,
+      `Skipping duplicate rule ${quoteForLog(ruleName)} from ${sourceKey}: already fetched from another source.`,
     );
     return true;
   }
   return false;
+}
+
+/**
+ * Why a remote skill or rule name must not be installed, already quoted for a
+ * log line, or `undefined` when it is safe. It applies the same gate as
+ * `rulesync fetch`: a name hiding control or deceptive zero-width characters
+ * could rewrite the terminal when printed, or pass for another name, and a
+ * name Windows folds lands on a different entry than it reads as.
+ */
+function describeUnsafeRemoteName(name: string): string | undefined {
+  const verdict = classifyRemoteName(name);
+  if (verdict.kind === "safe") {
+    return undefined;
+  }
+  return verdict.reason === "hidden"
+    ? `${quoteForLog(verdict.display)} (it contains hidden or control characters)`
+    : `${quoteForLog(name)} (Windows resolves it to a different name)`;
 }
 
 function isValidRuleName(ruleName: string): boolean {
@@ -462,7 +491,7 @@ async function writeRuleAndComputeIntegrity(params: {
     resolvedRef === locked?.resolvedRef
   ) {
     reportIntegrityMismatch({
-      message: `Integrity mismatch for rule "${rule.name}" from ${sourceKey}: expected "${lockedRuleEntry.integrity}", got "${integrity}". Content may have been tampered with.`,
+      message: `Integrity mismatch for rule ${quoteForLog(rule.name)} from ${sourceKey}: expected "${lockedRuleEntry.integrity}", got "${integrity}". Content may have been tampered with.`,
       frozen,
       logger,
     });
@@ -508,7 +537,7 @@ export async function writeSkillAndComputeIntegrity(params: {
     resolvedSha === locked?.resolvedRef
   ) {
     reportIntegrityMismatch({
-      message: `Integrity mismatch for skill "${skillName}" from ${sourceKey}: expected "${lockedSkillEntry.integrity}", got "${integrity}". Content may have been tampered with.`,
+      message: `Integrity mismatch for skill ${quoteForLog(skillName)} from ${sourceKey}: expected "${lockedSkillEntry.integrity}", got "${integrity}". Content may have been tampered with.`,
       frozen,
       logger,
     });
@@ -612,7 +641,7 @@ export function buildLockUpdate(params: {
   });
 
   logger.info(
-    `Fetched ${fetchedNames.length} skill(s) from ${sourceKey}: ${fetchedNames.join(", ") || "(none)"}`,
+    `Fetched ${fetchedNames.length} skill(s) from ${sourceKey}: ${fetchedNames.map(stripControlCharacters).join(", ") || "(none)"}`,
   );
 
   return { updatedLock, fetchedNames };
@@ -658,7 +687,7 @@ export function buildRuleLockUpdate(params: {
     resolvedRuleNames,
   });
   logger.info(
-    `Fetched ${fetchedNames.length} rule(s) from ${sourceKey}: ${fetchedNames.join(", ") || "(none)"}`,
+    `Fetched ${fetchedNames.length} rule(s) from ${sourceKey}: ${fetchedNames.map(stripControlCharacters).join(", ") || "(none)"}`,
   );
   return { updatedLock, fetchedNames };
 }

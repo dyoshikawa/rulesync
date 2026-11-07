@@ -356,6 +356,55 @@ describe("FirebenderSubagent", () => {
     },
   );
 
+  it.skipIf(process.platform === "win32")(
+    "should leave agents untouched when the agent directory links into .git",
+    async () => {
+      await ensureDir(join(testDir, ".git", "hooks"));
+      await ensureDir(join(testDir, ".firebender"));
+      await symlink(join("..", ".git", "hooks"), join(testDir, ".firebender", "agents"));
+      const { registry } = splitResult(
+        await FirebenderSubagent.fromRulesyncSubagents({
+          outputRoot: testDir,
+          rulesyncSubagents: [makeRulesyncSubagent()],
+        }),
+      );
+
+      registry?.setFileContent(JSON.stringify({ agents: [".firebender/agents/mine.md"] }));
+
+      expect(JSON.parse(registry?.getFileContent() ?? "")).toEqual({
+        agents: [".firebender/agents/mine.md"],
+      });
+    },
+  );
+
+  it.skipIf(process.platform === "win32")(
+    "should keep the entries of files a refused project-scope --delete sweep leaves on disk",
+    async () => {
+      // `.firebender/agents` is an in-root link, so the project-scope sweep
+      // refuses it and `mine.md` stays; its registry entry has to stay too.
+      await writeFileContent(
+        join(testDir, "shared-agents", "mine.md"),
+        "---\nname: Mine\n---\n\nMine.\n",
+      );
+      await ensureDir(join(testDir, ".firebender"));
+      await symlink(join("..", "shared-agents"), join(testDir, ".firebender", "agents"));
+      const { registry } = splitResult(
+        await FirebenderSubagent.fromRulesyncSubagents({
+          outputRoot: testDir,
+          rulesyncSubagents: [makeRulesyncSubagent()],
+          deleteOrphans: true,
+        }),
+      );
+
+      registry?.setFileContent(JSON.stringify({ agents: [".firebender/agents/mine.md"] }));
+
+      expect(JSON.parse(registry?.getFileContent() ?? "").agents).toEqual([
+        ".firebender/agents/mine.md",
+        ".firebender/agents/code-reviewer.md",
+      ]);
+    },
+  );
+
   it("should not warn when a generated agent's entry is only respelled", async () => {
     const logger = createMockLogger();
     const { registry } = splitResult(

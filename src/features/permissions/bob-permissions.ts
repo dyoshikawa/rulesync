@@ -32,7 +32,7 @@ import {
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
 } from "./tool-permissions.js";
-import { buildVscodeCommandLists } from "./vscode-command-lists.js";
+import { buildVscodeCommandLists, importVscodeCommandLists } from "./vscode-command-lists.js";
 
 const TOOL_LABEL = "IBM Bob";
 
@@ -553,7 +553,7 @@ export class BobPermissions extends ToolPermissions {
     });
   }
 
-  toRulesyncPermissions(): RulesyncPermissions {
+  toRulesyncPermissions({ logger }: { logger?: Logger } = {}): RulesyncPermissions {
     const settings = parseBobSettings({
       fileContent: this.getFileContent(),
       filePath: join(this.getRelativeDirPath(), this.getRelativeFilePath()),
@@ -565,15 +565,15 @@ export class BobPermissions extends ToolPermissions {
         : [];
     const entry = executors.find(isExecuteCommandEntry);
 
-    const rules: Record<string, PermissionAction> = {};
-    for (const pattern of toStringArray(entry?.approvedCommands)) {
-      rules[pattern] = "allow";
-    }
-    // Applied second: Bob's `deniedCommands` takes precedence over
-    // `approvedCommands`, so a pattern in both lists imports as `deny`.
-    for (const pattern of toStringArray(entry?.deniedCommands)) {
-      rules[pattern] = "deny";
-    }
+    // Bob compares both lists as literal command prefixes (`deniedCommands`
+    // wins); see `importVscodeCommandLists` for the lowering into globs.
+    const rules = importVscodeCommandLists({
+      allowed: toStringArray(entry?.approvedCommands),
+      denied: toStringArray(entry?.deniedCommands),
+      toolLabel: TOOL_LABEL,
+      logger,
+      prefixSemantics: "documented-prefix",
+    });
 
     const permission: Record<string, Record<string, PermissionAction>> = {};
     if (Object.keys(rules).length > 0) {

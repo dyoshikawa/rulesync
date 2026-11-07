@@ -1318,6 +1318,91 @@ describe("HooksProcessor logger plumbing", () => {
   });
 });
 
+describe("HooksProcessor per-hook if condition", () => {
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory({ home: true }));
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
+  });
+
+  afterEach(async () => {
+    await cleanup();
+    vi.restoreAllMocks();
+  });
+
+  const conditionalDef = {
+    type: "command",
+    matcher: "Bash",
+    if: "Bash(git status *)",
+    command: "./conditional-approve.sh",
+  };
+  const plainDef = { type: "command", matcher: "Bash", command: "./plain-hook.sh" };
+
+  it.each([...toolHooksFactories.entries()])(
+    "never emits a hook without its if condition for %s",
+    async (target, factory) => {
+      const warnLogger = createMockLogger();
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            preToolUse: [conditionalDef, plainDef],
+            permissionRequest: [conditionalDef, plainDef],
+          },
+        }),
+        validate: true,
+      });
+      const processor = new HooksProcessor({
+        logger: warnLogger,
+        outputRoot: testDir,
+        toolTarget: target,
+        global: !factory.meta.supportsProject,
+      });
+      const files = await processor.convertRulesyncFilesToToolFiles([rulesyncHooks]);
+      const content = files.map((file) => file.getFileContent()).join("\n");
+
+      if (factory.supportsPerHookIf) {
+        expect(content).toContain("conditional-approve.sh");
+        expect(content).toContain("git status");
+        return;
+      }
+      expect(content).not.toContain("conditional-approve.sh");
+      const emitsAnyEvent = ["preToolUse", "permissionRequest"].some((event) =>
+        (factory.supportedEvents as readonly string[]).includes(event),
+      );
+      if (emitsAnyEvent) {
+        expect(warnLogger.warn).toHaveBeenCalledWith(
+          expect.stringContaining('Skipped hook(s) with an "if" condition'),
+        );
+      }
+    },
+  );
+
+  it("keeps the hook in a tool-specific override block out of a target without if support", async () => {
+    const rulesyncHooks = new RulesyncHooks({
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: "hooks.json",
+      fileContent: JSON.stringify({
+        version: 1,
+        hooks: {},
+        codexcli: { hooks: { preToolUse: [conditionalDef, plainDef] } },
+      }),
+      validate: true,
+    });
+    const processor = new HooksProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
+    const files = await processor.convertRulesyncFilesToToolFiles([rulesyncHooks]);
+    const content = files.map((file) => file.getFileContent()).join("\n");
+    expect(content).not.toContain("conditional-approve.sh");
+    expect(content).toContain("plain-hook.sh");
+  });
+});
+
 describe("toolHooksFactories capability table", () => {
   // Pins every capability the processor reads (events, hook types, matcher
   // support, override-block handling, scope/import support) so a refactor of
@@ -1388,6 +1473,7 @@ describe("toolHooksFactories capability table", () => {
         supportedEvents: CLAUDE_HOOK_EVENTS,
         supportedHookTypes: ["command", "prompt", "http", "mcp_tool", "agent"],
         supportsMatcher: true,
+        supportsPerHookIf: true,
       },
     ],
     [
@@ -1397,6 +1483,7 @@ describe("toolHooksFactories capability table", () => {
         supportedEvents: CLAUDE_HOOK_EVENTS,
         supportedHookTypes: ["command", "prompt", "http", "mcp_tool", "agent"],
         supportsMatcher: true,
+        supportsPerHookIf: true,
         dropsUnknownOverrideEvents: true,
       },
     ],
@@ -1781,6 +1868,7 @@ describe("toolHooksFactories capability table", () => {
         supportedEvents: QODER_HOOK_EVENTS,
         supportedHookTypes: ["command", "http", "prompt", "agent"],
         supportsMatcher: true,
+        supportsPerHookIf: true,
         matcherEvents: [
           "sessionStart",
           "sessionEnd",
