@@ -101,6 +101,106 @@ function classifyPattern(pattern: string, bareStarIsWildcard: boolean): PatternS
   return { kind: "literal" };
 }
 
+/** The trimmed spellings of the literal (prefix) deny entries, minus the bare wildcard. */
+function collectLiteralDenyStems({
+  rules,
+  bareStarIsWildcard,
+}: {
+  rules: Record<string, PermissionAction>;
+  bareStarIsWildcard: boolean;
+}): Set<string> {
+  const stems = new Set<string>();
+  for (const [pattern, action] of Object.entries(rules)) {
+    if (action !== "deny" || pattern === "*") {
+      continue;
+    }
+    const stem = pattern.trimEnd();
+    if (stem.length > 0 && classifyPattern(pattern, bareStarIsWildcard).kind === "literal") {
+      stems.add(stem);
+    }
+  }
+  return stems;
+}
+
+function isCoveredByLiteralDeny({
+  pattern,
+  literalDenyStems,
+}: {
+  pattern: string;
+  literalDenyStems: Set<string>;
+}): boolean {
+  if (!pattern.endsWith(" *")) {
+    return false;
+  }
+  const stem = pattern.slice(0, -2).trimEnd();
+  return stem.length > 0 && literalDenyStems.has(stem);
+}
+
+/**
+ * Lower a VS Code style command allow/deny list pair into canonical `bash`
+ * rules on import.
+ *
+ * The native entries are compared as literal command prefixes, while canonical
+ * patterns are globs, so a verbatim copy changes their meaning:
+ *
+ * - A prefix deny such as `curl` blocks `curl https://…` natively but would
+ *   only block the exact command `curl` canonically, so a broad allow beside
+ *   it would auto-approve what the native config blocked. Each deny that does
+ *   not already end in `*` is imported as itself plus `<deny> *`.
+ * - An allow holding glob syntax (`npm *`) is literal prefix text natively and
+ *   approves almost nothing, but canonically it is a wildcard. Such an allow is
+ *   not imported (with a warning) rather than imported wider than it matched.
+ *   The Roo Code lineage's bare `*` is a real wildcard natively and is kept.
+ *
+ * A pattern in both lists imports as `deny`, matching both tools' precedence
+ * for identical entries.
+ */
+export function importVscodeCommandLists({
+  allowed,
+  denied,
+  toolLabel,
+  logger,
+  prefixSemantics = "roo-lineage",
+}: {
+  allowed: string[];
+  denied: string[];
+  toolLabel: string;
+  logger?: Logger | undefined;
+  prefixSemantics?: "roo-lineage" | "documented-prefix";
+}): Record<string, PermissionAction> {
+  const isRooLineage = prefixSemantics === "roo-lineage";
+  const rules: Record<string, PermissionAction> = {};
+  const skippedAllows: string[] = [];
+  for (const pattern of allowed) {
+    const isWildcard = isRooLineage && pattern === "*";
+    if (!isWildcard && /[*?]/.test(pattern)) {
+      skippedAllows.push(pattern);
+      continue;
+    }
+    rules[pattern] = "allow";
+  }
+  for (const pattern of denied) {
+    rules[pattern] = "deny";
+    const stem = pattern.trimEnd();
+    if (!pattern.endsWith("*") && stem.length > 0) {
+      rules[`${stem} *`] = "deny";
+    }
+  }
+  if (skippedAllows.length > 0) {
+    const count = skippedAllows.length;
+    warnWithFallback(
+      logger,
+      `${toolLabel}: allow ${pluralize(count, "pattern", "patterns")} ` +
+        `${formatPatterns(skippedAllows)} ${pluralize(count, "was", "were")} not imported. ` +
+        `${toolLabel} compares ${pluralize(count, "it", "them")} as literal command prefix text, ` +
+        `while a rulesync pattern is a glob, so importing ${pluralize(count, "it", "them")} would ` +
+        `approve more commands than the native config does.` +
+        (isRooLineage ? ` Only a bare "*" is a wildcard there.` : ""),
+    );
+  }
+  return rules;
+}
+
 function pluralize(count: number, singular: string, plural: string): string {
   return count === 1 ? singular : plural;
 }
@@ -240,8 +340,16 @@ export function buildVscodeCommandLists({
   const matcherAllows: string[] = [];
   const widenedDenies: { from: string; prefix: string }[] = [];
   const inertDenies: string[] = [];
+  const literalDenyStems = collectLiteralDenyStems({ rules, bareStarIsWildcard: isRooLineage });
   for (const [pattern, action] of Object.entries(rules)) {
     if (action !== "allow" && action !== "deny") {
+      continue;
+    }
+    if (action === "deny" && isCoveredByLiteralDeny({ pattern, literalDenyStems })) {
+      // `curl *` beside a literal `curl` deny: the prefix `curl` already denies
+      // every command the glob names, so the glob is not written (it would only
+      // be widened back to `curl ` with a warning). This is the shape the
+      // importer gives a native prefix deny, so it round-trips unchanged.
       continue;
     }
     const shape = classifyPattern(pattern, isRooLineage);

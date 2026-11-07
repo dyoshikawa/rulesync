@@ -279,6 +279,33 @@ describe("ClaudecodeIgnore", () => {
       expect(rulesyncIgnore.getRelativeFilePath()).toBe(RULESYNC_AIIGNORE_FILE_NAME);
     });
 
+    // `./.env` matches nothing in gitignore syntax, so a verbatim copy would
+    // leave every other tool's ignore file without the deny.
+    it("should anchor ./ paths to the project root and skip absolute and home paths", () => {
+      const claudecodeIgnore = new ClaudecodeIgnore({
+        outputRoot: testDir,
+        relativeDirPath: ".claude",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          permissions: {
+            deny: [
+              "Read(./.env)",
+              "Read(./.env.*)",
+              "Read(./secrets/**)",
+              "Read(.env.prod)",
+              "Read(/config/*.pem)",
+              "Read(//etc/passwd)",
+              "Read(~/.ssh/**)",
+            ],
+          },
+        }),
+      });
+
+      expect(claudecodeIgnore.toRulesyncIgnore().getFileContent()).toBe(
+        "/.env\n/.env.*\n/secrets/**\n.env.prod\n/config/*.pem",
+      );
+    });
+
     it("should handle patterns without Read() wrapper", () => {
       const jsonContent = JSON.stringify(
         {

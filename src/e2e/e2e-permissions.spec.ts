@@ -2514,7 +2514,8 @@ describe("E2E: permissions (global mode)", () => {
       await readFileContent(join(homeDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
     );
     expect(imported.permission).toEqual({
-      bash: { "git status": "allow", rm: "deny" },
+      // A prefix deny keeps its reach as a glob on import.
+      bash: { "git status": "allow", rm: "deny", "rm *": "deny" },
     });
     // The whole-group switches round-trip through the `bob` override block.
     expect(imported.bob).toEqual({ approval: { allowed_permissions: ["read", "execute"] } });
