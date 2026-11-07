@@ -124,13 +124,20 @@ describe("AntigravityCliPermissions", () => {
       const loaded = await AntigravityCliPermissions.fromFile({ outputRoot: testDir });
       const json = loaded.toRulesyncPermissions().getJson();
       expect(json.permission).toEqual({
-        read: { "~/x.txt": "deny", "~": "ask", "$HOME/y.txt": "deny" },
-        write: { "~/notes": "allow" },
+        read: {
+          "~/x.txt": "deny",
+          "~/x.txt/**": "deny",
+          "~": "ask",
+          "~/**": "ask",
+          "$HOME/y.txt": "deny",
+          "$HOME/y.txt/**": "deny",
+        },
+        write: { "~/notes": "allow", "~/notes/**": "allow" },
       });
 
       const regenerated = await AntigravityCliPermissions.fromRulesyncPermissions({
         outputRoot: testDir,
-        rulesyncPermissions: source(),
+        rulesyncPermissions: loaded.toRulesyncPermissions(),
         logger: createMockLogger(),
       });
       expect(regenerated.getFileContent()).toBe(emitted.getFileContent());

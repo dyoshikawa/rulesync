@@ -142,9 +142,15 @@ function toPathTarget(pattern: string): TargetResult {
   if (["", ".", "**", "**/*"].includes(path)) {
     return { target: "." };
   }
-  // `/**` leaves an empty directory, which is the filesystem root.
+  // `/**` leaves an empty directory, which is the filesystem root, and `C:/**`
+  // leaves `C:`, the drive's current directory rather than its root.
+  const stripped = path.replace(DIRECTORY_CONTENTS_SUFFIX, "");
   const directory =
-    path.replace(DIRECTORY_CONTENTS_SUFFIX, "") || (path.startsWith("/") ? "/" : "");
+    stripped === "" && path.startsWith("/")
+      ? "/"
+      : /^[A-Za-z]:$/.test(stripped) && stripped !== path
+        ? `${stripped}/`
+        : stripped;
   if (directory !== path && directory.length > 0 && !hasGlob(directory)) {
     return { target: directory };
   }
@@ -155,6 +161,36 @@ function toPathTarget(pattern: string): TargetResult {
     skipReason:
       "Antigravity file targets are paths, not globs. Only a plain path, `dir/**` or `*` can be expressed",
   };
+}
+
+/**
+ * The canonical patterns a `read_file` / `write_file` target imports as. A
+ * target can name a file or a directory, and a directory covers everything
+ * inside it, but the target alone does not say which. A plain path such as
+ * `src` imports as both `src` and `src/**`, so re-exporting it to a tool whose
+ * plain path matches only that one path keeps covering the subtree; regenerating
+ * collapses both back into one target. The bare `*`, and a target that already
+ * holds glob characters (verbatim output of an older Rulesync), stay as written.
+ */
+function fromPathTarget(target: string): string[] {
+  // A bare drive (`C:`, its current directory) has no subtree spelling:
+  // `C:/**` would generate as the drive root.
+  if (target === "*" || hasGlob(target) || /^[A-Za-z]:$/.test(target)) {
+    return [target];
+  }
+  // `./**`, not `**`: generation turns `**` into the bare action (every path).
+  if (target === ".") {
+    return [".", "./**"];
+  }
+  // A filesystem or drive root keeps its slash: `C:` alone is the drive's
+  // current directory, not its root.
+  const root = /^((?:[A-Za-z]:)?\/)\/*$/.exec(target)?.[1];
+  if (root !== undefined) {
+    return [root, `${root}**`];
+  }
+  // A trailing slash is dropped, so both patterns generate the same target.
+  const path = target.replace(/\/+$/, "");
+  return [path, `${path}/**`];
 }
 
 /**
@@ -584,23 +620,28 @@ export function convertAntigravityToRulesyncPermissions({
     for (const entry of entries) {
       const { toolName, pattern: target } = parseToolPatternEntry(entry);
       const canonical = toCategory(toolName);
-      const pattern = COMMAND_ACTIONS.has(toolName)
-        ? importAntigravityCommandTarget({
-            target,
-            entry,
-            decision: action,
-            logger,
-            toolLabel,
-          })
+      const patterns = COMMAND_ACTIONS.has(toolName)
+        ? [
+            importAntigravityCommandTarget({
+              target,
+              entry,
+              decision: action,
+              logger,
+              toolLabel,
+            }),
+          ]
         : PATH_ACTIONS.has(toolName)
-          ? collapseLeadingHome(target, homeDirectory)
-          : target;
-      // A `__proto__` or `constructor` name would not land as a plain own key,
-      // so such entries are dropped, as the other permissions adapters do.
-      if (isPrototypePollutionKey(canonical) || isPrototypePollutionKey(pattern)) {
-        continue;
+          ? fromPathTarget(collapseLeadingHome(target, homeDirectory))
+          : [target];
+      for (const pattern of patterns) {
+        // A `__proto__` or `constructor` name would not land as a plain own
+        // key, so such entries are dropped, as the other permissions adapters do.
+        if (isPrototypePollutionKey(canonical) || isPrototypePollutionKey(pattern)) {
+          continue;
+        }
+        getOrCreateOwn({ record: permission, key: canonical, create: () => ({}) })[pattern] =
+          action;
       }
-      getOrCreateOwn({ record: permission, key: canonical, create: () => ({}) })[pattern] = action;
     }
   };
 
