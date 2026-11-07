@@ -47,7 +47,9 @@ import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { isFileNotFoundError } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { getRulesyncSourceCandidates } from "../../utils/rulesync-source-path.js";
+import { isPlainObject } from "../../utils/type-guards.js";
 import { AmpHooks } from "./amp-hooks.js";
 import {
   ANTIGRAVITY_CONVERTER_CONFIG,
@@ -179,6 +181,13 @@ type ToolHooksFactory = {
   supportsPerHookEnabled?: boolean;
   /** Whether the target's hooks format carries the Kiro `confirm` prompt. */
   supportsPerHookConfirm?: boolean;
+  /**
+   * Whether the target forwards the per-hook `if` condition. Every other
+   * target skips a definition carrying one (with a warning) instead of
+   * emitting it unconditionally, because without `if` the hook would run on
+   * every call its matcher selects.
+   */
+  supportsPerHookIf?: boolean;
 };
 
 /**
@@ -321,17 +330,24 @@ function emittedEventsWithHook(params: {
  */
 function converterCapabilities(
   config: ToolHooksConverterConfig,
-): Pick<ToolHooksFactory, "supportedEvents" | "supportedHookTypes" | "supportsPerHookEnabled"> {
+): Pick<
+  ToolHooksFactory,
+  "supportedEvents" | "supportedHookTypes" | "supportsPerHookEnabled" | "supportsPerHookIf"
+> {
   if (!config.supportedHookTypes) {
     throw new Error("Hooks converter config must declare its supportedHookTypes");
   }
   const passesThroughEnabled = (config.booleanPassthroughFields ?? []).some(
     (field) => field.canonical === "enabled",
   );
+  const passesThroughIf =
+    (config.stringPassthroughFields ?? []).some((field) => field.canonical === "if") &&
+    !(config.skippedWhenFields ?? []).includes("if");
   return {
     supportedEvents: config.supportedEvents,
     supportedHookTypes: [...config.supportedHookTypes],
     ...(passesThroughEnabled ? { supportsPerHookEnabled: true } : {}),
+    ...(passesThroughIf ? { supportsPerHookIf: true } : {}),
   };
 }
 
@@ -1305,7 +1321,7 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
 // The targets whose hooks format carries a per-hook field, named in the
 // dropped-field warnings so the list cannot drift from the factories.
 function targetsSupporting(
-  capability: "supportsPerHookEnabled" | "supportsPerHookConfirm",
+  capability: "supportsPerHookEnabled" | "supportsPerHookConfirm" | "supportsPerHookIf",
 ): string {
   return [...toolHooksFactories.entries()]
     .filter(([, f]) => f[capability])
@@ -1516,7 +1532,9 @@ export class HooksProcessor extends FeatureProcessor {
 
     const toolHooks = await factory.class.fromRulesyncHooks({
       outputRoot: this.outputRoot,
-      rulesyncHooks,
+      rulesyncHooks: factory.supportsPerHookIf
+        ? rulesyncHooks
+        : this.withoutConditionalHooks({ rulesyncHooks, overrideKey }),
       validate: true,
       global: this.global,
       preserveUnowned: this.preserveUnownedHooks,
@@ -1536,6 +1554,60 @@ export class HooksProcessor extends FeatureProcessor {
     result.push(...auxiliaryFiles);
 
     return result;
+  }
+
+  /**
+   * Returns the hooks source without the definitions that carry a per-hook
+   * `if` condition, warning about each one. Used for targets that cannot
+   * express `if`: emitting such a hook without its condition would make it
+   * fire on every call its matcher selects, so a permission-granting hook
+   * scoped by `if` would approve far more than its author meant.
+   */
+  private withoutConditionalHooks(params: {
+    rulesyncHooks: RulesyncHooks;
+    overrideKey: string;
+  }): RulesyncHooks {
+    const { rulesyncHooks, overrideKey } = params;
+    const config = rulesyncHooks.getJson();
+    const skipped: string[] = [];
+    const filterHooks = (hooks: unknown): unknown => {
+      if (!isPlainObject(hooks)) return hooks;
+      const filtered: Record<string, unknown> = {};
+      for (const [event, defs] of Object.entries(hooks)) {
+        if (!Array.isArray(defs)) {
+          filtered[event] = defs;
+          continue;
+        }
+        filtered[event] = defs.filter((def: unknown) => {
+          const condition = isPlainObject(def) ? def.if : undefined;
+          if (typeof condition !== "string" || condition.trim() === "") return true;
+          skipped.push(`${event} (${quoteValueForWarning(condition)})`);
+          return false;
+        });
+      }
+      return filtered;
+    };
+
+    const filteredConfig: Record<string, unknown> = {
+      ...config,
+      hooks: filterHooks(config.hooks),
+    };
+    const override = (config as Record<string, unknown>)[overrideKey];
+    if (Object.hasOwn(config, overrideKey) && isPlainObject(override)) {
+      filteredConfig[overrideKey] = { ...override, hooks: filterHooks(override.hooks) };
+    }
+    if (skipped.length === 0) return rulesyncHooks;
+
+    this.logger.warn(
+      `Skipped hook(s) with an "if" condition for ${this.toolTarget} (only the ${targetsSupporting("supportsPerHookIf")} hooks formats support it, and without it the hook would run on every call its matcher selects): ${skipped.join(", ")}`,
+    );
+    return new RulesyncHooks({
+      outputRoot: rulesyncHooks.getOutputRoot(),
+      relativeDirPath: rulesyncHooks.getRelativeDirPath(),
+      relativeFilePath: rulesyncHooks.getRelativeFilePath(),
+      fileContent: JSON.stringify(filteredConfig),
+      validate: false,
+    });
   }
 
   /**
