@@ -739,6 +739,39 @@ describe("convertAntigravityToRulesyncPermissions with prototype-pollution names
   });
 });
 
+describe("convertAntigravityToRulesyncPermissions with path targets", () => {
+  const convert = (deny: string[]) =>
+    convertAntigravityToRulesyncPermissions({
+      allow: [],
+      ask: [],
+      deny,
+      toCategory: (action) => (action === "write_file" ? "write" : action),
+      toolLabel: "Antigravity",
+      logger: createMockLogger(),
+    }).permission;
+
+  it("imports a plain path as the path and its subtree, since a directory covers its contents", () => {
+    expect(convert(["write_file(src)", "write_file(/etc/ssl/)"])).toEqual({
+      write: {
+        src: "deny",
+        "src/**": "deny",
+        "/etc/ssl/": "deny",
+        "/etc/ssl/**": "deny",
+      },
+    });
+  });
+
+  it("imports the workspace root as . and **", () => {
+    expect(convert(["write_file(.)"])).toEqual({ write: { ".": "deny", "**": "deny" } });
+  });
+
+  it("keeps the bare * and targets that already hold glob characters as written", () => {
+    expect(convert(["write_file(*)", "write_file(**/*.env)"])).toEqual({
+      write: { "*": "deny", "**/*.env": "deny" },
+    });
+  });
+});
+
 describe("convertAntigravityToRulesyncPermissions with a home directory", () => {
   const convert = (deny: string[], homeDirectory?: string) =>
     convertAntigravityToRulesyncPermissions({
@@ -757,18 +790,27 @@ describe("convertAntigravityToRulesyncPermissions with a home directory", () => 
         ["read_file(/home/me/x.txt)", "read_file(/home/me)", "read_file(/home/meme/x)"],
         "/home/me",
       ),
-    ).toEqual({ read: { "~/x.txt": "deny", "~": "deny", "/home/meme/x": "deny" } });
+    ).toEqual({
+      read: {
+        "~/x.txt": "deny",
+        "~/x.txt/**": "deny",
+        "~": "deny",
+        "~/**": "deny",
+        "/home/meme/x": "deny",
+        "/home/meme/x/**": "deny",
+      },
+    });
   });
 
   it("imports a Windows home path written with forward slashes", () => {
     expect(convert(["read_file(C:/Users/me/x.txt)"], "C:\\Users\\me")).toEqual({
-      read: { "~/x.txt": "deny" },
+      read: { "~/x.txt": "deny", "~/x.txt/**": "deny" },
     });
   });
 
   it("keeps absolute paths without a home directory", () => {
     expect(convert(["read_file(/home/me/x.txt)"])).toEqual({
-      read: { "/home/me/x.txt": "deny" },
+      read: { "/home/me/x.txt": "deny", "/home/me/x.txt/**": "deny" },
     });
   });
 
