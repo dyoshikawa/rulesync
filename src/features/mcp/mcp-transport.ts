@@ -117,6 +117,56 @@ export function warnAndSkipMcpServer({
 }
 
 /**
+ * Drops every server whose `enabledTools` allowlist is empty, warning about
+ * each one, for a tool that reads an empty (or missing) allowlist as "no
+ * filter". Canonically an empty allowlist allows no tools at all, so emitting
+ * the server unfiltered would expose every tool it reports. With
+ * `ignoreBlankNames`, blank entries count as absent, for a tool that drops
+ * them before applying the list. `productName` names the tool in the reason
+ * when it differs from the `toolName` the warning starts with.
+ */
+export function skipServersWithEmptyEnabledTools<TServer extends { enabledTools?: unknown }>({
+  mcpServers,
+  toolName,
+  logger,
+  ignoreBlankNames = false,
+  productName = toolName,
+}: {
+  mcpServers: Record<string, TServer>;
+  toolName: string;
+  logger?: Logger;
+  ignoreBlankNames?: boolean;
+  productName?: string;
+}): Record<string, TServer> {
+  const kept: Record<string, TServer> = {};
+  for (const [name, server] of Object.entries(mcpServers)) {
+    const { enabledTools } = server;
+    if (Array.isArray(enabledTools)) {
+      const names = ignoreBlankNames
+        ? enabledTools.filter((tool) => typeof tool !== "string" || tool.trim() !== "")
+        : enabledTools;
+      if (names.length === 0) {
+        warnAndSkipMcpServer({
+          toolName,
+          serverName: name,
+          reason: `an empty enabledTools list, which allows no tools at all but which ${productName} treats as no filter`,
+          logger,
+        });
+        continue;
+      }
+    }
+    // Defined rather than assigned, so a server named `__proto__` stays a key.
+    Object.defineProperty(kept, name, {
+      value: server,
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    });
+  }
+  return kept;
+}
+
+/**
  * The `tools` map Kilo and OpenCode keep beside `mcp` is keyed `<server>_<tool>`
  * and reaches servers `mcp` does not list — ones the global config or a
  * marketplace defines — so entries naming no listed

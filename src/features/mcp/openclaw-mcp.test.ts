@@ -117,7 +117,6 @@ describe("OpenclawMcp", () => {
             timeout: 5,
             alwaysAllow: ["x"],
             oauth: { client_id: "hermes-only" },
-            enabledTools: [],
           },
         },
       });
