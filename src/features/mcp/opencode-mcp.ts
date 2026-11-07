@@ -45,6 +45,7 @@ import {
   resolveLocalMcpCommand,
   resolveRemoteMcpUrl,
   splitMcpServersByTransport,
+  skipServersWithEmptyEnabledTools,
   warnAndSkipMcpServer,
 } from "./mcp-transport.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
@@ -826,7 +827,11 @@ export class OpencodeMcp extends ToolMcp {
       }
     }
 
-    const mcpServers = rulesyncMcp.getMcpServers();
+    const mcpServers = skipServersWithEmptyEnabledTools({
+      mcpServers: rulesyncMcp.getMcpServers(),
+      toolName: "OpenCode",
+      logger,
+    });
     const transformedServers = convertEnvVarRefsToToolFormat({
       mcpServers,
       replacement: "{env:$1}",

@@ -44,6 +44,7 @@ import {
   resolveLocalMcpCommand,
   resolveRemoteMcpUrl,
   splitMcpServersByTransport,
+  skipServersWithEmptyEnabledTools,
   warnAndSkipMcpServer,
 } from "./mcp-transport.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
@@ -887,7 +888,11 @@ export class KiloMcp extends ToolMcp {
     const parsedExisting: unknown = parseJsonc(fileContent || "{}");
     const existingDocument = isRecord(parsedExisting) ? parsedExisting : {};
 
-    const mcpServers = rulesyncMcp.getMcpServers();
+    const mcpServers = skipServersWithEmptyEnabledTools({
+      mcpServers: rulesyncMcp.getMcpServers(),
+      toolName: "Kilo",
+      logger,
+    });
     const { mcp: convertedMcp, toolPermissions } = convertToKiloFormat(
       resolveKiloEnvVarRefs({ mcpServers, global, logger }),
       existingMcp,

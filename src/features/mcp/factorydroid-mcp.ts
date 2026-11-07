@@ -4,10 +4,8 @@ import {
   FACTORYDROID_DIR,
   FACTORYDROID_MCP_FILE_NAME,
 } from "../../constants/factorydroid-paths.js";
-import type { McpServers } from "../../types/mcp.js";
 import { readFileContent } from "../../utils/file.js";
-import type { Logger } from "../../utils/logger.js";
-import { warnAndSkipMcpServer } from "./mcp-transport.js";
+import { skipServersWithEmptyEnabledTools } from "./mcp-transport.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -19,39 +17,6 @@ import {
 } from "./tool-mcp.js";
 
 const TOOL_NAME = "factorydroid";
-
-/**
- * Drop servers whose `enabledTools` allowlist is empty.
- *
- * Canonically an empty allowlist allows no tools, but Droid applies
- * `enabledTools` only "when the list is non-empty"
- * (https://docs.factory.com/harness/mcp), so writing `[]` would load every
- * tool the server reports. Skipping the server is the only form that does not
- * hand the model more tools than the canonical config allows.
- */
-function skipEmptyAllowlistServers({
-  mcpServers,
-  logger,
-}: {
-  mcpServers: McpServers;
-  logger?: Logger;
-}): McpServers {
-  const kept: McpServers = {};
-  for (const [name, server] of Object.entries(mcpServers)) {
-    if (server.enabledTools?.length === 0) {
-      warnAndSkipMcpServer({
-        toolName: TOOL_NAME,
-        serverName: name,
-        reason:
-          "an empty enabledTools list, which allows no tools at all but which Factory Droid treats as no filter",
-        logger,
-      });
-      continue;
-    }
-    kept[name] = server;
-  }
-  return kept;
-}
 
 export class FactorydroidMcp extends ToolMcp {
   private readonly json: Record<string, unknown>;
@@ -102,8 +67,10 @@ export class FactorydroidMcp extends ToolMcp {
     // Use getMcpServers() (not getJson()) so rulesync-only fields and
     // codex-only fields (`envVars`) are stripped before writing the
     // Factory Droid config.
-    const mcpServers = skipEmptyAllowlistServers({
+    const mcpServers = skipServersWithEmptyEnabledTools({
       mcpServers: rulesyncMcp.getMcpServers(),
+      toolName: TOOL_NAME,
+      productName: "Factory Droid",
       logger,
     });
 

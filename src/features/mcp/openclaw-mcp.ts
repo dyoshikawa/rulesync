@@ -22,6 +22,7 @@ import {
   isRemoteMcpServer,
   resolveLocalMcpCommand,
   resolveRemoteMcpUrl,
+  skipServersWithEmptyEnabledTools,
   warnAndSkipMcpServer,
 } from "./mcp-transport.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
@@ -418,7 +419,16 @@ export class OpenclawMcp extends ToolMcp {
     const existingServers = isRecord(existingMcp[OPENCLAW_MCP_SERVERS_KEY])
       ? existingMcp[OPENCLAW_MCP_SERVERS_KEY]
       : {};
-    const converted = convertToOpenclawFormat({ mcpServers: rulesyncMcp.getMcpServers(), logger });
+    const converted = convertToOpenclawFormat({
+      // OpenClaw drops blank tool names, so a list of only blanks is empty too.
+      mcpServers: skipServersWithEmptyEnabledTools({
+        mcpServers: rulesyncMcp.getMcpServers(),
+        toolName: "OpenClaw",
+        ignoreBlankNames: true,
+        logger,
+      }),
+      logger,
+    });
     const servers = { ...existingServers, ...converted };
 
     // Servers are merged, never retracted: one removed from the rulesync

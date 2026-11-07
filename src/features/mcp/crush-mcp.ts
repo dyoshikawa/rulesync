@@ -23,6 +23,7 @@ import {
   resolveHttpOrSseRemoteType,
   resolveLocalMcpCommand,
   resolveRemoteMcpUrl,
+  skipServersWithEmptyEnabledTools,
   warnAndSkipMcpServer,
 } from "./mcp-transport.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
@@ -428,7 +429,13 @@ export class CrushMcp extends ToolMcp {
     // The `crush*` keys are stripped by `getMcpServers()` so they cannot leak
     // into other tools' configs; read them back off the unfiltered source JSON.
     const mcpServers = Object.fromEntries(
-      Object.entries(rulesyncMcp.getMcpServers()).map(([serverName, serverConfig]) => [
+      Object.entries(
+        skipServersWithEmptyEnabledTools({
+          mcpServers: rulesyncMcp.getMcpServers(),
+          toolName: "Crush",
+          logger,
+        }),
+      ).map(([serverName, serverConfig]) => [
         serverName,
         {
           ...serverConfig,
