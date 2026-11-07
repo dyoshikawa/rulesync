@@ -16,6 +16,7 @@ import {
   formatCuratedCaseCollisionWarning,
   groupSpellingsByCaseFoldedIdentity,
   mergeByCaseInsensitiveIdentity,
+  sweepRefusalReason,
 } from "../../types/feature-processor.js";
 import { skillsProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import { ToolTarget } from "../../types/tool-targets.js";
@@ -1429,6 +1430,10 @@ export class SkillsProcessor extends DirFeatureProcessor {
     });
   }
 
+  protected override sweepsThroughInRootLinks(): boolean {
+    return this.global;
+  }
+
   /**
    * The tool's skills roots that exist on disk, each paired with its absolute
    * path and vetted as writable inside this run's output root. Shared by the
@@ -1462,6 +1467,21 @@ export class SkillsProcessor extends DirFeatureProcessor {
         this.logger.warn(
           `Skipping the orphan sweep for ${quoteForLog(skillsDirPath)}; nothing under it is ` +
             `deleted: ${stripControlCharacters(formatError(error))}`,
+        );
+        continue;
+      }
+      // `assertWritablePathInsideRoot` checks the deepest existing path only; a
+      // link further up (a committed `.cursor -> .claude`) would let this
+      // target's sweep delete another directory's skills.
+      const sweepRefusal = await sweepRefusalReason({
+        rootPath: this.outputRoot,
+        dirPath: skillsDirPath,
+        allowInRootLinks: this.sweepsThroughInRootLinks(),
+      });
+      if (sweepRefusal !== null) {
+        this.logger.warn(
+          `Skipping the orphan sweep for ${quoteForLog(skillsDirPath)}; nothing under it is ` +
+            `deleted: ${sweepRefusal}`,
         );
         continue;
       }

@@ -9,6 +9,7 @@ import {
   addTrailingNewline,
   applyFileMode,
   assertDirectoryIfExists,
+  assertLandingOutsideVcsMetadata,
   assertNoSymlinkBelowRoot,
   assertTreeContainsNoSymlinks,
   assertPathResolvesInsideRoot,
@@ -26,6 +27,7 @@ import {
   isFileNotFoundError,
   isFileSystemError,
   isPresentButUnresolvable,
+  landingEntersVcsMetadata,
   listDirectoryEntryNames,
   listFileNames,
   listFilePathsRecursively,
@@ -2490,5 +2492,88 @@ describe("file utilities", () => {
         );
       },
     );
+  });
+});
+
+describe("landingEntersVcsMetadata", () => {
+  const root = resolve("/project");
+
+  it.each([".git", ".GIT", ".hg", ".svn", ".jj", ".git.", ".git ", ".git::$DATA", "GIT~1"])(
+    "reports a landing in %s that the spelling does not name",
+    (dir) => {
+      expect(
+        landingEntersVcsMetadata({
+          rootPath: root,
+          targetPath: join(root, "CLAUDE.md"),
+          relativeLanding: join(dir, "config"),
+        }),
+      ).toBe(true);
+    },
+  );
+
+  it("allows a path spelled into .git", () => {
+    expect(
+      landingEntersVcsMetadata({
+        rootPath: root,
+        targetPath: join(root, ".git", "info", "exclude"),
+        relativeLanding: join(".git", "info", "exclude"),
+      }),
+    ).toBe(false);
+  });
+
+  it("allows a landing elsewhere in the root", () => {
+    expect(
+      landingEntersVcsMetadata({
+        rootPath: root,
+        targetPath: join(root, "CLAUDE.md"),
+        relativeLanding: join("docs", ".gitkeep"),
+      }),
+    ).toBe(false);
+  });
+});
+
+describe("assertLandingOutsideVcsMetadata", () => {
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+  });
+
+  afterEach(async () => {
+    await cleanup();
+  });
+
+  it.skipIf(process.platform === "win32")("refuses a dangling link into .git/hooks", async () => {
+    await ensureDir(join(testDir, ".git", "hooks"));
+    await symlink(join(".git", "hooks", "pre-commit"), join(testDir, "AGENTS.md"));
+
+    await expect(
+      assertLandingOutsideVcsMetadata({
+        rootPath: testDir,
+        targetPath: join(testDir, "AGENTS.md"),
+      }),
+    ).rejects.toThrow(PathOutsideRootError);
+  });
+
+  it.skipIf(process.platform === "win32")("refuses a link cycle", async () => {
+    await symlink("b", join(testDir, "a"));
+    await symlink("a", join(testDir, "b"));
+
+    await expect(
+      assertLandingOutsideVcsMetadata({ rootPath: testDir, targetPath: join(testDir, "a", "x") }),
+    ).rejects.toThrow("link cycle");
+  });
+
+  it.skipIf(process.platform === "win32")("allows a link that stays outside .git", async () => {
+    await ensureDir(join(testDir, "shared"));
+    await symlink("shared", join(testDir, "linked"));
+
+    await expect(
+      assertLandingOutsideVcsMetadata({
+        rootPath: testDir,
+        targetPath: join(testDir, "linked", "SKILL.md"),
+      }),
+    ).resolves.toBeUndefined();
   });
 });

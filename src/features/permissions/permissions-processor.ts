@@ -709,6 +709,10 @@ export class PermissionsProcessor extends FeatureProcessor {
   private readonly toolTarget: PermissionsProcessorToolTarget;
   private readonly global: boolean;
 
+  protected override sweepsThroughInRootLinks(): boolean {
+    return this.global;
+  }
+
   constructor({
     outputRoot = process.cwd(),
     inputRoots,

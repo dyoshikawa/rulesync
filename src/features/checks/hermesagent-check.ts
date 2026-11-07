@@ -12,7 +12,10 @@ import {
 import { RULESYNC_CHECKS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { ToolFile } from "../../types/tool-file.js";
+import { stripControlCharacters } from "../../utils/control-characters.js";
 import { readFileContent, readFileContentOrNull, toPosixPath } from "../../utils/file.js";
+import { hasWindowsFoldableName } from "../../utils/remote-name.js";
+import { slugifyCheckName } from "./check-slug.js";
 import { RulesyncCheck } from "./rulesync-check.js";
 import {
   ToolCheck,
@@ -227,12 +230,46 @@ export class HermesagentCheck extends ToolCheck {
     }
   }
 
+  /**
+   * The `.rulesync/checks/<stem>.md` name an imported spec gets. The slug is
+   * read from a spec file that may come from a fetched or cloned repository,
+   * so it is kept as written only when it is a single plain file name; a slug
+   * such as `../../docs/OPERATOR` would otherwise move the write out of
+   * `.rulesync/checks/`. Anything else is slugified, and an empty result falls
+   * back to the spec file's own name.
+   */
+  private importedCheckStem(slug: string): string {
+    const isPlainFileName = (name: string): boolean =>
+      name !== "" &&
+      name !== "." &&
+      name !== ".." &&
+      !/[/\\<>:"|?*]/.test(name) &&
+      // Trailing dot or space, an 8.3 short-name alias, or a reserved device
+      // name such as `NUL`: Windows would open another file than the one named.
+      !hasWindowsFoldableName(name) &&
+      stripControlCharacters(name) === name;
+    if (isPlainFileName(slug)) {
+      return slug;
+    }
+    for (const candidate of [
+      slugifyCheckName(slug),
+      slugifyCheckName(basename(this.relativeFilePath, ".json")),
+    ]) {
+      if (candidate === "") {
+        continue;
+      }
+      // A slugified reserved name (`nul`) is still reserved; a suffix frees it.
+      return isPlainFileName(candidate) ? candidate : `${candidate}-check`;
+    }
+    return "check";
+  }
+
   toRulesyncCheck(): RulesyncCheck {
     const spec: HermesCheckSpec = HermesCheckSpecSchema.parse(JSON.parse(this.fileContent));
     return new RulesyncCheck({
       outputRoot: ".",
       relativeDirPath: RULESYNC_CHECKS_RELATIVE_DIR_PATH,
-      relativeFilePath: `${spec.slug}.md`,
+      relativeFilePath: `${this.importedCheckStem(spec.slug)}.md`,
       frontmatter: {
         targets: ["*"],
         description: spec.description,

@@ -1,4 +1,4 @@
-import { dirname, join } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 
 import { diffSharedConfigOwnedKeys } from "../features/shared/shared-config-gateway.js";
 import type { KeyOperation } from "../lib/orphan-sweep.js";
@@ -8,11 +8,12 @@ import {
   addTrailingNewline,
   applyFileMode,
   fileExistsStrict,
+  landingEntersVcsMetadata,
+  pathEscapesRoot,
   restoreMissingExecutableBit,
   readFileContentOrNull,
   relativeWriteLanding,
   removeFile,
-  writablePathEscapesRoot,
   writeFileContent,
 } from "../utils/file.js";
 import type { Logger } from "../utils/logger.js";
@@ -181,7 +182,12 @@ export abstract class FeatureProcessor extends RulesyncSourceConsumer {
       let refused = refusedDirs.get(cacheKey);
       if (refused === undefined) {
         // Asked before the dry-run branch so `--check` and a real run agree.
-        refused = await refusesDeleteOutsideRoot({ logger: this.logger, rootPath, dirPath });
+        refused = await refusesDeleteOutsideRoot({
+          logger: this.logger,
+          rootPath,
+          dirPath,
+          allowInRootLinks: this.sweepsThroughInRootLinks(),
+        });
         refusedDirs.set(cacheKey, refused);
       }
       if (refused) {
@@ -336,14 +342,36 @@ export function mergeByIdentity<T>({
 }
 
 /**
- * Whether a write to `targetPath` has to be refused because a link on the way
- * there leads out of `rootPath`, warning about the refusal.
+ * Why a write to `targetPath` has to be refused, or `null` when it may go
+ * ahead: a link on the way there leads out of `rootPath`, or into
+ * version-control metadata that the path as spelled does not name.
  *
  * A checked-out repository can carry a symbolic link at an output path
- * (`AGENTS.md -> ~/.bashrc`, a tool directory linked to `/etc`), and a write
- * through it would land wherever the link points. Every writer that lets the
- * OS follow links — file, directory, and config-rewrite alike — asks this first
- * so that one warning describes the one behavior.
+ * (`AGENTS.md -> ~/.bashrc`, a tool directory linked to `/etc`, `CLAUDE.md ->
+ * .git/config`), and a write through it would land wherever the link points.
+ */
+export async function writeRefusalReason({
+  rootPath,
+  targetPath,
+}: {
+  rootPath: string;
+  targetPath: string;
+}): Promise<string | null> {
+  const relativeLanding = await relativeWriteLanding({ rootPath, targetPath });
+  if (relativeLanding === null || pathEscapesRoot(relativeLanding)) {
+    return `it resolves outside ${quoteForLog(rootPath)} through a symbolic link`;
+  }
+  if (landingEntersVcsMetadata({ rootPath, targetPath, relativeLanding })) {
+    return "it resolves into version-control metadata through a symbolic link";
+  }
+  return null;
+}
+
+/**
+ * Whether a write to `targetPath` has to be refused (see
+ * {@link writeRefusalReason}), warning about the refusal. Every writer that
+ * lets the OS follow links — file, directory, and config-rewrite alike — asks
+ * this first so that one warning describes the one behavior.
  */
 export async function refusesWriteOutsideRoot({
   logger,
@@ -354,20 +382,17 @@ export async function refusesWriteOutsideRoot({
   rootPath: string;
   targetPath: string;
 }): Promise<boolean> {
-  if (!(await writablePathEscapesRoot({ rootPath, targetPath }))) {
+  const reason = await writeRefusalReason({ rootPath, targetPath });
+  if (reason === null) {
     return false;
   }
-  logger.warn(
-    `Refusing to write ${quoteForLog(targetPath)}: it resolves outside ` +
-      `${quoteForLog(rootPath)} through a symbolic link`,
-  );
+  logger.warn(`Refusing to write ${quoteForLog(targetPath)}: ${reason}`);
   return true;
 }
 
 /**
- * Whether deleting the files in `dirPath` has to be refused because a link on
- * the way to that directory leads out of `rootPath`, warning about the refusal
- * once for the whole directory.
+ * Why the orphan sweep has to leave the files in `dirPath` alone, or `null`
+ * when it may delete them.
  *
  * Deletion candidates are enumerated without following links *inside* the
  * scanned directory, but the scanned directory itself is reached through
@@ -376,23 +401,56 @@ export async function refusesWriteOutsideRoot({
  * an orphan. Only the directory is judged, never the file in it, because
  * removing a file that is itself a link unlinks the link where it is spelled
  * and never touches its target.
+ *
+ * Beyond the write rules, a project checkout is content another party may
+ * control: a committed `.claude/rules -> ..` would make every untracked `*.md`
+ * in the project read as an orphan. Unless `allowInRootLinks` (global scope,
+ * where the root is the operator's own home directory) the swept directory
+ * must therefore be the one its path spells, with no link on the way.
+ */
+export async function sweepRefusalReason({
+  rootPath,
+  dirPath,
+  allowInRootLinks,
+}: {
+  rootPath: string;
+  dirPath: string;
+  allowInRootLinks: boolean;
+}): Promise<string | null> {
+  const relativeLanding = await relativeWriteLanding({ rootPath, targetPath: dirPath });
+  if (relativeLanding === null || pathEscapesRoot(relativeLanding)) {
+    return `it resolves outside ${quoteForLog(rootPath)} through a symbolic link`;
+  }
+  if (landingEntersVcsMetadata({ rootPath, targetPath: dirPath, relativeLanding })) {
+    return "it resolves into version-control metadata through a symbolic link";
+  }
+  if (!allowInRootLinks && relativeLanding !== relative(resolve(rootPath), resolve(dirPath))) {
+    return "it is reached through a symbolic link";
+  }
+  return null;
+}
+
+/**
+ * Whether deleting the files in `dirPath` has to be refused (see
+ * {@link sweepRefusalReason}), warning about the refusal once for the whole
+ * directory.
  */
 async function refusesDeleteOutsideRoot({
   logger,
   rootPath,
   dirPath,
+  allowInRootLinks,
 }: {
   logger: Logger;
   rootPath: string;
   dirPath: string;
+  allowInRootLinks: boolean;
 }): Promise<boolean> {
-  if (!(await writablePathEscapesRoot({ rootPath, targetPath: dirPath }))) {
+  const reason = await sweepRefusalReason({ rootPath, dirPath, allowInRootLinks });
+  if (reason === null) {
     return false;
   }
-  logger.warn(
-    `Refusing to delete files in ${quoteForLog(dirPath)}: it resolves outside ` +
-      `${quoteForLog(rootPath)} through a symbolic link`,
-  );
+  logger.warn(`Refusing to delete files in ${quoteForLog(dirPath)}: ${reason}`);
   return true;
 }
 

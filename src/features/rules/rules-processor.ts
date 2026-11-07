@@ -271,6 +271,10 @@ export class RulesProcessor extends FeatureProcessor {
   private readonly language: Language | undefined;
   private readonly deriveSubprojectPathFromGlobs: boolean;
   private readonly global: boolean;
+
+  protected override sweepsThroughInRootLinks(): boolean {
+    return this.global;
+  }
   private readonly getFactory: GetFactory;
   private readonly skills?: RulesyncSkill[];
   private readonly featureOptions?: FeatureOptions;
