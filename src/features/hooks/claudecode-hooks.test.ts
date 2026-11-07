@@ -1114,6 +1114,63 @@ describe("ClaudecodeHooks", () => {
   });
 
   describe("toRulesyncHooks", () => {
+    it.each([
+      ["a newline", "Bash(git status *)\n"],
+      ["a non-string value", 42],
+    ])(
+      "should skip a hook whose if condition holds %s instead of importing it unconditionally",
+      (_label, condition) => {
+        const warnLogger = createMockLogger();
+        const claudecodeHooks = new ClaudecodeHooks({
+          outputRoot: testDir,
+          relativeDirPath: ".claude",
+          relativeFilePath: "settings.json",
+          fileContent: JSON.stringify({
+            hooks: {
+              PreToolUse: [
+                {
+                  matcher: "Bash",
+                  hooks: [
+                    { type: "command", command: "./approve.sh", if: condition },
+                    { type: "command", command: "./audit.sh" },
+                  ],
+                },
+              ],
+            },
+          }),
+          validate: false,
+        });
+
+        const hooks = claudecodeHooks.toRulesyncHooks({ logger: warnLogger }).getJson().hooks;
+        expect(hooks.preToolUse).toEqual([
+          { type: "command", command: "./audit.sh", matcher: "Bash" },
+        ]);
+        expect(warnLogger.warn).toHaveBeenCalledWith(
+          expect.stringContaining('Skipping a hook while importing: its "if"'),
+        );
+      },
+    );
+
+    it("should import a hook with an empty if condition as unconditional", () => {
+      const claudecodeHooks = new ClaudecodeHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".claude",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          hooks: {
+            PreToolUse: [
+              { matcher: "Bash", hooks: [{ type: "command", command: "./audit.sh", if: "" }] },
+            ],
+          },
+        }),
+        validate: false,
+      });
+
+      expect(claudecodeHooks.toRulesyncHooks().getJson().hooks.preToolUse).toEqual([
+        { type: "command", command: "./audit.sh", matcher: "Bash" },
+      ]);
+    });
+
     it("should throw error with descriptive message when content contains invalid JSON", () => {
       const claudecodeHooks = new ClaudecodeHooks({
         outputRoot: testDir,

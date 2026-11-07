@@ -15,6 +15,7 @@ import {
 } from "../constants/rulesync-paths.js";
 import type { GitHubFileEntry, ParsedSource } from "../types/fetch.js";
 import { mapWithConcurrency } from "../utils/concurrency.js";
+import { quoteForLog } from "../utils/control-characters.js";
 import { formatError } from "../utils/error.js";
 import type { Logger } from "../utils/logger.js";
 import { GitHubClient, GitHubClientError } from "./github-client.js";
@@ -640,7 +641,7 @@ export async function fetchRulesViaGithub(params: {
   for (const { entry, name } of remoteRules) {
     if (entry.size > MAX_FILE_SIZE) {
       logger.warn(
-        `Skipping rule "${entry.path}" (${formatMegabytes(entry.size)}MB exceeds ${MAX_FILE_SIZE_MB}MB limit).`,
+        `Skipping rule ${quoteForLog(entry.path)} (${formatMegabytes(entry.size)}MB exceeds ${MAX_FILE_SIZE_MB}MB limit).`,
       );
       continue;
     }
@@ -785,7 +786,7 @@ async function fetchRootLevelFallbackSkill(params: {
   for (const file of rootFiles) {
     if (file.size > MAX_FILE_SIZE) {
       logger.warn(
-        `Skipping file "${file.path}" (${formatMegabytes(file.size)}MB exceeds ${MAX_FILE_SIZE_MB}MB limit).`,
+        `Skipping file ${quoteForLog(file.path)} (${formatMegabytes(file.size)}MB exceeds ${MAX_FILE_SIZE_MB}MB limit).`,
       );
       continue;
     }
@@ -828,7 +829,7 @@ async function fetchRootLevelFallbackSkill(params: {
       frozen,
       logger,
     });
-    logger.debug(`Fetched skill "${fallbackSkillName}" from ${sourceKey}`);
+    logger.debug(`Fetched skill ${quoteForLog(fallbackSkillName)} from ${sourceKey}`);
   }
 
   return { handled: true, remoteSkillNames: [fallbackSkillName] };
@@ -881,7 +882,7 @@ async function fetchGithubSkillDir(params: {
   const files = allFiles.filter((file) => {
     if (file.size > MAX_FILE_SIZE) {
       logger.warn(
-        `Skipping file "${file.path}" (${formatMegabytes(file.size)}MB exceeds ${MAX_FILE_SIZE_MB}MB limit).`,
+        `Skipping file ${quoteForLog(file.path)} (${formatMegabytes(file.size)}MB exceeds ${MAX_FILE_SIZE_MB}MB limit).`,
       );
       return false;
     }
@@ -1187,7 +1188,7 @@ export async function fetchSource(params: {
       frozen,
       logger,
     });
-    logger.debug(`Fetched skill "${skillDir.name}" from ${sourceKey}`);
+    logger.debug(`Fetched skill ${quoteForLog(skillDir.name)} from ${sourceKey}`);
   }
 
   const result = buildLockUpdate({

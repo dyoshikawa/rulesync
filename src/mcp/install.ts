@@ -4,7 +4,7 @@ import { ConfigResolver } from "../config/config-resolver.js";
 import { INSTALL_MODES, installCommand } from "../lib/install.js";
 import { CLIError, ErrorCodes } from "../types/json-output.js";
 import { type McpCommandResult, runCommandForMcp, stringifyResult } from "./command-runner.js";
-import { assertOptionalPathOptionWithinCwd } from "./path-options.js";
+import { assertFileSourceWithinCwd, assertOptionalPathOptionWithinCwd } from "./path-options.js";
 
 /**
  * Schema for install options
@@ -52,16 +52,30 @@ function recoverOutdatedReport({
 }
 
 /**
- * gh mode installs a source declared with `scope: "user"` under the home
- * directory. The MCP server only writes inside the project, so such a config
- * is refused before anything is installed.
+ * Refuses a config whose sources the MCP server must not install, before
+ * anything is installed:
+ *
+ * - a `file://` source outside the project, which would copy content from any
+ *   local repository the operator can read into the project — the same
+ *   containment MCP `add` enforces on its argument, applied here because a
+ *   model can declare such a source through `mcp put` or a project file;
+ * - in gh mode, a source declared with `scope: "user"`, which installs under
+ *   the home directory, while the MCP server only writes inside the project.
  */
-async function assertNoUserScopeSources({
+async function assertInstallableSources({
   configPath,
+  mode,
 }: {
   configPath: string | undefined;
+  mode: InstallOptions["mode"];
 }): Promise<void> {
   const config = await ConfigResolver.resolve({ configPath, verbose: false, silent: true });
+  for (const source of config.getSources()) {
+    await assertFileSourceWithinCwd(source.source);
+  }
+  if (mode !== "gh") {
+    return;
+  }
   const userScoped = config
     .getSources()
     .filter((source) => source.scope === "user")
@@ -82,9 +96,7 @@ export async function executeInstall(options: InstallOptions = {}): Promise<McpC
   return await runCommandForMcp({
     run: async (logger) => {
       await assertOptionalPathOptionWithinCwd({ path: options.configPath, label: "configPath" });
-      if (options.mode === "gh") {
-        await assertNoUserScopeSources({ configPath: options.configPath });
-      }
+      await assertInstallableSources({ configPath: options.configPath, mode: options.mode });
       await installCommand(logger, { ...options, verbose: false, silent: true });
     },
     recover: ({ error }) => recoverOutdatedReport({ options, error }),

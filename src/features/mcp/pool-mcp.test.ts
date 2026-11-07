@@ -137,7 +137,7 @@ describe("PoolMcp", () => {
             poolAllow: ["read_*"],
             disabled: true,
           },
-          "empty-filters": { command: "srv", enabledTools: [], disabledTools: [], poolAllow: [] },
+          "empty-filters": { command: "srv", disabledTools: [], poolAllow: [] },
           "bare-allow": { command: "srv", allow: ["read_*"] },
         }),
       });

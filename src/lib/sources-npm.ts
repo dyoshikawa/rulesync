@@ -9,6 +9,7 @@ import {
   MAX_FILE_SIZE_MB,
   RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
+import { quoteForLog } from "../utils/control-characters.js";
 import { isRootDirPath, normalizePosixDirPath } from "../utils/file.js";
 import type { Logger } from "../utils/logger.js";
 import {
@@ -202,7 +203,7 @@ function extractNpmRemoteFiles(params: { tarball: Buffer; logger: Logger }): Rem
   for (const entry of extracted) {
     if (entry.content.length > MAX_FILE_SIZE) {
       logger.warn(
-        `Skipping file "${entry.relativePath}" (${formatMegabytes(entry.content.length)}MB exceeds ${MAX_FILE_SIZE_MB}MB limit).`,
+        `Skipping file ${quoteForLog(entry.relativePath)} (${formatMegabytes(entry.content.length)}MB exceeds ${MAX_FILE_SIZE_MB}MB limit).`,
       );
       continue;
     }
@@ -358,7 +359,7 @@ async function fetchNpmSkills(params: {
       frozen,
       logger,
     });
-    logger.debug(`Fetched skill "${skillName}" from ${packageName}`);
+    logger.debug(`Fetched skill ${quoteForLog(skillName)} from ${packageName}`);
   }
   return { fetchedSkills, remoteSkillNames };
 }

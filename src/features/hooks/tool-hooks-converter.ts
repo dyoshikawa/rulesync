@@ -1914,6 +1914,15 @@ function definingFields({
   if (hookType === "mcp_tool") {
     fields.push({ field: "server", value: h.server }, { field: "tool", value: h.tool });
   }
+  // `if` narrows when the hook runs, like `matcher`: importing the hook
+  // without an unusable condition would make it fire on every call its
+  // matcher selects. An empty string carries no condition and is left to the
+  // passthrough import, which drops it.
+  for (const { canonical, tool } of converterConfig.stringPassthroughFields ?? []) {
+    if (canonical === "if" && h[tool] !== "") {
+      fields.push({ field: "if", value: h[tool] });
+    }
+  }
   return fields;
 }
 
