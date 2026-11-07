@@ -16,7 +16,8 @@ import { getOrCreateOwn, lookupOwn } from "../../utils/own-lookup.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { honorAllToolsOnBash, MCP_CATEGORY_PREFIX } from "./shell-command-categories.js";
+import { honorAllToolsRestrictions, withholdAllowsShadowedByAsks } from "./shadowed-allows.js";
+import { MCP_CATEGORY_PREFIX } from "./shell-command-categories.js";
 import { buildToolPatternEntry, parseToolPatternEntry } from "./tool-pattern-entry.js";
 import {
   ToolPermissions,
@@ -520,7 +521,20 @@ function convertRulesyncToCursorPermissions(
   const allow: string[] = [];
   const deny: string[] = [];
 
-  for (const [category, rules] of Object.entries(honorAllToolsOnBash(config.permission))) {
+  // Cursor has no ask tier and no rule spanning every tool: a skipped ask, or a
+  // pattern-specific `*` restriction, withholds the allows that cover it.
+  const permission = withholdAllowsShadowedByAsks({
+    permission: honorAllToolsRestrictions({
+      permission: config.permission,
+      toolLabel: "Cursor CLI",
+      logger,
+      dropAllToolsPatterns: true,
+    }),
+    toolLabel: "Cursor CLI",
+    logger,
+    groupOf: toCursorType,
+  });
+  for (const [category, rules] of Object.entries(permission)) {
     const cursorType = toCursorType(category);
     for (const [pattern, action] of Object.entries(rules)) {
       const cursorPattern = toCursorPattern(category, pattern);

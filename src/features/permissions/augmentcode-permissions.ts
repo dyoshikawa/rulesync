@@ -26,6 +26,7 @@ import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+import { honorAllToolsRestrictions } from "./shadowed-allows.js";
 import { bashRulesHonoringAllTools } from "./shell-command-categories.js";
 import { isStricterAction } from "./single-action-collapse.js";
 import {
@@ -841,10 +842,20 @@ function convertRulesyncToAugmentEntries({
   // AugmentCode has no wildcard toolName, so resolve the all-tools restrictions into its exact
   // shell tool even when the source did not state a separate `bash` category.
   const resolvedBashRules = bashRulesHonoringAllTools(config.permission);
+  // The managed tools with a category of their own lose the allows a
+  // pattern-specific `*` restriction covers, since their entries cannot carry
+  // the pattern. The `*` catch-all is the default for tools with no rules of
+  // their own (see below), so it stays out of this.
+  const honoredPermission = honorAllToolsRestrictions({
+    permission: config.permission,
+    toolLabel: "AugmentCode",
+    logger,
+    writesAllToolsCatchAll: true,
+  });
   const permission =
     config.permission.bash !== undefined || Object.keys(resolvedBashRules).length > 0
-      ? { ...config.permission, bash: resolvedBashRules }
-      : config.permission;
+      ? { ...honoredPermission, bash: resolvedBashRules }
+      : honoredPermission;
 
   // The other managed tools (view / save-file / str-replace-editor / web-fetch / web-search) have
   // no per-input matcher either, so an all-tools restriction can only be carried as a blanket

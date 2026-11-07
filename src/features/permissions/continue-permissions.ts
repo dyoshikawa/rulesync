@@ -14,11 +14,8 @@ import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isStringArray, toRecord } from "../../utils/type-guards.js";
 import { loadYaml } from "../../utils/yaml.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import {
-  ALL_TOOLS_PERMISSION_CATEGORY,
-  CATCH_ALL_PATTERN,
-  honorAllToolsOnBash,
-} from "./shell-command-categories.js";
+import { honorAllToolsRestrictions } from "./shadowed-allows.js";
+import { ALL_TOOLS_PERMISSION_CATEGORY, CATCH_ALL_PATTERN } from "./shell-command-categories.js";
 import { buildToolPatternEntry } from "./tool-pattern-entry.js";
 import {
   ToolPermissions,
@@ -301,7 +298,15 @@ function convertRulesyncToContinuePermissions({
   // silently resolved by the CLI's exclude-first order.
   const actionByEntry = new Map<string, PermissionAction>();
 
-  for (const [category, rules] of Object.entries(honorAllToolsOnBash(config.permission))) {
+  for (const [category, rules] of Object.entries(
+    honorAllToolsRestrictions({
+      permission: config.permission,
+      toolLabel: "Continue",
+      logger,
+      writesAllToolsCatchAll: true,
+      isCatchAll: (pattern) => normalizeCatchAllPattern(pattern) === CATCH_ALL_PATTERN,
+    }),
+  )) {
     if (isPrototypePollutionKey(category)) continue;
     const toolName =
       category === ALL_TOOLS_PERMISSION_CATEGORY
@@ -321,7 +326,7 @@ function convertRulesyncToContinuePermissions({
       }
       // Continue matches a `*(pattern)` entry against no tool argument, so a
       // pattern-specific all-tools rule would be written as a dead entry
-      // (`honorAllToolsOnBash` mirrors it onto bash when that category exists).
+      // (`honorAllToolsRestrictions` mirrors it onto bash when that category exists).
       if (toolName === ALL_TOOLS_PERMISSION_CATEGORY && pattern !== CATCH_ALL_PATTERN) {
         logger?.warn(
           `Continue permissions.yaml cannot scope a pattern to every tool, so the ` +

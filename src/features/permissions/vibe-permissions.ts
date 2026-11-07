@@ -17,7 +17,12 @@ import { lookupOwn } from "../../utils/own-lookup.js";
 import { toStringArray } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { honorAllToolsOnBash, MCP_CATEGORY_PREFIX } from "./shell-command-categories.js";
+import { withholdAllowsShadowedByAsks } from "./shadowed-allows.js";
+import {
+  CATCH_ALL_PATTERN,
+  honorAllToolsOnBash,
+  MCP_CATEGORY_PREFIX,
+} from "./shell-command-categories.js";
 import {
   ToolPermissions,
   type ToolPermissionsFromFileParams,
@@ -241,7 +246,14 @@ export class VibePermissions extends ToolPermissions {
     const existingContent = (await readFileContentOrNull(filePath)) ?? "";
     const config = parseVibeConfig(existingContent);
 
-    const permission = honorAllToolsOnBash(rulesyncPermissions.getJson().permission);
+    // Vibe has no pattern-level ask: each one is skipped, so it withholds the
+    // allows that cover it (a catch-all allow falls back to `permission = "ask"`).
+    const permission = withholdAllowsShadowedByAsks({
+      permission: honorAllToolsOnBash(rulesyncPermissions.getJson().permission),
+      toolLabel: "Vibe",
+      logger,
+      isSkippedAsk: ({ pattern }) => pattern !== CATCH_ALL_PATTERN,
+    });
     const vibeOverride = rulesyncPermissions.getJson().vibe;
 
     const tools = toVibeToolsRecord(config.tools);

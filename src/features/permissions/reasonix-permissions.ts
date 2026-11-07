@@ -40,6 +40,7 @@ import {
   type TrustAffectingSandboxPath,
   warnOnTrustAffectingEntries,
 } from "./sandbox-trust.js";
+import { honorAllToolsRestrictions } from "./shadowed-allows.js";
 import { buildToolPatternEntry, parseToolPatternEntry } from "./tool-pattern-entry.js";
 import {
   ToolPermissions,
@@ -655,7 +656,7 @@ export class ReasonixPermissions extends ToolPermissions {
     const parsed = parseReasonixConfig(existingContent);
 
     const config = rulesyncPermissions.getJson();
-    const { allow, ask, deny } = convertRulesyncToReasonixPermissions(config);
+    const { allow, ask, deny } = convertRulesyncToReasonixPermissions({ config, logger });
 
     // Determine which tool names are managed by the permissions config
     const managedToolNames = new Set(
@@ -980,7 +981,13 @@ function setOrDeleteEntries(
 /**
  * Convert rulesync permissions config to Reasonix allow/ask/deny arrays.
  */
-function convertRulesyncToReasonixPermissions(config: PermissionsConfig): {
+function convertRulesyncToReasonixPermissions({
+  config,
+  logger,
+}: {
+  config: PermissionsConfig;
+  logger?: Logger;
+}): {
   allow: string[];
   ask: string[];
   deny: string[];
@@ -989,7 +996,16 @@ function convertRulesyncToReasonixPermissions(config: PermissionsConfig): {
   const ask: string[] = [];
   const deny: string[] = [];
 
-  for (const [category, rules] of Object.entries(config.permission)) {
+  // `*` restrictions reach `bash` and withhold the allows they cover in the
+  // other categories; a pattern-specific `*` rule is never written as an inert
+  // `*(<pattern>)` entry.
+  const permission = honorAllToolsRestrictions({
+    permission: config.permission,
+    toolLabel: "Reasonix",
+    logger,
+    dropAllToolsPatterns: true,
+  });
+  for (const [category, rules] of Object.entries(permission)) {
     const reasonixToolName = toReasonixToolName(category);
     for (const [pattern, action] of Object.entries(rules)) {
       const entry = buildToolPatternEntry({ toolName: reasonixToolName, pattern });
