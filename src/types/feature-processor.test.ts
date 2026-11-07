@@ -72,6 +72,13 @@ class TestProcessor extends FeatureProcessor {
   }
 }
 
+/** A processor for global scope, whose sweep may follow in-root links. */
+class GlobalTestProcessor extends TestProcessor {
+  protected override sweepsThroughInRootLinks(): boolean {
+    return true;
+  }
+}
+
 describe("FeatureProcessor", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
@@ -346,13 +353,66 @@ describe("FeatureProcessor", () => {
     );
 
     it.skipIf(process.platform === "win32")(
-      "should delete through a linked directory that stays inside the output root",
+      "should refuse to delete through a linked directory in project scope, even inside the root",
+      async () => {
+        const logger = createMockLogger();
+        const root = join(testDir, "root");
+        await mkdir(join(root, ".claude"), { recursive: true });
+        await mkdir(join(root, "notes"), { recursive: true });
+        await writeFile(join(root, "notes", "mine.md"), "operator notes");
+        // A cloned repository can commit `.claude/rules -> ..`: every untracked
+        // `*.md` in the project would then read as an orphan.
+        await symlink("..", join(root, ".claude", "rules"));
+        const processor = new TestProcessor({ logger, outputRoot: root });
+
+        const linkedDir = join(root, ".claude", "rules", "notes");
+        const count = await processor.removeOrphanAiFiles(
+          [createMockFile(join(linkedDir, "mine.md"), { outputRoot: root })],
+          [],
+        );
+
+        expect(count).toBe(0);
+        expect(removeFile).not.toHaveBeenCalled();
+        expect(logger.warn).toHaveBeenCalledWith(
+          `Refusing to delete files in ${JSON.stringify(linkedDir)}: it is reached ` +
+            `through a symbolic link`,
+        );
+      },
+    );
+
+    it.skipIf(process.platform === "win32")(
+      "should refuse to delete through a link into .git even in global scope",
+      async () => {
+        const logger = createMockLogger();
+        const root = join(testDir, "root");
+        await mkdir(join(root, ".git", "hooks"), { recursive: true });
+        await mkdir(join(root, ".tool"), { recursive: true });
+        await symlink(join(root, ".git", "hooks"), join(root, ".tool", "commands"));
+        const processor = new GlobalTestProcessor({ logger, outputRoot: root });
+
+        const linkedDir = join(root, ".tool", "commands");
+        const count = await processor.removeOrphanAiFiles(
+          [createMockFile(join(linkedDir, "pre-commit.md"), { outputRoot: root })],
+          [],
+        );
+
+        expect(count).toBe(0);
+        expect(removeFile).not.toHaveBeenCalled();
+        expect(logger.warn).toHaveBeenCalledWith(
+          `Refusing to delete files in ${JSON.stringify(linkedDir)}: it resolves into ` +
+            `version-control metadata through a symbolic link`,
+        );
+      },
+    );
+
+    it.skipIf(process.platform === "win32")(
+      "should delete through a linked directory that stays inside the output root in global scope",
       async () => {
         const logger = createMockLogger();
         const root = join(testDir, "root");
         await mkdir(join(root, "dotfiles", ".tool"), { recursive: true });
         await symlink(join(root, "dotfiles", ".tool"), join(root, ".tool"));
-        const processor = new TestProcessor({ logger, outputRoot: root });
+        const processor = new GlobalTestProcessor({ logger, outputRoot: root });
 
         const linkedPath = join(root, ".tool", "orphan.md");
         const count = await processor.removeOrphanAiFiles(
@@ -440,6 +500,54 @@ describe("FeatureProcessor", () => {
         expect(result).toEqual({ count: 1, paths: [linkedPath] });
         expect(writeFileContent).toHaveBeenCalledWith(linkedPath, "content\n");
         expect(logger.warn).not.toHaveBeenCalled();
+      },
+    );
+
+    it.skipIf(process.platform === "win32")(
+      "should refuse to write through a link that lands in .git inside the output root",
+      async () => {
+        vi.mocked(readFileContentOrNull).mockResolvedValue(null);
+        const logger = createMockLogger();
+        const root = join(testDir, "root");
+        await mkdir(join(root, ".git"), { recursive: true });
+        await writeFile(join(root, ".git", "config"), "[core]\n");
+        // A cloned repository can commit `CLAUDE.md -> .git/config`; a root rule
+        // written through it would set `core.fsmonitor` for the next git command.
+        await symlink(join(".git", "config"), join(root, "CLAUDE.md"));
+        const processor = new TestProcessor({ logger, outputRoot: root });
+
+        const linkedPath = join(root, "CLAUDE.md");
+        const result = await processor.writeAiFiles([
+          createMockFile(linkedPath, { outputRoot: root }),
+        ]);
+
+        expect(result).toEqual({ count: 0, paths: [] });
+        expect(writeFileContent).not.toHaveBeenCalled();
+        expect(logger.warn).toHaveBeenCalledWith(
+          `Refusing to write ${JSON.stringify(linkedPath)}: it resolves into ` +
+            `version-control metadata through a symbolic link`,
+        );
+      },
+    );
+
+    it.skipIf(process.platform === "win32")(
+      "should refuse to write through a linked tool directory that lands in .git",
+      async () => {
+        vi.mocked(readFileContentOrNull).mockResolvedValue(null);
+        const logger = createMockLogger();
+        const root = join(testDir, "root");
+        await mkdir(join(root, ".git", "hooks"), { recursive: true });
+        await mkdir(join(root, ".tool"), { recursive: true });
+        await symlink(join("..", ".git", "hooks"), join(root, ".tool", "commands"));
+        const processor = new TestProcessor({ logger, outputRoot: root });
+
+        const linkedPath = join(root, ".tool", "commands", "pre-commit");
+        const result = await processor.writeAiFiles([
+          createMockFile(linkedPath, { outputRoot: root }),
+        ]);
+
+        expect(result).toEqual({ count: 0, paths: [] });
+        expect(writeFileContent).not.toHaveBeenCalled();
       },
     );
 

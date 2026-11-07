@@ -1160,6 +1160,10 @@ function warnStrippedMcpServerFields({
 export class McpProcessor extends FeatureProcessor {
   private readonly toolTarget: McpProcessorToolTarget;
   private readonly global: boolean;
+
+  protected override sweepsThroughInRootLinks(): boolean {
+    return this.global;
+  }
   private readonly getFactory: GetFactory;
   private readonly featureOptions?: FeatureOptions;
 

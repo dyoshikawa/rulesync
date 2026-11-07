@@ -277,8 +277,14 @@ The `generate` command reads source files from one or more rulesync source trees
 > either: what the sweep would list there are files in the link's target, not
 > Rulesync's output, so each one is kept, and every directory holding them is
 > named once in a `Refusing to delete files in` warning, the same way a write
-> through such a link is refused. A link that stays
-> inside the output root is followed as usual, and an orphan that is itself a
+> through such a link is refused. A link into version-control metadata
+> (`.git`, `.hg`, `.svn`, `.jj`) is refused the same way in every scope. At
+> project scope, an output directory reached through any symbolic link — even
+> one that stays inside the project, such as a committed `.claude/rules -> ..`
+> or `.cursor -> .claude` — is not swept either, since a repository you cloned
+> could otherwise point the sweep at your untracked files. With `--global`, a
+> link that stays inside the output root (a dotfiles checkout linked into the
+> home directory) is followed as usual, and an orphan that is itself a
 > symbolic link is removed as a link, leaving its target untouched. A generated
 > skill directory linked onto the output root itself is not written either, so
 > its `SKILL.md` never overwrites a file in the root; and only a skill directory
@@ -610,7 +616,7 @@ The scope is deliberately narrow:
 - Only the `skills/<name>/` directories fetched in **this** run are pruned. A skill left out by `--skills` or `--interactive` is untouched.
 - Other features (`rules/`, `commands/`, `subagents/`, …) are never pruned — the issue only exists for directory-based skills.
 - Directories the remote skill no longer has are removed as well, and are listed in the summary under their own name with a trailing slash.
-- Symbolic links are unlinked, never followed: a link inside a skill directory can only ever lose the link itself, never whatever it points at. A skill directory that is **itself** a symbolic link (one that stays inside the project, see [Symbolic Links Out of the Project](#symbolic-links-out-of-the-project)) is not pruned at all, since deleting through it would reach outside the output directory; Rulesync warns and leaves it alone.
+- Symbolic links are unlinked, never followed: a link inside a skill directory can only ever lose the link itself, never whatever it points at. A skill directory that is **itself** a symbolic link (one that stays inside the project, see [Symbolic Links Out of the Project](#symbolic-links-out-of-the-project)) is not pruned at all, since deleting through it would reach outside the output directory; Rulesync warns and leaves it alone. The same goes for a skill directory reached through any symbolic link on the way, such as a `.rulesync` or `.rulesync/skills` linked elsewhere in the project: a repository you cloned could otherwise point the prune at your untracked files.
 - A local file that the filesystem holds as the same file as one just fetched — a second name for it on a case-insensitive or Unicode-normalizing filesystem, or a hard link — is kept, even though the remote list does not carry that name. The same applies to a symbolic link that resolves to a file or directory this run wrote: it is kept rather than unlinked, since the fetch may have written through it.
 - A skill directory Rulesync cannot read or delete from — a permission it does not hold, a disk that gave out — stops that skill's prune where it failed rather than the whole fetch. Rulesync warns, still lists whatever it had already deleted, and moves on to the next skill.
 - Nothing more than 15 directories below the skill directory is pruned. That is a limit on the local walk, deep enough that a fetched tree stays well inside it; Rulesync warns and leaves anything deeper alone.

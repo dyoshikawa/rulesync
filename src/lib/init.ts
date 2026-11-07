@@ -9,6 +9,7 @@ import {
 } from "../constants/rulesync-paths.js";
 import { formatError } from "../utils/error.js";
 import {
+  assertLandingOutsideVcsMetadata,
   assertPathResolvesInsideRoot,
   ensureDir,
   fileExists,
@@ -191,6 +192,8 @@ function createSampleScaffolds() {
  */
 async function assertInitWriteInsideProject(path: string): Promise<void> {
   await assertPathResolvesInsideRoot({ rootPath: process.cwd(), targetPath: path });
+  // Nor into `.git/` (a committed `rulesync.jsonc -> .git/config`, say).
+  await assertLandingOutsideVcsMetadata({ rootPath: process.cwd(), targetPath: path });
 }
 
 /**
