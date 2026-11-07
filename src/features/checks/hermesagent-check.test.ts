@@ -57,7 +57,9 @@ describe("HermesagentCheck", () => {
     { slug: "a|b", expected: "a-b.md" },
     { slug: "x.", expected: "x.md" },
     { slug: "x ", expected: "x.md" },
-    { slug: "NUL", expected: "nul.md" },
+    { slug: "NUL", expected: "nul-check.md" },
+    { slug: "CONIN$", expected: "conin.md" },
+    { slug: "nul .x", expected: "nul-x.md" },
   ])("keeps an imported slug $slug inside .rulesync/checks", ({ slug, expected }) => {
     const check = new HermesagentCheck({
       relativeDirPath: ".hermes/plugins/rulesync-checks/checks",

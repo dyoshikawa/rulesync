@@ -14,6 +14,7 @@ import { ValidationResult } from "../../types/ai-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { stripControlCharacters } from "../../utils/control-characters.js";
 import { readFileContent, readFileContentOrNull, toPosixPath } from "../../utils/file.js";
+import { hasWindowsFoldableName } from "../../utils/remote-name.js";
 import { slugifyCheckName } from "./check-slug.js";
 import { RulesyncCheck } from "./rulesync-check.js";
 import {
@@ -238,22 +239,29 @@ export class HermesagentCheck extends ToolCheck {
    * back to the spec file's own name.
    */
   private importedCheckStem(slug: string): string {
-    const isPlainFileName =
-      slug !== "" &&
-      slug !== "." &&
-      slug !== ".." &&
-      !/[/\\<>:"|?*]/.test(slug) &&
-      !/[. ]$/.test(slug) &&
-      !/^(con|prn|aux|nul|com\d|lpt\d)(\..*)?$/i.test(slug) &&
-      stripControlCharacters(slug) === slug;
-    if (isPlainFileName) {
+    const isPlainFileName = (name: string): boolean =>
+      name !== "" &&
+      name !== "." &&
+      name !== ".." &&
+      !/[/\\<>:"|?*]/.test(name) &&
+      // Trailing dot or space, an 8.3 short-name alias, or a reserved device
+      // name such as `NUL`: Windows would open another file than the one named.
+      !hasWindowsFoldableName(name) &&
+      stripControlCharacters(name) === name;
+    if (isPlainFileName(slug)) {
       return slug;
     }
-    return (
-      slugifyCheckName(slug) ||
-      slugifyCheckName(basename(this.relativeFilePath, ".json")) ||
-      "check"
-    );
+    for (const candidate of [
+      slugifyCheckName(slug),
+      slugifyCheckName(basename(this.relativeFilePath, ".json")),
+    ]) {
+      if (candidate === "") {
+        continue;
+      }
+      // A slugified reserved name (`nul`) is still reserved; a suffix frees it.
+      return isPlainFileName(candidate) ? candidate : `${candidate}-check`;
+    }
+    return "check";
   }
 
   toRulesyncCheck(): RulesyncCheck {
