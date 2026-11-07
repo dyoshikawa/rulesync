@@ -5,6 +5,7 @@ import type { PermissionAction } from "../../types/permissions.js";
 import {
   buildAntigravityPermissionEntry,
   convertAntigravityToRulesyncPermissions,
+  convertRulesyncToAntigravityPermissions,
 } from "./antigravity-targets.js";
 
 function build({
@@ -755,15 +756,36 @@ describe("convertAntigravityToRulesyncPermissions with path targets", () => {
       write: {
         src: "deny",
         "src/**": "deny",
-        "/etc/ssl/": "deny",
+        "/etc/ssl": "deny",
         "/etc/ssl/**": "deny",
       },
     });
   });
 
-  it("imports the workspace root as . and **", () => {
-    expect(convert(["write_file(.)"])).toEqual({ write: { ".": "deny", "**": "deny" } });
+  it("imports the workspace root as . and ./**", () => {
+    expect(convert(["write_file(.)"])).toEqual({ write: { ".": "deny", "./**": "deny" } });
   });
+
+  it.each(["src", "src/", "src//", ".", "/", "~/x", "C:/foo", "a b", "../x"])(
+    "regenerates the imported %s as the one target it came from",
+    (target) => {
+      const imported = convertAntigravityToRulesyncPermissions({
+        allow: [`read_file(${target})`],
+        ask: [],
+        deny: [],
+        toCategory: (action) => (action === "read_file" ? "read" : action),
+        toolLabel: "Antigravity",
+        logger: createMockLogger(),
+      });
+      const regenerated = convertRulesyncToAntigravityPermissions({
+        config: imported,
+        toAction: (category) => (category === "read" ? "read_file" : category),
+        logger: createMockLogger(),
+        toolLabel: "Antigravity",
+      });
+      expect(regenerated.allow).toEqual([`read_file(${target.replace(/(.)\/+$/, "$1")})`]);
+    },
+  );
 
   it("keeps the bare * and targets that already hold glob characters as written", () => {
     expect(convert(["write_file(*)", "write_file(**/*.env)"])).toEqual({

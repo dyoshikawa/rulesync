@@ -166,11 +166,13 @@ function fromPathTarget(target: string): string[] {
   if (target === "*" || hasGlob(target)) {
     return [target];
   }
+  // `./**`, not `**`: generation turns `**` into the bare action (every path).
   if (target === ".") {
-    return [".", "**"];
+    return [".", "./**"];
   }
-  const directory = target.replace(/\/+$/, "");
-  return [target, `${directory}/**`];
+  // A trailing slash is dropped, so both patterns generate the same target.
+  const path = target.replace(/\/+$/, "") || "/";
+  return [path, path === "/" ? "/**" : `${path}/**`];
 }
 
 /**
