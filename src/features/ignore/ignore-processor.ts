@@ -150,6 +150,10 @@ export class IgnoreProcessor extends FeatureProcessor {
   private readonly featureOptions: FeatureOptions | undefined;
   private readonly global: boolean;
 
+  protected override sweepsThroughInRootLinks(): boolean {
+    return this.global;
+  }
+
   constructor({
     outputRoot = process.cwd(),
     inputRoots,

@@ -1058,6 +1058,10 @@ function compareRelativePathsShallowestFirst(left: string, right: string): numbe
 export class SubagentsProcessor extends FeatureProcessor {
   private readonly toolTarget: SubagentsProcessorToolTarget;
   private readonly global: boolean;
+
+  protected override sweepsThroughInRootLinks(): boolean {
+    return this.global;
+  }
   private readonly deleteOrphans: boolean;
   private readonly getFactory: GetFactory;
   /**

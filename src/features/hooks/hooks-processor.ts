@@ -1332,6 +1332,10 @@ const hooksProcessorToolTargetsGlobalImportable: ToolTarget[] = [...toolHooksFac
 export class HooksProcessor extends FeatureProcessor {
   private readonly toolTarget: HooksProcessorToolTarget;
   private readonly global: boolean;
+
+  protected override sweepsThroughInRootLinks(): boolean {
+    return this.global;
+  }
   private readonly preserveUnownedHooks: boolean;
 
   constructor({

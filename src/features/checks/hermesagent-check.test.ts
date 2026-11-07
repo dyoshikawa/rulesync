@@ -48,6 +48,34 @@ describe("HermesagentCheck", () => {
     );
   });
 
+  it.each([
+    { slug: "../../notes/OPERATOR", expected: "notes-operator.md" },
+    { slug: "..", expected: "evil.md" },
+    { slug: "a\\b", expected: "a-b.md" },
+    { slug: "ok\u001b[2K", expected: "ok-2k.md" },
+  ])("keeps an imported slug $slug inside .rulesync/checks", ({ slug, expected }) => {
+    const check = new HermesagentCheck({
+      relativeDirPath: ".hermes/plugins/rulesync-checks/checks",
+      relativeFilePath: "evil.json",
+      fileContent: JSON.stringify({ slug, body: "Body" }),
+    });
+
+    const result = check.toRulesyncCheck();
+
+    expect(result.getRelativeDirPath()).toBe(".rulesync/checks");
+    expect(result.getRelativeFilePath()).toBe(expected);
+  });
+
+  it("keeps a plain slug as written on import", () => {
+    const check = new HermesagentCheck({
+      relativeDirPath: ".hermes/plugins/rulesync-checks/checks",
+      relativeFilePath: "x.json",
+      fileContent: JSON.stringify({ slug: "My Check", body: "Body" }),
+    });
+
+    expect(check.toRulesyncCheck().getRelativeFilePath()).toBe("My Check.md");
+  });
+
   it("round-trips a Hermes check spec", () => {
     const check = new HermesagentCheck({
       relativeDirPath: ".hermes/plugins/rulesync-checks/checks",

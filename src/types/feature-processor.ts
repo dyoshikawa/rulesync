@@ -1,4 +1,4 @@
-import { dirname, join } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 
 import { diffSharedConfigOwnedKeys } from "../features/shared/shared-config-gateway.js";
 import type { KeyOperation } from "../lib/orphan-sweep.js";
@@ -8,11 +8,12 @@ import {
   addTrailingNewline,
   applyFileMode,
   fileExistsStrict,
+  landingEntersVcsMetadata,
+  pathEscapesRoot,
   restoreMissingExecutableBit,
   readFileContentOrNull,
   relativeWriteLanding,
   removeFile,
-  writablePathEscapesRoot,
   writeFileContent,
 } from "../utils/file.js";
 import type { Logger } from "../utils/logger.js";
@@ -146,6 +147,17 @@ export abstract class FeatureProcessor extends RulesyncSourceConsumer {
     };
   }
 
+  /**
+   * Whether the orphan sweep may follow a symbolic link that stays inside the
+   * output root. Only global scope answers true: its root is the operator's
+   * own home directory, where a dotfiles checkout linked in (`~/.claude ->
+   * ~/dotfiles/claude`) is a common shape. A project checkout may carry links
+   * its author committed, so the default refuses them.
+   */
+  protected sweepsThroughInRootLinks(): boolean {
+    return false;
+  }
+
   async removeAiFiles(aiFiles: AiFile[]): Promise<void> {
     for (const aiFile of aiFiles) {
       await removeFile(aiFile.getFilePath());
@@ -181,7 +193,12 @@ export abstract class FeatureProcessor extends RulesyncSourceConsumer {
       let refused = refusedDirs.get(cacheKey);
       if (refused === undefined) {
         // Asked before the dry-run branch so `--check` and a real run agree.
-        refused = await refusesDeleteOutsideRoot({ logger: this.logger, rootPath, dirPath });
+        refused = await refusesDeleteOutsideRoot({
+          logger: this.logger,
+          rootPath,
+          dirPath,
+          allowInRootLinks: this.sweepsThroughInRootLinks(),
+        });
         refusedDirs.set(cacheKey, refused);
       }
       if (refused) {
@@ -354,14 +371,22 @@ export async function refusesWriteOutsideRoot({
   rootPath: string;
   targetPath: string;
 }): Promise<boolean> {
-  if (!(await writablePathEscapesRoot({ rootPath, targetPath }))) {
-    return false;
+  const relativeLanding = await relativeWriteLanding({ rootPath, targetPath });
+  if (relativeLanding === null || pathEscapesRoot(relativeLanding)) {
+    logger.warn(
+      `Refusing to write ${quoteForLog(targetPath)}: it resolves outside ` +
+        `${quoteForLog(rootPath)} through a symbolic link`,
+    );
+    return true;
   }
-  logger.warn(
-    `Refusing to write ${quoteForLog(targetPath)}: it resolves outside ` +
-      `${quoteForLog(rootPath)} through a symbolic link`,
-  );
-  return true;
+  if (landingEntersVcsMetadata({ rootPath, targetPath, relativeLanding })) {
+    logger.warn(
+      `Refusing to write ${quoteForLog(targetPath)}: it resolves into ` +
+        `version-control metadata through a symbolic link`,
+    );
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -381,19 +406,40 @@ async function refusesDeleteOutsideRoot({
   logger,
   rootPath,
   dirPath,
+  allowInRootLinks,
 }: {
   logger: Logger;
   rootPath: string;
   dirPath: string;
+  allowInRootLinks: boolean;
 }): Promise<boolean> {
-  if (!(await writablePathEscapesRoot({ rootPath, targetPath: dirPath }))) {
-    return false;
+  const relativeLanding = await relativeWriteLanding({ rootPath, targetPath: dirPath });
+  if (relativeLanding === null || pathEscapesRoot(relativeLanding)) {
+    logger.warn(
+      `Refusing to delete files in ${quoteForLog(dirPath)}: it resolves outside ` +
+        `${quoteForLog(rootPath)} through a symbolic link`,
+    );
+    return true;
   }
-  logger.warn(
-    `Refusing to delete files in ${quoteForLog(dirPath)}: it resolves outside ` +
-      `${quoteForLog(rootPath)} through a symbolic link`,
-  );
-  return true;
+  if (landingEntersVcsMetadata({ rootPath, targetPath: dirPath, relativeLanding })) {
+    logger.warn(
+      `Refusing to delete files in ${quoteForLog(dirPath)}: it resolves into ` +
+        `version-control metadata through a symbolic link`,
+    );
+    return true;
+  }
+  // A project checkout is content another party may control: a committed
+  // `.claude/rules -> ..` would make every untracked `*.md` in the project
+  // read as an orphan. Outside global scope the swept directory must
+  // therefore be the one its path spells, with no link on the way.
+  if (!allowInRootLinks && relativeLanding !== relative(resolve(rootPath), resolve(dirPath))) {
+    logger.warn(
+      `Refusing to delete files in ${quoteForLog(dirPath)}: it is reached ` +
+        `through a symbolic link`,
+    );
+    return true;
+  }
+  return false;
 }
 
 /**

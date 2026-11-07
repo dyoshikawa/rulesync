@@ -1082,6 +1082,74 @@ export async function relativeWriteLanding({
 }
 
 /**
+ * Directory names that hold version-control metadata. Bytes landing in one of
+ * them change how the VCS behaves rather than what it tracks: `.git/config`
+ * can set `core.fsmonitor`, `.git/hooks/*` run on the next commit.
+ */
+const VCS_METADATA_DIR_NAMES: ReadonlySet<string> = new Set([".git", ".hg", ".svn", ".jj"]);
+
+function hasVcsMetadataSegment(path: string): boolean {
+  // Lower-cased so `.GIT` on a case-insensitive filesystem is caught as well.
+  return splitPathSegments(path).some((segment) =>
+    VCS_METADATA_DIR_NAMES.has(segment.toLowerCase()),
+  );
+}
+
+/**
+ * Whether a link on the way to `targetPath` carries it into version-control
+ * metadata (`.git/` and its siblings) that its spelling does not name.
+ *
+ * {@link writablePathEscapesRoot} lets a link that stays inside the root
+ * through, but a checked-out repository can commit `CLAUDE.md -> .git/config`:
+ * the landing is inside the root, yet a write there hands the repository author
+ * the operator's next `git` command. `git clone` never transfers `.git/`, so a
+ * path spelled into it is never something the repository chose; only a landing
+ * the spelling does not already name is reported.
+ *
+ * `relativeLanding` is {@link relativeWriteLanding}'s answer for the same pair,
+ * passed in so a caller that already has it does not resolve the links twice.
+ */
+export function landingEntersVcsMetadata({
+  rootPath,
+  targetPath,
+  relativeLanding,
+}: {
+  rootPath: string;
+  targetPath: string;
+  relativeLanding: string;
+}): boolean {
+  return (
+    hasVcsMetadataSegment(relativeLanding) &&
+    !hasVcsMetadataSegment(relative(resolve(rootPath), resolve(targetPath)))
+  );
+}
+
+/**
+ * Refuse a write target that a symbolic link carries into version-control
+ * metadata (see {@link landingEntersVcsMetadata}). Meant for writes of remote
+ * bytes, next to {@link assertPathResolvesInsideRoot}: an in-root link (a
+ * skill directory linked to a shared one) stays allowed, but not one that
+ * hands the bytes to `.git/config` or `.git/hooks/`.
+ */
+export async function assertLandingOutsideVcsMetadata({
+  rootPath,
+  targetPath,
+}: {
+  rootPath: string;
+  targetPath: string;
+}): Promise<void> {
+  const relativeLanding = await relativeWriteLanding({ rootPath, targetPath });
+  if (relativeLanding === null) {
+    throw new PathOutsideRootError(`Refusing to write through a link cycle: ${targetPath}.`);
+  }
+  if (landingEntersVcsMetadata({ rootPath, targetPath, relativeLanding })) {
+    throw new PathOutsideRootError(
+      `Refusing to write ${targetPath}: a symbolic link leads it into version-control metadata.`,
+    );
+  }
+}
+
+/**
  * How many trailing segments `filePath` and `identity` have in common.
  *
  * A path that walked through no link at all shares all of its own segments with

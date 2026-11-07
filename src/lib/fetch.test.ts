@@ -2813,6 +2813,102 @@ describe("fetchFiles with target option", () => {
     vi.clearAllMocks();
   });
 
+  function mockSingleRuleRepository(content: string): void {
+    mockClientInstance.listDirectory.mockImplementation(
+      (_owner: string, _repo: string, path: string) => {
+        if (path === "rules") {
+          return Promise.resolve([
+            {
+              name: "team.md",
+              path: "rules/team.md",
+              type: "file",
+              sha: "abc",
+              size: 100,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        const error = new Error("Not found");
+        Object.assign(error, { statusCode: 404 });
+        return Promise.reject(error);
+      },
+    );
+    mockClientInstance.getFileContent.mockResolvedValue(content);
+  }
+
+  it("should honor --conflict skip for a tool-format target", async () => {
+    mockSingleRuleRepository("# Remote\n\nREMOTE-MARKER");
+    const localRule = join(testDir, ".rulesync", "rules", "team.md");
+    await writeFileContent(localRule, "LOCAL-MARKER");
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { features: ["rules"], target: "claudecode", output: ".", conflict: "skip" },
+      outputRoot: testDir,
+    });
+
+    expect(await readFileContent(localRule)).toBe("LOCAL-MARKER");
+    expect(summary.files).toEqual([
+      { relativePath: join(".rulesync", "rules", "team.md"), status: "skipped" },
+    ]);
+    expect(summary.skipped).toBe(1);
+    expect(summary.created).toBe(0);
+  });
+
+  it("should report an overwritten source as overwritten for a tool-format target", async () => {
+    mockSingleRuleRepository("# Remote\n\nREMOTE-MARKER");
+    const localRule = join(testDir, ".rulesync", "rules", "team.md");
+    await writeFileContent(localRule, "LOCAL-MARKER");
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { features: ["rules"], target: "claudecode", output: "." },
+      outputRoot: testDir,
+    });
+
+    expect(await readFileContent(localRule)).toContain("REMOTE-MARKER");
+    expect(summary.overwritten).toBe(1);
+    expect(summary.created).toBe(0);
+  });
+
+  it("should not let a fetched Hermes check slug leave the checks directory", async () => {
+    mockClientInstance.listDirectory.mockImplementation(
+      (_owner: string, _repo: string, path: string) => {
+        if (path === "checks") {
+          return Promise.resolve([
+            {
+              name: "a.json",
+              path: "checks/a.json",
+              type: "file",
+              sha: "abc",
+              size: 100,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        const error = new Error("Not found");
+        Object.assign(error, { statusCode: 404 });
+        return Promise.reject(error);
+      },
+    );
+    mockClientInstance.getFileContent.mockResolvedValue(
+      JSON.stringify({ slug: "../../../docs/OPERATOR", body: "REMOTE-BODY" }),
+    );
+    const operatorFile = join(testDir, "docs", "OPERATOR.md");
+    await writeFileContent(operatorFile, "operator original");
+
+    await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { features: ["checks"], target: "hermesagent" },
+      outputRoot: testDir,
+    });
+
+    expect(await readFileContent(operatorFile)).toBe("operator original");
+  });
+
   it("should maintain current behavior with target: rulesync", async () => {
     mockClientInstance.listDirectory.mockImplementation(
       (owner: string, repo: string, path: string) => {
@@ -4042,6 +4138,45 @@ describe("fetchFiles skill pruning", () => {
 
       expect(await readdir(outsideDir)).toEqual([]);
       expect(await fileExists(join(projectRoot, ".rulesync", "skills", "skill-b"))).toBe(false);
+    },
+  );
+
+  it.skipIf(process.platform === "win32")(
+    "should refuse to write a fetched file through an in-project link into .git",
+    async () => {
+      mockSkillRepository();
+      mockClientInstance.getFileContent.mockResolvedValue("[core]\n\tfsmonitor = echo pwned\n");
+      const gitConfig = join(testDir, ".git", "config");
+      await writeFileContent(gitConfig, "[core]\n\tbare = false\n");
+      await ensureDir(join(skillsRoot, "skill-a"));
+      await symlink(
+        join("..", "..", "..", ".git", "config"),
+        join(skillsRoot, "skill-a", "SKILL.md"),
+      );
+
+      await expect(
+        fetchFiles({ logger, source: "owner/repo", outputRoot: testDir }),
+      ).rejects.toThrow("version-control metadata");
+
+      expect(await readFileContent(gitConfig)).toBe("[core]\n\tbare = false\n");
+    },
+  );
+
+  it.skipIf(process.platform === "win32")(
+    "should refuse to write a fetched skill through a directory link into .git/hooks",
+    async () => {
+      mockSkillRepository();
+      mockClientInstance.getFileContent.mockResolvedValue("#!/bin/sh\necho pwned\n");
+      const hooksDir = join(testDir, ".git", "hooks");
+      await ensureDir(hooksDir);
+      await ensureDir(skillsRoot);
+      await symlink(join("..", "..", ".git", "hooks"), join(skillsRoot, "skill-a"));
+
+      await expect(
+        fetchFiles({ logger, source: "owner/repo", outputRoot: testDir }),
+      ).rejects.toThrow("version-control metadata");
+
+      expect(await readdir(hooksDir)).toEqual([]);
     },
   );
 

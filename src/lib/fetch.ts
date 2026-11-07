@@ -49,6 +49,7 @@ import {
 import { formatError } from "../utils/error.js";
 import {
   applyFileMode,
+  assertLandingOutsideVcsMetadata,
   assertPathResolvesInsideRoot,
   checkPathTraversal,
   createTempDirectory,
@@ -99,8 +100,7 @@ function validateFileSize(relativePath: string, size: number): void {
  * Result of feature conversion
  */
 type FeatureConversionResult = {
-  converted: number;
-  convertedPaths: string[];
+  results: FetchFileResult[];
 };
 
 /**
@@ -126,13 +126,15 @@ async function processFeatureConversion(params: {
   processor: FeatureProcessor;
   outputDir: string;
   outputRoot: string;
-}): Promise<{ paths: string[] }> {
-  const { processor, outputDir, outputRoot } = params;
-  const paths: string[] = [];
+  conflictStrategy: ConflictStrategy;
+  logger: Logger;
+}): Promise<{ results: FetchFileResult[] }> {
+  const { processor, outputDir, outputRoot, conflictStrategy, logger } = params;
+  const results: FetchFileResult[] = [];
 
   const toolFiles = await processor.loadToolFiles();
   if (toolFiles.length === 0) {
-    return { paths: [] };
+    return { results: [] };
   }
 
   const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(toolFiles);
@@ -140,17 +142,27 @@ async function processFeatureConversion(params: {
     const relativePath = join(file.getRelativeDirPath(), file.getRelativeFilePath());
     return { file, relativePath, outputPath: join(outputDir, relativePath) };
   });
-  // As in fetchFiles: refuse, before anything is written, an output that a
-  // symbolic link already in the project leads outside the output root.
-  for (const { outputPath } of outputs) {
+  // As in fetchFiles: refuse, before anything is written, an output whose
+  // converted name leaves the output directory (a converted name can come from
+  // remote content, e.g. a Hermes check `slug`), or that a symbolic link
+  // already in the project leads outside the output root or into `.git/`.
+  for (const { relativePath, outputPath } of outputs) {
+    checkPathTraversal({ relativePath, intendedRootDir: outputDir });
     await assertPathResolvesInsideRoot({ rootPath: outputRoot, targetPath: outputPath });
+    await assertLandingOutsideVcsMetadata({ rootPath: outputRoot, targetPath: outputPath });
   }
   for (const { file, relativePath, outputPath } of outputs) {
+    const exists = await fileExists(outputPath);
+    if (exists && conflictStrategy === "skip") {
+      logger.debug(`Skipping existing file: ${quoteForLog(relativePath)}`);
+      results.push({ relativePath, status: "skipped" });
+      continue;
+    }
     await writeFileContent(outputPath, file.getFileContent());
-    paths.push(relativePath);
+    results.push({ relativePath, status: exists ? "overwritten" : "created" });
   }
 
-  return { paths };
+  return { results };
 }
 
 /**
@@ -168,10 +180,11 @@ async function convertFetchedFilesToRulesync(params: {
   outputRoot: string;
   target: ToolTarget;
   features: Feature[];
+  conflictStrategy: ConflictStrategy;
   logger: Logger;
 }): Promise<FeatureConversionResult> {
-  const { tempDir, outputDir, outputRoot, target, features, logger } = params;
-  const convertedPaths: string[] = [];
+  const { tempDir, outputDir, outputRoot, target, features, conflictStrategy, logger } = params;
+  const results: FetchFileResult[] = [];
 
   // Feature conversion configurations
   // Each config defines how to get supported targets and create a processor
@@ -236,8 +249,14 @@ async function convertFetchedFilesToRulesync(params: {
       continue;
     }
     const processor = config.createProcessor();
-    const result = await processFeatureConversion({ processor, outputDir, outputRoot });
-    convertedPaths.push(...result.paths);
+    const result = await processFeatureConversion({
+      processor,
+      outputDir,
+      outputRoot,
+      conflictStrategy,
+      logger,
+    });
+    results.push(...result.results);
   }
 
   // Skills conversion is not yet supported in fetch command
@@ -249,7 +268,7 @@ async function convertFetchedFilesToRulesync(params: {
     );
   }
 
-  return { converted: convertedPaths.length, convertedPaths };
+  return { results };
 }
 
 /**
@@ -1763,11 +1782,14 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
   // checkPathTraversal above is textual only. Refuse, before anything is
   // written, a target that a symbolic link already in the project (a
   // symlinked `.rulesync/skills/<name>`, say) leads outside the output root.
+  // A link that stays inside the project is fine (a skill linked to a shared
+  // one), except into version-control metadata: a committed
+  // `.rulesync/skills/x/SKILL.md -> ../../../.git/config` would hand the remote
+  // bytes to git.
   for (const { relativePath } of filesToFetch) {
-    await assertPathResolvesInsideRoot({
-      rootPath: outputRoot,
-      targetPath: join(outputBasePath, relativePath),
-    });
+    const targetPath = join(outputBasePath, relativePath);
+    await assertPathResolvesInsideRoot({ rootPath: outputRoot, targetPath });
+    await assertLandingOutsideVcsMetadata({ rootPath: outputRoot, targetPath });
   }
 
   // Process files in parallel with concurrency control
@@ -1975,7 +1997,7 @@ async function fetchAndConvertToolFiles(params: {
     target,
     outputDir,
     outputRoot,
-    conflictStrategy: _conflictStrategy,
+    conflictStrategy,
     logger,
   } = params;
 
@@ -2044,22 +2066,17 @@ async function fetchAndConvertToolFiles(params: {
     );
 
     // Convert fetched files to rulesync format
-    const { converted, convertedPaths } = await convertFetchedFilesToRulesync({
+    const { results } = await convertFetchedFilesToRulesync({
       tempDir,
       outputDir: outputBasePath,
       outputRoot,
       target,
       features: enabledFeatures,
+      conflictStrategy,
       logger,
     });
 
-    // Build results based on conversion with actual file paths
-    const results: FetchFileResult[] = convertedPaths.map((relativePath) => ({
-      relativePath,
-      status: "created" as const,
-    }));
-
-    logger.debug(`Converted ${converted} files from ${target} format to rulesync format`);
+    logger.debug(`Converted ${results.length} files from ${target} format to rulesync format`);
 
     return {
       source: `${parsed.owner}/${parsed.repo}`,

@@ -277,6 +277,10 @@ const checksProcessorToolTargetsGlobal: ToolTarget[] = allToolTargetKeys.filter(
 export class ChecksProcessor extends FeatureProcessor {
   private readonly toolTarget: ChecksProcessorToolTarget;
   private readonly global: boolean;
+
+  protected override sweepsThroughInRootLinks(): boolean {
+    return this.global;
+  }
   private readonly getFactory: GetFactory;
 
   constructor({
