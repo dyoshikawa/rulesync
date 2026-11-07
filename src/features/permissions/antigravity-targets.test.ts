@@ -36,6 +36,7 @@ describe("buildAntigravityPermissionEntry", () => {
   describe("file targets", () => {
     it.each([
       ["src/**", "read_file(src)"],
+      ["C:/**", "read_file(C:/)"],
       ["src/**/*", "read_file(src)"],
       ["./src/**", "read_file(src)"],
       ["/etc/**", "read_file(/etc)"],
@@ -766,7 +767,7 @@ describe("convertAntigravityToRulesyncPermissions with path targets", () => {
     expect(convert(["write_file(.)"])).toEqual({ write: { ".": "deny", "./**": "deny" } });
   });
 
-  it.each(["src", "src/", "src//", ".", "/", "~/x", "C:/foo", "a b", "../x"])(
+  it.each(["src", "src/", "src//", ".", "/", "//", "C:/", "C://", "~/x", "C:/foo", "a b", "../x"])(
     "regenerates the imported %s as the one target it came from",
     (target) => {
       const imported = convertAntigravityToRulesyncPermissions({
@@ -783,7 +784,10 @@ describe("convertAntigravityToRulesyncPermissions with path targets", () => {
         logger: createMockLogger(),
         toolLabel: "Antigravity",
       });
-      expect(regenerated.allow).toEqual([`read_file(${target.replace(/(.)\/+$/, "$1")})`]);
+      const expected = /^(?:[A-Za-z]:)?\/+$/.test(target)
+        ? target.replace(/\/+$/, "/")
+        : target.replace(/\/+$/, "");
+      expect(regenerated.allow).toEqual([`read_file(${expected})`]);
     },
   );
 

@@ -138,9 +138,15 @@ function toPathTarget(pattern: string): TargetResult {
   if (["", ".", "**", "**/*"].includes(path)) {
     return { target: "." };
   }
-  // `/**` leaves an empty directory, which is the filesystem root.
+  // `/**` leaves an empty directory, which is the filesystem root, and `C:/**`
+  // leaves `C:`, the drive's current directory rather than its root.
+  const stripped = path.replace(DIRECTORY_CONTENTS_SUFFIX, "");
   const directory =
-    path.replace(DIRECTORY_CONTENTS_SUFFIX, "") || (path.startsWith("/") ? "/" : "");
+    stripped === "" && path.startsWith("/")
+      ? "/"
+      : /^[A-Za-z]:$/.test(stripped) && stripped !== path
+        ? `${stripped}/`
+        : stripped;
   if (directory !== path && directory.length > 0 && !hasGlob(directory)) {
     return { target: directory };
   }
@@ -170,9 +176,15 @@ function fromPathTarget(target: string): string[] {
   if (target === ".") {
     return [".", "./**"];
   }
+  // A filesystem or drive root keeps its slash: `C:` alone is the drive's
+  // current directory, not its root.
+  const root = /^((?:[A-Za-z]:)?\/)\/*$/.exec(target)?.[1];
+  if (root !== undefined) {
+    return [root, `${root}**`];
+  }
   // A trailing slash is dropped, so both patterns generate the same target.
-  const path = target.replace(/\/+$/, "") || "/";
-  return [path, path === "/" ? "/**" : `${path}/**`];
+  const path = target.replace(/\/+$/, "");
+  return [path, `${path}/**`];
 }
 
 /**
