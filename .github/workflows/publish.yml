@@ -13,7 +13,16 @@ jobs:
   publish:
     name: Publish to NPM
     runs-on: ubuntu-latest
-    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request' && startsWith(github.event.workflow_run.head_branch, 'release/v')
+    # Bind the trigger to this repository's own Publish Assets workflow file:
+    # a fork PR could otherwise add a workflow named "Publish Assets" on a
+    # `release/v*` branch, or open such a branch from a fork, and complete a
+    # run that reaches this job.
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      github.event.workflow_run.path == '.github/workflows/publish-assets.yml' &&
+      startsWith(github.event.workflow_run.head_branch, 'release/v')
 
     steps:
       - name: Checkout code
