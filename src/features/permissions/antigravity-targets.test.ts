@@ -125,6 +125,9 @@ describe("buildAntigravityPermissionEntry", () => {
       ["$HOME/.aws/credentials", "deny", "read_file($HOME/.aws/credentials)"],
       ["~/notes", "allow", "read_file(~/notes)"],
       ["config/${XDG_NAME}/x", "deny", "read_file(config/${XDG_NAME}/x)"],
+      ["%USERPROFILE%/.ssh/**", "deny", "read_file(%USERPROFILE%/.ssh)"],
+      ["~\\.ssh\\id_rsa", "deny", "read_file(~\\.ssh\\id_rsa)"],
+      ["~alice/.ssh/id_rsa", "deny", "read_file(~alice/.ssh/id_rsa)"],
     ] as const)("keeps %s but warns that it may not be expanded", (pattern, decision, expected) => {
       const { entry, logger } = build({ action: "read_file", pattern, decision });
       expect(entry).toBe(expected);
@@ -147,14 +150,18 @@ describe("buildAntigravityPermissionEntry", () => {
       );
     });
 
-    it.each(["app/routes/posts.$postId.tsx", "src/$lib/index.ts", "price$.txt", "~$report.docx"])(
-      "does not warn about the ordinary `$` in %s",
-      (pattern) => {
-        const { entry, logger } = build({ action: "write_file", pattern, decision: "deny" });
-        expect(entry).toBe(`write_file(${pattern})`);
-        expect(logger.warn).not.toHaveBeenCalled();
-      },
-    );
+    it.each([
+      "app/routes/posts.$postId.tsx",
+      "src/$lib/index.ts",
+      "price$.txt",
+      "~$report.docx",
+      "100%/done.txt",
+      "a/%TEMP%/x",
+    ])("does not warn about the ordinary `$` in %s", (pattern) => {
+      const { entry, logger } = build({ action: "write_file", pattern, decision: "deny" });
+      expect(entry).toBe(`write_file(${pattern})`);
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
   });
 
   describe("home directory rewrite", () => {
@@ -213,6 +220,20 @@ describe("buildAntigravityPermissionEntry", () => {
       });
       expect(entry).toBe(`read_file(${pattern})`);
     });
+
+    it.each(["%USERPROFILE%/x.txt", "~\\x.txt", "~alice/x.txt"])(
+      "keeps %s as written and warns that it may not be expanded",
+      (pattern) => {
+        const { entry, logger } = build({
+          action: "read_file",
+          pattern,
+          decision: "deny",
+          homeDirectory: "/home/me",
+        });
+        expect(entry).toBe(`read_file(${pattern})`);
+        expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("may not be expanded"));
+      },
+    );
 
     it("still warns that a $HOME deny may block nothing", () => {
       const { logger } = build({
