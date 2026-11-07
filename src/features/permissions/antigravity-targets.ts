@@ -169,7 +169,9 @@ function toPathTarget(pattern: string): TargetResult {
  * holds glob characters (verbatim output of an older Rulesync), stay as written.
  */
 function fromPathTarget(target: string): string[] {
-  if (target === "*" || hasGlob(target)) {
+  // A bare drive (`C:`, its current directory) has no subtree spelling:
+  // `C:/**` would generate as the drive root.
+  if (target === "*" || hasGlob(target) || /^[A-Za-z]:$/.test(target)) {
     return [target];
   }
   // `./**`, not `**`: generation turns `**` into the bare action (every path).

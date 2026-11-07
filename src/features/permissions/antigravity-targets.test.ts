@@ -767,29 +767,40 @@ describe("convertAntigravityToRulesyncPermissions with path targets", () => {
     expect(convert(["write_file(.)"])).toEqual({ write: { ".": "deny", "./**": "deny" } });
   });
 
-  it.each(["src", "src/", "src//", ".", "/", "//", "C:/", "C://", "~/x", "C:/foo", "a b", "../x"])(
-    "regenerates the imported %s as the one target it came from",
-    (target) => {
-      const imported = convertAntigravityToRulesyncPermissions({
-        allow: [`read_file(${target})`],
-        ask: [],
-        deny: [],
-        toCategory: (action) => (action === "read_file" ? "read" : action),
-        toolLabel: "Antigravity",
-        logger: createMockLogger(),
-      });
-      const regenerated = convertRulesyncToAntigravityPermissions({
-        config: imported,
-        toAction: (category) => (category === "read" ? "read_file" : category),
-        logger: createMockLogger(),
-        toolLabel: "Antigravity",
-      });
-      const expected = /^(?:[A-Za-z]:)?\/+$/.test(target)
-        ? target.replace(/\/+$/, "/")
-        : target.replace(/\/+$/, "");
-      expect(regenerated.allow).toEqual([`read_file(${expected})`]);
-    },
-  );
+  it.each([
+    "src",
+    "src/",
+    "src//",
+    ".",
+    "/",
+    "//",
+    "C:/",
+    "C://",
+    "C:",
+    "~/x",
+    "C:/foo",
+    "a b",
+    "../x",
+  ])("regenerates the imported %s as the one target it came from", (target) => {
+    const imported = convertAntigravityToRulesyncPermissions({
+      allow: [`read_file(${target})`],
+      ask: [],
+      deny: [],
+      toCategory: (action) => (action === "read_file" ? "read" : action),
+      toolLabel: "Antigravity",
+      logger: createMockLogger(),
+    });
+    const regenerated = convertRulesyncToAntigravityPermissions({
+      config: imported,
+      toAction: (category) => (category === "read" ? "read_file" : category),
+      logger: createMockLogger(),
+      toolLabel: "Antigravity",
+    });
+    const expected = /^(?:[A-Za-z]:)?\/+$/.test(target)
+      ? target.replace(/\/+$/, "/")
+      : target.replace(/\/+$/, "");
+    expect(regenerated.allow).toEqual([`read_file(${expected})`]);
+  });
 
   it("keeps the bare * and targets that already hold glob characters as written", () => {
     expect(convert(["write_file(*)", "write_file(**/*.env)"])).toEqual({
