@@ -54,7 +54,8 @@ import {
  *
  * Reasonix matches a rule's tool exactly against its registered tools, which
  * are snake_case (`read_file`, `write_file`, `grep`, `glob`, `web_fetch`,
- * `web_search`, `notebook_edit`, `task`). Only `Bash`, `Edit` (every file
+ * `web_search`, `notebook_edit`, and `task` up to v2.57.x / `spawn_agents` from
+ * v2.58.0). Only `Bash`, `Edit` (every file
  * writer: `write_file`, `edit_file`, `multi_edit`, `notebook_edit`, ...),
  * `Browser` and `Computer` are Claude-Code-style family aliases
  * (`canonicalRuleTool` / `groupOf`), so a `Read(...)` or `Write(...)` rule
@@ -75,6 +76,21 @@ const CANONICAL_TO_REASONIX_TOOL_NAMES: Record<string, string> = {
   glob: "glob",
   notebookedit: "notebook_edit",
   agent: "task",
+};
+
+/**
+ * Reasonix tool names a canonical category writes beside its primary name, for
+ * a tool Reasonix renamed. studio-v2.58.0 replaced the `task` delegation family
+ * with `spawn_agents` (commit ad2c96347), while the 1.x line and v2 up to
+ * v2.57.x still register `task`. Reasonix only checks a rule's syntax, and a
+ * rule naming a tool the running build lacks matches nothing (v2.34.0+ reports
+ * it as dormant), so writing both names keeps an `agent` rule in force on old
+ * and new builds alike. Both names are read back to the same category.
+ * @see https://github.com/esengine/DeepSeek-Reasonix/blob/studio-v2.58.0/internal/runtime/delegation/spawn.go
+ * @see https://github.com/esengine/DeepSeek-Reasonix/blob/studio-v2.57.0/internal/runtime/delegation/task.go
+ */
+const CANONICAL_TO_EXTRA_REASONIX_TOOL_NAMES: Record<string, readonly string[]> = {
+  agent: ["spawn_agents"],
 };
 
 /**
@@ -102,17 +118,26 @@ const CANONICAL_TO_LEGACY_REASONIX_TOOL_NAMES: Record<string, string> = {
 const REASONIX_TO_CANONICAL_TOOL_NAMES: Record<string, string> = {
   ...invertRecord(CANONICAL_TO_LEGACY_REASONIX_TOOL_NAMES),
   ...invertRecord(CANONICAL_TO_REASONIX_TOOL_NAMES),
+  ...Object.fromEntries(
+    Object.entries(CANONICAL_TO_EXTRA_REASONIX_TOOL_NAMES).flatMap(([canonical, names]) =>
+      names.map((name) => [name, canonical]),
+    ),
+  ),
 };
 
 /** Every Reasonix tool name a canonical category owns on generate. */
 function reasonixToolNamesOf(canonical: string): string[] {
   const legacy = lookupOwn({ record: CANONICAL_TO_LEGACY_REASONIX_TOOL_NAMES, key: canonical });
-  const current = toReasonixToolName(canonical);
-  return legacy === undefined ? [current] : [current, legacy];
+  const current = toReasonixToolNames(canonical);
+  return legacy === undefined ? current : [...current, legacy];
 }
 
-function toReasonixToolName(canonical: string): string {
-  return lookupOwn({ record: CANONICAL_TO_REASONIX_TOOL_NAMES, key: canonical }) ?? canonical;
+/** The Reasonix tool names a canonical category's rules are written under. */
+function toReasonixToolNames(canonical: string): string[] {
+  const primary =
+    lookupOwn({ record: CANONICAL_TO_REASONIX_TOOL_NAMES, key: canonical }) ?? canonical;
+  const extra = lookupOwn({ record: CANONICAL_TO_EXTRA_REASONIX_TOOL_NAMES, key: canonical });
+  return extra === undefined ? [primary] : [primary, ...extra];
 }
 
 function toCanonicalToolName(reasonixName: string): string {
@@ -990,19 +1015,20 @@ function convertRulesyncToReasonixPermissions(config: PermissionsConfig): {
   const deny: string[] = [];
 
   for (const [category, rules] of Object.entries(config.permission)) {
-    const reasonixToolName = toReasonixToolName(category);
-    for (const [pattern, action] of Object.entries(rules)) {
-      const entry = buildToolPatternEntry({ toolName: reasonixToolName, pattern });
-      switch (action) {
-        case "allow":
-          allow.push(entry);
-          break;
-        case "ask":
-          ask.push(entry);
-          break;
-        case "deny":
-          deny.push(entry);
-          break;
+    for (const reasonixToolName of toReasonixToolNames(category)) {
+      for (const [pattern, action] of Object.entries(rules)) {
+        const entry = buildToolPatternEntry({ toolName: reasonixToolName, pattern });
+        switch (action) {
+          case "allow":
+            allow.push(entry);
+            break;
+          case "ask":
+            ask.push(entry);
+            break;
+          case "deny":
+            deny.push(entry);
+            break;
+        }
       }
     }
   }
@@ -1033,6 +1059,9 @@ function convertReasonixToRulesyncPermissions(params: {
     }
   };
 
+  // Later lists overwrite earlier ones, so when two Reasonix names of one
+  // category (e.g. `task` and `spawn_agents`) disagree, the stricter action
+  // wins: deny over ask over allow.
   processEntries(params.allow, "allow");
   processEntries(params.ask, "ask");
   processEntries(params.deny, "deny");

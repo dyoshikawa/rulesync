@@ -360,8 +360,34 @@ describe("ReasonixPermissions", () => {
       const parsed = smolToml.parse(instance.getFileContent()) as any;
       expect(parsed.permissions).toEqual({
         allow: ["Bash(npm *)", "Edit(docs/**)", "glob", "grep"],
-        ask: ["task", "web_fetch", "web_search"],
+        ask: ["spawn_agents", "task", "web_fetch", "web_search"],
         deny: ["notebook_edit", "read_file(.env)", "write_file(secrets/**)"],
+      });
+    });
+
+    it("should write an agent rule under both task and spawn_agents and replace stale copies", async () => {
+      await writeFileContent(
+        join(testDir, "reasonix.toml"),
+        ["[permissions]", 'allow = ["spawn_agents", "task", "grep"]'].join("\n"),
+      );
+
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: { agent: { "*": "deny" } },
+        }),
+      });
+
+      const instance = await ReasonixPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const parsed = smolToml.parse(instance.getFileContent()) as any;
+      expect(parsed.permissions).toEqual({
+        allow: ["grep"],
+        deny: ["spawn_agents", "task"],
       });
     });
 
@@ -1548,6 +1574,25 @@ describe("ReasonixPermissions", () => {
         read: { ".env": "deny", "*.pem": "deny" },
         write: { "secrets/**": "deny" },
         notebookedit: { "*": "deny" },
+      });
+    });
+
+    it("should import both task and spawn_agents as agent, letting the stricter action win", () => {
+      const instance = new ReasonixPermissions({
+        relativeDirPath: ".",
+        relativeFilePath: "reasonix.toml",
+        fileContent: [
+          "[permissions]",
+          'allow = ["task", "spawn_agents(review)"]',
+          'ask = ["spawn_agents"]',
+          'deny = ["task(review)"]',
+        ].join("\n"),
+      });
+
+      const config = instance.toRulesyncPermissions().getJson();
+
+      expect(config.permission).toEqual({
+        agent: { "*": "ask", review: "deny" },
       });
     });
 
