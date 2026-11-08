@@ -1541,6 +1541,14 @@ const CodexBasePermissionProfileSchema = z.enum(CODEX_BASE_PERMISSION_PROFILES);
  *   `true`; only an explicit `false` suppresses it. Like
  *   `base_permission_profile` it is consumed by the profile builder, not
  *   written as a top-level config key.
+ * - `bash_canonical_matching` — when `true`, the `forbidden` (deny) and
+ *   `prompt` (ask) rules generated from `permission.bash` into
+ *   `.codex/rules/rulesync.rules` carry `canonical_matching = True`, so Codex
+ *   compares their tokens after Unicode canonical case-insensitive folding (`rm` also
+ *   matches `RM`). `allow` rules stay exact so the opt-in never widens what is
+ *   auto-approved. Requires Codex 0.167.0 or later — an older Codex rejects the
+ *   keyword and fails to load the rules file — so it defaults to `false`. Not
+ *   written as a config key.
  *
  * The keys written to `config.toml` are an **allowlist**, not verbatim
  * passthrough: only `CODEXCLI_OVERRIDE_KEYS`
@@ -1548,8 +1556,8 @@ const CodexBasePermissionProfileSchema = z.enum(CODEX_BASE_PERMISSION_PROFILES);
  * `sandbox_workspace_write`, `apps`, `approvals_reviewer`, `auto_review`,
  * `tui`) are emitted, and
  * `computeCodexcliOverridePatch` skips anything else with a warning.
- * `base_permission_profile` and `git_write_rules` are consumed by the profile
- * builder rather than written, as described above, and `permission` is the
+ * `base_permission_profile`, `git_write_rules` and `bash_canonical_matching`
+ * are consumed by the generators rather than written, as described above, and `permission` is the
  * tool-scoped canonical block, which `RulesyncPermissions.forTarget` strips out
  * of the override before it ever reaches the patch. The allowlist is what keeps
  * the override from clobbering a feature-owned key: `mcp_servers.*` per-MCP
@@ -1609,6 +1617,7 @@ const CodexcliPermissionsOverrideSchema = z.looseObject({
    */
   tui: z.optional(z.looseObject({})),
   git_write_rules: z.optional(z.boolean()),
+  bash_canonical_matching: z.optional(z.boolean()),
 });
 
 /**
