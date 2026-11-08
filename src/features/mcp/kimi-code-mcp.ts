@@ -53,11 +53,14 @@ function normalizeKimiCodeTransport({
 }
 
 /**
- * The only `executor` value Kimi Code accepts on a stdio server. 2.2.0 removed
- * the never-implemented `kaos` option and narrowed the schema to
- * `z.enum(['local'])`, so any other value makes Kimi fail validation when it
- * loads `mcp.json`.
+ * The only `executor` value every current Kimi Code release accepts on a stdio
+ * server. 2.2.0 removed the never-implemented `kaos` option and narrowed the
+ * schema to `z.enum(['local'])`, so 2.2.0 through 2.4.x fail validation on any
+ * other value when they load `mcp.json`. 2.5.0 widened the enum back to
+ * `'local' | 'kaos'`, but `kaos` is still undocumented and would break the
+ * older releases, so it keeps being dropped.
  * @see https://github.com/MoonshotAI/kimi-code/pull/4184
+ * @see https://github.com/MoonshotAI/kimi-code/pull/4062
  */
 const KIMI_CODE_MCP_EXECUTOR = "local";
 
@@ -76,9 +79,48 @@ function dropUnsupportedKimiCodeExecutor({
   }
   warnWithFallback(
     logger,
-    `Kimi Code MCP: dropping executor ${JSON.stringify(server.executor)} from "${name}" because Kimi Code only accepts "${KIMI_CODE_MCP_EXECUTOR}".`,
+    `Kimi Code MCP: dropping executor ${JSON.stringify(server.executor)} from "${name}" because Kimi Code 2.2.0 through 2.4.x accept only "${KIMI_CODE_MCP_EXECUTOR}".`,
   );
   delete server.executor;
+}
+
+/**
+ * Remove, with a warning, an `environment_id` Kimi Code cannot use. Kimi Code
+ * 2.5.0 added it to stdio servers only, as a non-empty string naming an
+ * `[environments.<id>]` entry of `config.toml`; an empty or non-string value
+ * fails Kimi's validation. Mutates `server`.
+ * @see https://github.com/MoonshotAI/kimi-code/pull/4062
+ */
+function dropUnsupportedKimiCodeEnvironmentId({
+  name,
+  server,
+  isStdio,
+  logger,
+}: {
+  name: string;
+  server: Record<string, unknown>;
+  isStdio: boolean;
+  logger?: Logger;
+}): void {
+  const environmentId = server.environment_id;
+  if (environmentId === undefined) {
+    return;
+  }
+  if (!isStdio) {
+    warnWithFallback(
+      logger,
+      `Kimi Code MCP: dropping environment_id from "${name}" because Kimi Code only accepts it on stdio servers.`,
+    );
+    delete server.environment_id;
+    return;
+  }
+  if (typeof environmentId !== "string" || environmentId.length === 0) {
+    warnWithFallback(
+      logger,
+      `Kimi Code MCP: dropping environment_id ${JSON.stringify(environmentId)} from "${name}" because Kimi Code requires a non-empty string.`,
+    );
+    delete server.environment_id;
+  }
 }
 
 function toKimiCodeServer({
@@ -123,14 +165,18 @@ function toKimiCodeServer({
   };
   // Kimi's documented per-server keys beyond the transport itself. `deferred`
   // (0.43.0) keeps the server's tools out of the top-level tool list until the
-  // model loads them on demand. `executor` (only `local` since 2.2.0) and
-  // `runtime_id` pick where a stdio server runs; they are accepted by the
-  // server schema but not documented yet.
+  // model loads them on demand. `environment_id` (2.5.0) starts a stdio server
+  // inside a remote environment declared under `[environments.<id>]`.
+  // `executor` and `runtime_id` are undocumented stdio keys: `runtime_id` is
+  // accepted by 2.2.0 through 2.4.x and silently stripped by 2.5.0+, which
+  // replaced it with `environment_id`; it is passed through unchanged for the
+  // older releases.
   // https://moonshotai.github.io/kimi-code/en/customization/mcp.html
-  // https://github.com/MoonshotAI/kimi-code/blob/%40moonshot-ai/kimi-code%402.2.0/packages/agent-core-v2/src/mcpCore/config-schema.ts
+  // https://github.com/MoonshotAI/kimi-code/blob/%40moonshot-ai/kimi-code%402.5.2/packages/agent-core-v2/src/mcpCore/config-schema.ts
   for (const field of [
     "env",
     "cwd",
+    "environment_id",
     "executor",
     "runtime_id",
     "headers",
@@ -147,6 +193,12 @@ function toKimiCodeServer({
     }
   }
   dropUnsupportedKimiCodeExecutor({ name, server: converted, logger });
+  dropUnsupportedKimiCodeEnvironmentId({
+    name,
+    server: converted,
+    isStdio: normalizedTransport === "stdio",
+    logger,
+  });
   if (server.disabled === true) {
     converted.enabled = false;
   }
@@ -185,6 +237,14 @@ function fromKimiCodeServers({
         transport === "stdio" || transport === "sse" || transport === "http"
           ? transport
           : undefined;
+      dropUnsupportedKimiCodeEnvironmentId({
+        name,
+        server: rest,
+        isStdio:
+          normalizeKimiCodeTransport({ transport, hasCommand: rest.command !== undefined }) ===
+          "stdio",
+        logger,
+      });
       return [
         name,
         {

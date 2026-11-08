@@ -167,7 +167,7 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
       meta: {
         supportsProject: true,
         supportsGlobal: true,
-        supportsEnabledTools: false,
+        supportsEnabledTools: true,
         supportsDisabledTools: true,
       },
     },
@@ -179,7 +179,7 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
       meta: {
         supportsProject: true,
         supportsGlobal: true,
-        supportsEnabledTools: false,
+        supportsEnabledTools: true,
         supportsDisabledTools: true,
       },
     },
@@ -191,7 +191,7 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
       meta: {
         supportsProject: true,
         supportsGlobal: false,
-        supportsEnabledTools: false,
+        supportsEnabledTools: true,
         supportsDisabledTools: true,
       },
     },

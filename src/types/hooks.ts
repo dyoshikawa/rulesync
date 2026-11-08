@@ -530,6 +530,10 @@ export const QWENCODE_HOOK_EVENTS: readonly HookEvent[] = [
   // explicitly selected session is deleted (interactive `/delete` and the ACP
   // `deleteSession` request). It has no matcher support.
   "sessionDelete",
+  // `hooks.FileChanged` landed in Qwen Code v0.27.0 (PR #13969): fires after an
+  // explicitly watched file is added, modified or deleted. The matcher filters
+  // on the file basename, so it is kept.
+  "fileChanged",
 ];
 
 export const CANONICAL_TO_KIMI_CODE_EVENT_NAMES: Record<string, string> = {
@@ -2162,6 +2166,7 @@ export const CANONICAL_TO_JUNIE_EVENT_NAMES: Record<string, string> = {
   sessionStart: "SessionStart",
   beforeSubmitPrompt: "UserPromptSubmit",
   preToolUse: "PreToolUse",
+  postToolUse: "PostToolUse",
   stop: "Stop",
   stopFailure: "StopFailure",
   permissionRequest: "PermissionRequest",
@@ -2171,11 +2176,12 @@ export const CANONICAL_TO_JUNIE_EVENT_NAMES: Record<string, string> = {
 /**
  * Hook events supported by JetBrains Junie CLI.
  *
- * Junie CLI exposes seven lifecycle events under the `"hooks"` key of
+ * Junie CLI exposes eight lifecycle events under the `"hooks"` key of
  * `~/.junie/config.json`: `SessionStart`, `UserPromptSubmit`, `PreToolUse`,
- * `Stop`, `StopFailure`, `PermissionRequest`, and `SessionEnd`. Matchers apply
- * to `SessionStart` (source), `PreToolUse` (tool name), `StopFailure` (error
- * type), `PermissionRequest` (tool name), and `SessionEnd` (reason);
+ * `PostToolUse`, `Stop`, `StopFailure`, `PermissionRequest`, and `SessionEnd`.
+ * Matchers apply to `SessionStart` (source), `PreToolUse` and `PostToolUse`
+ * (tool name), `StopFailure` (error type), `PermissionRequest` (tool name), and
+ * `SessionEnd` (reason);
  * `UserPromptSubmit` and `Stop` are matcher-less and always run. Only
  * `type: "command"` hooks are supported. Project-local hooks are ignored for
  * safety.
@@ -2377,6 +2383,7 @@ export const CANONICAL_TO_QWENCODE_EVENT_NAMES: Record<string, string> = {
   todoCompleted: "TodoCompleted",
   messageDisplay: "MessageDisplay",
   sessionDelete: "SessionDelete",
+  fileChanged: "FileChanged",
 };
 
 /**
