@@ -186,9 +186,15 @@ function effectiveSafeCommandLine(entry: string): string | undefined {
 /**
  * Build the test for a `safe_commands` line: which canonical `deny`/`ask`
  * rules govern a command Crush would approve through it? Besides the line
- * itself, Crush approves it followed by `--` and behind a wrapper, so those
- * spellings are compared too. Canonically the stricter rule wins whatever its
- * width (`deny > ask > allow`), so any overlap withholds the line.
+ * itself, Crush approves it followed by `--` and behind a wrapper, whose name
+ * it normalizes (`/usr/bin/env`, `NICE`, `nohup.exe`), so those spellings are
+ * compared too — case-insensitively, against the restrictions as written and
+ * lower-cased. Canonically the stricter rule wins whatever its width
+ * (`deny > ask > allow`), so any overlap withholds the line.
+ *
+ * Crush also approves a line composed with other safe lines (`&&`, `||`, `|`,
+ * `;`, a parenthesized group); those compositions are not compared, the way other tools'
+ * per-subcommand matching treats an allowed command.
  */
 function createSafeCommandShadowTest(
   permission: PermissionsConfig["permission"],
@@ -197,9 +203,22 @@ function createSafeCommandShadowTest(
     ({ action }) => action !== "allow",
   );
   const test = createShadowingRestrictionsTest(restrictions);
+  const lowered = restrictions.map((rule) => ({ ...rule, pattern: rule.pattern.toLowerCase() }));
+  const testLowered = createShadowingRestrictionsTest(lowered);
+  const originalOf = new Map(lowered.map((rule, index) => [rule.pattern, restrictions[index]]));
   return (line) => {
-    const spellings = [line, ...CRUSH_COMMAND_PREFIXES.map((prefix) => `${prefix}*${line}`)];
-    return uniq(spellings.flatMap((spelling) => [...test(spelling), ...test(`${spelling} --*`)]));
+    const spellingsOf = (base: string) => [
+      base,
+      ...CRUSH_COMMAND_PREFIXES.flatMap((prefix) => [`${prefix}*${base}`, `/*${prefix}*${base}`]),
+    ];
+    const withSeparator = (base: string) =>
+      spellingsOf(base).flatMap((spelling) => [spelling, `${spelling} --*`]);
+    return uniq([
+      ...withSeparator(line).flatMap((spelling) => test(spelling)),
+      ...withSeparator(line.toLowerCase()).flatMap((spelling) =>
+        testLowered(spelling).map((pattern) => originalOf.get(pattern)?.pattern ?? pattern),
+      ),
+    ]);
   };
 }
 
@@ -242,8 +261,12 @@ function listOrUndefined(values: string[]): string[] | undefined {
  *     (no extra arguments, no flags) <- an `allow` on a literal command line
  *     that no canonical `deny`/`ask` overlaps.
  *   - `permissions.blocked_commands`: command names added to the dangerous
- *     list, still prompted for in normal mode <- an `ask` on `<name>` or
- *     `<name> *`. A `deny` is not written there: Crush would still prompt.
+ *     list <- a `deny` on `<name>` or `<name> *`. Not a full deny: a direct
+ *     invocation is still prompted for (and auto-approved in yolo mode or
+ *     through `allowed_tools: ["bash"]`); only the forms Crush would not
+ *     prompt for (its read-only commands, `safe_commands`) and indirect
+ *     invocations are refused at exec time. An `ask` is not written there,
+ *     since it would turn the read-only forms into a refusal.
  * `permissions.allowed_commands` only drops names from the dangerous list (the
  * commands keep prompting), so it has no canonical counterpart and is left
  * untouched.
@@ -426,8 +449,10 @@ export class CrushPermissions extends ToolPermissions {
 /**
  * The `safe_commands` / `blocked_commands` lists a generate writes: the
  * existing entries rulesync keeps, followed by the ones derived from the
- * canonical `bash` rules. A blocked entry for a command the `bash` rules name
- * as a whole is rebuilt from them; any other entry is the user's and is kept.
+ * canonical `bash` rules. Existing `blocked_commands` entries are all kept:
+ * rulesync cannot tell its own from hand-written ones, and dropping one only
+ * ever loosens. A derived blocked name that is the command of a written safe
+ * line is withheld, since Crush would refuse that line at exec time.
  */
 function rebuildCrushCommandLists({
   config,
@@ -441,25 +466,33 @@ function rebuildCrushCommandLists({
   const bashRules = honorAllToolsOnBash(config.permission)[SHELL_PERMISSION_CATEGORY] ?? {};
   const shadowTest = createSafeCommandShadowTest(config.permission);
   const generated = convertBashCommandRules({ bashRules, shadowTest, logger });
-  const managedCommandNames = new Set(
-    Object.keys(bashRules).flatMap((pattern) => wholeCommandName(pattern) ?? []),
+  const safe = uniq([
+    ...preserveSafeCommands({
+      existing: stringList(existingPermissions?.[CRUSH_SAFE_COMMANDS_KEY]),
+      bashRules,
+      shadowTest,
+      logger,
+    }),
+    ...generated.safe,
+  ]);
+  const safeCommandNames = new Set(
+    safe.flatMap((entry) => {
+      const name = entry.trim().split(/\s+/)[0];
+      return name === undefined || name === "" ? [] : [normalizeCrushCommandName(name)];
+    }),
   );
+  const blocked = generated.blocked.filter((name) => {
+    if (!safeCommandNames.has(name)) return true;
+    logger?.warn(
+      `The "deny" rule for "bash" on ${quoteValueForWarning(name)} is not added to ` +
+        `permissions.blocked_commands because Crush would then refuse the allowed ` +
+        `permissions.safe_commands line(s) for that command; Crush keeps prompting for it.`,
+    );
+    return false;
+  });
   return {
-    safe: uniq([
-      ...preserveSafeCommands({
-        existing: stringList(existingPermissions?.[CRUSH_SAFE_COMMANDS_KEY]),
-        bashRules,
-        shadowTest,
-        logger,
-      }),
-      ...generated.safe,
-    ]),
-    blocked: uniq([
-      ...stringList(existingPermissions?.[CRUSH_BLOCKED_COMMANDS_KEY]).filter(
-        (entry) => !managedCommandNames.has(normalizeCrushCommandName(entry)),
-      ),
-      ...generated.blocked,
-    ]),
+    safe,
+    blocked: uniq([...stringList(existingPermissions?.[CRUSH_BLOCKED_COMMANDS_KEY]), ...blocked]),
   };
 }
 
@@ -634,13 +667,15 @@ function convertRulesyncToCrushLists({
  *     Crush matches exactly (no extra arguments, no flags). It is withheld
  *     when a canonical `deny`/`ask` governs any command Crush would approve
  *     through it.
- *   - `ask` on `<name>` / `<name> *` -> `permissions.blocked_commands`, which
- *     marks the whole command as dangerous: still prompted for in normal mode,
- *     never auto-approved by `allowed_commands`.
- *   - Anything else is reported and skipped. In particular Crush cannot refuse
- *     a single command (`blocked_commands` still prompts), so a pattern `deny`
- *     is never written there, and an `allow` with a wildcard has no list that
- *     auto-approves it.
+ *   - `deny` on `<name>` / `<name> *` -> `permissions.blocked_commands`, the
+ *     strictest Crush can say about a single command: a direct invocation is
+ *     still prompted for, while the forms Crush would not prompt for and
+ *     indirect invocations are refused at exec time. Reported, since it is
+ *     not a full deny.
+ *   - Anything else is reported and skipped. A pattern `ask` is never written
+ *     to `blocked_commands`, which would refuse the command's read-only forms
+ *     outright, and an `allow` with a wildcard has no list that auto-approves
+ *     it.
  */
 function convertBashCommandRules({
   bashRules,
@@ -682,24 +717,30 @@ function convertBashCommandRules({
     }
 
     if (action === "ask") {
-      const name = wholeCommandName(pattern);
-      if (name !== undefined) {
-        lists.blocked.push(name);
-        continue;
-      }
       logger?.warn(
-        `Crush can only mark a whole command as dangerous (permissions.blocked_commands), so ` +
-          `the "ask" rule for "bash" (pattern ${quoted}) was skipped; Crush still prompts for it ` +
-          `unless it is one of Crush's built-in read-only commands.`,
+        `Crush has no per-command prompt list (permissions.blocked_commands would refuse the ` +
+          `command's read-only forms outright), so the "ask" rule for "bash" (pattern ${quoted}) ` +
+          `was skipped; Crush still prompts for it unless it is one of Crush's built-in ` +
+          `read-only commands.`,
       );
       continue;
     }
 
+    const name = wholeCommandName(pattern);
+    if (name === undefined) {
+      logger?.warn(
+        `Crush can only restrict a whole command (permissions.blocked_commands), so the "deny" ` +
+          `rule for "bash" (pattern ${quoted}) was skipped; Crush still prompts for it unless it ` +
+          `is one of Crush's built-in read-only commands.`,
+      );
+      continue;
+    }
     logger?.warn(
-      `Crush cannot refuse a single command (permissions.blocked_commands still prompts), so ` +
-        `the "deny" rule for "bash" (pattern ${quoted}) was skipped; Crush still prompts for it ` +
-        `unless it is one of Crush's built-in read-only commands.`,
+      `The "deny" rule for "bash" (pattern ${quoted}) is written as permissions.blocked_commands ` +
+        `entry ${quoteValueForWarning(name)}, which is not a full deny: Crush still prompts for a ` +
+        `direct invocation (and runs it unprompted in yolo mode or with "bash" in allowed_tools).`,
     );
+    lists.blocked.push(name);
   }
   return { safe: uniq(lists.safe), blocked: uniq(lists.blocked) };
 }
@@ -733,7 +774,7 @@ function convertCrushListsToRulesync({
     bucketFor(toCanonicalToolName(entry))[CATCH_ALL_PATTERN] = "deny";
   }
   // Pattern rules land in the `bash` bucket without overriding a rule already
-  // there, so the order below keeps the stricter one: deny, then ask, then allow.
+  // there, so the order below keeps the stricter one: deny before allow.
   const setBashRule = (pattern: string, action: PermissionAction): void => {
     const bucket = bucketFor(SHELL_PERMISSION_CATEGORY);
     if (!Object.hasOwn(bucket, pattern)) bucket[pattern] = action;
@@ -748,9 +789,11 @@ function convertCrushListsToRulesync({
       );
       continue;
     }
-    // A blocked command prompts for every invocation, bare or with arguments.
-    setBashRule(name, "ask");
-    setBashRule(`${name} *`, "ask");
+    // A blocked command covers every invocation, bare or with arguments. It
+    // comes back as the deny it is generated from: Crush refuses its
+    // unprompted forms, so an `ask` would read looser than Crush behaves.
+    setBashRule(name, "deny");
+    setBashRule(`${name} *`, "deny");
   }
   for (const entry of safe) {
     if (entry.trim() === "") continue;

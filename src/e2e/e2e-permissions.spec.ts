@@ -1357,8 +1357,8 @@ web_search_request = true
             bash: {
               "go build": "allow",
               "kubectl get": "allow",
-              "kubectl *": "ask",
-              "rm -rf *": "deny",
+              "kubectl *": "deny",
+              "helm *": "ask",
             },
           },
         },
@@ -1370,8 +1370,9 @@ web_search_request = true
     await runGenerate({ target: "crush", features: "permissions" });
 
     // An exact allow becomes a safe command unless an ask/deny covers it
-    // (`kubectl get` is withheld by `kubectl *`); a whole-command ask becomes a
-    // blocked command; a deny is skipped, since Crush would still prompt.
+    // (`kubectl get` is withheld by `kubectl *`); a whole-command deny becomes a
+    // blocked command; an ask is skipped, since blocking would refuse the
+    // command's read-only forms outright.
     const content = JSON.parse(await readFileContent(join(testDir, "crush.json")));
     expect(content.permissions).toEqual({
       safe_commands: ["go build"],
@@ -2049,8 +2050,8 @@ enabled = true
     );
     expect(content.permission.bash["*"]).toBe("allow");
     expect(content.permission.bash["go build"]).toBe("allow");
-    expect(content.permission.bash.kubectl).toBe("ask");
-    expect(content.permission.bash["kubectl *"]).toBe("ask");
+    expect(content.permission.bash.kubectl).toBe("deny");
+    expect(content.permission.bash["kubectl *"]).toBe("deny");
     expect(content.permission.read["*"]).toBe("allow");
     expect(content.permission.webfetch["*"]).toBe("deny");
     // `tool:action` entries are narrower than a tool-wide rule and are not imported.

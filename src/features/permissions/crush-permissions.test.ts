@@ -130,7 +130,7 @@ describe("CrushPermissions", () => {
       );
     });
 
-    it("should map exact allows to safe_commands and whole-command asks to blocked_commands", async () => {
+    it("should map exact allows to safe_commands and whole-command denies to blocked_commands", async () => {
       const logger = createMockLogger();
       const permissions = await CrushPermissions.fromRulesyncPermissions({
         outputRoot: testDir,
@@ -142,10 +142,10 @@ describe("CrushPermissions", () => {
             "nohup make": "allow",
             "/usr/bin/make": "allow",
             'echo "hi"': "allow",
-            "kubectl *": "ask",
-            terraform: "ask",
-            "npm publish *": "ask",
-            "rm -rf *": "deny",
+            "kubectl *": "deny",
+            terraform: "deny",
+            "npm publish *": "deny",
+            "helm *": "ask",
           },
           read: { "*": "allow" },
         }),
@@ -159,12 +159,15 @@ describe("CrushPermissions", () => {
           blocked_commands: ["kubectl", "terraform"],
         },
       });
-      for (const skipped of ["git *", "nohup make", "/usr/bin/make", "npm publish *"]) {
+      for (const skipped of ["git *", "nohup make", "/usr/bin/make", "npm publish *", "helm *"]) {
         expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining(`"${skipped}"`));
       }
-      // A deny is never downgraded to blocked_commands, which still prompts.
+      // A blocked command is not a full deny, which is reported.
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("which is not a full deny"));
+      // An ask is never written to blocked_commands, which would refuse the
+      // command's read-only forms outright.
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining("Crush cannot refuse a single command"),
+        expect.stringContaining("Crush has no per-command prompt list"),
       );
     });
 
@@ -188,9 +191,7 @@ describe("CrushPermissions", () => {
         logger,
       });
 
-      expect(permissions.getJson()).toEqual({
-        permissions: { blocked_commands: ["nice"] },
-      });
+      expect(permissions.getJson()).toEqual({});
       for (const withheld of ["go build", "npm test"]) {
         expect(logger.warn).toHaveBeenCalledWith(
           expect.stringContaining(
@@ -198,6 +199,73 @@ describe("CrushPermissions", () => {
           ),
         );
       }
+    });
+
+    it("should compare wrapper spellings with a path or another case", async () => {
+      const logger = createMockLogger();
+      const permissions = await CrushPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          bash: {
+            // Crush approves `/usr/bin/env go build` and `NICE make` as well.
+            "go build": "allow",
+            "/usr/bin/env *": "deny",
+            make: "allow",
+            "NICE *": "ask",
+          },
+        }),
+        logger,
+      });
+
+      expect(permissions.getJson()).toEqual({});
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringMatching(/pattern "go build"\).*"\/usr\/bin\/env \*"/),
+      );
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringMatching(/pattern "make"\).*"NICE \*"/),
+      );
+      for (const withheld of ["go build", "make"]) {
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining(
+            `pattern "${withheld}") is not added to permissions.safe_commands`,
+          ),
+        );
+      }
+    });
+
+    it("should not block the command of an allowed safe line", async () => {
+      const logger = createMockLogger();
+      const permissions = await CrushPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          bash: { npm: "deny", "npm test": "allow" },
+        }),
+        logger,
+      });
+
+      // Blocking `npm` would make Crush refuse the allowed `npm test`.
+      expect(permissions.getJson()).toEqual({ permissions: { safe_commands: ["npm test"] } });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('on "npm" is not added to permissions.blocked_commands'),
+      );
+    });
+
+    it("should keep hand-written blocked commands whatever the canonical rules say", async () => {
+      await writeFileContent(
+        projectConfigPath(),
+        JSON.stringify({ permissions: { blocked_commands: ["kubectl", "helm"] } }),
+      );
+
+      const permissions = await CrushPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          bash: { "kubectl get *": "deny", "helm *": "allow", "docker *": "deny" },
+        }),
+      });
+
+      expect(permissions.getJson()).toEqual({
+        permissions: { blocked_commands: ["kubectl", "helm", "docker"] },
+      });
     });
 
     it("should withhold every safe command line under a catch-all ask", async () => {
@@ -233,15 +301,13 @@ describe("CrushPermissions", () => {
       });
 
       // `rm -rf build` would auto-approve a denied command, `ls *.txt` cannot be
-      // analyzed while the config restricts anything, `go build` is now an ask
-      // (which Crush cannot write for a single subcommand), and `kubectl` is
-      // managed by the canonical allow (which Crush cannot write either), so
-      // its blocked entry is retracted.
+      // analyzed while the config restricts anything, and `go build` is now an
+      // ask. Blocked entries are all kept, and the `rm *` deny adds `rm`.
       expect(permissions.getJson()).toEqual({
         permissions: {
           allowed_commands: ["curl"],
           safe_commands: ["make lint"],
-          blocked_commands: ["terraform"],
+          blocked_commands: ["terraform", "/usr/bin/Kubectl", "rm"],
         },
       });
       expect(logger.warn).toHaveBeenCalledWith(
@@ -417,10 +483,10 @@ describe("CrushPermissions", () => {
       const json = permissions.toRulesyncPermissions({ logger }).getJson();
       expect(json.permission).toEqual({
         bash: {
-          kubectl: "ask",
-          "kubectl *": "ask",
-          terraform: "ask",
-          "terraform *": "ask",
+          kubectl: "deny",
+          "kubectl *": "deny",
+          terraform: "deny",
+          "terraform *": "deny",
           "go build": "allow",
           "cargo check": "allow",
           "kubectl get": "allow",
