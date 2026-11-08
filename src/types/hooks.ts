@@ -2162,6 +2162,7 @@ export const CANONICAL_TO_JUNIE_EVENT_NAMES: Record<string, string> = {
   sessionStart: "SessionStart",
   beforeSubmitPrompt: "UserPromptSubmit",
   preToolUse: "PreToolUse",
+  postToolUse: "PostToolUse",
   stop: "Stop",
   stopFailure: "StopFailure",
   permissionRequest: "PermissionRequest",
@@ -2171,11 +2172,12 @@ export const CANONICAL_TO_JUNIE_EVENT_NAMES: Record<string, string> = {
 /**
  * Hook events supported by JetBrains Junie CLI.
  *
- * Junie CLI exposes seven lifecycle events under the `"hooks"` key of
+ * Junie CLI exposes eight lifecycle events under the `"hooks"` key of
  * `~/.junie/config.json`: `SessionStart`, `UserPromptSubmit`, `PreToolUse`,
- * `Stop`, `StopFailure`, `PermissionRequest`, and `SessionEnd`. Matchers apply
- * to `SessionStart` (source), `PreToolUse` (tool name), `StopFailure` (error
- * type), `PermissionRequest` (tool name), and `SessionEnd` (reason);
+ * `PostToolUse`, `Stop`, `StopFailure`, `PermissionRequest`, and `SessionEnd`.
+ * Matchers apply to `SessionStart` (source), `PreToolUse` and `PostToolUse`
+ * (tool name), `StopFailure` (error type), `PermissionRequest` (tool name), and
+ * `SessionEnd` (reason);
  * `UserPromptSubmit` and `Stop` are matcher-less and always run. Only
  * `type: "command"` hooks are supported. Project-local hooks are ignored for
  * safety.
