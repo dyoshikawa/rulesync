@@ -394,12 +394,9 @@ describe("ReasonixPermissions", () => {
     it("should warn when a stricter existing spawn_agents or task entry is replaced by a looser one", async () => {
       await writeFileContent(
         join(testDir, "reasonix.toml"),
-        [
-          "[permissions]",
-          'allow = ["grep"]',
-          'ask = ["task"]',
-          'deny = ["spawn_agents"]',
-        ].join("\n"),
+        ["[permissions]", 'allow = ["grep"]', 'ask = ["task"]', 'deny = ["spawn_agents"]'].join(
+          "\n",
+        ),
       );
       const logger = createMockLogger();
 

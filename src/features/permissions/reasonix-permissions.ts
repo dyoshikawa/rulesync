@@ -723,28 +723,17 @@ export class ReasonixPermissions extends ToolPermissions {
       }
     }
 
-    // `spawn_agents` became a managed name with Reasonix v2.58.0 support, so a
-    // stricter rule the user wrote for it by hand (e.g. a v2.58-era
-    // `deny = ["spawn_agents"]` next to an older `agent: allow` source) would
-    // be silently replaced by a looser one. Name every such loosening.
-    if (logger && managedToolNames.has("spawn_agents")) {
-      const loosened = findLoosenedEntries({
-        existingPermissions,
-        toolNames: new Set(reasonixToolNamesOf("agent")),
-        generated: {
-          allow: [...allow, ...rawAllow],
-          ask: [...ask, ...rawAsk],
-          deny: [...deny, ...rawDeny],
-        },
-      });
-      if (loosened.length > 0) {
-        logger.warn(
-          `Permissions feature manages the Reasonix delegation tools ('task', 'spawn_agents') through the 'agent' category ` +
-            `and will replace ${loosened.length} stricter existing entries in ${relativeFilePathForLog}: ${loosened.join(", ")}. ` +
-            `Set the 'agent' category in .rulesync/permissions.json to keep them.`,
-        );
-      }
-    }
+    warnOnLoosenedAgentEntries({
+      existingPermissions,
+      managedToolNames,
+      generated: {
+        allow: [...allow, ...rawAllow],
+        ask: [...ask, ...rawAsk],
+        deny: [...deny, ...rawDeny],
+      },
+      relativeFilePath: relativeFilePathForLog,
+      logger,
+    });
 
     // `mode` (the writer fallback: ask|allow|deny) has no equivalent in
     // rulesync's canonical permissions model, so any existing value is
@@ -1012,6 +1001,39 @@ function preserveExistingEntries({
   }
 
   return { allow, ask, deny };
+}
+
+/**
+ * `spawn_agents` became a managed name with Reasonix v2.58.0 support, so a
+ * stricter rule the user wrote for it by hand (e.g. a v2.58-era
+ * `deny = ["spawn_agents"]` next to an older `agent: allow` source) would be
+ * silently replaced by a looser one. Name every such loosening.
+ */
+function warnOnLoosenedAgentEntries({
+  existingPermissions,
+  managedToolNames,
+  generated,
+  relativeFilePath,
+  logger,
+}: {
+  existingPermissions: ReasonixPermissionsTable;
+  managedToolNames: Set<string>;
+  generated: { allow: string[]; ask: string[]; deny: string[] };
+  relativeFilePath: string;
+  logger?: Logger;
+}): void {
+  if (!logger || !managedToolNames.has("spawn_agents")) return;
+  const loosened = findLoosenedEntries({
+    existingPermissions,
+    toolNames: new Set(reasonixToolNamesOf("agent")),
+    generated,
+  });
+  if (loosened.length === 0) return;
+  logger.warn(
+    `Permissions feature manages the Reasonix delegation tools ('task', 'spawn_agents') through the 'agent' category ` +
+      `and will replace ${loosened.length} stricter existing entries in ${relativeFilePath}: ${loosened.join(", ")}. ` +
+      `Set the 'agent' category in .rulesync/permissions.json to keep them.`,
+  );
 }
 
 const PERMISSION_STRICTNESS = { allow: 0, ask: 1, deny: 2 } as const;
