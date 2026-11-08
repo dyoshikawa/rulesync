@@ -8,6 +8,10 @@ import {
   REASONIX_GLOBAL_PERMISSIONS_FILE_NAME,
   REASONIX_PROJECT_PERMISSIONS_FILE_NAME,
 } from "../../constants/reasonix-paths.js";
+import {
+  RULESYNC_PERMISSIONS_FILE_NAME,
+  RULESYNC_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type {
   PermissionAction,
@@ -1032,7 +1036,8 @@ function warnOnLoosenedAgentEntries({
   logger.warn(
     `Permissions feature manages the Reasonix delegation tools ('task', 'spawn_agents') through the 'agent' category ` +
       `and will replace ${loosened.length} stricter existing entries in ${relativeFilePath}: ${loosened.join(", ")}. ` +
-      `Set the 'agent' category in .rulesync/permissions.json to keep them.`,
+      `To keep them, tighten the 'agent' category in ${RULESYNC_RELATIVE_DIR_PATH}/${RULESYNC_PERMISSIONS_FILE_NAME} ` +
+      `or move them to 'reasonix.rawDeny' / 'reasonix.rawAsk'.`,
   );
 }
 
@@ -1055,9 +1060,10 @@ function findLoosenedEntries({
   const generatedStrictness = new Map<string, number>();
   for (const list of ["allow", "ask", "deny"] as const) {
     for (const entry of generated[list]) {
+      const key = normalizeToolPatternEntry(entry);
       generatedStrictness.set(
-        entry,
-        Math.max(generatedStrictness.get(entry) ?? 0, PERMISSION_STRICTNESS[list]),
+        key,
+        Math.max(generatedStrictness.get(key) ?? 0, PERMISSION_STRICTNESS[list]),
       );
     }
   }
@@ -1066,12 +1072,18 @@ function findLoosenedEntries({
     for (const entry of toStringArray(existingPermissions[list])) {
       if (isReasonixExactCommandEntry(entry)) continue;
       if (!toolNames.has(parseToolPatternEntry(entry).toolName)) continue;
-      if ((generatedStrictness.get(entry) ?? 0) < PERMISSION_STRICTNESS[list]) {
+      const key = normalizeToolPatternEntry(entry);
+      if ((generatedStrictness.get(key) ?? 0) < PERMISSION_STRICTNESS[list]) {
         loosened.push(`${list} "${entry}"`);
       }
     }
   }
   return loosened;
+}
+
+/** Spell an entry the way rulesync writes it, so `name(*)` equals `name`. */
+function normalizeToolPatternEntry(entry: string): string {
+  return buildToolPatternEntry(parseToolPatternEntry(entry));
 }
 
 /** Sort, dedupe and set a permissions array key, deleting it when empty. */
