@@ -1702,6 +1702,14 @@ const ZedPermissionsOverrideSchema = z.looseObject({
  * { "sandbox": { "excluded": { "allow": ["Exec(git status *)"], "deny": ["Exec(git tag *)"] } } }
  * @example
  * { "forbiddenPlugins": ["*"], "optionalPlugins": ["acme/approved"] }
+ *
+ * `permission_mode` (CLI v3000.12.17+) is the mode new local sessions start in
+ * (`normal`, the upstream default, `accept-edits`, `smart` or `dangerous`).
+ * Like `sandbox` it is a **User Config Only** key, so it is emitted at global
+ * scope only. It is never derived from the canonical rules.
+ *
+ * @example
+ * { "permission_mode": "accept-edits" }
  * @see https://docs.devin.ai/cli/sandbox
  * @see https://docs.devin.ai/cli/reference/configuration/config-file
  * @see https://docs.devin.ai/cli/extensibility/plugins/overview
@@ -1717,12 +1725,20 @@ export const DEVIN_PLUGIN_GOVERNANCE_SCHEMAS = {
   optionalPlugins: DevinPluginSourceListSchema,
   forbiddenPlugins: z.array(z.string()),
 } as const;
+/**
+ * Values Devin accepts for the user-config `permission_mode` key. Shared by the
+ * override schema and the import, which drops a value that would not pass it.
+ *
+ * @see https://docs.devin.ai/cli/reference/configuration/config-file
+ */
+export const DevinPermissionModeSchema = z.enum(["normal", "accept-edits", "smart", "dangerous"]);
 const DevinPermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
   sandbox: z.optional(z.looseObject({})),
   requiredPlugins: z.optional(DEVIN_PLUGIN_GOVERNANCE_SCHEMAS.requiredPlugins),
   optionalPlugins: z.optional(DEVIN_PLUGIN_GOVERNANCE_SCHEMAS.optionalPlugins),
   forbiddenPlugins: z.optional(DEVIN_PLUGIN_GOVERNANCE_SCHEMAS.forbiddenPlugins),
+  permission_mode: z.optional(DevinPermissionModeSchema),
 });
 
 /**

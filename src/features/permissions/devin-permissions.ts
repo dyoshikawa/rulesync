@@ -11,6 +11,7 @@ import {
 import type { AiFileParams } from "../../types/ai-file.js";
 import {
   DEVIN_PLUGIN_GOVERNANCE_SCHEMAS,
+  DevinPermissionModeSchema,
   type PermissionAction,
   type PermissionsConfig,
 } from "../../types/permissions.js";
@@ -197,8 +198,8 @@ const DEVIN_RESTRICTION_LOSING_SANDBOX_PATHS: readonly RestrictionLosingSandboxP
  * In global mode the config file is shared with the hooks (`hooks`) feature
  * (MCP moved to the dedicated mcp_config.json in v3000.3), so reads and writes
  * merge into the existing JSON and the file is never deleted; only the keys
- * this feature manages are rewritten — `permissions`, plus `sandbox` in global
- * mode and the plugin governance lists (`requiredPlugins` / `optionalPlugins` /
+ * this feature manages are rewritten — `permissions`, plus `sandbox` and
+ * `permission_mode` in global mode and the plugin governance lists (`requiredPlugins` / `optionalPlugins` /
  * `forbiddenPlugins`) in project mode when the `devin` override authors them.
  *
  * The sibling `sandbox` block — which decides what a permitted command may
@@ -369,6 +370,13 @@ export class DevinPermissions extends ToolPermissions {
       }
     }
 
+    applyPermissionModeOverride({
+      permissionMode: config.devin?.permission_mode,
+      patch,
+      global,
+      logger,
+    });
+
     applyPluginGovernanceOverride({
       override: config.devin,
       settings,
@@ -443,6 +451,20 @@ export class DevinPermissions extends ToolPermissions {
         );
       }
     }
+    // `permission_mode` round-trips verbatim, like `sandbox` and not
+    // scope-filtered for the same reason. `null` is Devin's spelling of the
+    // default and carries nothing to keep; any other value the override schema
+    // would reject is dropped with a warning so the next generate cannot fail.
+    const permissionMode = settings.permission_mode;
+    if (permissionMode !== undefined && permissionMode !== null) {
+      if (DevinPermissionModeSchema.safeParse(permissionMode).success) {
+        devinOverride.permission_mode = permissionMode;
+      } else {
+        logger?.warn(
+          `Skipped Devin \`permission_mode\` ${quoteValueForWarning(permissionMode)} on import: expected one of ${DevinPermissionModeSchema.options.join(", ")}.`,
+        );
+      }
+    }
     const result: Record<string, unknown> = { ...config };
     if (Object.keys(devinOverride).length > 0) {
       result.devin = devinOverride;
@@ -464,6 +486,44 @@ const DEVIN_PLUGIN_GOVERNANCE_KEYS = [
   "optionalPlugins",
   "forbiddenPlugins",
 ] as const;
+
+/**
+ * Patch the `permission_mode` the `devin` override authors into the user
+ * `config.json`. It sets the mode new local sessions start in, and Devin reads
+ * it from the user config only, so in project mode it is dropped with a
+ * warning. It is only ever written as authored — never derived from the
+ * canonical rules — and `dangerous` is named in a warning, because every new
+ * session then starts with all permission prompts bypassed.
+ *
+ * @see https://docs.devin.ai/cli/reference/configuration/config-file
+ */
+function applyPermissionModeOverride({
+  permissionMode,
+  patch,
+  global,
+  logger,
+}: {
+  permissionMode: string | undefined;
+  patch: Record<string, unknown>;
+  global: boolean;
+  logger?: Logger;
+}): void {
+  if (permissionMode === undefined) return;
+  if (!global) {
+    logger?.warn(
+      "Devin reads 'permission_mode' from the user config only, so the 'devin.permission_mode' " +
+        "override was dropped from the project config. Generate with --global to author it.",
+    );
+    return;
+  }
+  patch.permission_mode = permissionMode;
+  if (permissionMode === "dangerous") {
+    logger?.warn(
+      `Writing Devin \`permission_mode: "dangerous"\` to the user config: every new local session ` +
+        "then starts with all permission prompts bypassed.",
+    );
+  }
+}
 
 /**
  * Patch the plugin governance lists the `devin` override authors into the
