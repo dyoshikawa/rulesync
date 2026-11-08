@@ -2,9 +2,11 @@ import { join } from "node:path";
 
 import {
   CRUSH_ALLOWED_TOOLS_KEY,
+  CRUSH_BLOCKED_COMMANDS_KEY,
   CRUSH_DISABLED_TOOLS_KEY,
   CRUSH_OPTIONS_KEY,
   CRUSH_PERMISSIONS_KEY,
+  CRUSH_SAFE_COMMANDS_KEY,
 } from "../../constants/crush-paths.js";
 import type { AiFileParams } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
@@ -25,8 +27,11 @@ import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ALL_TOOLS_PERMISSION_CATEGORY,
   CATCH_ALL_PATTERN,
+  collectShellCommandRules,
+  createShadowingRestrictionsTest,
   honorAllToolsOnBash,
   MCP_CATEGORY_PREFIX,
+  SHELL_PERMISSION_CATEGORY,
 } from "./shell-command-categories.js";
 import {
   ToolPermissions,
@@ -98,8 +103,116 @@ type CrushToolLists = {
   disabled: string[];
 };
 
+type CrushCommandLists = {
+  safe: string[];
+  blocked: string[];
+};
+
+// Crush resolves these wrappers before matching a command line
+// (`nice -n 5 go build` runs as `go build`), and judges the `time` keyword by
+// what it wraps, so a `safe_commands` entry also approves the command behind
+// any of them, and an entry naming one stands for the command it wraps.
+// @see https://github.com/charmbracelet/crush/blob/v0.100.0/internal/shell/wrappers.go
+const CRUSH_COMMAND_WRAPPERS: ReadonlySet<string> = new Set(["env", "nohup", "nice", "timeout"]);
+const CRUSH_COMMAND_PREFIXES = [...CRUSH_COMMAND_WRAPPERS, "time"];
+
+// A command name already in the form Crush normalizes to (lower case, no
+// directory, no `.exe`/`.bat`/`.cmd` suffix), and an argument with no glob,
+// quoting, expansion or other shell syntax, so a pattern made of them names
+// exactly one argv both in rulesync's glob reading and in Crush's literal one.
+const CRUSH_COMMAND_NAME = /^[a-z0-9_][a-z0-9_.+-]*$/;
+const CRUSH_COMMAND_ARGUMENT = /^[A-Za-z0-9_@%+=:,./-]+$/;
+const CRUSH_COMMAND_NAME_SUFFIXES = [".exe", ".bat", ".cmd"];
+
+function isCrushCommandName(name: string): boolean {
+  return (
+    CRUSH_COMMAND_NAME.test(name) &&
+    !CRUSH_COMMAND_NAME_SUFFIXES.some((suffix) => name.endsWith(suffix)) &&
+    !isPrototypePollutionKey(name)
+  );
+}
+
+/**
+ * Reduce a command name the way Crush matches it (`shell.NormalizeCommandName`):
+ * trimmed, without its directory, lower-cased, and without a Windows
+ * executable suffix.
+ */
+function normalizeCrushCommandName(raw: string): string {
+  const base = (raw.trim().split(/[\\/]/).at(-1) ?? "").toLowerCase();
+  const suffix = CRUSH_COMMAND_NAME_SUFFIXES.find(
+    (candidate) => base.length > candidate.length && base.endsWith(candidate),
+  );
+  return suffix === undefined ? base : base.slice(0, -suffix.length);
+}
+
+/**
+ * Whether a canonical pattern is a literal command line that a Crush
+ * `safe_commands` entry reproduces exactly: Crush matches an entry only when
+ * the command is written with exactly those tokens, no extra arguments and no
+ * flags, which is what a wildcard-free glob means. A leading wrapper is
+ * refused, since Crush would resolve it away and approve the bare command.
+ */
+function isExactCrushCommandLine(pattern: string): boolean {
+  const [name, ...args] = pattern.split(" ");
+  return (
+    name !== undefined &&
+    isCrushCommandName(name) &&
+    !CRUSH_COMMAND_WRAPPERS.has(name) &&
+    args.every((arg) => CRUSH_COMMAND_ARGUMENT.test(arg))
+  );
+}
+
+/**
+ * The command name a canonical `<name>` / `<name> *` pattern names as a
+ * whole, i.e. the `blocked_commands` entry for it, or undefined.
+ */
+function wholeCommandName(pattern: string): string | undefined {
+  const name = pattern.endsWith(" *") ? pattern.slice(0, -2) : pattern;
+  return isCrushCommandName(name) ? name : undefined;
+}
+
+/**
+ * The line a Crush `safe_commands` entry effectively stands for, in canonical
+ * form (whitespace collapsed, command name normalized), or undefined when the
+ * entry has no exact canonical spelling (wildcards, quoting, a wrapper, ...).
+ */
+function effectiveSafeCommandLine(entry: string): string | undefined {
+  const [name, ...args] = entry.trim().split(/\s+/);
+  if (name === undefined || name === "") return undefined;
+  const line = [normalizeCrushCommandName(name), ...args].join(" ");
+  return isExactCrushCommandLine(line) ? line : undefined;
+}
+
+/**
+ * Build the test for a `safe_commands` line: which canonical `deny`/`ask`
+ * rules govern a command Crush would approve through it? Besides the line
+ * itself, Crush approves it followed by `--` and behind a wrapper, so those
+ * spellings are compared too. Canonically the stricter rule wins whatever its
+ * width (`deny > ask > allow`), so any overlap withholds the line.
+ */
+function createSafeCommandShadowTest(
+  permission: PermissionsConfig["permission"],
+): (line: string) => string[] {
+  const restrictions = collectShellCommandRules(permission).rules.filter(
+    ({ action }) => action !== "allow",
+  );
+  const test = createShadowingRestrictionsTest(restrictions);
+  return (line) => {
+    const spellings = [line, ...CRUSH_COMMAND_PREFIXES.map((prefix) => `${prefix}*${line}`)];
+    return uniq(spellings.flatMap((spelling) => [...test(spelling), ...test(`${spelling} --*`)]));
+  };
+}
+
 function uniq(values: string[]): string[] {
   return [...new Set(values)];
+}
+
+function stringList(value: unknown): string[] {
+  return isStringArray(value) ? value : [];
+}
+
+function listOrUndefined(values: string[]): string[] | undefined {
+  return values.length > 0 ? values : undefined;
 }
 
 /**
@@ -123,8 +236,20 @@ function uniq(values: string[]): string[] {
  *     `webfetch` -> `fetch`, `mcp__<server>__<tool>` -> `mcp_<server>_<tool>`;
  *     any other category passes through verbatim.
  *
- * A pattern-specific rule cannot be expressed and is reported and skipped.
- * Because Crush cannot narrow an allowed tool, a category's catch-all `allow`
+ * Crush v0.100.0+ also carries two command lists, which the `bash` category's
+ * pattern rules map onto (see `convertBashCommandRules`):
+ *   - `permissions.safe_commands`: exact command lines that skip the prompt
+ *     (no extra arguments, no flags) <- an `allow` on a literal command line
+ *     that no canonical `deny`/`ask` overlaps.
+ *   - `permissions.blocked_commands`: command names added to the dangerous
+ *     list, still prompted for in normal mode <- an `ask` on `<name>` or
+ *     `<name> *`. A `deny` is not written there: Crush would still prompt.
+ * `permissions.allowed_commands` only drops names from the dangerous list (the
+ * commands keep prompting), so it has no canonical counterpart and is left
+ * untouched.
+ *
+ * Any other pattern-specific rule cannot be expressed and is reported and
+ * skipped. Because Crush cannot narrow an allowed tool, a category's catch-all `allow`
  * is not written while the same category carries a pattern-specific `deny` or
  * `ask`: the tool keeps prompting (fail closed) rather than being widened to
  * everything. The all-tools `*` category is mirrored onto `bash` by
@@ -204,6 +329,8 @@ export class CrushPermissions extends ToolPermissions {
       location,
       ownedPaths: [
         [CRUSH_PERMISSIONS_KEY, CRUSH_ALLOWED_TOOLS_KEY],
+        [CRUSH_PERMISSIONS_KEY, CRUSH_SAFE_COMMANDS_KEY],
+        [CRUSH_PERMISSIONS_KEY, CRUSH_BLOCKED_COMMANDS_KEY],
         [CRUSH_OPTIONS_KEY, CRUSH_DISABLED_TOOLS_KEY],
       ],
       logger,
@@ -219,6 +346,7 @@ export class CrushPermissions extends ToolPermissions {
     const config = rulesyncPermissions.getJson();
     const generated = convertRulesyncToCrushLists({ config, logger });
     const managedToolNames = managedCrushToolNames(config);
+    const commands = rebuildCrushCommandLists({ config, existingPermissions, logger });
 
     // Keep the entries rulesync could not have derived — a `tool:action`
     // pair (narrower than any canonical catch-all) or a bare name of an
@@ -236,15 +364,19 @@ export class CrushPermissions extends ToolPermissions {
 
     const allowedList = uniq([...preservedAllowed, ...generated.allowed]);
     const disabledList = uniq([...preservedDisabled, ...generated.disabled]);
+    const permissionsHasContent =
+      allowedList.length > 0 || commands.safe.length > 0 || commands.blocked.length > 0;
 
     // An empty list retracts its key (`undefined` deletes under deep-merge).
     // A group is only touched when there is something to write into it or it
     // already exists, so a config without tool rules does not grow an empty
     // `permissions: {}` / `options: {}`.
     const patch: Record<string, unknown> = {};
-    if (allowedList.length > 0 || existingPermissions !== undefined) {
+    if (permissionsHasContent || existingPermissions !== undefined) {
       patch[CRUSH_PERMISSIONS_KEY] = {
-        [CRUSH_ALLOWED_TOOLS_KEY]: allowedList.length > 0 ? allowedList : undefined,
+        [CRUSH_ALLOWED_TOOLS_KEY]: listOrUndefined(allowedList),
+        [CRUSH_SAFE_COMMANDS_KEY]: listOrUndefined(commands.safe),
+        [CRUSH_BLOCKED_COMMANDS_KEY]: listOrUndefined(commands.blocked),
       };
     }
     if (disabledList.length > 0 || existingOptions !== undefined) {
@@ -272,24 +404,98 @@ export class CrushPermissions extends ToolPermissions {
     });
   }
 
-  toRulesyncPermissions(): RulesyncPermissions {
+  toRulesyncPermissions({ logger }: { logger?: Logger } = {}): RulesyncPermissions {
     const permissions = isRecord(this.json[CRUSH_PERMISSIONS_KEY])
       ? this.json[CRUSH_PERMISSIONS_KEY]
       : {};
     const options = toRecord(this.json[CRUSH_OPTIONS_KEY]);
     const rulesyncConfig = convertCrushListsToRulesync({
-      allowed: isStringArray(permissions[CRUSH_ALLOWED_TOOLS_KEY])
-        ? permissions[CRUSH_ALLOWED_TOOLS_KEY]
-        : [],
-      disabled: isStringArray(options[CRUSH_DISABLED_TOOLS_KEY])
-        ? options[CRUSH_DISABLED_TOOLS_KEY]
-        : [],
+      allowed: stringList(permissions[CRUSH_ALLOWED_TOOLS_KEY]),
+      disabled: stringList(options[CRUSH_DISABLED_TOOLS_KEY]),
+      safe: stringList(permissions[CRUSH_SAFE_COMMANDS_KEY]),
+      blocked: stringList(permissions[CRUSH_BLOCKED_COMMANDS_KEY]),
+      logger,
     });
 
     return this.toRulesyncPermissionsDefault({
       fileContent: JSON.stringify(rulesyncConfig, null, 2),
     });
   }
+}
+
+/**
+ * The `safe_commands` / `blocked_commands` lists a generate writes: the
+ * existing entries rulesync keeps, followed by the ones derived from the
+ * canonical `bash` rules. A blocked entry for a command the `bash` rules name
+ * as a whole is rebuilt from them; any other entry is the user's and is kept.
+ */
+function rebuildCrushCommandLists({
+  config,
+  existingPermissions,
+  logger,
+}: {
+  config: PermissionsConfig;
+  existingPermissions: Record<string, unknown> | undefined;
+  logger?: Logger;
+}): CrushCommandLists {
+  const bashRules = honorAllToolsOnBash(config.permission)[SHELL_PERMISSION_CATEGORY] ?? {};
+  const shadowTest = createSafeCommandShadowTest(config.permission);
+  const generated = convertBashCommandRules({ bashRules, shadowTest, logger });
+  const managedCommandNames = new Set(
+    Object.keys(bashRules).flatMap((pattern) => wholeCommandName(pattern) ?? []),
+  );
+  return {
+    safe: uniq([
+      ...preserveSafeCommands({
+        existing: stringList(existingPermissions?.[CRUSH_SAFE_COMMANDS_KEY]),
+        bashRules,
+        shadowTest,
+        logger,
+      }),
+      ...generated.safe,
+    ]),
+    blocked: uniq([
+      ...stringList(existingPermissions?.[CRUSH_BLOCKED_COMMANDS_KEY]).filter(
+        (entry) => !managedCommandNames.has(normalizeCrushCommandName(entry)),
+      ),
+      ...generated.blocked,
+    ]),
+  };
+}
+
+/**
+ * The existing `safe_commands` entries a generate keeps: those the canonical
+ * `bash` rules do not spell out themselves (an entry they do spell is rebuilt
+ * from them), minus any entry a canonical `deny`/`ask` governs, which would
+ * otherwise auto-approve what the config restricts. An entry whose exact
+ * meaning cannot be read is dropped whenever the config restricts anything.
+ */
+function preserveSafeCommands({
+  existing,
+  bashRules,
+  shadowTest,
+  logger,
+}: {
+  existing: string[];
+  bashRules: Record<string, PermissionAction>;
+  shadowTest: (line: string) => string[];
+  logger?: Logger;
+}): string[] {
+  const managedLines = new Set(Object.keys(bashRules));
+  // Any restriction at all overlaps the catch-all spelling.
+  const restricts = shadowTest(CATCH_ALL_PATTERN).length > 0;
+  return existing.filter((entry) => {
+    if (managedLines.has(entry)) return false;
+    const line = effectiveSafeCommandLine(entry);
+    const shadowed = line === undefined ? restricts : shadowTest(line).length > 0;
+    if (shadowed) {
+      logger?.warn(
+        `Crush permissions.safe_commands entry ${quoteValueForWarning(entry)} was removed because ` +
+          `a canonical deny/ask rule may cover the commands it approves.`,
+      );
+    }
+    return !shadowed;
+  });
 }
 
 /**
@@ -336,10 +542,13 @@ function resolveCategoryAction({
       catchAllAction = action;
       continue;
     }
-    logger?.warn(
-      `Crush permissions are tool-wide (no argument patterns), so the "${action}" rule for ` +
-        `"${category}" (pattern ${quoteValueForWarning(pattern)}) was skipped.`,
-    );
+    // `bash` patterns are mapped (or reported) by `convertBashCommandRules`.
+    if (category !== SHELL_PERMISSION_CATEGORY) {
+      logger?.warn(
+        `Crush permissions are tool-wide (no argument patterns), so the "${action}" rule for ` +
+          `"${category}" (pattern ${quoteValueForWarning(pattern)}) was skipped.`,
+      );
+    }
     if (action !== "allow") {
       restricted = true;
     }
@@ -420,11 +629,93 @@ function convertRulesyncToCrushLists({
 }
 
 /**
+ * Map the `bash` category's pattern rules onto Crush's command lists:
+ *   - `allow` on a literal command line -> `permissions.safe_commands`, which
+ *     Crush matches exactly (no extra arguments, no flags). It is withheld
+ *     when a canonical `deny`/`ask` governs any command Crush would approve
+ *     through it.
+ *   - `ask` on `<name>` / `<name> *` -> `permissions.blocked_commands`, which
+ *     marks the whole command as dangerous: still prompted for in normal mode,
+ *     never auto-approved by `allowed_commands`.
+ *   - Anything else is reported and skipped. In particular Crush cannot refuse
+ *     a single command (`blocked_commands` still prompts), so a pattern `deny`
+ *     is never written there, and an `allow` with a wildcard has no list that
+ *     auto-approves it.
+ */
+function convertBashCommandRules({
+  bashRules,
+  shadowTest,
+  logger,
+}: {
+  bashRules: Record<string, PermissionAction>;
+  shadowTest: (line: string) => string[];
+  logger?: Logger;
+}): CrushCommandLists {
+  const lists: CrushCommandLists = { safe: [], blocked: [] };
+  for (const [rawPattern, action] of Object.entries(bashRules)) {
+    if (isPrototypePollutionKey(rawPattern)) continue;
+    const pattern = normalizeCatchAllPattern(rawPattern);
+    if (pattern === CATCH_ALL_PATTERN) continue;
+    const quoted = quoteValueForWarning(pattern);
+
+    if (action === "allow") {
+      if (!isExactCrushCommandLine(pattern)) {
+        logger?.warn(
+          `Crush auto-approves a command only as an exact line in permissions.safe_commands ` +
+            `(no wildcards or shell syntax), so the "allow" rule for "bash" (pattern ${quoted}) ` +
+            `was skipped; Crush keeps prompting for it.`,
+        );
+        continue;
+      }
+      const shadows = shadowTest(pattern);
+      if (shadows.length > 0) {
+        logger?.warn(
+          `The "allow" rule for "bash" (pattern ${quoted}) is not added to ` +
+            `permissions.safe_commands because the deny/ask rule(s) ` +
+            `${shadows.map(quoteValueForWarning).join(", ")} also cover commands Crush would ` +
+            `approve through it; Crush keeps prompting for it.`,
+        );
+        continue;
+      }
+      lists.safe.push(pattern);
+      continue;
+    }
+
+    if (action === "ask") {
+      const name = wholeCommandName(pattern);
+      if (name !== undefined) {
+        lists.blocked.push(name);
+        continue;
+      }
+      logger?.warn(
+        `Crush can only mark a whole command as dangerous (permissions.blocked_commands), so ` +
+          `the "ask" rule for "bash" (pattern ${quoted}) was skipped; Crush still prompts for it ` +
+          `unless it is one of Crush's built-in read-only commands.`,
+      );
+      continue;
+    }
+
+    logger?.warn(
+      `Crush cannot refuse a single command (permissions.blocked_commands still prompts), so ` +
+        `the "deny" rule for "bash" (pattern ${quoted}) was skipped; Crush still prompts for it ` +
+        `unless it is one of Crush's built-in read-only commands.`,
+    );
+  }
+  return { safe: uniq(lists.safe), blocked: uniq(lists.blocked) };
+}
+
+/**
  * Convert Crush's two tool lists back into a rulesync config. A `tool:action`
  * entry scopes an allow to one action of a tool, which the canonical model
  * cannot express, so it is left out rather than widened to the whole tool.
  */
-function convertCrushListsToRulesync({ allowed, disabled }: CrushToolLists): PermissionsConfig {
+function convertCrushListsToRulesync({
+  allowed,
+  disabled,
+  safe,
+  blocked,
+  logger,
+}: CrushToolLists & CrushCommandLists & { logger?: Logger }): PermissionsConfig {
   const permission: PermissionsConfig["permission"] = {};
 
   // Buckets are looked up as own properties only: a `toString` entry must
@@ -440,6 +731,38 @@ function convertCrushListsToRulesync({ allowed, disabled }: CrushToolLists): Per
   for (const entry of disabled) {
     if (entry === "" || isPrototypePollutionKey(entry)) continue;
     bucketFor(toCanonicalToolName(entry))[CATCH_ALL_PATTERN] = "deny";
+  }
+  // Pattern rules land in the `bash` bucket without overriding a rule already
+  // there, so the order below keeps the stricter one: deny, then ask, then allow.
+  const setBashRule = (pattern: string, action: PermissionAction): void => {
+    const bucket = bucketFor(SHELL_PERMISSION_CATEGORY);
+    if (!Object.hasOwn(bucket, pattern)) bucket[pattern] = action;
+  };
+  for (const entry of blocked) {
+    const name = normalizeCrushCommandName(entry);
+    if (name === "") continue;
+    if (!isCrushCommandName(name)) {
+      logger?.warn(
+        `Crush permissions.blocked_commands entry ${quoteValueForWarning(entry)} is not a plain ` +
+          `command name, so it was not imported.`,
+      );
+      continue;
+    }
+    // A blocked command prompts for every invocation, bare or with arguments.
+    setBashRule(name, "ask");
+    setBashRule(`${name} *`, "ask");
+  }
+  for (const entry of safe) {
+    if (entry.trim() === "") continue;
+    const line = effectiveSafeCommandLine(entry);
+    if (line === undefined) {
+      logger?.warn(
+        `Crush permissions.safe_commands entry ${quoteValueForWarning(entry)} has no exact ` +
+          `rulesync pattern (wildcards, shell syntax or a command wrapper), so it was not imported.`,
+      );
+      continue;
+    }
+    setBashRule(line, "allow");
   }
   for (const entry of allowed) {
     if (entry === "" || entry.includes(":") || isPrototypePollutionKey(entry)) continue;

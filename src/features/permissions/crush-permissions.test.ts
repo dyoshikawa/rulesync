@@ -130,6 +130,126 @@ describe("CrushPermissions", () => {
       );
     });
 
+    it("should map exact allows to safe_commands and whole-command asks to blocked_commands", async () => {
+      const logger = createMockLogger();
+      const permissions = await CrushPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          bash: {
+            "go build": "allow",
+            "cargo check --workspace": "allow",
+            "git *": "allow",
+            "nohup make": "allow",
+            "/usr/bin/make": "allow",
+            'echo "hi"': "allow",
+            "kubectl *": "ask",
+            terraform: "ask",
+            "npm publish *": "ask",
+            "rm -rf *": "deny",
+          },
+          read: { "*": "allow" },
+        }),
+        logger,
+      });
+
+      expect(permissions.getJson()).toEqual({
+        permissions: {
+          allowed_tools: ["view"],
+          safe_commands: ["go build", "cargo check --workspace"],
+          blocked_commands: ["kubectl", "terraform"],
+        },
+      });
+      for (const skipped of ["git *", "nohup make", "/usr/bin/make", "npm publish *"]) {
+        expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining(`"${skipped}"`));
+      }
+      // A deny is never downgraded to blocked_commands, which still prompts.
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("Crush cannot refuse a single command"),
+      );
+    });
+
+    it("should withhold a safe command line that any deny or ask overlaps", async () => {
+      const logger = createMockLogger();
+      const permissions = await CrushPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          "*": { "git push": "deny" },
+          bash: {
+            // Crush also approves `go build --`, which the deny names.
+            "go build": "allow",
+            "go build *": "deny",
+            // Crush approves `nice npm test` as `npm test`.
+            "npm test": "allow",
+            "nice *": "ask",
+            // An all-tools deny on the same line wins over the allow.
+            "git push": "allow",
+          },
+        }),
+        logger,
+      });
+
+      expect(permissions.getJson()).toEqual({
+        permissions: { blocked_commands: ["nice"] },
+      });
+      for (const withheld of ["go build", "npm test"]) {
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining(
+            `pattern "${withheld}") is not added to permissions.safe_commands`,
+          ),
+        );
+      }
+    });
+
+    it("should withhold every safe command line under a catch-all ask", async () => {
+      const permissions = await CrushPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          bash: { "*": "ask", "go build": "allow" },
+        }),
+      });
+
+      expect(permissions.getJson()).toEqual({});
+    });
+
+    it("should keep the user's command entries and drop safe ones a restriction covers", async () => {
+      const logger = createMockLogger();
+      await writeFileContent(
+        projectConfigPath(),
+        JSON.stringify({
+          permissions: {
+            allowed_commands: ["curl"],
+            safe_commands: ["make lint", "rm -rf build", "ls *.txt", "go build"],
+            blocked_commands: ["terraform", "/usr/bin/Kubectl"],
+          },
+        }),
+      );
+
+      const permissions = await CrushPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          bash: { "rm *": "deny", "kubectl *": "allow", "go build": "ask" },
+        }),
+        logger,
+      });
+
+      // `rm -rf build` would auto-approve a denied command, `ls *.txt` cannot be
+      // analyzed while the config restricts anything, `go build` is now an ask
+      // (which Crush cannot write for a single subcommand), and `kubectl` is
+      // managed by the canonical allow (which Crush cannot write either), so
+      // its blocked entry is retracted.
+      expect(permissions.getJson()).toEqual({
+        permissions: {
+          allowed_commands: ["curl"],
+          safe_commands: ["make lint"],
+          blocked_commands: ["terraform"],
+        },
+      });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('"rm -rf build" was removed'),
+      );
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"ls *.txt" was removed'));
+    });
+
     it("should not disable an MCP tool through options.disabled_tools", async () => {
       const logger = createMockLogger();
       const permissions = await CrushPermissions.fromRulesyncPermissions({
@@ -276,6 +396,41 @@ describe("CrushPermissions", () => {
       });
       expect(Object.hasOwn(Object.prototype.toString, "*")).toBe(false);
       expect(Object.hasOwn(Object.prototype.valueOf, "*")).toBe(false);
+    });
+
+    it("should map the command lists back to bash pattern rules", () => {
+      const logger = createMockLogger();
+      const permissions = new CrushPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".",
+        relativeFilePath: "crush.json",
+        fileContent: `{
+          "permissions": {
+            "allowed_tools": ["bash"],
+            "safe_commands": ["go  build", "/usr/bin/Cargo check", "kubectl get", "ls *.txt", "nohup make", "__proto__"],
+            "blocked_commands": ["/usr/bin/KUBECTL", "terraform.exe", "rm -rf", "constructor"],
+            "allowed_commands": ["curl"]
+          }
+        }`,
+      });
+
+      const json = permissions.toRulesyncPermissions({ logger }).getJson();
+      expect(json.permission).toEqual({
+        bash: {
+          kubectl: "ask",
+          "kubectl *": "ask",
+          terraform: "ask",
+          "terraform *": "ask",
+          "go build": "allow",
+          "cargo check": "allow",
+          "kubectl get": "allow",
+          "*": "allow",
+        },
+      });
+      for (const skipped of ["ls *.txt", "nohup make", "__proto__", "rm -rf", "constructor"]) {
+        expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining(`"${skipped}"`));
+      }
+      expect(Object.hasOwn(Object.prototype, "kubectl")).toBe(false);
     });
 
     it("should yield no rules when the config has neither list", () => {
