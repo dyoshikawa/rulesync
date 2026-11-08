@@ -237,6 +237,8 @@ describe("CrushPermissions", () => {
       ["a relative path", { "go build": "allow", "./nice *": "deny" }],
       ["a Windows path with a suffix", { "go build": "allow", "bin\\Env.EXE *": "ask" }],
       ["a wildcard directory", { "go build": "allow", "b*nohup *": "ask" }],
+      ["a wildcard across a directory", { "go build": "allow", "/u*v *": "deny" }],
+      ["a wildcard inside a wrapper name", { "go build": "allow", "u*v *": "deny" }],
     ] as const)("should compare wrapper spellings with %s", async (_label, bash) => {
       const permissions = await CrushPermissions.fromRulesyncPermissions({
         outputRoot: testDir,

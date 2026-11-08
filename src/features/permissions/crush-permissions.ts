@@ -188,8 +188,9 @@ function effectiveSafeCommandLine(entry: string): string | undefined {
  * wrapper's name before peeling it (`shell.NormalizeCommandName`): any
  * directory dropped (`./nice`, `bin\env.exe`, `/usr/bin/env`), lower-cased,
  * and without a Windows executable suffix. A `*` in the command word may
- * stand for a directory, so when what follows it names a wrapper, everything
- * before it collapses into `*` (`b*nice` -> `*nice`; `rm*` is left alone). The rest of the pattern is lower-cased as well, for a
+ * stand for a directory and part of a name, so when what follows it is the
+ * tail of a wrapper name, everything before it collapses into `*`
+ * (`b*nice` -> `*nice`, `/u*v` -> `*v`; `rm*` is left alone). The rest of the pattern is lower-cased as well, for a
  * nested wrapper spelled in another case. Used only to compare against the
  * wrapper spellings of a safe line, where it can only withhold more.
  */
@@ -198,9 +199,13 @@ function normalizeRestrictionCommandWord(pattern: string): string {
   let head = space < 0 ? pattern : pattern.slice(0, space);
   const rest = space < 0 ? "" : pattern.slice(space);
   head = normalizeCrushCommandName(head);
+  // A `*` can cross a directory boundary and land inside a wrapper's name
+  // (`/u*v` globs `/usr/bin/env`), so the command word folds whenever what
+  // follows its last `*` is a non-empty tail of a wrapper name.
   const star = head.lastIndexOf("*");
-  if (star > 0 && CRUSH_COMMAND_PREFIXES.includes(head.slice(star + 1))) {
-    head = `*${head.slice(star + 1)}`;
+  const tail = head.slice(star + 1);
+  if (star > 0 && tail !== "" && CRUSH_COMMAND_PREFIXES.some((prefix) => prefix.endsWith(tail))) {
+    head = `*${tail}`;
   }
   return `${head}${rest.toLowerCase()}`;
 }
