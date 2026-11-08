@@ -336,6 +336,33 @@ describe("QwencodeHooks", () => {
       expect(canonical.hooks).toEqual(config.hooks);
     });
 
+    it("should round-trip the FileChanged event with its matcher (issue #2668)", async () => {
+      const config = {
+        hooks: {
+          fileChanged: [{ type: "command", command: "direnv reload", matcher: ".envrc|.env" }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks(
+        createMockAiFileParams({ fileContent: JSON.stringify(config) }),
+      );
+
+      const qwencodeHooks = await QwencodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: true,
+      });
+
+      // v0.27.0 added hooks.FileChanged; its matcher filters on the basename.
+      const parsed = JSON.parse(qwencodeHooks.getFileContent());
+      expect(parsed.hooks.FileChanged).toEqual([
+        { matcher: ".envrc|.env", hooks: [{ type: "command", command: "direnv reload" }] },
+      ]);
+
+      const canonical = JSON.parse(qwencodeHooks.toRulesyncHooks().getFileContent());
+      expect(canonical.hooks).toEqual(config.hooks);
+      expect(canonical.qwencode).toBeUndefined();
+    });
+
     it("should write command hook timeouts in seconds, or in milliseconds from 1000 seconds up", async () => {
       const rulesyncHooks = new RulesyncHooks(
         createMockAiFileParams({
