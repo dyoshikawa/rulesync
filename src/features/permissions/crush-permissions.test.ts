@@ -233,6 +233,71 @@ describe("CrushPermissions", () => {
       }
     });
 
+    it.each([
+      ["a relative path", { "go build": "allow", "./nice *": "deny" }],
+      ["a Windows path with a suffix", { "go build": "allow", "bin\\Env.EXE *": "ask" }],
+      ["a wildcard directory", { "go build": "allow", "b*nohup *": "ask" }],
+    ] as const)("should compare wrapper spellings with %s", async (_label, bash) => {
+      const permissions = await CrushPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({ bash: { ...bash } }),
+      });
+
+      expect(permissions.getJson()).toEqual({});
+    });
+
+    it("should not let an unrelated restriction withhold a safe line", async () => {
+      const permissions = await CrushPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          bash: { "cargo check": "allow", "rm *": "deny", "rm*": "deny", "./scripts/x *": "ask" },
+        }),
+      });
+
+      expect(permissions.getJson()).toEqual({
+        permissions: { safe_commands: ["cargo check"], blocked_commands: ["rm"] },
+      });
+    });
+
+    it("should not block a command wrapper or keyword, which Crush resolves first", async () => {
+      const logger = createMockLogger();
+      const permissions = await CrushPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          bash: { "nice *": "deny", time: "deny", "kubectl *": "deny" },
+        }),
+        logger,
+      });
+
+      expect(permissions.getJson()).toEqual({ permissions: { blocked_commands: ["kubectl"] } });
+      for (const name of ["nice", "time"]) {
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining(`command wrapper or keyword "${name}"`),
+        );
+      }
+    });
+
+    it("should warn when a kept blocked command refuses a safe line", async () => {
+      const logger = createMockLogger();
+      await writeFileContent(
+        projectConfigPath(),
+        JSON.stringify({ permissions: { blocked_commands: ["/usr/bin/NPM"] } }),
+      );
+
+      const permissions = await CrushPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({ bash: { "npm test": "allow" } }),
+        logger,
+      });
+
+      expect(permissions.getJson()).toEqual({
+        permissions: { safe_commands: ["npm test"], blocked_commands: ["/usr/bin/NPM"] },
+      });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('blocked_commands entry "/usr/bin/NPM" is kept'),
+      );
+    });
+
     it("should not block the command of an allowed safe line", async () => {
       const logger = createMockLogger();
       const permissions = await CrushPermissions.fromRulesyncPermissions({

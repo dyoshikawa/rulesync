@@ -184,17 +184,42 @@ function effectiveSafeCommandLine(entry: string): string | undefined {
 }
 
 /**
+ * A restriction pattern with its command word reduced the way Crush reduces a
+ * wrapper's name before peeling it (`shell.NormalizeCommandName`): any
+ * directory dropped (`./nice`, `bin\env.exe`, `/usr/bin/env`), lower-cased,
+ * and without a Windows executable suffix. A `*` in the command word may
+ * stand for a directory, so when what follows it names a wrapper, everything
+ * before it collapses into `*` (`b*nice` -> `*nice`; `rm*` is left alone). The rest of the pattern is lower-cased as well, for a
+ * nested wrapper spelled in another case. Used only to compare against the
+ * wrapper spellings of a safe line, where it can only withhold more.
+ */
+function normalizeRestrictionCommandWord(pattern: string): string {
+  const space = pattern.indexOf(" ");
+  let head = space < 0 ? pattern : pattern.slice(0, space);
+  const rest = space < 0 ? "" : pattern.slice(space);
+  head = normalizeCrushCommandName(head);
+  const star = head.lastIndexOf("*");
+  if (star > 0 && CRUSH_COMMAND_PREFIXES.includes(head.slice(star + 1))) {
+    head = `*${head.slice(star + 1)}`;
+  }
+  return `${head}${rest.toLowerCase()}`;
+}
+
+/**
  * Build the test for a `safe_commands` line: which canonical `deny`/`ask`
  * rules govern a command Crush would approve through it? Besides the line
- * itself, Crush approves it followed by `--` and behind a wrapper, whose name
- * it normalizes (`/usr/bin/env`, `NICE`, `nohup.exe`), so those spellings are
- * compared too — case-insensitively, against the restrictions as written and
- * lower-cased. Canonically the stricter rule wins whatever its width
+ * itself, Crush approves it followed by `--` and behind a wrapper (or the
+ * `time` keyword), whose name it normalizes (`./nice`, `/usr/bin/env`, `NICE`,
+ * `nohup.exe`). The line and its wrapper spellings are compared against the
+ * restrictions as written, and the wrapper spellings also against the
+ * restrictions with their command word normalized the same way — which keeps
+ * an unrelated `rm *` from withholding the line, as a leading wildcard on the
+ * spelling would. Canonically the stricter rule wins whatever its width
  * (`deny > ask > allow`), so any overlap withholds the line.
  *
  * Crush also approves a line composed with other safe lines (`&&`, `||`, `|`,
- * `;`, a parenthesized group); those compositions are not compared, the way other tools'
- * per-subcommand matching treats an allowed command.
+ * `;`, a parenthesized group); those compositions are not compared, the way
+ * other tools' per-subcommand matching treats an allowed command.
  */
 function createSafeCommandShadowTest(
   permission: PermissionsConfig["permission"],
@@ -203,23 +228,28 @@ function createSafeCommandShadowTest(
     ({ action }) => action !== "allow",
   );
   const test = createShadowingRestrictionsTest(restrictions);
-  const lowered = restrictions.map((rule) => ({ ...rule, pattern: rule.pattern.toLowerCase() }));
-  const testLowered = createShadowingRestrictionsTest(lowered);
-  const originalOf = new Map(lowered.map((rule, index) => [rule.pattern, restrictions[index]]));
-  return (line) => {
-    const spellingsOf = (base: string) => [
-      base,
-      ...CRUSH_COMMAND_PREFIXES.flatMap((prefix) => [`${prefix}*${base}`, `/*${prefix}*${base}`]),
-    ];
-    const withSeparator = (base: string) =>
-      spellingsOf(base).flatMap((spelling) => [spelling, `${spelling} --*`]);
-    return uniq([
-      ...withSeparator(line).flatMap((spelling) => test(spelling)),
-      ...withSeparator(line.toLowerCase()).flatMap((spelling) =>
-        testLowered(spelling).map((pattern) => originalOf.get(pattern)?.pattern ?? pattern),
+  const normalized = restrictions.map((rule) => ({
+    ...rule,
+    pattern: normalizeRestrictionCommandWord(rule.pattern),
+  }));
+  const testNormalized = createShadowingRestrictionsTest(normalized);
+  const originalOf = new Map<string, string>();
+  normalized.forEach((rule, index) => {
+    const original = restrictions[index]?.pattern;
+    if (original !== undefined && !originalOf.has(rule.pattern)) {
+      originalOf.set(rule.pattern, original);
+    }
+  });
+  const withSeparator = (spellings: string[]) =>
+    spellings.flatMap((spelling) => [spelling, `${spelling} --*`]);
+  const wrapped = (base: string) => CRUSH_COMMAND_PREFIXES.map((prefix) => `${prefix}*${base}`);
+  return (line) =>
+    uniq([
+      ...withSeparator([line, ...wrapped(line)]).flatMap((spelling) => test(spelling)),
+      ...withSeparator(wrapped(line.toLowerCase())).flatMap((spelling) =>
+        testNormalized(spelling).map((pattern) => originalOf.get(pattern) ?? pattern),
       ),
     ]);
-  };
 }
 
 function uniq(values: string[]): string[] {
@@ -490,10 +520,16 @@ function rebuildCrushCommandLists({
     );
     return false;
   });
-  return {
-    safe,
-    blocked: uniq([...stringList(existingPermissions?.[CRUSH_BLOCKED_COMMANDS_KEY]), ...blocked]),
-  };
+  const existingBlocked = stringList(existingPermissions?.[CRUSH_BLOCKED_COMMANDS_KEY]);
+  for (const entry of existingBlocked) {
+    if (!safeCommandNames.has(normalizeCrushCommandName(entry))) continue;
+    logger?.warn(
+      `The existing permissions.blocked_commands entry ${quoteValueForWarning(entry)} is kept, ` +
+        `but Crush will refuse the permissions.safe_commands line(s) for that command at exec ` +
+        `time; remove one of them by hand.`,
+    );
+  }
+  return { safe, blocked: uniq([...existingBlocked, ...blocked]) };
 }
 
 /**
@@ -727,6 +763,14 @@ function convertBashCommandRules({
     }
 
     const name = wholeCommandName(pattern);
+    if (name !== undefined && CRUSH_COMMAND_PREFIXES.includes(name)) {
+      logger?.warn(
+        `Crush resolves the command wrapper or keyword ${quoteValueForWarning(name)} before ` +
+          `matching permissions.blocked_commands, so an entry for it would have no effect; the ` +
+          `"deny" rule for "bash" (pattern ${quoted}) was skipped and Crush still prompts for it.`,
+      );
+      continue;
+    }
     if (name === undefined) {
       logger?.warn(
         `Crush can only restrict a whole command (permissions.blocked_commands), so the "deny" ` +
