@@ -54,6 +54,11 @@ export const CRUSH_HIDDEN_CONFIG_FILE_NAME = ".crush.json";
 export const CRUSH_MCP_KEY = "mcp";
 export const CRUSH_PERMISSIONS_KEY = "permissions";
 export const CRUSH_ALLOWED_TOOLS_KEY = "allowed_tools";
+// Crush v0.100.0+: exact command lines that skip the prompt, and command names
+// added to the dangerous list (still prompted for in normal mode).
+// @see https://github.com/charmbracelet/crush/blob/v0.100.0/internal/config/config.go
+export const CRUSH_SAFE_COMMANDS_KEY = "safe_commands";
+export const CRUSH_BLOCKED_COMMANDS_KEY = "blocked_commands";
 export const CRUSH_OPTIONS_KEY = "options";
 export const CRUSH_DISABLED_TOOLS_KEY = "disabled_tools";
 export const CRUSH_HOOKS_KEY = "hooks";
