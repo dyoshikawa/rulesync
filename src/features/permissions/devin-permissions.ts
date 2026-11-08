@@ -451,19 +451,15 @@ export class DevinPermissions extends ToolPermissions {
         );
       }
     }
-    // `permission_mode` round-trips verbatim, like `sandbox` and not
-    // scope-filtered for the same reason. `null` is Devin's spelling of the
-    // default and carries nothing to keep; any other value the override schema
-    // would reject is dropped with a warning so the next generate cannot fail.
-    const permissionMode = settings.permission_mode;
-    if (permissionMode !== undefined && permissionMode !== null) {
-      if (DevinPermissionModeSchema.safeParse(permissionMode).success) {
-        devinOverride.permission_mode = permissionMode;
-      } else {
-        logger?.warn(
-          `Skipped Devin \`permission_mode\` ${quoteValueForWarning(permissionMode)} on import: expected one of ${DevinPermissionModeSchema.options.join(", ")}.`,
-        );
-      }
+    const permissionMode = importPermissionMode({
+      value: settings.permission_mode,
+      isGlobalFile:
+        toPosixPath(this.getRelativeDirPath()) ===
+        toPosixPath(DevinPermissions.getSettablePaths({ global: true }).relativeDirPath),
+      logger,
+    });
+    if (permissionMode !== undefined) {
+      devinOverride.permission_mode = permissionMode;
     }
     const result: Record<string, unknown> = { ...config };
     if (Object.keys(devinOverride).length > 0) {
@@ -486,6 +482,48 @@ const DEVIN_PLUGIN_GOVERNANCE_KEYS = [
   "optionalPlugins",
   "forbiddenPlugins",
 ] as const;
+
+/**
+ * Decide what an imported `permission_mode` contributes to the `devin`
+ * override. It is lifted from the user config only: unlike `sandbox`, a
+ * project value Devin ignores is skipped with a warning rather than surfaced,
+ * so it cannot slip into a `--global` generate later. `null` is Devin's
+ * spelling of the default and carries nothing to keep; any other value the
+ * override schema would reject is dropped with a warning so the next generate
+ * cannot fail. `dangerous` is lifted but named, as on generate.
+ */
+function importPermissionMode({
+  value,
+  isGlobalFile,
+  logger,
+}: {
+  value: unknown;
+  isGlobalFile: boolean;
+  logger?: Logger;
+}): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (!isGlobalFile) {
+    logger?.warn(
+      "Skipped Devin `permission_mode` on import: Devin reads it from the user config only, " +
+        "so the project config's value has no effect. Import with --global to lift it.",
+    );
+    return undefined;
+  }
+  const parsed = DevinPermissionModeSchema.safeParse(value);
+  if (!parsed.success) {
+    logger?.warn(
+      `Skipped Devin \`permission_mode\` ${quoteValueForWarning(value)} on import: expected one of ${DevinPermissionModeSchema.options.join(", ")}.`,
+    );
+    return undefined;
+  }
+  if (parsed.data === "dangerous") {
+    logger?.warn(
+      'Imported Devin `permission_mode: "dangerous"`: every new local session starts with ' +
+        "all permission prompts bypassed, and the next --global generate writes it back.",
+    );
+  }
+  return parsed.data;
+}
 
 /**
  * Patch the `permission_mode` the `devin` override authors into the user

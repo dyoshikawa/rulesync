@@ -972,6 +972,42 @@ describe("DevinPermissions", () => {
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("permission_mode"));
     });
 
+    it("should lift permission_mode 'dangerous' on import with a warning", () => {
+      const logger = createMockLogger();
+      const perms = new DevinPermissions({
+        outputRoot: testDir,
+        relativeDirPath: join(".config", "devin"),
+        relativeFilePath: "config.json",
+        fileContent: JSON.stringify({ permission_mode: "dangerous" }),
+        validate: false,
+      });
+
+      const parsed = JSON.parse(perms.toRulesyncPermissions({ logger }).getFileContent());
+      expect(parsed.devin).toEqual({ permission_mode: "dangerous" });
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"dangerous"'));
+    });
+
+    it("should skip permission_mode from a project config on import with a warning", () => {
+      const logger = createMockLogger();
+      const perms = new DevinPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".devin",
+        relativeFilePath: "config.json",
+        fileContent: JSON.stringify({
+          permission_mode: "accept-edits",
+          permissions: { allow: ["Read(src/**)"] },
+        }),
+        validate: false,
+      });
+
+      const parsed = JSON.parse(perms.toRulesyncPermissions({ logger }).getFileContent());
+      expect(parsed.devin).toBeUndefined();
+      expect(parsed.permission.read["src/**"]).toBe("allow");
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("user config only"));
+    });
+
     it("should skip a malformed plugin governance list on import with a warning", () => {
       const logger = createMockLogger();
       const perms = new DevinPermissions({
