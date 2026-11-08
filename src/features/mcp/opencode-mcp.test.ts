@@ -3999,6 +3999,43 @@ describe("OpencodeMcp retraction (issue #2562)", () => {
       });
     });
 
+    it("should round-trip the per-server pool key (OpenCode 2.2.6+) in the V2 shape", async () => {
+      const config = {
+        mcp: {
+          servers: {
+            cf: { type: "remote", url: "https://example.com/mcp", pool: true },
+            fs: { type: "local", command: ["npx", "fs"], pool: false },
+          },
+        },
+      };
+      await writeFileContent(join(testDir, "opencode.json"), JSON.stringify(config));
+
+      const imported = await OpencodeMcp.fromFile({ outputRoot: testDir });
+      const rulesyncMcp = imported.toRulesyncMcp();
+      expect(JSON.parse(rulesyncMcp.getFileContent()).mcpServers.cf).toMatchObject({
+        type: "http",
+        url: "https://example.com/mcp",
+        pool: true,
+      });
+
+      const generated = await OpencodeMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+
+      expect(generated.validate().success).toBe(true);
+      expect(JSON.parse(generated.getFileContent())).toEqual(config);
+    });
+
+    it("should not add pool to any target when the canonical server does not carry it", async () => {
+      const rulesyncMcp = makeRulesyncMcp({
+        web: { type: "http", url: "https://example.com/mcp", protocol: "auto" },
+      });
+
+      const v2 = await OpencodeMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+      const v1 = await Opencodev1Mcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+
+      expect(JSON.parse(v2.getFileContent()).mcp.servers.web).not.toHaveProperty("pool");
+      expect(JSON.parse(v1.getFileContent()).mcp.web).not.toHaveProperty("pool");
+    });
+
     it("should write the V1 flat map for OpenCode V1 by default and for OpenCode with configShape v1", async () => {
       const rulesyncMcp = makeRulesyncMcp({ fs: { type: "stdio", command: "fs" } });
       const expected = { mcp: { fs: { type: "local", command: ["fs"], enabled: true } } };

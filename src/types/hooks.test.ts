@@ -55,17 +55,19 @@ describe("Junie CLI event naming", () => {
     expect(CANONICAL_TO_JUNIE_EVENT_NAMES.sessionStart).toBe("SessionStart");
     expect(CANONICAL_TO_JUNIE_EVENT_NAMES.beforeSubmitPrompt).toBe("UserPromptSubmit");
     expect(CANONICAL_TO_JUNIE_EVENT_NAMES.preToolUse).toBe("PreToolUse");
+    expect(CANONICAL_TO_JUNIE_EVENT_NAMES.postToolUse).toBe("PostToolUse");
     expect(CANONICAL_TO_JUNIE_EVENT_NAMES.stop).toBe("Stop");
     expect(CANONICAL_TO_JUNIE_EVENT_NAMES.stopFailure).toBe("StopFailure");
     expect(CANONICAL_TO_JUNIE_EVENT_NAMES.permissionRequest).toBe("PermissionRequest");
     expect(CANONICAL_TO_JUNIE_EVENT_NAMES.sessionEnd).toBe("SessionEnd");
   });
 
-  it("should support the seven documented Junie CLI hook events", () => {
+  it("should support the eight documented Junie CLI hook events", () => {
     expect(JUNIE_HOOK_EVENTS).toEqual([
       "sessionStart",
       "beforeSubmitPrompt",
       "preToolUse",
+      "postToolUse",
       "stop",
       "stopFailure",
       "permissionRequest",
