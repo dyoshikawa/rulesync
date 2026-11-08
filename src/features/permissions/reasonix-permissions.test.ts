@@ -391,6 +391,72 @@ describe("ReasonixPermissions", () => {
       });
     });
 
+    it("should warn when a stricter existing spawn_agents or task entry is replaced by a looser one", async () => {
+      await writeFileContent(
+        join(testDir, "reasonix.toml"),
+        [
+          "[permissions]",
+          'allow = ["grep"]',
+          'ask = ["task"]',
+          'deny = ["spawn_agents"]',
+        ].join("\n"),
+      );
+      const logger = createMockLogger();
+
+      const instance = await ReasonixPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({ permission: { agent: { "*": "allow" } } }),
+        }),
+        logger,
+      });
+
+      const parsed = smolToml.parse(instance.getFileContent()) as any;
+      expect(parsed.permissions).toEqual({ allow: ["grep", "spawn_agents", "task"] });
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      const [warning] = logger.warn.mock.calls[0] as [string];
+      expect(warning).toContain("2 stricter existing entries in reasonix.toml");
+      expect(warning).toContain('ask "task"');
+      expect(warning).toContain('deny "spawn_agents"');
+    });
+
+    it("should not warn when the replaced agent entries are no stricter than the generated ones", async () => {
+      await writeFileContent(
+        join(testDir, "reasonix.toml"),
+        ["[permissions]", 'allow = ["spawn_agents"]', 'ask = ["task"]'].join("\n"),
+      );
+      const logger = createMockLogger();
+
+      await ReasonixPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({ permission: { agent: { "*": "ask" } } }),
+        }),
+        logger,
+      });
+
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("should round-trip an agent rule through generate and import", async () => {
+      const instance = await ReasonixPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({ permission: { agent: { "*": "deny" } } }),
+        }),
+      });
+
+      expect(instance.toRulesyncPermissions().getJson().permission).toEqual({
+        agent: { "*": "deny" },
+      });
+    });
+
     it("should replace the legacy Claude-Code spellings an older rulesync wrote", async () => {
       await writeFileContent(
         join(testDir, "reasonix.toml"),
@@ -1577,6 +1643,9 @@ describe("ReasonixPermissions", () => {
       });
     });
 
+    // `task(review)` / `spawn_agents(review)` never match a call in Reasonix:
+    // neither tool's arguments carry a subject key, so only bare rules apply.
+    // They are still read back so a hand-written file round-trips.
     it("should import both task and spawn_agents as agent, letting the stricter action win", () => {
       const instance = new ReasonixPermissions({
         relativeDirPath: ".",
@@ -1593,6 +1662,23 @@ describe("ReasonixPermissions", () => {
 
       expect(config.permission).toEqual({
         agent: { "*": "ask", review: "deny" },
+      });
+    });
+
+    it("should import legacy Agent, task and spawn_agents with conflicting actions as one agent rule, deny winning", () => {
+      const instance = new ReasonixPermissions({
+        relativeDirPath: ".",
+        relativeFilePath: "reasonix.toml",
+        fileContent: [
+          "[permissions]",
+          'allow = ["Agent", "spawn_agents"]',
+          'ask = ["task"]',
+          'deny = ["Agent"]',
+        ].join("\n"),
+      });
+
+      expect(instance.toRulesyncPermissions().getJson().permission).toEqual({
+        agent: { "*": "deny" },
       });
     });
 
