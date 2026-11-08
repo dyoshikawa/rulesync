@@ -1347,7 +1347,8 @@ const AntigravityCliPermissionsOverrideSchema = z.looseObject({
  * The same override also carries the two plugin-consumption keys Auggie reads
  * from `settings.json`: `recommendedMarketplaces` (`"owner/repo"` marketplaces
  * a workspace prompts its contributors to install; honored only in the
- * project's `.augment/settings.json`) and `enabledPlugins` (plugin ids of the
+ * project's `.augment/settings.json`, and only by Auggie 0.x — 1.x no longer
+ * reads it) and `enabledPlugins` (plugin ids of the
  * form `"plugin@marketplace"` mapped to on/off, deep-merged across the user,
  * project and local tiers).
  *
