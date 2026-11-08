@@ -82,7 +82,7 @@ const OpencodeMcpLocalServerSchema = z.looseObject({
 
 // OpenCode native format for remote servers.
 // looseObject preserves documented-but-unmodeled per-server fields (e.g. `timeout`,
-// `oauth`, `protocol`, `codemode`) and future additions on round-trip. https://opencode.ai/docs/mcp-servers
+// `oauth`, `protocol`, `codemode`, `pool`) and future additions on round-trip. https://opencode.ai/docs/mcp-servers
 const OpencodeMcpRemoteServerSchema = z.looseObject({
   type: z.literal("remote"),
   url: z.string(),
@@ -98,17 +98,24 @@ const OpencodeMcpRemoteServerSchema = z.looseObject({
 // rulesync `mcp.json` is a multi-tool superset, so export uses an explicit
 // allow-list to avoid leaking other tools' keys (e.g. `kiroAutoApprove`,
 // `alwaysAllow`, `trust`) into `opencode.json`.
-// `protocol` (`legacy` | `auto` | `2026-07-28`) and `codemode` are OpenCode V2
+// `protocol` (`legacy` | `auto` | `2026-07-28`), `codemode` and `pool` (OpenCode
+// 2.2.6+, shares one connection across directories) are OpenCode V2
 // per-server keys (https://opencode.ai/v2/docs/mcp-servers/). The OpenCode V2
 // target writes the `mcp.servers` envelope, while OpenCode V1 and MiMo Code
 // write the V1 file shape (a flat `mcp` map) unless the `mcp` feature option
-// `configShape` says otherwise, so the two keys
+// `configShape` says otherwise, so these keys
 // reach it only when a canonical server carries them — hand-authored in
 // `.rulesync/mcp.jsonc`, or imported from an `opencode.json` entry that has
 // them — and they are never emitted otherwise. V1's published schema does not
 // list them.
 // https://opencode.ai/docs/mcp-servers
-const OPENCODE_PASSTHROUGH_SERVER_FIELDS = ["timeout", "oauth", "protocol", "codemode"] as const;
+const OPENCODE_PASSTHROUGH_SERVER_FIELDS = [
+  "timeout",
+  "oauth",
+  "protocol",
+  "codemode",
+  "pool",
+] as const;
 
 // Every field of the two transport schemas except `enabled`, which is what a
 // toggle entry carries, and `disabled`, which a toggle may carry too — plus
@@ -402,7 +409,7 @@ function warnAboutToggleDroppedKeys(
  * - env -> environment
  * - disabled -> enabled (inverted)
  * - enabledTools/disabledTools -> top-level tools map (with server name prefix)
- * - OpenCode-supported extras (timeout, oauth, protocol, codemode) -> passed through verbatim
+ * - OpenCode-supported extras (timeout, oauth, protocol, codemode, pool) -> passed through verbatim
  */
 function convertServerToOpencodeFormat(
   serverName: string,
@@ -411,7 +418,7 @@ function convertServerToOpencodeFormat(
   configShape: OpencodeMcpConfigShape,
   logger?: Logger,
 ): OpencodeMcpServer | null {
-  // Preserve OpenCode-supported extras (e.g. timeout, oauth, protocol, codemode) on export so a
+  // Preserve OpenCode-supported extras (e.g. timeout, oauth, protocol, codemode, pool) on export so a
   // round-trip keeps them. Spread first so derived fields below always win.
   const serverRecord = serverConfig as Record<string, unknown>;
   const passthrough: Record<string, unknown> = {};
