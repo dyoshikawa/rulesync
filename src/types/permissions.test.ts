@@ -428,5 +428,20 @@ describe("RulesyncPermissionsFileSchema tool-scoped override enums", () => {
       );
       expect(result.success).toBe(true);
     });
+
+    it("devin.permission_mode accepts only the documented modes", () => {
+      for (const mode of ["normal", "accept-edits", "smart", "dangerous"]) {
+        expect(
+          RulesyncPermissionsFileSchema.safeParse(
+            withOverride({ devin: { permission_mode: mode } }),
+          ).success,
+        ).toBe(true);
+      }
+      expect(
+        RulesyncPermissionsFileSchema.safeParse(
+          withOverride({ devin: { permission_mode: "yolo" } }),
+        ).success,
+      ).toBe(false);
+    });
   });
 });
