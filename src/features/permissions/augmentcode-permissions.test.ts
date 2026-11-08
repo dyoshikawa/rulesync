@@ -1408,6 +1408,10 @@ describe("AugmentcodePermissions", () => {
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining('("acme/team-plugins", "acme/security-tools")'),
       );
+      // Auggie 1.x dropped the key, so the write warning says it is 0.x-only.
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("Auggie 1.x no longer reads this key"),
+      );
     });
 
     it("should skip recommendedMarketplaces with a warning in global mode", async () => {

@@ -1451,8 +1451,9 @@ describe("E2E: hooks (global mode)", () => {
         expect(Object.keys(parsed.hooks)).toEqual(["SessionStart"]);
         expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
       } else if (target === "junie") {
-        // Junie CLI supports SessionStart, UserPromptSubmit, Stop, and SessionEnd
-        // (PascalCase), so both `sessionStart` and `stop` (audit.sh) survive.
+        // Junie CLI supports both SessionStart and Stop (PascalCase; see
+        // CANONICAL_TO_JUNIE_EVENT_NAMES), so `sessionStart` and `stop`
+        // (audit.sh) both survive.
         const parsed = JSON.parse(generatedContent);
         expect(parsed.hooks.SessionStart).toBeDefined();
         expect(parsed.hooks.Stop).toBeDefined();

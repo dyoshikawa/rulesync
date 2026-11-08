@@ -313,6 +313,50 @@ describe("E2E: mcp", () => {
     expect(imported.mcpServers.filtered.disabledTools).toEqual(["t2"]);
   });
 
+  it("should keep antigravity-cli tool filters and convert timeout to timeoutSeconds in both directions", async () => {
+    const testDir = getTestDir();
+
+    // Antigravity documents `enabledTools`, `disabledTools` and `timeoutSeconds`
+    // (https://antigravity.google/docs/mcp); the canonical `timeout` is in ms.
+    await writeFileContent(
+      join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH),
+      JSON.stringify({
+        mcpServers: {
+          filtered: {
+            url: "https://example.com/mcp",
+            enabledTools: ["t1"],
+            disabledTools: ["t2"],
+            timeout: 600000,
+          },
+        },
+      }),
+    );
+
+    await runGenerate({ target: "antigravity-cli", features: "mcp" });
+
+    const generated = JSON.parse(
+      await readFileContent(join(testDir, ".agents", "mcp_config.json")),
+    );
+    expect(generated.mcpServers.filtered).toEqual({
+      serverUrl: "https://example.com/mcp",
+      enabledTools: ["t1"],
+      disabledTools: ["t2"],
+      timeoutSeconds: 600,
+    });
+
+    await runImport({ target: "antigravity-cli", features: "mcp" });
+
+    const imported = JSON.parse(
+      await readFileContent(join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH)),
+    );
+    expect(imported.mcpServers.filtered).toEqual({
+      url: "https://example.com/mcp",
+      enabledTools: ["t1"],
+      disabledTools: ["t2"],
+      timeout: 600000,
+    });
+  });
+
   it("should translate deepagents MCP transports and tool filters in both directions", async () => {
     const testDir = getTestDir();
 
