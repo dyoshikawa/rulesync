@@ -530,6 +530,10 @@ export const QWENCODE_HOOK_EVENTS: readonly HookEvent[] = [
   // explicitly selected session is deleted (interactive `/delete` and the ACP
   // `deleteSession` request). It has no matcher support.
   "sessionDelete",
+  // `hooks.FileChanged` landed in Qwen Code v0.27.0 (PR #13969): fires after an
+  // explicitly watched file is added, modified or deleted. The matcher filters
+  // on the file basename, so it is kept.
+  "fileChanged",
 ];
 
 export const CANONICAL_TO_KIMI_CODE_EVENT_NAMES: Record<string, string> = {
@@ -2377,6 +2381,7 @@ export const CANONICAL_TO_QWENCODE_EVENT_NAMES: Record<string, string> = {
   todoCompleted: "TodoCompleted",
   messageDisplay: "MessageDisplay",
   sessionDelete: "SessionDelete",
+  fileChanged: "FileChanged",
 };
 
 /**
