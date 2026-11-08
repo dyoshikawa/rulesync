@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { AntigravityIdeMcp } from "./antigravity-ide-mcp.js";
@@ -331,6 +332,113 @@ describe("AntigravityIdeMcp", () => {
         type: "http",
         url: "https://example.com/mcp",
       });
+    });
+
+    it("should warn about an SSE server, which Antigravity does not support", async () => {
+      const logger = createMockLogger();
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            legacy: { type: "sse", url: "https://example.com/sse" },
+            modern: { type: "http", url: "https://example.com/mcp" },
+          },
+        }),
+      });
+
+      await AntigravityIdeMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp, logger });
+
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("SSE transport"));
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("legacy"));
+    });
+  });
+
+  describe("enabledTools", () => {
+    it("should pass `enabledTools` and `disabledTools` through unchanged", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            filtered: { command: "node", enabledTools: ["read"], disabledTools: ["write"] },
+          },
+        }),
+      });
+
+      const antigravityIdeMcp = await AntigravityIdeMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+      });
+
+      const servers = antigravityIdeMcp.getJson().mcpServers as Record<string, unknown>;
+      expect(servers.filtered).toEqual({
+        command: "node",
+        enabledTools: ["read"],
+        disabledTools: ["write"],
+      });
+      const parsed = JSON.parse(antigravityIdeMcp.toRulesyncMcp().getFileContent());
+      expect(parsed.mcpServers.filtered.enabledTools).toEqual(["read"]);
+    });
+  });
+
+  describe("timeout transform", () => {
+    const generate = async (
+      servers: Record<string, unknown>,
+      logger = createMockLogger(),
+    ): Promise<Record<string, Record<string, unknown>>> => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({ mcpServers: servers }),
+      });
+      const antigravityIdeMcp = await AntigravityIdeMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        logger,
+      });
+      return antigravityIdeMcp.getJson().mcpServers as Record<string, Record<string, unknown>>;
+    };
+
+    it("should convert the canonical `timeout` (ms) into `timeoutSeconds`", async () => {
+      const servers = await generate({
+        remote: { url: "https://example.com/mcp", timeout: 600000 },
+        rounded: { command: "node", timeout: 1500 },
+        disabled: { command: "node", timeout: -5 },
+      });
+
+      expect(servers.remote).toEqual({ serverUrl: "https://example.com/mcp", timeoutSeconds: 600 });
+      expect(servers.rounded).toEqual({ command: "node", timeoutSeconds: 2 });
+      expect(servers.disabled).toEqual({ command: "node", timeoutSeconds: -1 });
+    });
+
+    it("should keep an authored `timeoutSeconds` over `timeout` and warn", async () => {
+      const logger = createMockLogger();
+      const servers = await generate(
+        { both: { command: "node", timeout: 1000, timeoutSeconds: 30 } },
+        logger,
+      );
+
+      expect(servers.both).toEqual({ command: "node", timeoutSeconds: 30 });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"timeoutSeconds"'));
+    });
+
+    it("should convert `timeoutSeconds` back to the canonical `timeout` when importing", () => {
+      const antigravityIdeMcp = new AntigravityIdeMcp({
+        relativeDirPath: ".agents",
+        relativeFilePath: "mcp_config.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            remote: { serverUrl: "https://example.com/mcp", timeoutSeconds: 600 },
+            disabled: { command: "node", timeoutSeconds: -1 },
+          },
+        }),
+      });
+
+      const parsed = JSON.parse(antigravityIdeMcp.toRulesyncMcp().getFileContent());
+      expect(parsed.mcpServers.remote).toEqual({ url: "https://example.com/mcp", timeout: 600000 });
+      expect(parsed.mcpServers.disabled).toEqual({ command: "node", timeout: -1 });
     });
   });
 

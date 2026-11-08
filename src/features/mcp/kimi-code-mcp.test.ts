@@ -334,7 +334,7 @@ describe("KimiCodeMcp global config defaults", () => {
         runtime_id: "runtime-1",
       });
       expect(logger.warn).toHaveBeenCalledWith(
-        'Kimi Code MCP: dropping executor "kaos" from "sandboxed" because Kimi Code only accepts "local".',
+        'Kimi Code MCP: dropping executor "kaos" from "sandboxed" because Kimi Code 2.2.0 through 2.4.x accept only "local".',
       );
     });
 
@@ -358,7 +358,100 @@ describe("KimiCodeMcp global config defaults", () => {
         command: "npx",
       });
       expect(logger.warn).toHaveBeenCalledWith(
-        'Kimi Code MCP: dropping executor "kaos" from "sandboxed" because Kimi Code only accepts "local".',
+        'Kimi Code MCP: dropping executor "kaos" from "sandboxed" because Kimi Code 2.2.0 through 2.4.x accept only "local".',
+      );
+    });
+
+    it("should pass environment_id through on generate and import", async () => {
+      const generated = await KimiCodeMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp: rulesyncMcp({
+          mcpServers: {
+            "remote-fs": { type: "stdio", command: "npx", environment_id: "dev-box" },
+          },
+        }),
+      });
+
+      expect(JSON.parse(generated.getFileContent()).mcpServers["remote-fs"]).toEqual({
+        transport: "stdio",
+        command: "npx",
+        environment_id: "dev-box",
+      });
+
+      await writeFileContent(
+        join(testDir, ".kimi-code", "mcp.json"),
+        JSON.stringify({
+          mcpServers: {
+            "remote-fs": { command: "npx", environment_id: "dev-box" },
+          },
+        }),
+      );
+
+      const imported = (await KimiCodeMcp.fromFile({ outputRoot: testDir })).toRulesyncMcp();
+
+      expect(JSON.parse(imported.getFileContent()).mcpServers["remote-fs"]).toEqual({
+        command: "npx",
+        environment_id: "dev-box",
+      });
+    });
+
+    it("should drop an empty environment_id with a warning on generate", async () => {
+      const logger = createMockLogger();
+      const generated = await KimiCodeMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        logger,
+        rulesyncMcp: rulesyncMcp({
+          mcpServers: {
+            "remote-fs": { type: "stdio", command: "npx", environment_id: "" },
+          },
+        }),
+      });
+
+      expect(JSON.parse(generated.getFileContent()).mcpServers["remote-fs"]).toEqual({
+        transport: "stdio",
+        command: "npx",
+      });
+      expect(logger.warn).toHaveBeenCalledWith(
+        'Kimi Code MCP: dropping environment_id "" from "remote-fs" because Kimi Code requires a non-empty string.',
+      );
+    });
+
+    it("should drop environment_id from a non-stdio server with a warning on generate and import", async () => {
+      const logger = createMockLogger();
+      const generated = await KimiCodeMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        logger,
+        rulesyncMcp: rulesyncMcp({
+          mcpServers: {
+            linear: { url: "https://mcp.linear.app/mcp", environment_id: "dev-box" },
+          },
+        }),
+      });
+
+      expect(JSON.parse(generated.getFileContent()).mcpServers.linear).toEqual({
+        transport: "http",
+        url: "https://mcp.linear.app/mcp",
+      });
+
+      await writeFileContent(
+        join(testDir, ".kimi-code", "mcp.json"),
+        JSON.stringify({
+          mcpServers: {
+            linear: { url: "https://mcp.linear.app/mcp", environment_id: "dev-box" },
+          },
+        }),
+      );
+
+      const imported = (
+        await KimiCodeMcp.fromFile({ outputRoot: testDir, logger })
+      ).toRulesyncMcp();
+
+      expect(JSON.parse(imported.getFileContent()).mcpServers.linear).toEqual({
+        url: "https://mcp.linear.app/mcp",
+      });
+      expect(logger.warn).toHaveBeenCalledTimes(2);
+      expect(logger.warn).toHaveBeenCalledWith(
+        'Kimi Code MCP: dropping environment_id from "linear" because Kimi Code only accepts it on stdio servers.',
       );
     });
   });
