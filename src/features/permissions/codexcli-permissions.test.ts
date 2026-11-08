@@ -2500,6 +2500,72 @@ command = "node"
     expect(content).toContain('decision = "forbidden"');
   });
 
+  describe("codexcli.bash_canonical_matching", () => {
+    const bash = {
+      "git status": "allow",
+      "gh pr view": "ask",
+      "rm -rf /": "deny",
+    } as const;
+
+    it("should not write canonical_matching by default", () => {
+      const content = createCodexcliBashRulesFile({
+        outputRoot: testDir,
+        config: { permission: { bash } },
+      }).getFileContent();
+
+      expect(content).not.toContain("canonical_matching");
+    });
+
+    it("should not write canonical_matching when explicitly false", () => {
+      const content = createCodexcliBashRulesFile({
+        outputRoot: testDir,
+        config: { permission: { bash }, codexcli: { bash_canonical_matching: false } },
+      }).getFileContent();
+
+      expect(content).not.toContain("canonical_matching");
+    });
+
+    it("should write canonical_matching on forbidden and prompt rules only when true", () => {
+      const content = createCodexcliBashRulesFile({
+        outputRoot: testDir,
+        config: { permission: { bash }, codexcli: { bash_canonical_matching: true } },
+      }).getFileContent();
+
+      expect(content).toMatch(
+        /pattern = \["rm", "-rf", "\/"\],\s*decision = "forbidden",\s*justification = [^\n]*,\n {4}canonical_matching = True,\n\)/,
+      );
+      expect(content).toMatch(
+        /pattern = \["gh", "pr", "view"\],\s*decision = "prompt",\s*justification = [^\n]*,\n {4}canonical_matching = True,\n\)/,
+      );
+      expect(content).toMatch(
+        /pattern = \["git", "status"\],\s*decision = "allow",\s*justification = [^\n]*,\n\)/,
+      );
+      expect(content.match(/canonical_matching = True/g)).toHaveLength(2);
+    });
+
+    it("should not write bash_canonical_matching into config.toml", async () => {
+      const logger = createMockLogger();
+      const permissions = await CodexcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          outputRoot: testDir,
+          relativeDirPath: ".rulesync",
+          relativeFilePath: "permissions.json",
+          fileContent: JSON.stringify({
+            permission: { bash },
+            codexcli: { bash_canonical_matching: true },
+          }),
+        }),
+      });
+
+      expect(permissions.getFileContent()).not.toContain("canonical_matching");
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining("bash_canonical_matching"),
+      );
+    });
+  });
+
   it("should not auto-approve a bash allow that an all-tools deny covers", () => {
     const rulesFile = createCodexcliBashRulesFile({
       outputRoot: testDir,
