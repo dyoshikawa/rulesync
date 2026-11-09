@@ -40,9 +40,9 @@ import {
 } from "./sandbox-trust.js";
 import {
   honorAllToolsRestrictions,
-  normalizeUrlPattern,
   restateAllToolsRestrictionsInCategory,
   restatesAsCategoryRule,
+  stripUrlSchemeKeepingPathCase,
 } from "./shadowed-allows.js";
 import {
   ALL_TOOLS_PERMISSION_CATEGORY,
@@ -416,7 +416,8 @@ function asAutoApproveMap(value: unknown): Record<string, boolean> {
  * The edits or urls map's rules with the all-tools `*` restrictions honored.
  * A restriction that reads as a path (edits) or URL (urls), and the catch-all
  * `*`, is written as a `false` entry of its own, which `buildAutoApproveValue`
- * places where it wins; a URL is written lowercased and without its scheme.
+ * places where it wins; a URL is written without its scheme and with only its host lowercased,
+ * since VS Code matches paths case-sensitively.
  * Every other restriction (a command, an odd URL pattern) cannot be written
  * there, so each `true` entry it overlaps is withheld instead.
  */
@@ -440,7 +441,7 @@ function honorCopilotAllToolsRestrictions({
     if (restateAs({ category, pattern, action })) {
       const key =
         category === "webfetch" && pattern !== CATCH_ALL_PATTERN
-          ? normalizeUrlPattern(pattern)
+          ? stripUrlSchemeKeepingPathCase(pattern)
           : pattern;
       writable[key] = action;
     } else {

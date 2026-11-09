@@ -20,6 +20,7 @@ import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   honorAllToolsRestrictions,
   restatesAsCategoryRule,
+  urlPatternsOverlap,
   withholdAllowsShadowedByAsks,
 } from "./shadowed-allows.js";
 import {
@@ -1131,10 +1132,16 @@ function retireWithheldAllows({
       ),
       ...allToolsRestrictions,
     ].map(([pattern]) => ({ pattern, fromAllToolsCategory: false }));
-    const shadowed = createShadowingRestrictionsTest(restrictions);
+    // `web_fetch` entries are URLs, compared as such (`evil.com` covers
+    // `https://evil.com/x`).
+    const globShadowed = createShadowingRestrictionsTest(restrictions);
+    const shadowed = (pattern: string): boolean =>
+      category === "webfetch"
+        ? restrictions.some((restriction) => urlPatternsOverlap(restriction.pattern, pattern))
+        : globShadowed(pattern).length > 0;
     const retires = (pattern: string): boolean =>
       withheld.has(pattern) ||
-      (restrictions.length > 0 && honored[pattern] !== "allow" && shadowed(pattern).length > 0);
+      (restrictions.length > 0 && honored[pattern] !== "allow" && shadowed(pattern));
     for (const vibeToolName of resolveNames(category) ?? []) {
       if (!Object.hasOwn(tools, vibeToolName)) continue;
       const tool = readVibeToolConfig({ tools, vibeToolName });

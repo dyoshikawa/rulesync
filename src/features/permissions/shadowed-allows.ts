@@ -26,11 +26,25 @@ export function normalizeUrlPattern(pattern: string): string {
   return pattern.toLowerCase().replace(/^[a-z][a-z0-9+.-]*:\/\//, "");
 }
 
+/**
+ * A URL pattern with its scheme stripped and only its host lowercased, for
+ * writing it into a tool that matches paths case-sensitively (Copilot in VS
+ * Code). A scheme spelled as a glob (a `*` scheme, `http*`, or a bare double
+ * slash after a `*`) is stripped too.
+ */
+export function stripUrlSchemeKeepingPathCase(pattern: string): string {
+  const withoutScheme = pattern.replace(/^[a-z0-9+.*-]*:?\/\//i, "");
+  const slash = withoutScheme.indexOf("/");
+  return slash === -1
+    ? withoutScheme.toLowerCase()
+    : `${withoutScheme.slice(0, slash).toLowerCase()}${withoutScheme.slice(slash)}`;
+}
+
 type UrlPatternParts = { host: string; port: string | undefined; path: string | undefined };
 
 /** Split a lowercased, scheme-less URL or domain pattern into host, port and path. */
 function splitUrlPattern(pattern: string): UrlPatternParts {
-  const normalized = normalizeUrlPattern(pattern);
+  const normalized = stripUrlSchemeKeepingPathCase(pattern).toLowerCase();
   const slash = normalized.indexOf("/");
   const hostPort = slash === -1 ? normalized : normalized.slice(0, slash);
   const path = slash === -1 ? undefined : normalized.slice(slash);
@@ -47,13 +61,37 @@ function splitUrlPattern(pattern: string): UrlPatternParts {
  * `example.org/private/*`). A pathless pattern is a host, which domain-only
  * tools read as every URL on it, on any port, and on its subdomains, so a
  * missing path or port matches every path or port, and each host also stands
- * for `*.<host>`. A pattern holding whitespace names no URL.
+ * for `*.<host>`. Because a glob can also match across those parts, the
+ * whole strings are compared as well, and an overlap from either counts. A
+ * pattern holding whitespace names no URL.
  */
 export function urlPatternsOverlap(left: string, right: string): boolean {
   if (left === right) return true;
   // A URL holds no whitespace, so a pattern that does (a command such as
   // `rm -rf *`) names none.
   if (/\s/.test(left) || /\s/.test(right)) return false;
+  return urlPartsOverlap(left, right) || wholeStringsOverlap(left, right);
+}
+
+/**
+ * The whole-string comparison a `*` restriction also gets, since a glob there
+ * matches the whole URL (`*.pdf` names `https://example.com/doc.pdf`): the two
+ * patterns compared as written and lowercased without a scheme, each widened
+ * by `createShadowingRestrictionsTest`.
+ */
+function wholeStringsOverlap(left: string, right: string): boolean {
+  return [
+    [left, right],
+    [normalizeUrlPattern(left), normalizeUrlPattern(right)],
+  ].some(
+    ([restriction = "", allow = ""]) =>
+      createShadowingRestrictionsTest([{ pattern: restriction, fromAllToolsCategory: false }])(
+        allow,
+      ).length > 0,
+  );
+}
+
+function urlPartsOverlap(left: string, right: string): boolean {
   const a = splitUrlPattern(left);
   const b = splitUrlPattern(right);
   const hosts = (host: string): string[] => [host, `*.${host}`];

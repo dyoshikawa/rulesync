@@ -8,7 +8,7 @@ import {
 } from "../../constants/rulesync-paths.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import type { PermissionsConfig } from "../../types/permissions.js";
+import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { writeFileContent } from "../../utils/file.js";
 import { AntigravityCliPermissions } from "./antigravity-cli-permissions.js";
 import { AntigravityIdePermissions } from "./antigravity-ide-permissions.js";
@@ -170,6 +170,16 @@ describe("urlPatternsOverlap", () => {
     ["http://localhost:*/*", "localhost"],
     ["*evil*", "Evil.com"],
     ["*", "github.com"],
+    ["*://evil.com/*", "evil.com"],
+    ["*://evil.com/*", "https://evil.com/x"],
+    ["http*://evil.com/*", "https://evil.com/x"],
+    ["*//evil.com/*", "https://evil.com/x"],
+    ["*admin", "https://example.com/admin"],
+    ["*.pdf", "https://example.com/doc.pdf"],
+    ["*.env", "https://example.com/x.env"],
+    ["{evil,bad}.com", "evil.com"],
+    ["*://github.com/private/*", "github.com"],
+    ["github.com/private/*", "*://github.com/*"],
   ])("%s overlaps %s", (left, right) => {
     expect(urlPatternsOverlap(left, right)).toBe(true);
   });
@@ -177,12 +187,42 @@ describe("urlPatternsOverlap", () => {
   it.each([
     ["rm -rf *", "github.com"],
     [".env", "github.com"],
-    ["example.org/private/*", "*.github.com"],
+    ["example.org/private/*", "github.com"],
     ["example.com", "*.github.com:443"],
     ["github.com:80", "github.com:443"],
     ["example.com/a/*", "example.com/b/*"],
   ])("%s does not overlap %s", (left, right) => {
     expect(urlPatternsOverlap(left, right)).toBe(false);
+  });
+});
+
+describe("webfetch overlap through the adapters' helpers", () => {
+  it("withholds the allows a '*' URL glob covers but keeps one only a command sits beside", () => {
+    const covered = honorAllToolsRestrictions({
+      permission: {
+        "*": { "*://evil.com/*": "deny", "{bad,worse}.com": "deny" },
+        webfetch: { "evil.com": "allow", "https://evil.com/x": "allow", "bad.com": "allow" },
+      },
+      toolLabel: "Tool",
+    });
+    expect(covered.webfetch).toEqual({});
+
+    const command = honorAllToolsRestrictions({
+      permission: { "*": { "rm -rf *": "deny" }, webfetch: { "github.com": "allow" } },
+      toolLabel: "Tool",
+    });
+    expect(command.webfetch).toEqual({ "github.com": "allow" });
+  });
+
+  it("withholds a webfetch allow an in-category ask covers", () => {
+    const cases: Record<string, PermissionAction>[] = [
+      { "*://github.com/private/*": "ask", "github.com": "allow" },
+      { "github.com/private/*": "ask", "*://github.com/*": "allow" },
+    ];
+    for (const webfetch of cases) {
+      const result = withholdAllowsShadowedByAsks({ permission: { webfetch }, toolLabel: "Tool" });
+      expect(Object.values(result.webfetch ?? {})).not.toContain("allow");
+    }
   });
 });
 
@@ -737,6 +777,32 @@ describe("translators never leave an allow that covers a restriction they cannot
         "evil.example/*": false,
         "good.example": true,
       });
+    });
+
+    it("Copilot (VS Code) keeps the path case when restating into the urls map", async () => {
+      const content = await generate({
+        generator: CopilotPermissions,
+        permission: {
+          "*": { "Example.com/Admin/*": "deny" },
+          webfetch: { "https://example.com/Admin/x": "allow" },
+        },
+      });
+      const urls = JSON.parse(content)["chat.tools.urls.autoApprove"] as Record<string, boolean>;
+      expect(urls["example.com/Admin/*"]).toBe(false);
+      expect(Object.keys(urls)[0]).toBe("example.com/Admin/*");
+    });
+
+    it("Vibe retires a web_fetch allowlist URL a host restriction covers", async () => {
+      await writeFileContent(
+        join(testDir, ".vibe", "config.toml"),
+        '[tools.web_fetch]\nallowlist = ["https://evil.com/x", "https://good.com/x"]\n',
+      );
+      const content = await generate({
+        generator: VibePermissions,
+        permission: { webfetch: { "evil.com": "deny" } },
+      });
+      expect(content).not.toContain("https://evil.com/x");
+      expect(content).toContain("https://good.com/x");
     });
 
     it("Vibe writes a withheld catch-all as never under a '*' catch-all deny", async () => {
