@@ -32,6 +32,7 @@ import {
   sanitizeOpencodeMcpNamePart,
 } from "../shared/opencode-family-mcp-tool-keys.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
+import { restateAllToolsRestrictionsLast } from "./last-match-restate.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { honorAllToolsOnBash, MCP_CATEGORY_PREFIX } from "./shell-command-categories.js";
 import {
@@ -425,7 +426,7 @@ function toOpencodeSharedPermission({
       sharedPermission[key] = value;
     }
   }
-  return sharedPermission;
+  return restateAllToolsRestrictionsLast(sharedPermission);
 }
 
 const OpencodePermissionsConfigSchema = z.looseObject({

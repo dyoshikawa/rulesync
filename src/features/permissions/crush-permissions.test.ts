@@ -121,13 +121,33 @@ describe("CrushPermissions", () => {
         logger,
       });
 
-      // The `*` deny is mirrored onto bash, which then carries a restriction.
-      expect(permissions.getJson()).toEqual({
-        permissions: { allowed_tools: ["view"] },
-      });
+      // The `*` deny is mirrored onto bash, which then carries a restriction,
+      // and it withholds the `read` catch-all allow too: the stricter rule wins
+      // whatever its width, so Crush keeps prompting for `view`.
+      expect(permissions.getJson()).toEqual({});
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining("Crush has no allow-all or disable-all tool list"),
       );
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("read: *"));
+    });
+
+    it("should keep a tool a '*' path deny covers out of allowed_tools and keep safe_commands", async () => {
+      const logger = createMockLogger();
+      const permissions = await CrushPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          "*": { ".env": "deny" },
+          read: { "*": "allow" },
+          edit: { "*": "allow" },
+          bash: { "go build": "allow" },
+        }),
+        logger,
+      });
+
+      expect(permissions.getJson()).toEqual({
+        permissions: { safe_commands: ["go build"] },
+      });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("read: *, edit: *"));
     });
 
     it("should map exact allows to safe_commands and whole-command denies to blocked_commands", async () => {

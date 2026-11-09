@@ -33,7 +33,7 @@ import {
   type TrustAffectingSandboxPath,
   warnOnTrustAffectingEntries,
 } from "./sandbox-trust.js";
-import { honorAllToolsOnBash } from "./shell-command-categories.js";
+import { honorAllToolsRestrictions } from "./shadowed-allows.js";
 import { collapseRulesToSingleAction, hasPatternSpecificRules } from "./single-action-collapse.js";
 import { buildToolPatternEntry, parseToolPatternEntry } from "./tool-pattern-entry.js";
 import {
@@ -687,7 +687,13 @@ function convertRulesyncToDevinPermissions({
     }
   };
 
-  for (const [category, rules] of Object.entries(honorAllToolsOnBash(config.permission))) {
+  for (const [category, rules] of Object.entries(
+    honorAllToolsRestrictions({
+      permission: config.permission,
+      toolLabel: "Devin",
+      logger,
+    }),
+  )) {
     const scope = toDevinScope(category);
     if (DEVIN_BARE_ONLY_SCOPES.has(scope)) {
       const action = collapseBareOnlyScopeRules({ category, scope, rules, logger });

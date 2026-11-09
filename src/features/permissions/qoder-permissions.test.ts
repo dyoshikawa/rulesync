@@ -135,8 +135,9 @@ describe("QoderPermissions", () => {
         logger,
       );
 
+      // The pattern-specific all-tools deny cannot be written, so it withholds
+      // the catch-all allow it overlaps (the stricter rule wins).
       expect(settings.permissions).toEqual({
-        allow: ["mcp__context7__"],
         ask: ["*", "mcp__github__create_issue"],
         deny: ["mcp__*"],
       });

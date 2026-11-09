@@ -15,7 +15,8 @@ import {
   sharedConfigFileKey,
 } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { CATCH_ALL_PATTERN, honorAllToolsOnBash } from "./shell-command-categories.js";
+import { honorAllToolsRestrictions, restatesAsCategoryRule } from "./shadowed-allows.js";
+import { CATCH_ALL_PATTERN } from "./shell-command-categories.js";
 import { isStricterAction } from "./single-action-collapse.js";
 import { splitToolRule } from "./tool-pattern-entry.js";
 import {
@@ -216,13 +217,20 @@ function buildLettacodeRuleLists({
   existingPermissions: Record<string, unknown>;
   logger?: Logger;
 }): Record<string, string[]> {
-  const permission = honorAllToolsOnBash(config.permission);
+  const permission = honorAllToolsRestrictions({
+    permission: config.permission,
+    toolLabel: "Letta Code",
+    logger,
+    // The default for an input with no rule may auto-approve it (reads), so a
+    // `*` path or URL restriction is also written as a rule of each category.
+    restateAs: restatesAsCategoryRule(),
+  });
   const ranked = new Map<string, PermissionAction>();
   const managedCategories = new Set<string>();
   for (const [category, rules] of Object.entries(permission)) {
     if (!Object.hasOwn(CATEGORY_TO_LETTACODE_TOOL, category)) {
       // The all-tools `*` category's restrictions already reached `bash`
-      // through `honorAllToolsOnBash` when that category exists.
+      // through `honorAllToolsRestrictions` when that category exists.
       logger?.warn(
         `Letta Code permissions: skipping the '${category}' category — Letta Code has no permission rule for it.`,
       );

@@ -10,6 +10,7 @@ import {
   COPILOTCLI_DEFAULT_PERMISSION_MODES,
   type CopilotcliDefaultPermissionMode,
   type PermissionAction,
+  type PermissionsConfig,
 } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
@@ -19,6 +20,8 @@ import {
   sharedConfigFileKey,
 } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+import { honorAllToolsRestrictions, withholdAllowsShadowedByAsks } from "./shadowed-allows.js";
+import { ALL_TOOLS_PERMISSION_CATEGORY } from "./shell-command-categories.js";
 import {
   ToolPermissions,
   type ToolPermissionsFromFileParams,
@@ -51,6 +54,21 @@ function isCopilotcliDefaultPermissionMode(
   value: unknown,
 ): value is CopilotcliDefaultPermissionMode {
   return COPILOTCLI_DEFAULT_PERMISSION_MODES.some((mode) => mode === value);
+}
+
+/** The given categories of a permission block, those it states. */
+function pickOwnCategories(
+  permission: PermissionsConfig["permission"],
+  categories: readonly string[],
+): PermissionsConfig["permission"] {
+  const picked: PermissionsConfig["permission"] = {};
+  for (const category of categories) {
+    const rules = Object.hasOwn(permission, category) ? permission[category] : undefined;
+    if (rules !== undefined) {
+      picked[category] = rules;
+    }
+  }
+  return picked;
 }
 
 function toUrlList(value: unknown): string[] {
@@ -163,7 +181,21 @@ export class CopilotcliPermissions extends ToolPermissions {
     const existingContent = (await readFileContentOrNull(filePath)) ?? "{}";
 
     const config = rulesyncPermissions.getJson();
-    const rules = config.permission[WEBFETCH_CATEGORY];
+    // The CLI prompts for a URL in neither list, which is how an `ask` is
+    // honored — so an allow covering an ask, or covering a deny/ask under the
+    // all-tools `*` category, is withheld rather than auto-approving it.
+    const rules = withholdAllowsShadowedByAsks({
+      permission: honorAllToolsRestrictions({
+        permission: pickOwnCategories(config.permission, [
+          ALL_TOOLS_PERMISSION_CATEGORY,
+          WEBFETCH_CATEGORY,
+        ]),
+        toolLabel: "Copilot CLI",
+        logger,
+      }),
+      toolLabel: "Copilot CLI",
+      logger,
+    })[WEBFETCH_CATEGORY];
 
     // A canonical config that does not state `webfetch` at all leaves both keys
     // exactly as the user left them. A stated category that yields no entries

@@ -3009,9 +3009,10 @@ describe("E2E: permissions (global mode)", () => {
     // Canonical deny downgrades to ask (Junie has no deny).
     expect(content.rules.executables).toEqual({
       default: "ask",
+      // Junie is first-match-wins, so restrictions are written ahead of allows.
       rules: [
-        { prefix: "git ", action: "allow" },
         { pattern: "rm *", action: "ask" },
+        { prefix: "git ", action: "allow" },
       ],
     });
     expect(content.rules.fileEditing).toEqual({ rules: [{ pattern: "src/**", action: "allow" }] });
