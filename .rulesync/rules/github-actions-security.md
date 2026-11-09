@@ -28,13 +28,13 @@ Reference: https://docs.github.com/ja/actions/concepts/security/script-injection
 
 Third-party GitHub Actions are pinned to a full 40-character commit SHA with a trailing `# vX.Y.Z` comment. Keep that convention when adding or bumping an action.
 
-`draft-release.yml` pins the `anomalyco/opencode/github` composite action to the SHA for `github-v1.2.28`. Upstream removed the action from newer releases, so Dependabot ignores this dependency and the pin stays at that tag. The pinned wrapper uses a full SHA for `actions/cache` (v4.3.0).
+`draft-release.yml` pins the `anomalyco/opencode/github` composite action to the SHA for `github-v1.2.28` because that version pins its internal `actions/cache` dependency to a full SHA (v4.3.0). Newer 1.x releases still contain `github/action.yml`, but use the mutable `actions/cache@v4` tag. Dependabot ignores this dependency to avoid silently reintroducing that unpinned action; do not update the wrapper without checking its transitive action references.
 
-The wrapper still resolves the `opencode` CLI release to `latest` at run time and installs it with `curl -fsSL https://opencode.ai/install | bash`. The binary that receives the workflow secrets is selected independently of both pins.
+The wrapper still resolves the `opencode` CLI from the unauthenticated GitHub `releases/latest` API response at run time and installs it with `curl -fsSL https://opencode.ai/install | bash`. The installer endpoint and the `anomalyco/opencode` GitHub Releases artifacts are therefore separate trust boundaries not covered by the composite-action SHA or its cache pin. Secrets passed through the composite action's `env` are available to **every** step, including the downloaded installer script, not only the eventual CLI binary.
 
-The accepted stance is to trust `https://opencode.ai/install` in this workflow because `draft-release.yml` is `workflow_dispatch`-only and restricts `github.actor` to maintainers.
+The accepted stance is to trust this runtime distribution path because `draft-release.yml` is `workflow_dispatch`-only and restricts `github.actor` to maintainers. That gate limits **who can trigger** the workflow; it does **not** reduce exposure during a maintainer-triggered run.
 
-The residual risk is that a compromise of the distribution endpoint would expose the model API keys and the `GITHUB_TOKEN` with `contents: write`, `pull-requests: write`, and `issues: write` on a maintainer-triggered run. Revisit this trust decision if the workflow becomes externally triggerable or receives broader secrets or token permissions.
+The residual risk is that compromised install infrastructure or release artifacts could expose the model API keys, the `GITHUB_TOKEN` (`contents: write`, `pull-requests: write`, `issues: write`), and the job's OIDC token-request capability (`id-token: write`). Revisit this decision if the workflow becomes externally triggerable, gains broader secrets or permissions, or a self-managed installation becomes practical. The alternative is to replace the frozen composite wrapper with a pinned, checksum-verified opencode 1.x CLI installation and invoke `opencode github run` directly.
 
 ## cicd-sensor (Takumi Runner)
 
