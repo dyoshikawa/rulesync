@@ -23,11 +23,11 @@ import {
   sharedConfigFileKey,
 } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+import { honorAllToolsRestrictions } from "./shadowed-allows.js";
 import {
   ALL_TOOLS_PERMISSION_CATEGORY,
   CATCH_ALL_PATTERN,
   createShadowingRestrictionsTest,
-  honorAllToolsOnBash,
   MCP_CATEGORY_PREFIX,
 } from "./shell-command-categories.js";
 import {
@@ -196,7 +196,7 @@ function listPatterns(patterns: readonly string[]): string {
  *   - `mcp__<server>__<tool>` is skipped: Pool approves MCP tools per server
  *     under `mcp_servers.<server>.allow`, authored as `poolAllow` in
  *     `.rulesync/mcp.json`. The all-tools `*` category is mirrored onto
- *     `bash` by `honorAllToolsOnBash` and otherwise skipped.
+ *     `bash` by `honorAllToolsRestrictions` and otherwise skipped.
  *
  * Project settings take project-relative paths and the user settings absolute
  * or `~` paths, so a path of the other kind is skipped with a warning at each
@@ -330,7 +330,11 @@ function buildPoolPermissionsPatch({
   global: boolean;
   logger?: Logger;
 }): Record<string, unknown> {
-  const permission = honorAllToolsOnBash(config.permission);
+  const permission = honorAllToolsRestrictions({
+    permission: config.permission,
+    toolLabel: "Pool",
+    logger,
+  });
   const existingTools = isRecord(existing[POOL_TOOLS_KEY]) ? existing[POOL_TOOLS_KEY] : undefined;
   const existingPaths = isRecord(existing[POOL_PATHS_KEY]) ? existing[POOL_PATHS_KEY] : undefined;
   const patch: Record<string, unknown> = {};
@@ -448,7 +452,7 @@ function groupCategoriesByPoolTool({
   for (const [category, rules] of Object.entries(permission)) {
     if (isPrototypePollutionKey(category) || isFileCategory(category)) continue;
     if (category === ALL_TOOLS_PERMISSION_CATEGORY) {
-      // `honorAllToolsOnBash` has already mirrored the restrictions onto bash.
+      // `honorAllToolsRestrictions` has already mirrored the restrictions onto bash.
       for (const [rawPattern, action] of Object.entries(rules)) {
         if (isPrototypePollutionKey(rawPattern)) continue;
         logger?.warn(

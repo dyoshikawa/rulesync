@@ -22,6 +22,7 @@ import {
   stringifySharedConfig,
 } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+import { honorAllToolsRestrictions } from "./shadowed-allows.js";
 import { MCP_CATEGORY_PREFIX } from "./shell-command-categories.js";
 import {
   ToolPermissions,
@@ -188,7 +189,14 @@ function canonicalToKimiCodeRules({
   const canonicalRules: KimiCodePermissionRule[] = [];
   const overrideRules = config["kimi-code"]?.rules ?? [];
 
-  for (const [category, rules] of Object.entries(config.permission)) {
+  // `*` restrictions reach `bash` and withhold the allows they cover in the
+  // other categories, since Kimi Code has no rule spanning every tool.
+  const permission = honorAllToolsRestrictions({
+    permission: config.permission,
+    toolLabel: "Kimi Code",
+    logger,
+  });
+  for (const [category, rules] of Object.entries(permission)) {
     const isSupported =
       category === "mcp" ||
       category.startsWith(MCP_CATEGORY_PREFIX) ||

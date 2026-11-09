@@ -21,6 +21,7 @@ import {
   isKiloPermissionPattern,
   kiloPermissionToToolFilter,
 } from "../shared/kilo-mcp-tool-keys.js";
+import { restateAllToolsRestrictionsLast } from "./last-match-restate.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { honorAllToolsOnBash, MCP_CATEGORY_PREFIX } from "./shell-command-categories.js";
 import {
@@ -355,8 +356,10 @@ export class KiloPermissions extends ToolPermissions {
     // override here is what makes Kilo-only keys (external_directory, doom_loop,
     // notebook_edit, ...) authorable from rulesync rather than only pass-through.
     const kiloOverride = rulesyncJson.kilo;
+    // Kilo is last-match-wins by key order like OpenCode, so a `*` deny/ask
+    // is restated after the later keys' looser rules it overlaps.
     const incomingPermission: Record<string, unknown> = {
-      ...honorAllToolsOnBash(rulesyncJson.permission),
+      ...restateAllToolsRestrictionsLast(honorAllToolsOnBash(rulesyncJson.permission)),
       ...kiloOverride?.permission,
     };
     if (!global && Object.hasOwn(incomingPermission, KILO_MARKDOWN_SOURCE_KEY)) {

@@ -17,7 +17,18 @@ import { lookupOwn } from "../../utils/own-lookup.js";
 import { toStringArray } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { honorAllToolsOnBash, MCP_CATEGORY_PREFIX } from "./shell-command-categories.js";
+import {
+  honorAllToolsRestrictions,
+  restatesAsCategoryRule,
+  urlPatternsOverlap,
+  withholdAllowsShadowedByAsks,
+} from "./shadowed-allows.js";
+import {
+  ALL_TOOLS_PERMISSION_CATEGORY,
+  CATCH_ALL_PATTERN,
+  createShadowingRestrictionsTest,
+  MCP_CATEGORY_PREFIX,
+} from "./shell-command-categories.js";
 import {
   ToolPermissions,
   type ToolPermissionsFromFileParams,
@@ -241,7 +252,26 @@ export class VibePermissions extends ToolPermissions {
     const existingContent = (await readFileContentOrNull(filePath)) ?? "";
     const config = parseVibeConfig(existingContent);
 
-    const permission = honorAllToolsOnBash(rulesyncPermissions.getJson().permission);
+    // Vibe has no all-tools table: `*` restrictions reach `bash` and withhold
+    // the allows they cover in the other categories. Vibe has no pattern-level
+    // ask either: each one is skipped, so it withholds the allows that cover it
+    // (a catch-all allow falls back to `permission = "ask"`).
+    // A withheld catch-all allow is written as `permission = "ask"` (Vibe's
+    // default for a read tool may be "always"), a `*` path deny is also written
+    // into the category's `denylist`. A category's own catch-all ask stays the
+    // documented default its `allowlist` entries carve out of.
+    const permission = withholdAllowsShadowedByAsks({
+      permission: honorAllToolsRestrictions({
+        permission: rulesyncPermissions.getJson().permission,
+        toolLabel: "Vibe",
+        logger,
+        restateAs: restatesAsCategoryRule(["deny"]),
+        downgradeWithheldCatchAll: true,
+      }),
+      toolLabel: "Vibe",
+      logger,
+      isSkippedAsk: ({ pattern }) => pattern !== CATCH_ALL_PATTERN,
+    });
     const vibeOverride = rulesyncPermissions.getJson().vibe;
 
     const tools = toVibeToolsRecord(config.tools);
@@ -319,6 +349,12 @@ export class VibePermissions extends ToolPermissions {
       ([category]) =>
         category !== VIBE_SUBAGENT_CATEGORY && category !== VIBE_OUTSIDE_WORKDIR_CATEGORY,
     );
+    retireWithheldAllows({
+      source: rulesyncPermissions.getJson().permission,
+      permission,
+      tools,
+      resolveNames,
+    });
     for (const [category, rules] of tableCategories) {
       const vibeToolNames = resolveNames(category);
       if (vibeToolNames === undefined) {
@@ -1052,6 +1088,78 @@ function applyCategoryRulesToTool({
     return;
   }
   tools[vibeToolName] = nextTool;
+}
+
+/**
+ * Remove from the existing tables what the current restrictions forbid. The
+ * per-tool pass merges into the `allowlist` already on disk and only sets
+ * `permission` when the category states a `*` rule, so a regenerate would
+ * otherwise keep an `allowlist` entry (an earlier generate's, or a
+ * hand-written one) that auto-approves what a canonical ask or deny now
+ * covers, or the `permission = "always"` an earlier config wrote for an allow
+ * that is now withheld. Only the tables of categories the config manages are
+ * touched, and only entries that overlap a restriction are removed. A
+ * category's own catch-all ask is the documented default its allowlist carves
+ * out of, so it removes nothing.
+ */
+function retireWithheldAllows({
+  source,
+  permission,
+  tools,
+  resolveNames,
+}: {
+  source: PermissionsConfig["permission"];
+  permission: PermissionsConfig["permission"];
+  tools: Record<string, VibeToolConfig>;
+  resolveNames: (category: string) => string[] | undefined;
+}): void {
+  const allToolsRestrictions = Object.entries(
+    lookupOwn({ record: source, key: ALL_TOOLS_PERMISSION_CATEGORY }) ?? {},
+  ).filter(
+    ([pattern, action]) => action === "deny" || (action === "ask" && pattern !== CATCH_ALL_PATTERN),
+  );
+  for (const [category, rules] of Object.entries(source)) {
+    if (category === ALL_TOOLS_PERMISSION_CATEGORY) continue;
+    const honored = lookupOwn({ record: permission, key: category }) ?? {};
+    const withheld = new Set(
+      Object.entries(rules)
+        .filter(([pattern, action]) => action === "allow" && honored[pattern] !== "allow")
+        .map(([pattern]) => pattern),
+    );
+    const restrictions = [
+      ...Object.entries(honored).filter(
+        ([pattern, action]) => action !== "allow" && pattern !== CATCH_ALL_PATTERN,
+      ),
+      ...allToolsRestrictions,
+    ].map(([pattern]) => ({ pattern, fromAllToolsCategory: false }));
+    // `web_fetch` entries are URLs, compared as such (`evil.com` covers
+    // `https://evil.com/x`).
+    const globShadowed = createShadowingRestrictionsTest(restrictions);
+    const shadowed = (pattern: string): boolean =>
+      category === "webfetch"
+        ? restrictions.some((restriction) => urlPatternsOverlap(restriction.pattern, pattern))
+        : globShadowed(pattern).length > 0;
+    const retires = (pattern: string): boolean =>
+      withheld.has(pattern) ||
+      (restrictions.length > 0 && honored[pattern] !== "allow" && shadowed(pattern));
+    for (const vibeToolName of resolveNames(category) ?? []) {
+      if (!Object.hasOwn(tools, vibeToolName)) continue;
+      const tool = readVibeToolConfig({ tools, vibeToolName });
+      for (const key of ["allow", "allowlist"] as const) {
+        if (tool[key] !== undefined) {
+          tool[key] = toStringArray(tool[key]).filter((pattern) => !retires(pattern));
+        }
+      }
+      if (
+        withheld.size > 0 &&
+        tool.permission === "always" &&
+        !Object.hasOwn(honored, CATCH_ALL_PATTERN)
+      ) {
+        tool.permission = "ask";
+      }
+      tools[vibeToolName] = tool;
+    }
+  }
 }
 
 /**

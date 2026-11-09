@@ -15,9 +15,12 @@ import {
   CopilotSandboxEnabledSchema,
   CopilotSandboxUserConfiguredPathsSchema,
   type PermissionAction,
+  type PermissionsConfig,
 } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import type { Logger } from "../../utils/logger.js";
+import { lookupOwn } from "../../utils/own-lookup.js";
 import { isPlainObject } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
@@ -35,6 +38,18 @@ import {
   UNREADABLE_SANDBOX_PATH,
   warnOnTrustAffectingEntries,
 } from "./sandbox-trust.js";
+import {
+  honorAllToolsRestrictions,
+  restateAllToolsRestrictionsInCategory,
+  restatesAsCategoryRule,
+  stripUrlSchemeKeepingPathCase,
+} from "./shadowed-allows.js";
+import {
+  ALL_TOOLS_PERMISSION_CATEGORY,
+  bashRulesHonoringAllTools,
+  CATCH_ALL_PATTERN,
+  SHELL_PERMISSION_CATEGORY,
+} from "./shell-command-categories.js";
 import {
   ToolPermissions,
   type ToolPermissionsFromFileParams,
@@ -398,6 +413,58 @@ function asAutoApproveMap(value: unknown): Record<string, boolean> {
 }
 
 /**
+ * The edits or urls map's rules with the all-tools `*` restrictions honored.
+ * A restriction that reads as a path (edits) or URL (urls), and the catch-all
+ * `*`, is written as a `false` entry of its own, which `buildAutoApproveValue`
+ * places where it wins; a URL is written without its scheme and with only its host lowercased,
+ * since VS Code matches paths case-sensitively.
+ * Every other restriction (a command, an odd URL pattern) cannot be written
+ * there, so each `true` entry it overlaps is withheld instead.
+ */
+function honorCopilotAllToolsRestrictions({
+  permission,
+  category,
+  logger,
+}: {
+  permission: PermissionsConfig["permission"];
+  category: string;
+  logger?: Logger;
+}): Record<string, PermissionAction> {
+  const allToolsRules = lookupOwn({ record: permission, key: ALL_TOOLS_PERMISSION_CATEGORY }) ?? {};
+  const isWritable = restatesAsCategoryRule();
+  const restateAs = (params: { category: string; pattern: string; action: PermissionAction }) =>
+    params.pattern === CATCH_ALL_PATTERN || isWritable(params);
+  const writable: Record<string, PermissionAction> = {};
+  const notWritable: Record<string, PermissionAction> = {};
+  for (const [pattern, action] of Object.entries(allToolsRules)) {
+    if (action === "allow") continue;
+    if (restateAs({ category, pattern, action })) {
+      const key =
+        category === "webfetch" && pattern !== CATCH_ALL_PATTERN
+          ? stripUrlSchemeKeepingPathCase(pattern)
+          : pattern;
+      writable[key] = action;
+    } else {
+      notWritable[pattern] = action;
+    }
+  }
+  const restated = restateAllToolsRestrictionsInCategory({
+    permission: {
+      [ALL_TOOLS_PERMISSION_CATEGORY]: writable,
+      [category]: lookupOwn({ record: permission, key: category }) ?? {},
+    },
+    category,
+    restateAs: () => true,
+  });
+  const honored = honorAllToolsRestrictions({
+    permission: { [ALL_TOOLS_PERMISSION_CATEGORY]: notWritable, [category]: restated },
+    toolLabel: COPILOT_TOOL_LABEL,
+    logger,
+  });
+  return lookupOwn({ record: honored, key: category }) ?? {};
+}
+
+/**
  * Render one canonical category's rules as a VS Code auto-approve map. Returns
  * `undefined` when the category contributes nothing, so the key is retracted
  * rather than written as an empty object.
@@ -523,10 +590,17 @@ export class CopilotPermissions extends ToolPermissions {
     // nothing (an empty map) still retracts its key, since rulesync owns it.
     const patch: Record<string, unknown> = {};
     for (const [category, settingKey] of Object.entries(AUTO_APPROVE_KEYS)) {
-      const rules = config.permission[category];
-      if (rules === undefined) {
+      if (!Object.hasOwn(config.permission, category)) {
         continue;
       }
+      // A `*` deny/ask covers this surface too: shell commands take every one
+      // (as `honorAllToolsOnBash` does), and the edits/urls maps take the ones
+      // that read as a path or URL as `false` entries, which are placed where
+      // they win over a broader `true`.
+      const rules =
+        category === SHELL_PERMISSION_CATEGORY
+          ? bashRulesHonoringAllTools(config.permission)
+          : honorCopilotAllToolsRestrictions({ permission: config.permission, category, logger });
       patch[settingKey] = buildAutoApproveValue({ category, rules });
     }
     const existingSettings = (): Record<string, unknown> =>

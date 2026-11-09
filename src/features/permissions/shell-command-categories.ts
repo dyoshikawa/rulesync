@@ -120,6 +120,27 @@ export function widenToPrefixGlob(pattern: string): string {
   return pattern.endsWith("*") ? pattern : `${pattern}*`;
 }
 
+// The pattern widened for the overlap test only, to every input some tool may
+// read it as:
+// - The flat glob matcher reads `**/.env` as "something, then `/.env`", so it
+//   misses `.env` itself, while most tools read a `**/` segment as zero or more
+//   directories and `src/**` as also naming `src`. Both become a bare `*`.
+// - A trailing ` *` is optional in the canonical reading and in OpenCode's
+//   matcher (`secrets *` also matches `secrets`), so it becomes `*`.
+// - A `{a,b}` brace alternation is not modeled; a pattern holding one is read
+//   as `*`, overlapping everything.
+// Each rewrite matches every spelling the original allows (and some more), so
+// the widened comparison can only report more overlaps, never fewer — the
+// direction that withholds an allow rather than writing one a restriction
+// covers.
+function widenForOverlap(pattern: string): string {
+  if (/\{[^}]*,[^}]*\}/.test(pattern)) {
+    return "*";
+  }
+  const widened = pattern.replaceAll("**/", "*").replaceAll("/**", "*");
+  return widened.endsWith(" *") ? `${widened.slice(0, -2)}*` : widened;
+}
+
 /**
  * Build the test an adapter applies to an `allow` pattern before writing it:
  * which restrictions it cannot write name some of the same commands? The
@@ -162,7 +183,9 @@ export function createShadowingRestrictionsTest(
   // ran out; leave it out for a run of its own.
   const normalized = restrictions.map(({ pattern, fromAllToolsCategory }) => ({
     pattern,
-    glob: parseGlobPattern(fromAllToolsCategory ? pattern : normalizePattern(pattern)),
+    glob: parseGlobPattern(
+      widenForOverlap(fromAllToolsCategory ? pattern : normalizePattern(pattern)),
+    ),
   }));
 
   return (allowPattern) => {
@@ -174,7 +197,7 @@ export function createShadowingRestrictionsTest(
       // is walked.
       return normalized.map(({ pattern }) => pattern);
     }
-    const allowGlob = parseGlobPattern(normalizePattern(allowPattern));
+    const allowGlob = parseGlobPattern(widenForOverlap(normalizePattern(allowPattern)));
     return normalized
       .filter(
         ({ pattern, glob }) =>

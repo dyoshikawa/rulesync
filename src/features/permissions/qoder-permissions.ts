@@ -16,11 +16,8 @@ import {
   sharedConfigFileKey,
 } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import {
-  ALL_TOOLS_PERMISSION_CATEGORY,
-  CATCH_ALL_PATTERN,
-  honorAllToolsOnBash,
-} from "./shell-command-categories.js";
+import { honorAllToolsRestrictions, restatesAsCategoryRule } from "./shadowed-allows.js";
+import { ALL_TOOLS_PERMISSION_CATEGORY, CATCH_ALL_PATTERN } from "./shell-command-categories.js";
 import { isStricterAction } from "./single-action-collapse.js";
 import { splitToolRule } from "./tool-pattern-entry.js";
 import {
@@ -145,8 +142,10 @@ function categoryOfRule(rule: string): string | undefined {
  * when Qoder has no spelling for it.
  *
  * - The all-tools `*` category is Qoder's bare `*` rule; a narrower pattern
- *   under it names no single tool and is skipped (its shell restrictions
- *   already reached `bash` through `honorAllToolsOnBash`).
+ *   under it names no single tool and is skipped. `honorAllToolsRestrictions`
+ *   already carried it onto `bash` and withheld every allow it overlaps in the
+ *   other categories — a `{"*": "allow"}` included, even for a shell-only
+ *   pattern such as `git push *`.
  * - An `mcp__...` category is a fully qualified MCP tool name (or a Qoder MCP
  *   wildcard like `mcp__github__*`) and only takes the catch-all pattern.
  * - Every other category maps to its Qoder tool name; `*` is the bare tool
@@ -228,7 +227,15 @@ function buildQoderRuleLists({
   existingPermissions: Record<string, unknown>;
   logger?: Logger;
 }): Record<PermissionAction, string[]> {
-  const permission = honorAllToolsOnBash(config.permission);
+  const permission = honorAllToolsRestrictions({
+    permission: config.permission,
+    toolLabel: "Qoder",
+    logger,
+    // The default for an input with no rule may auto-approve it (reads), so a
+    // `*` path or URL restriction is also written as a rule of each category.
+    restateAs: restatesAsCategoryRule(),
+    writesAllToolsCatchAll: true,
+  });
   const ranked = new Map<string, PermissionAction>();
   const managedCategories = new Set<string>();
   for (const [category, rules] of Object.entries(permission)) {

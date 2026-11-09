@@ -1346,6 +1346,40 @@ web_search_request = true
     expect(content.options.debug).toBe(true);
   });
 
+  it("should generate crush bash pattern rules into crush.json command lists", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: {
+              "go build": "allow",
+              "kubectl get": "allow",
+              "kubectl *": "deny",
+              "helm *": "ask",
+            },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({ target: "crush", features: "permissions" });
+
+    // An exact allow becomes a safe command unless an ask/deny covers it
+    // (`kubectl get` is withheld by `kubectl *`); a whole-command deny becomes a
+    // blocked command; an ask is skipped, since blocking would refuse the
+    // command's read-only forms outright.
+    const content = JSON.parse(await readFileContent(join(testDir, "crush.json")));
+    expect(content.permissions).toEqual({
+      safe_commands: ["go build"],
+      blocked_commands: ["kubectl"],
+    });
+  });
+
   it("should generate pool permissions into .poolside/settings.yaml", async () => {
     const testDir = getTestDir();
 
@@ -1997,7 +2031,11 @@ enabled = true
       join(testDir, "crush.json"),
       JSON.stringify(
         {
-          permissions: { allowed_tools: ["bash", "view", "edit:write"] },
+          permissions: {
+            allowed_tools: ["bash", "view", "edit:write"],
+            safe_commands: ["go build"],
+            blocked_commands: ["kubectl"],
+          },
           options: { disabled_tools: ["fetch"] },
         },
         null,
@@ -2011,6 +2049,9 @@ enabled = true
       await readFileContent(join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
     );
     expect(content.permission.bash["*"]).toBe("allow");
+    expect(content.permission.bash["go build"]).toBe("allow");
+    expect(content.permission.bash.kubectl).toBe("deny");
+    expect(content.permission.bash["kubectl *"]).toBe("deny");
     expect(content.permission.read["*"]).toBe("allow");
     expect(content.permission.webfetch["*"]).toBe("deny");
     // `tool:action` entries are narrower than a tool-wide rule and are not imported.
@@ -2968,9 +3009,10 @@ describe("E2E: permissions (global mode)", () => {
     // Canonical deny downgrades to ask (Junie has no deny).
     expect(content.rules.executables).toEqual({
       default: "ask",
+      // Junie is first-match-wins, so restrictions are written ahead of allows.
       rules: [
-        { prefix: "git ", action: "allow" },
         { pattern: "rm *", action: "ask" },
+        { prefix: "git ", action: "allow" },
       ],
     });
     expect(content.rules.fileEditing).toEqual({ rules: [{ pattern: "src/**", action: "allow" }] });

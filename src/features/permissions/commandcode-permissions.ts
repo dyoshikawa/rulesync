@@ -20,10 +20,10 @@ import {
   sharedConfigFileKey,
 } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+import { honorAllToolsRestrictions, restatesAsCategoryRule } from "./shadowed-allows.js";
 import {
   ALL_TOOLS_PERMISSION_CATEGORY,
   CATCH_ALL_PATTERN,
-  honorAllToolsOnBash,
   MCP_CATEGORY_PREFIX,
 } from "./shell-command-categories.js";
 import { isStricterAction } from "./single-action-collapse.js";
@@ -124,8 +124,10 @@ type ParsedCommandcodeRule = { category: string; pattern: string; notInAllow: bo
  * server or tool). A pattern on an MCP category is still written as the
  * `(specifier)` here; `writableCommandcodeRule` decides what to do with it,
  * because Command Code ignores it. The all-tools `*` category is only
- * written for its catch-all pattern; narrower `*` patterns are shell
- * restrictions and reach the `Shell` entries through `honorAllToolsOnBash`.
+ * written for its catch-all pattern; a narrower `*` pattern reaches the `Shell`
+ * entries through `honorAllToolsRestrictions`, which also withholds every allow
+ * it overlaps in the other categories — a `{"*": "allow"}` included, even for a
+ * shell-only pattern such as `git push *`.
  */
 function buildCommandcodeRule(category: string, pattern: string): string | null {
   const catchAll = pattern === CATCH_ALL_PATTERN || pattern === "";
@@ -524,7 +526,15 @@ function buildCommandcodeRuleLists({
   existingPermissions: Record<string, unknown>;
   logger?: Logger;
 }): { allow: string[]; ask: string[]; deny: string[] } {
-  const permission = honorAllToolsOnBash(config.permission);
+  const permission = honorAllToolsRestrictions({
+    permission: config.permission,
+    toolLabel: "Command Code",
+    logger,
+    // The default for an input with no rule may auto-approve it (reads), so a
+    // `*` path or URL restriction is also written as a rule of each category.
+    restateAs: restatesAsCategoryRule(),
+    writesAllToolsCatchAll: true,
+  });
   const ranked = new Map<string, PermissionAction>();
   const managedCategories = new Set<string>();
   for (const [category, rules] of Object.entries(permission)) {
@@ -538,7 +548,7 @@ function buildCommandcodeRuleLists({
       const emitted = rule === null ? null : parseCommandcodeRule(rule);
       if (rule === null || emitted === null) {
         // A narrower `*` pattern next to a `bash` category was already
-        // honored as a `Shell(...)` entry by `honorAllToolsOnBash`.
+        // honored as a `Shell(...)` entry by `honorAllToolsRestrictions`.
         const honoredOnShell =
           category === ALL_TOOLS_PERMISSION_CATEGORY && permission.bash !== undefined;
         if (action === "deny" && !honoredOnShell) {

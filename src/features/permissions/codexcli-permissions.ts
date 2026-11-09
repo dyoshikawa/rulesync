@@ -20,10 +20,21 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { parseGlobPattern } from "../../utils/glob.js";
 import { type Logger, warnWithFallback } from "../../utils/logger.js";
+import { lookupOwn } from "../../utils/own-lookup.js";
 import { isRecord } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { bashRulesHonoringAllTools } from "./shell-command-categories.js";
+import {
+  honorAllToolsRestrictions,
+  restateAllToolsRestrictionsInCategory,
+  restatesAsCategoryRule,
+  withholdAllowsShadowedByAsks,
+} from "./shadowed-allows.js";
+import {
+  ALL_TOOLS_PERMISSION_CATEGORY,
+  bashRulesHonoringAllTools,
+  CATCH_ALL_PATTERN,
+} from "./shell-command-categories.js";
 import { isStricterAction } from "./single-action-collapse.js";
 import {
   ToolPermissions,
@@ -396,6 +407,54 @@ function addCodexWebfetchRules({
   }
 }
 
+/**
+ * Copy the all-tools `*` path restrictions into the `read` rules, when the
+ * config states a filesystem category at all: Codex has no all-tools rule, so
+ * `{"*": {".env": "deny"}, "edit": {"*": "allow"}}` would otherwise grant
+ * write access to `.env`. Both a `deny` and an `ask` land under `read`, where
+ * they are handled exactly like a directly written read rule (an ask becomes
+ * `"deny"`, since Codex cannot prompt for a path), so a narrower write allow
+ * they cover is denied as well. A catch-all `*` deny is copied too and
+ * withholds every filesystem allow, so `{"*": {"*": "deny"}, "edit": {"src":
+ * "allow"}}` grants nothing; a catch-all
+ * ask is the documented default idiom and is left alone. Other patterns are
+ * copied only when they read as a path — `git push *` is a command, not a
+ * path — so the sandbox gains nothing but these restrictions.
+ */
+function restateAllToolsPathRestrictions({
+  config,
+  filesystemCategoryRules,
+}: {
+  config: PermissionsConfig;
+  filesystemCategoryRules: Partial<
+    Record<"read" | "edit" | "write", Record<string, PermissionAction>>
+  >;
+}): void {
+  if (Object.keys(filesystemCategoryRules).length === 0) return;
+  // A more specific path entry wins in Codex, so under a catch-all `*` deny
+  // every filesystem allow is withheld rather than written beside it.
+  const allToolsRules = lookupOwn({
+    record: config.permission,
+    key: ALL_TOOLS_PERMISSION_CATEGORY,
+  });
+  if (allToolsRules?.[CATCH_ALL_PATTERN] === "deny") {
+    for (const category of ["read", "edit", "write"] as const) {
+      const rules = filesystemCategoryRules[category];
+      if (rules === undefined) continue;
+      filesystemCategoryRules[category] = Object.fromEntries(
+        Object.entries(rules).filter(([, action]) => action !== "allow"),
+      );
+    }
+  }
+  const isPath = restatesAsCategoryRule(["deny", "ask"]);
+  filesystemCategoryRules.read = restateAllToolsRestrictionsInCategory({
+    permission: { ...config.permission, read: filesystemCategoryRules.read ?? {} },
+    category: "read",
+    restateAs: (params) =>
+      params.pattern === CATCH_ALL_PATTERN ? params.action === "deny" : isPath(params),
+  });
+}
+
 function convertRulesyncToCodexProfile({
   config,
   logger,
@@ -420,7 +479,27 @@ function convertRulesyncToCodexProfile({
     }
 
     if (toolName === "webfetch") {
-      addCodexWebfetchRules({ rules, domains, logger });
+      // Codex has no ask tier for domains and no all-tools rule: a skipped ask
+      // or a `*` deny/ask withholds the allows that cover it, so the domain
+      // falls back to Codex's own prompt.
+      const allToolsRules = lookupOwn({
+        record: config.permission,
+        key: ALL_TOOLS_PERMISSION_CATEGORY,
+      });
+      const honored = honorAllToolsRestrictions({
+        permission:
+          allToolsRules === undefined
+            ? { webfetch: rules }
+            : { [ALL_TOOLS_PERMISSION_CATEGORY]: allToolsRules, webfetch: rules },
+        toolLabel: "Codex CLI network domains",
+        logger,
+      });
+      const { webfetch: webfetchRules = {} } = withholdAllowsShadowedByAsks({
+        permission: { webfetch: honored.webfetch ?? {} },
+        toolLabel: "Codex CLI network domains",
+        logger,
+      });
+      addCodexWebfetchRules({ rules: webfetchRules, domains, logger });
       continue;
     }
 
@@ -434,6 +513,8 @@ function convertRulesyncToCodexProfile({
       `Codex CLI permission profiles support only read/edit/write/webfetch categories (bash goes to .codex/rules/rulesync.rules). Skipping: ${toolName}`,
     );
   }
+
+  restateAllToolsPathRestrictions({ config, filesystemCategoryRules });
 
   addCodexFilesystemRules({
     categoryRules: filesystemCategoryRules,
@@ -1194,7 +1275,13 @@ function computeCodexcliOverridePatch({
     // Consumed by convertRulesyncToCodexProfile (`base_permission_profile` as
     // the managed profile's `extends` baseline, `git_write_rules` as the
     // `.git` carve-out switch); they are not top-level config.toml keys.
-    if (key === "base_permission_profile" || key === "git_write_rules") continue;
+    // `bash_canonical_matching` is consumed by buildCodexBashRulesContent.
+    if (
+      key === "base_permission_profile" ||
+      key === "git_write_rules" ||
+      key === "bash_canonical_matching"
+    )
+      continue;
     if (!allowed.has(key)) {
       logger?.warn(
         `Codex CLI permission override key "${key}" is not managed and was skipped. "permissions"/"default_permissions" are owned by the canonical permission model and "mcp_servers" gating by the MCP feature.`,
@@ -1697,6 +1784,13 @@ function buildCodexBashRulesContent({
 }): string {
   const bashRules = bashRulesHonoringAllTools(config.permission);
   const entries = Object.entries(bashRules);
+  // Opt-in only: `canonical_matching` exists on `prefix_rule` since Codex
+  // 0.167.0, and an older Codex rejects the unknown keyword and fails to load
+  // the whole rules file. It is written on `forbidden` / `prompt` rules only,
+  // so case or Unicode look-alike spellings (`RM`, `bAſh`) cannot slip past a
+  // deny or ask, while an allow never widens to approve them.
+  // @see https://github.com/openai/codex/pull/59535
+  const canonicalMatching = config.codexcli?.bash_canonical_matching === true;
 
   const header = [
     "# Generated by Rulesync from .rulesync/permissions.jsonc (permission.bash)",
@@ -1723,6 +1817,7 @@ function buildCodexBashRulesContent({
         `    pattern = [${serializedTokens}],`,
         `    decision = ${JSON.stringify(decision)},`,
         `    justification = ${JSON.stringify(`Generated from Rulesync permission.bash: ${pattern}`)},`,
+        ...(canonicalMatching && decision !== "allow" ? ["    canonical_matching = True,"] : []),
         ")",
       ].join("\n");
     })

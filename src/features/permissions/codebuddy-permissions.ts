@@ -15,11 +15,8 @@ import {
   sharedConfigFileKey,
 } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import {
-  ALL_TOOLS_PERMISSION_CATEGORY,
-  CATCH_ALL_PATTERN,
-  honorAllToolsOnBash,
-} from "./shell-command-categories.js";
+import { honorAllToolsRestrictions, restatesAsCategoryRule } from "./shadowed-allows.js";
+import { ALL_TOOLS_PERMISSION_CATEGORY, CATCH_ALL_PATTERN } from "./shell-command-categories.js";
 import { isStricterAction } from "./single-action-collapse.js";
 import { splitToolRule } from "./tool-pattern-entry.js";
 import {
@@ -132,8 +129,10 @@ function categoryOfRule(rule: string): string | undefined {
  * - MCP rules take no specifier, so a scoped `mcp__<...>` category is written
  *   for its catch-all pattern only.
  * - The all-tools `*` category is CodeBuddy's documented standalone `*` rule
- *   for its catch-all pattern. Narrower `*` patterns are shell restrictions
- *   and reach the `Bash` rules through `honorAllToolsOnBash`.
+ *   for its catch-all pattern. A narrower `*` pattern reaches the `Bash`
+ *   rules through `honorAllToolsRestrictions`, which also withholds every
+ *   allow it overlaps in the other categories — a `{"*": "allow"}` included,
+ *   even for a shell-only pattern such as `git push *`.
  */
 function buildCodebuddyRule({
   category,
@@ -205,7 +204,15 @@ function buildCodebuddyRuleLists({
   existingPermissions: Record<string, unknown>;
   logger?: Logger;
 }): Record<PermissionAction, string[]> {
-  const permission = honorAllToolsOnBash(config.permission);
+  const permission = honorAllToolsRestrictions({
+    permission: config.permission,
+    toolLabel: "CodeBuddy",
+    logger,
+    // The default for an input with no rule may auto-approve it (reads), so a
+    // `*` path or URL restriction is also written as a rule of each category.
+    restateAs: restatesAsCategoryRule(),
+    writesAllToolsCatchAll: true,
+  });
   const ranked = new Map<string, PermissionAction>();
   const managedCategories = new Set<string>();
   for (const [category, rules] of Object.entries(permission)) {

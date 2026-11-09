@@ -16,7 +16,8 @@ import {
   sharedConfigFileKey,
 } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { CATCH_ALL_PATTERN, honorAllToolsOnBash } from "./shell-command-categories.js";
+import { honorAllToolsRestrictions, withholdAllowsShadowedByAsks } from "./shadowed-allows.js";
+import { CATCH_ALL_PATTERN } from "./shell-command-categories.js";
 import { isStricterAction } from "./single-action-collapse.js";
 import {
   ToolPermissions,
@@ -273,7 +274,14 @@ function buildNetworkLists({
   logger?: Logger;
 }): Record<NetworkAction, string[]> {
   const ranked = new Map<string, PermissionAction>();
-  for (const [pattern, action] of Object.entries(webfetchRules)) {
+  // TRAE's network lists have no ask tier: a skipped ask withholds the allows
+  // that cover it, so the domain falls back to the profile's default.
+  const { webfetch: rules = {} } = withholdAllowsShadowedByAsks({
+    permission: { webfetch: webfetchRules },
+    toolLabel: "TRAE resourceAuthorization.network",
+    logger,
+  });
+  for (const [pattern, action] of Object.entries(rules)) {
     if (isPrototypePollutionKey(pattern)) {
       continue;
     }
@@ -461,7 +469,13 @@ export class TraePermissions extends ToolPermissions {
     const existingContent = (await readFileContentOrNull(filePath)) ?? "{}";
     const existing = parseTraePermissionConfig({ fileContent: existingContent, relativePath });
 
-    const permission = honorAllToolsOnBash(rulesyncPermissions.getJson().permission);
+    // TRAE has no all-tools rule: `*` restrictions reach `bash` and withhold
+    // the allows they cover in `webfetch` and the MCP categories.
+    const permission = honorAllToolsRestrictions({
+      permission: rulesyncPermissions.getJson().permission,
+      toolLabel: "TRAE",
+      logger,
+    });
     warnUnmappedCategories({ permission, logger });
 
     return new TraePermissions({

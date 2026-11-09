@@ -118,7 +118,10 @@ describe("CursorPermissions", () => {
       });
 
       const parsed = JSON.parse(cursorPermissions.getFileContent());
-      expect(parsed.permissions.allow).toContain("Shell(git *)");
+      // The catch-all ask covers `git *`, and Cursor prompts for anything it
+      // does not auto-approve, so the allow is withheld rather than answering
+      // the prompt the ask asks for.
+      expect(parsed.permissions.allow).toEqual([]);
       expect(JSON.stringify(parsed.permissions.allow)).not.toContain("ask");
       expect(JSON.stringify(parsed.permissions.deny ?? [])).not.toContain("ask");
       expect(logger.warn).toHaveBeenCalledWith(

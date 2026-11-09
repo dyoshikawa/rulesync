@@ -18,6 +18,7 @@ import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+import { honorAllToolsRestrictions, restatesAsCategoryRule } from "./shadowed-allows.js";
 import { buildToolPatternEntry } from "./tool-pattern-entry.js";
 import {
   ToolPermissions,
@@ -928,7 +929,7 @@ export class QwencodePermissions extends ToolPermissions {
     );
 
     const config = rulesyncPermissions.getJson();
-    const { allow, ask, deny } = convertRulesyncToQwenPermissions(config);
+    const { allow, ask, deny } = convertRulesyncToQwenPermissions({ config, logger });
 
     const managedToolNames = new Set(
       Object.keys(config.permission).map((category) => toQwenToolName(category)),
@@ -1122,7 +1123,13 @@ export class QwencodePermissions extends ToolPermissions {
   }
 }
 
-function convertRulesyncToQwenPermissions(config: PermissionsConfig): {
+function convertRulesyncToQwenPermissions({
+  config,
+  logger,
+}: {
+  config: PermissionsConfig;
+  logger?: Logger;
+}): {
   allow: string[];
   ask: string[];
   deny: string[];
@@ -1131,7 +1138,19 @@ function convertRulesyncToQwenPermissions(config: PermissionsConfig): {
   const ask: string[] = [];
   const deny: string[] = [];
 
-  for (const [category, rules] of Object.entries(config.permission)) {
+  // `*` restrictions reach `bash` and withhold the allows they cover in the
+  // other categories. A pattern-specific `*` deny/ask is still written as a
+  // `*(<pattern>)` entry, as before: no primary source says the tool reads a
+  // `*` tool name literally, so the entry may enforce it.
+  const permission = honorAllToolsRestrictions({
+    permission: config.permission,
+    toolLabel: "Qwen Code",
+    logger,
+    // The default for an input with no rule may auto-approve it (reads), so a
+    // `*` path or URL restriction is also written as a rule of each category.
+    restateAs: restatesAsCategoryRule(),
+  });
+  for (const [category, rules] of Object.entries(permission)) {
     const qwenToolName = toQwenToolName(category);
     for (const [pattern, action] of Object.entries(rules)) {
       const entry = buildToolPatternEntry({ toolName: qwenToolName, pattern });

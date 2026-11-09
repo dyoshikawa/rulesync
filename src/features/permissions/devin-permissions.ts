@@ -11,6 +11,7 @@ import {
 import type { AiFileParams } from "../../types/ai-file.js";
 import {
   DEVIN_PLUGIN_GOVERNANCE_SCHEMAS,
+  DevinPermissionModeSchema,
   type PermissionAction,
   type PermissionsConfig,
 } from "../../types/permissions.js";
@@ -32,7 +33,7 @@ import {
   type TrustAffectingSandboxPath,
   warnOnTrustAffectingEntries,
 } from "./sandbox-trust.js";
-import { honorAllToolsOnBash } from "./shell-command-categories.js";
+import { honorAllToolsRestrictions } from "./shadowed-allows.js";
 import { collapseRulesToSingleAction, hasPatternSpecificRules } from "./single-action-collapse.js";
 import { buildToolPatternEntry, parseToolPatternEntry } from "./tool-pattern-entry.js";
 import {
@@ -197,8 +198,8 @@ const DEVIN_RESTRICTION_LOSING_SANDBOX_PATHS: readonly RestrictionLosingSandboxP
  * In global mode the config file is shared with the hooks (`hooks`) feature
  * (MCP moved to the dedicated mcp_config.json in v3000.3), so reads and writes
  * merge into the existing JSON and the file is never deleted; only the keys
- * this feature manages are rewritten — `permissions`, plus `sandbox` in global
- * mode and the plugin governance lists (`requiredPlugins` / `optionalPlugins` /
+ * this feature manages are rewritten — `permissions`, plus `sandbox` and
+ * `permission_mode` in global mode and the plugin governance lists (`requiredPlugins` / `optionalPlugins` /
  * `forbiddenPlugins`) in project mode when the `devin` override authors them.
  *
  * The sibling `sandbox` block — which decides what a permitted command may
@@ -369,6 +370,13 @@ export class DevinPermissions extends ToolPermissions {
       }
     }
 
+    applyPermissionModeOverride({
+      permissionMode: config.devin?.permission_mode,
+      patch,
+      global,
+      logger,
+    });
+
     applyPluginGovernanceOverride({
       override: config.devin,
       settings,
@@ -443,6 +451,16 @@ export class DevinPermissions extends ToolPermissions {
         );
       }
     }
+    const permissionMode = importPermissionMode({
+      value: settings.permission_mode,
+      isGlobalFile:
+        toPosixPath(this.getRelativeDirPath()) ===
+        toPosixPath(DevinPermissions.getSettablePaths({ global: true }).relativeDirPath),
+      logger,
+    });
+    if (permissionMode !== undefined) {
+      devinOverride.permission_mode = permissionMode;
+    }
     const result: Record<string, unknown> = { ...config };
     if (Object.keys(devinOverride).length > 0) {
       result.devin = devinOverride;
@@ -464,6 +482,86 @@ const DEVIN_PLUGIN_GOVERNANCE_KEYS = [
   "optionalPlugins",
   "forbiddenPlugins",
 ] as const;
+
+/**
+ * Decide what an imported `permission_mode` contributes to the `devin`
+ * override. It is lifted from the user config only: unlike `sandbox`, a
+ * project value Devin ignores is skipped with a warning rather than surfaced,
+ * so it cannot slip into a `--global` generate later. `null` is Devin's
+ * spelling of the default and carries nothing to keep; any other value the
+ * override schema would reject is dropped with a warning so the next generate
+ * cannot fail. `dangerous` is lifted but named, as on generate.
+ */
+function importPermissionMode({
+  value,
+  isGlobalFile,
+  logger,
+}: {
+  value: unknown;
+  isGlobalFile: boolean;
+  logger?: Logger;
+}): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (!isGlobalFile) {
+    logger?.warn(
+      "Skipped Devin `permission_mode` on import: Devin reads it from the user config only, " +
+        "so the project config's value has no effect. Import with --global to lift it.",
+    );
+    return undefined;
+  }
+  const parsed = DevinPermissionModeSchema.safeParse(value);
+  if (!parsed.success) {
+    logger?.warn(
+      `Skipped Devin \`permission_mode\` ${quoteValueForWarning(value)} on import: expected one of ${DevinPermissionModeSchema.options.join(", ")}.`,
+    );
+    return undefined;
+  }
+  if (parsed.data === "dangerous") {
+    logger?.warn(
+      'Imported Devin `permission_mode: "dangerous"`: every new local session starts with ' +
+        "all permission prompts bypassed, and the next --global generate writes it back.",
+    );
+  }
+  return parsed.data;
+}
+
+/**
+ * Patch the `permission_mode` the `devin` override authors into the user
+ * `config.json`. It sets the mode new local sessions start in, and Devin reads
+ * it from the user config only, so in project mode it is dropped with a
+ * warning. It is only ever written as authored — never derived from the
+ * canonical rules — and `dangerous` is named in a warning, because every new
+ * session then starts with all permission prompts bypassed.
+ *
+ * @see https://docs.devin.ai/cli/reference/configuration/config-file
+ */
+function applyPermissionModeOverride({
+  permissionMode,
+  patch,
+  global,
+  logger,
+}: {
+  permissionMode: string | undefined;
+  patch: Record<string, unknown>;
+  global: boolean;
+  logger?: Logger;
+}): void {
+  if (permissionMode === undefined) return;
+  if (!global) {
+    logger?.warn(
+      "Devin reads 'permission_mode' from the user config only, so the 'devin.permission_mode' " +
+        "override was dropped from the project config. Generate with --global to author it.",
+    );
+    return;
+  }
+  patch.permission_mode = permissionMode;
+  if (permissionMode === "dangerous") {
+    logger?.warn(
+      `Writing Devin \`permission_mode: "dangerous"\` to the user config: every new local session ` +
+        "then starts with all permission prompts bypassed.",
+    );
+  }
+}
 
 /**
  * Patch the plugin governance lists the `devin` override authors into the
@@ -589,7 +687,13 @@ function convertRulesyncToDevinPermissions({
     }
   };
 
-  for (const [category, rules] of Object.entries(honorAllToolsOnBash(config.permission))) {
+  for (const [category, rules] of Object.entries(
+    honorAllToolsRestrictions({
+      permission: config.permission,
+      toolLabel: "Devin",
+      logger,
+    }),
+  )) {
     const scope = toDevinScope(category);
     if (DEVIN_BARE_ONLY_SCOPES.has(scope)) {
       const action = collapseBareOnlyScopeRules({ category, scope, rules, logger });
