@@ -33,6 +33,7 @@ import {
 import {
   ALL_TOOLS_PERMISSION_CATEGORY,
   bashRulesHonoringAllTools,
+  CATCH_ALL_PATTERN,
 } from "./shell-command-categories.js";
 import { isStricterAction } from "./single-action-collapse.js";
 import {
@@ -407,13 +408,18 @@ function addCodexWebfetchRules({
 }
 
 /**
- * Copy the all-tools `*` path restrictions into the filesystem rules, when the
+ * Copy the all-tools `*` path restrictions into the `read` rules, when the
  * config states a filesystem category at all: Codex has no all-tools rule, so
  * `{"*": {".env": "deny"}, "edit": {"*": "allow"}}` would otherwise grant
- * write access to `.env`. A `deny` becomes a `read` deny (no access at all)
- * and an `ask` an `edit` ask (read-only, since Codex cannot prompt for a
- * path). Only patterns that read as a path are copied — `git push *` is a
- * command, not a path — so the sandbox gains nothing but these restrictions.
+ * write access to `.env`. Both a `deny` and an `ask` land under `read`, where
+ * they are handled exactly like a directly written read rule (an ask becomes
+ * `"deny"`, since Codex cannot prompt for a path), so a narrower write allow
+ * they cover is denied as well. A catch-all `*` deny is copied too and
+ * withholds every filesystem allow, so `{"*": {"*": "deny"}, "edit": {"src":
+ * "allow"}}` grants nothing; a catch-all
+ * ask is the documented default idiom and is left alone. Other patterns are
+ * copied only when they read as a path — `git push *` is a command, not a
+ * path — so the sandbox gains nothing but these restrictions.
  */
 function restateAllToolsPathRestrictions({
   config,
@@ -425,19 +431,28 @@ function restateAllToolsPathRestrictions({
   >;
 }): void {
   if (Object.keys(filesystemCategoryRules).length === 0) return;
-  for (const [category, action] of [
-    ["read", "deny"],
-    ["edit", "ask"],
-  ] as const) {
-    const restated = restateAllToolsRestrictionsInCategory({
-      permission: { ...config.permission, [category]: filesystemCategoryRules[category] ?? {} },
-      category,
-      restateAs: restatesAsCategoryRule([action]),
-    });
-    if (Object.keys(restated).length > 0) {
-      filesystemCategoryRules[category] = restated;
+  // A more specific path entry wins in Codex, so under a catch-all `*` deny
+  // every filesystem allow is withheld rather than written beside it.
+  const allToolsRules = lookupOwn({
+    record: config.permission,
+    key: ALL_TOOLS_PERMISSION_CATEGORY,
+  });
+  if (allToolsRules?.[CATCH_ALL_PATTERN] === "deny") {
+    for (const category of ["read", "edit", "write"] as const) {
+      const rules = filesystemCategoryRules[category];
+      if (rules === undefined) continue;
+      filesystemCategoryRules[category] = Object.fromEntries(
+        Object.entries(rules).filter(([, action]) => action !== "allow"),
+      );
     }
   }
+  const isPath = restatesAsCategoryRule(["deny", "ask"]);
+  filesystemCategoryRules.read = restateAllToolsRestrictionsInCategory({
+    permission: { ...config.permission, read: filesystemCategoryRules.read ?? {} },
+    category: "read",
+    restateAs: (params) =>
+      params.pattern === CATCH_ALL_PATTERN ? params.action === "deny" : isPath(params),
+  });
 }
 
 function convertRulesyncToCodexProfile({

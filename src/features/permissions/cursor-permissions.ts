@@ -528,7 +528,6 @@ function convertRulesyncToCursorPermissions(
       permission: config.permission,
       toolLabel: "Cursor CLI",
       logger,
-      dropAllToolsPatterns: true,
     }),
     toolLabel: "Cursor CLI",
     logger,

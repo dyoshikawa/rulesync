@@ -11,7 +11,11 @@ import {
   toAntigravityCommandLiteralPrefix,
   toAntigravityCommandTarget,
 } from "./antigravity-command-patterns.js";
-import { honorAllToolsRestrictions, normalizeUrlPattern } from "./shadowed-allows.js";
+import {
+  honorAllToolsRestrictions,
+  normalizeUrlPattern,
+  urlPatternsOverlap,
+} from "./shadowed-allows.js";
 import {
   ALL_TOOLS_PERMISSION_CATEGORY,
   CATCH_ALL_PATTERN,
@@ -498,13 +502,13 @@ export function convertRulesyncToAntigravityPermissions({
   const deny: string[] = [];
 
   // `*` restrictions reach `bash` and withhold the allows they cover in the
-  // other categories; a pattern-specific `*` rule is never written as an inert
-  // `*(<pattern>)` entry.
+  // other categories. A pattern-specific `*` deny/ask is still written as a
+  // `*(<pattern>)` entry, as before: no primary source says the tool reads a
+  // `*` tool name literally, so the entry may enforce it.
   const permission = honorAllToolsRestrictions({
     permission: config.permission,
     toolLabel,
     logger,
-    dropAllToolsPatterns: true,
   });
   const translated: Array<{
     action: string;
@@ -557,19 +561,28 @@ export function convertRulesyncToAntigravityPermissions({
         decision !== "allow" && pattern !== CATCH_ALL_PATTERN && !isPrototypePollutionKey(pattern),
     )
     .map(([pattern]) => pattern);
-  const shadowingTests = new Map<string, (allowPattern: string) => string[]>();
-  const shadowingTestOf = (group: string): ((allowPattern: string) => string[]) => {
+  const shadowingTests = new Map<string, (allowPattern: string) => boolean>();
+  const shadowingTestOf = (group: string): ((allowPattern: string) => boolean) => {
     const cached = shadowingTests.get(group);
     if (cached !== undefined) return cached;
     const patterns = [...(skippedRestrictionsByAction.get(group) ?? []), ...allToolsRestrictions];
-    // Each restriction is also compared lowercased and without a scheme, which
-    // can only add overlaps.
-    const test = createShadowingRestrictionsTest(
-      [...new Set([...patterns, ...patterns.map(normalizeUrlPattern)])].map((pattern) => ({
-        pattern,
-        fromAllToolsCategory: false,
-      })),
-    );
+    let test: (allowPattern: string) => boolean;
+    if (URL_ACTIONS.has(group)) {
+      // URL targets are compared as URLs, host by host and path by path.
+      test = (allowPattern) =>
+        patterns.some((pattern) => urlPatternsOverlap(pattern, allowPattern));
+    } else {
+      // Each restriction is also compared lowercased and without a scheme,
+      // which can only add overlaps.
+      const asGlobs = createShadowingRestrictionsTest(
+        [...new Set([...patterns, ...patterns.map(normalizeUrlPattern)])].map((pattern) => ({
+          pattern,
+          fromAllToolsCategory: false,
+        })),
+      );
+      test = (allowPattern) =>
+        asGlobs(allowPattern).length > 0 || asGlobs(normalizeUrlPattern(allowPattern)).length > 0;
+    }
     shadowingTests.set(group, test);
     return test;
   };
@@ -583,9 +596,7 @@ export function convertRulesyncToAntigravityPermissions({
       case "allow":
         if (
           [pattern, effectiveTargetScope(entry)].some((candidate) =>
-            [candidate, normalizeUrlPattern(candidate)].some(
-              (spelling) => shadowingTestOf(groupOf({ action, category }))(spelling).length > 0,
-            ),
+            shadowingTestOf(groupOf({ action, category }))(candidate),
           )
         ) {
           withheld.push(`${category}: ${pattern}`);
@@ -629,14 +640,13 @@ function effectiveTargetScope(entry: string): string {
   }
   if (PATH_ACTIONS.has(toolName)) {
     const path = target.replace(/\/+$/, "");
-    return path === "." || path === "" ? CATCH_ALL_PATTERN : `${path}*`;
+    return path === "." || path === "" ? CATCH_ALL_PATTERN : `${path}/**`;
   }
   if (COMMAND_ACTIONS.has(toolName)) {
     return target.endsWith("*") ? target : `${target}*`;
   }
-  if (URL_ACTIONS.has(toolName)) {
-    return `*${target.toLowerCase()}*`;
-  }
+  // A domain target is a pathless host, which `urlPatternsOverlap` reads as
+  // every URL on it and its subdomains.
   return target;
 }
 

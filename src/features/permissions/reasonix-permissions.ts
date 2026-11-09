@@ -1120,13 +1120,13 @@ function convertRulesyncToReasonixPermissions({
   const deny: string[] = [];
 
   // `*` restrictions reach `bash` and withhold the allows they cover in the
-  // other categories; a pattern-specific `*` rule is never written as an inert
-  // `*(<pattern>)` entry.
+  // other categories. A pattern-specific `*` deny/ask is still written as a
+  // `*(<pattern>)` entry, as before: no primary source says the tool reads a
+  // `*` tool name literally, so the entry may enforce it.
   const permission = honorAllToolsRestrictions({
     permission: config.permission,
     toolLabel: "Reasonix",
     logger,
-    dropAllToolsPatterns: true,
   });
   for (const [category, rules] of Object.entries(permission)) {
     for (const reasonixToolName of toReasonixToolNames(category)) {

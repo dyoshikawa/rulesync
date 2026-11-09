@@ -22,7 +22,12 @@ import {
   restatesAsCategoryRule,
   withholdAllowsShadowedByAsks,
 } from "./shadowed-allows.js";
-import { CATCH_ALL_PATTERN, MCP_CATEGORY_PREFIX } from "./shell-command-categories.js";
+import {
+  ALL_TOOLS_PERMISSION_CATEGORY,
+  CATCH_ALL_PATTERN,
+  createShadowingRestrictionsTest,
+  MCP_CATEGORY_PREFIX,
+} from "./shell-command-categories.js";
 import {
   ToolPermissions,
   type ToolPermissionsFromFileParams,
@@ -1085,11 +1090,16 @@ function applyCategoryRulesToTool({
 }
 
 /**
- * Remove from the existing tables what a withheld allow left behind. The
+ * Remove from the existing tables what the current restrictions forbid. The
  * per-tool pass merges into the `allowlist` already on disk and only sets
  * `permission` when the category states a `*` rule, so a regenerate would
- * otherwise keep the `allowlist` entry or the `permission = "always"` an
- * earlier config wrote for the very allow that is now withheld.
+ * otherwise keep an `allowlist` entry (an earlier generate's, or a
+ * hand-written one) that auto-approves what a canonical ask or deny now
+ * covers, or the `permission = "always"` an earlier config wrote for an allow
+ * that is now withheld. Only the tables of categories the config manages are
+ * touched, and only entries that overlap a restriction are removed. A
+ * category's own catch-all ask is the documented default its allowlist carves
+ * out of, so it removes nothing.
  */
 function retireWithheldAllows({
   source,
@@ -1102,23 +1112,42 @@ function retireWithheldAllows({
   tools: Record<string, VibeToolConfig>;
   resolveNames: (category: string) => string[] | undefined;
 }): void {
+  const allToolsRestrictions = Object.entries(
+    lookupOwn({ record: source, key: ALL_TOOLS_PERMISSION_CATEGORY }) ?? {},
+  ).filter(
+    ([pattern, action]) => action === "deny" || (action === "ask" && pattern !== CATCH_ALL_PATTERN),
+  );
   for (const [category, rules] of Object.entries(source)) {
+    if (category === ALL_TOOLS_PERMISSION_CATEGORY) continue;
     const honored = lookupOwn({ record: permission, key: category }) ?? {};
     const withheld = new Set(
       Object.entries(rules)
         .filter(([pattern, action]) => action === "allow" && honored[pattern] !== "allow")
         .map(([pattern]) => pattern),
     );
-    if (withheld.size === 0) continue;
+    const restrictions = [
+      ...Object.entries(honored).filter(
+        ([pattern, action]) => action !== "allow" && pattern !== CATCH_ALL_PATTERN,
+      ),
+      ...allToolsRestrictions,
+    ].map(([pattern]) => ({ pattern, fromAllToolsCategory: false }));
+    const shadowed = createShadowingRestrictionsTest(restrictions);
+    const retires = (pattern: string): boolean =>
+      withheld.has(pattern) ||
+      (restrictions.length > 0 && honored[pattern] !== "allow" && shadowed(pattern).length > 0);
     for (const vibeToolName of resolveNames(category) ?? []) {
       if (!Object.hasOwn(tools, vibeToolName)) continue;
       const tool = readVibeToolConfig({ tools, vibeToolName });
       for (const key of ["allow", "allowlist"] as const) {
         if (tool[key] !== undefined) {
-          tool[key] = toStringArray(tool[key]).filter((pattern) => !withheld.has(pattern));
+          tool[key] = toStringArray(tool[key]).filter((pattern) => !retires(pattern));
         }
       }
-      if (tool.permission === "always" && !Object.hasOwn(honored, CATCH_ALL_PATTERN)) {
+      if (
+        withheld.size > 0 &&
+        tool.permission === "always" &&
+        !Object.hasOwn(honored, CATCH_ALL_PATTERN)
+      ) {
         tool.permission = "ask";
       }
       tools[vibeToolName] = tool;

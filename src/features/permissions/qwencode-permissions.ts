@@ -1139,8 +1139,9 @@ function convertRulesyncToQwenPermissions({
   const deny: string[] = [];
 
   // `*` restrictions reach `bash` and withhold the allows they cover in the
-  // other categories; a pattern-specific `*` rule is never written as an inert
-  // `*(<pattern>)` entry.
+  // other categories. A pattern-specific `*` deny/ask is still written as a
+  // `*(<pattern>)` entry, as before: no primary source says the tool reads a
+  // `*` tool name literally, so the entry may enforce it.
   const permission = honorAllToolsRestrictions({
     permission: config.permission,
     toolLabel: "Qwen Code",
@@ -1148,7 +1149,6 @@ function convertRulesyncToQwenPermissions({
     // The default for an input with no rule may auto-approve it (reads), so a
     // `*` path or URL restriction is also written as a rule of each category.
     restateAs: restatesAsCategoryRule(),
-    dropAllToolsPatterns: true,
   });
   for (const [category, rules] of Object.entries(permission)) {
     const qwenToolName = toQwenToolName(category);

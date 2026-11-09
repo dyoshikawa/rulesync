@@ -692,7 +692,6 @@ function convertRulesyncToDevinPermissions({
       permission: config.permission,
       toolLabel: "Devin",
       logger,
-      dropAllToolsPatterns: true,
     }),
   )) {
     const scope = toDevinScope(category);

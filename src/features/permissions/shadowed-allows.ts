@@ -1,4 +1,5 @@
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
+import { globsIntersect } from "../../utils/glob.js";
 import { type Logger, warnWithFallback } from "../../utils/logger.js";
 import { lookupOwn } from "../../utils/own-lookup.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
@@ -25,12 +26,48 @@ export function normalizeUrlPattern(pattern: string): string {
   return pattern.toLowerCase().replace(/^[a-z][a-z0-9+.-]*:\/\//, "");
 }
 
+type UrlPatternParts = { host: string; port: string | undefined; path: string | undefined };
+
+/** Split a lowercased, scheme-less URL or domain pattern into host, port and path. */
+function splitUrlPattern(pattern: string): UrlPatternParts {
+  const normalized = normalizeUrlPattern(pattern);
+  const slash = normalized.indexOf("/");
+  const hostPort = slash === -1 ? normalized : normalized.slice(0, slash);
+  const path = slash === -1 ? undefined : normalized.slice(slash);
+  const port = /:([0-9*]+)$/.exec(hostPort);
+  return port === null
+    ? { host: hostPort, port: undefined, path }
+    : { host: hostPort.slice(0, port.index), port: port[1], path };
+}
+
+/**
+ * Whether two URL or domain patterns can name one URL. Both are compared
+ * lowercased and without their scheme, part by part, so a `*` in one part
+ * never reaches into another (`*.github.com` does not overlap
+ * `example.org/private/*`). A pathless pattern is a host, which domain-only
+ * tools read as every URL on it, on any port, and on its subdomains, so a
+ * missing path or port matches every path or port, and each host also stands
+ * for `*.<host>`. A pattern holding whitespace names no URL.
+ */
+export function urlPatternsOverlap(left: string, right: string): boolean {
+  if (left === right) return true;
+  // A URL holds no whitespace, so a pattern that does (a command such as
+  // `rm -rf *`) names none.
+  if (/\s/.test(left) || /\s/.test(right)) return false;
+  const a = splitUrlPattern(left);
+  const b = splitUrlPattern(right);
+  const hosts = (host: string): string[] => [host, `*.${host}`];
+  const hostsOverlap = hosts(a.host).some((x) => hosts(b.host).some((y) => globsIntersect(x, y)));
+  if (!hostsOverlap) return false;
+  if (a.port !== undefined && b.port !== undefined && !globsIntersect(a.port, b.port)) {
+    return false;
+  }
+  return a.path === undefined || b.path === undefined || globsIntersect(a.path, b.path);
+}
+
 /**
  * Whether any of `restrictions` overlaps an allow pattern of `category`. For
- * `webfetch` the patterns are compared both as written and normalized (see
- * `normalizeUrlPattern`), a pathless allow is also widened to its whole host,
- * and an overlap in any of them counts, so this can only find more overlaps,
- * never fewer.
+ * `webfetch` the patterns are compared as URLs (see `urlPatternsOverlap`).
  */
 function createCategoryShadowTest({
   restrictions,
@@ -39,26 +76,12 @@ function createCategoryShadowTest({
   restrictions: readonly { pattern: string; fromAllToolsCategory: boolean }[];
   category: string;
 }): (allowPattern: string) => boolean {
-  const asWritten = createShadowingRestrictionsTest(restrictions);
-  if (category !== WEBFETCH_CATEGORY) {
-    return (allowPattern) => asWritten(allowPattern).length > 0;
+  if (category === WEBFETCH_CATEGORY) {
+    return (allowPattern) =>
+      restrictions.some(({ pattern }) => urlPatternsOverlap(pattern, allowPattern));
   }
-  const normalized = createShadowingRestrictionsTest(
-    restrictions.map(({ pattern, fromAllToolsCategory }) => ({
-      pattern: normalizeUrlPattern(pattern),
-      fromAllToolsCategory,
-    })),
-  );
-  return (allowPattern) => {
-    if (asWritten(allowPattern).length > 0) return true;
-    const host = normalizeUrlPattern(allowPattern);
-    // A pathless allow is a host, which a domain-only tool (Codex, TRAE) reads
-    // as every URL on it and possibly its subdomains, so it is also compared
-    // as `*<host>*` against a restriction that names a URL path.
-    return [host, ...(host.includes("/") ? [] : [`*${host}*`])].some(
-      (spelling) => normalized(spelling).length > 0,
-    );
-  };
+  const asWritten = createShadowingRestrictionsTest(restrictions);
+  return (allowPattern) => asWritten(allowPattern).length > 0;
 }
 
 /** One allow rule left out of a tool's config, named as `<category>: <pattern>`. */
@@ -129,7 +152,7 @@ function keepAllToolsCatchAll({
  * into each stated category it applies to (see `restatesAsCategoryRule`), so
  * the input stays restricted after its allow is withheld.
  * `downgradeWithheldCatchAll` writes a withheld catch-all `*` allow as `ask`
- * rather than dropping it, for a tool that keeps a stale `always` otherwise.
+ * (`deny` under a catch-all `*` deny) rather than dropping it, for a tool that keeps a stale `always` otherwise.
  *
  * `writesAllToolsCatchAll` says the tool already enforces a `*` catch-all
  * (`{"*": {"*": "ask"}}`) natively over its per-tool allows, so the catch-all
@@ -280,12 +303,19 @@ function honorInCategory({
     restrictions: restrictions.map(({ pattern }) => ({ pattern, fromAllToolsCategory: true })),
     category,
   });
+  // A catch-all `*` deny covers every input, so the downgraded catch-all is a
+  // deny then; any other restriction leaves the rest of the inputs to a prompt.
+  const downgradedAction: PermissionAction = restrictions.some(
+    ({ pattern, action }) => pattern === CATCH_ALL_PATTERN && action === "deny",
+  )
+    ? "deny"
+    : "ask";
   const kept: Record<string, PermissionAction> = {};
   for (const [pattern, action] of Object.entries(rules)) {
     if (action === "allow" && shadowingRestrictions(pattern)) {
       withheld.push(describeRule(category, pattern));
       if (downgradeWithheldCatchAll && pattern === CATCH_ALL_PATTERN) {
-        kept[pattern] = "ask";
+        kept[pattern] = downgradedAction;
       }
       continue;
     }

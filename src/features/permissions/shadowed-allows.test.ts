@@ -34,7 +34,11 @@ import { QoderPermissions } from "./qoder-permissions.js";
 import { QwencodePermissions } from "./qwencode-permissions.js";
 import { ReasonixPermissions } from "./reasonix-permissions.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { honorAllToolsRestrictions, withholdAllowsShadowedByAsks } from "./shadowed-allows.js";
+import {
+  honorAllToolsRestrictions,
+  urlPatternsOverlap,
+  withholdAllowsShadowedByAsks,
+} from "./shadowed-allows.js";
 import { TaktPermissions } from "./takt-permissions.js";
 import { TraePermissions } from "./trae-permissions.js";
 import { VibePermissions } from "./vibe-permissions.js";
@@ -123,6 +127,18 @@ describe("honorAllToolsRestrictions", () => {
     expect(result.webfetch).toEqual({ "good.example/*": "allow" });
   });
 
+  it("keeps a host allow that only command and path restrictions sit beside", () => {
+    const result = honorAllToolsRestrictions({
+      permission: {
+        "*": { "rm -rf *": "deny", ".env": "deny", "git push *": "ask" },
+        webfetch: { "github.com": "allow", "*.example.com": "allow" },
+      },
+      toolLabel: "Tool",
+    });
+
+    expect(result.webfetch).toEqual({ "github.com": "allow", "*.example.com": "allow" });
+  });
+
   it("names a bash allow replaced by a '*' ask of the same spelling", () => {
     const logger = createMockLogger();
     const result = honorAllToolsRestrictions({
@@ -143,6 +159,30 @@ describe("honorAllToolsRestrictions", () => {
     });
 
     expect(result["*"]).toEqual({ "*": "ask" });
+  });
+});
+
+describe("urlPatternsOverlap", () => {
+  it.each([
+    ["evil.example", "https://evil.example/*"],
+    ["gist.github.com", "https://*.github.com/*"],
+    ["https://upload.example.com/*", "upload.example.com"],
+    ["http://localhost:*/*", "localhost"],
+    ["*evil*", "Evil.com"],
+    ["*", "github.com"],
+  ])("%s overlaps %s", (left, right) => {
+    expect(urlPatternsOverlap(left, right)).toBe(true);
+  });
+
+  it.each([
+    ["rm -rf *", "github.com"],
+    [".env", "github.com"],
+    ["example.org/private/*", "*.github.com"],
+    ["example.com", "*.github.com:443"],
+    ["github.com:80", "github.com:443"],
+    ["example.com/a/*", "example.com/b/*"],
+  ])("%s does not overlap %s", (left, right) => {
+    expect(urlPatternsOverlap(left, right)).toBe(false);
   });
 });
 
@@ -305,10 +345,10 @@ describe("translators never leave an allow that covers a restriction they cannot
       ["Antigravity CLI", AntigravityCliPermissions, true],
       ["Antigravity IDE", AntigravityIdePermissions, false],
     ] as const)(
-      "%s writes no catch-all allow and no literal *(...) entry",
+      "%s writes no catch-all allow and keeps the *(...) entry main wrote",
       async (_, generator, global) => {
         const content = await generate({ generator, permission: envDeny, global });
-        expect(content).not.toContain("*(.env)");
+        expect(content).toContain("*(.env)");
         expect(content).not.toMatch(/"(Read|read_file|Edit|write_file|Write)"/);
       },
     );
@@ -321,7 +361,7 @@ describe("translators never leave an allow that covers a restriction they cannot
         });
         expect(content).toContain("Bash(rm *)");
         expect(content).not.toMatch(/"Bash"/);
-        expect(content).not.toContain("*(rm *)");
+        expect(content).toContain("*(rm *)");
       }
     });
 
@@ -563,8 +603,9 @@ describe("translators never leave an allow that covers a restriction they cannot
         },
       });
       const settings = JSON.parse(content) as Record<string, Record<string, boolean>>;
+      // `**/.env` is written as a `false` entry; `rm *` cannot be, so it
+      // withholds the `true` catch-all it overlaps.
       expect(Object.entries(settings["chat.tools.edits.autoApprove"] ?? {})).toEqual([
-        ["*", true],
         ["**/.env", false],
       ]);
       expect(settings["chat.tools.terminal.autoApprove"]?.["rm *"]).toBe(false);
@@ -621,6 +662,103 @@ describe("translators never leave an allow that covers a restriction they cannot
         expect(lists.allow ?? []).not.toContain("Read");
       },
     );
+
+    it("Codex CLI keeps a host allow that only unrelated restrictions sit beside", async () => {
+      for (const permission of [
+        { "*": { "rm -rf *": "deny", ".env": "deny" }, webfetch: { "github.com": "allow" } },
+        { webfetch: { "github.com": "allow", "example.org/private/*": "ask" } },
+        { webfetch: { "*.github.com:443": "allow", "example.com": "ask" } },
+      ] as PermissionsConfig["permission"][]) {
+        const codex = await generate({ generator: CodexcliPermissions, permission });
+        expect(codex).toMatch(/github\.com(:443)?" = "allow"/);
+      }
+    });
+
+    it("compares a pathless restriction as every URL on its host", async () => {
+      for (const permission of [
+        { "*": { "evil.example": "deny" }, webfetch: { "https://evil.example/*": "allow" } },
+        { webfetch: { "https://*.github.com/*": "allow", "gist.github.com": "ask" } },
+      ] as PermissionsConfig["permission"][]) {
+        const codex = await generate({ generator: CodexcliPermissions, permission });
+        expect(codex).not.toContain('= "allow"');
+        const trae = await generate({ generator: TraePermissions, permission, global: true });
+        expect(trae).not.toContain('"allow": [');
+      }
+    });
+
+    it("Codex CLI denies a narrower write allow a '*' ask covers, like a direct read ask", async () => {
+      const covered = await generate({
+        generator: CodexcliPermissions,
+        permission: { "*": { "docs/**": "ask" }, edit: { "docs/x.md": "allow" } },
+      });
+      expect(covered).toContain('"docs/x.md" = "deny"');
+      const readable = await generate({
+        generator: CodexcliPermissions,
+        permission: { "*": { "secret/**": "ask" }, read: { "*": "allow" } },
+      });
+      expect(readable).toContain('"secret/**" = "deny"');
+      const catchAll = await generate({
+        generator: CodexcliPermissions,
+        permission: { "*": { "*": "deny" }, edit: { "src/**": "allow" } },
+      });
+      expect(catchAll).not.toContain('"src/**" = "write"');
+    });
+
+    it("Copilot (VS Code) writes a '*' catch-all restriction where it wins", async () => {
+      const content = await generate({
+        generator: CopilotPermissions,
+        permission: {
+          "*": { "*": "deny" },
+          edit: { "src/**": "allow", "*": "allow" },
+          webfetch: { "*": "allow" },
+        },
+      });
+      const settings = JSON.parse(content) as Record<string, Record<string, boolean>>;
+      expect(Object.entries(settings["chat.tools.edits.autoApprove"] ?? {}).at(-1)).toEqual([
+        "*",
+        false,
+      ]);
+      expect(Object.entries(settings["chat.tools.urls.autoApprove"] ?? {})[0]).toEqual([
+        "*",
+        false,
+      ]);
+    });
+
+    it("Copilot (VS Code) restates a URL lowercased and without its scheme", async () => {
+      const content = await generate({
+        generator: CopilotPermissions,
+        permission: {
+          "*": { "HTTPS://Evil.example/*": "deny" },
+          webfetch: { "good.example": "allow" },
+        },
+      });
+      const settings = JSON.parse(content) as Record<string, Record<string, boolean>>;
+      expect(settings["chat.tools.urls.autoApprove"]).toEqual({
+        "evil.example/*": false,
+        "good.example": true,
+      });
+    });
+
+    it("Vibe writes a withheld catch-all as never under a '*' catch-all deny", async () => {
+      const content = await generate({
+        generator: VibePermissions,
+        permission: { "*": { "*": "deny" }, read: { "*": "allow" } },
+      });
+      expect(content).toContain('permission = "never"');
+      expect(content).not.toContain('permission = "ask"');
+    });
+
+    it("Vibe retires on-disk allowlist entries a current restriction covers", async () => {
+      await writeFileContent(
+        join(testDir, ".vibe", "config.toml"),
+        '[tools.bash]\nallowlist = ["git push *", "git *", "ls"]\n',
+      );
+      const content = await generate({
+        generator: VibePermissions,
+        permission: { bash: { "git push *": "ask" } },
+      });
+      expect(content).toContain('allowlist = [ "ls" ]');
+    });
 
     it("AugmentCode falls back to ask-user when the shadowing '*' restriction is only an ask", async () => {
       const content = await generate({
