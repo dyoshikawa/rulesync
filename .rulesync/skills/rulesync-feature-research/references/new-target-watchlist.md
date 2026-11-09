@@ -34,6 +34,9 @@ latest re-check section.
 | FuXi (`fuxicodex/Fuxi`)                       | 2026-10-31 | The "checked-in project settings file (permissions, hooks)" gets a documented path and schema, and a release passes ~5k asset downloads; today proprietary, 3,199 stars, v0.1.8 (2026-09-22), installs from its own CDN, documented config is global-only (`~/.fuxi/config.yaml`, MCP via `--mcp-config` / `fuxi mcp`)                                                                                                                                                                                       |
 | OpenCursor (`PawanOsman/OpenCursor`)          | 2026-11-03 | It gains a file-based surface of its own beyond `.opencursor/skills` / `~/.opencursor/{skills,plugins}`, or Marketplace installs pass ~10k; today 6,049 stars, v0.2.1 (2026-10-26), 966 Marketplace installs, and it reads covered files (`AGENTS.md`, `.cursor/rules/*.md[c]`, `.agents/skills`, `.codex/skills`, `.cursor/skills`)                                                                                                                                                                         |
 | Docker Agent (`docker/docker-agent`)          | 2026-11-03 | It reads repo-convention config (rules / skills / MCP files a project carries) instead of only stand-alone `agent.yaml` agent definitions run with `docker agent run <file>`; today 4,648 stars, v1.156.2 (2026-11-02)                                                                                                                                                                                                                                                                                       |
+| zerostack (`gi-dellav/zerostack`)             | 2026-11-08 | Stars reach ~5k or a release passes ~5k asset downloads; today 1,746 stars, GPL-3.0, v1.8.5 (2026-10-10) at 447 asset downloads (v1.8.4 at 664). It already has a file surface: project `.zerostack/config.toml` (`mcp_servers`, permissions, hooks, merged over the global `~/.config/zerostack/config.toml`), `.zerostack/prompts/`, `.zerostack/settings.json`, and it reads `AGENTS.md` / `CLAUDE.md`                                                                                                    |
+| Octomind (`Muvon/octomind`)                   | 2026-11-08 | Stars reach ~3k or a release passes ~3k asset downloads, and the `.agents/guardrails.toml` schema settles (guards = PreToolUse deny, hooks = PostToolUse, validators = Stop); today 608 stars, Apache-2.0, 0.69.0 (2026-11-03) at 383 asset downloads, with `AGENTS.md`, `SKILL.md` folders and a single TOML config (models, roles, MCP, budgets)                                                                                                                                                           |
+| tau (`huggingface/tau`, Hugging Face)         | 2026-11-08 | PyPI `tau-ai` reaches ~5k downloads/week, or it gains MCP / hooks / extension files a project carries; today 3,029 stars, v0.4.9 (2026-11-03), ~590 downloads/week, and it is a Python port of Pi that reads `AGENTS.md`, `.tau/skills` + `.agents/skills` (covered by `agentsskills`) and `.tau/prompts` + `.agents/prompts`                                                                                                                                                                                |
 
 ## Zoo Code CLI — `apps/cli` in the Zoo-Code repo
 
@@ -371,7 +374,47 @@ Eclipse Theia AI (#3732).
 - OpenCursor: `https://github.com/PawanOsman/OpenCursor`.
 - Docker Agent: `https://github.com/docker/docker-agent`.
 
+## Re-check on 2026-11-08
+
+Every row above was re-checked on 2026-11-08 and left as is unless noted:
+
+- Zoo Code CLI: unmet — `apps/cli/package.json` still `@roo-code/cli` 0.1.17 `private: true`, npm 404; Zoo Code v3.96.0.
+- ForgeCode: unmet — 214 downloads/week, npm 2.13.21, 7,631 stars; GitHub v2.14.0 still not on npm.
+- Baidu Comate / Zulu: unmet — 1.7.21, ~580 downloads/week.
+- fx: unmet — 3,794 stars, v0.0.16; `.fx.json` unchanged.
+- Nanocoder: unmet — v1.32.0 (2026-11-04), ~3.9k downloads/week (up from ~1.4k), 2,553 stars. Closest to its bar (5k/week).
+- Open Interpreter: unmet — `rust-v0.0.59` (2026-11-04) 4,963 asset downloads, `rust-v0.0.58` 4,098, `rust-v0.0.57` 2,023.
+- MiniMax Code: unmet — npm 0.7.6 (2026-11-05), ~18.6k downloads/week, 2,196 stars; the configuration docs (now at `code.minimax.io`) still document only `AGENTS.md` and `~/.minimax/config.yaml` / plugins, with no project `.minimax/` layout.
+- Prime Agent: unmet — v0.10.2, 22,616 stars; `docs/` still holds only MCP connector guides.
+- Claurst: unmet — no release since v0.2.1 (519 asset downloads), npm ~60/week, 10,338 stars, last push 2026-10-26.
+- Kiro Crew: unmet — stable v0.12.0 (2026-11-05), 4,833 stars; KAS can run without kiro-cli but still reads the Kiro hooks folder and `.kiro/` files.
+- Kimchi: unmet — v1.29.0 (2026-11-06), 2,276 stars; config still global.
+- JetBrains ThinkRail: unmet — v0.3.2 (2026-11-06), 7,918 stars; uses pi's configured default model, still on pi config.
+- Kun: unmet — v0.4.4, 6,380 stars; MCP still UI-managed.
+- avante.nvim: unmet — v0.5.0, 18,183 stars; unchanged.
+- FuXi: unmet — no release since v0.1.8 (2026-09-22), last push 2026-10-20, 3,194 stars.
+- OpenCursor: unmet — no release since 0.2.1, 6,050 stars, last push 2026-10-26.
+- Docker Agent: unmet — v1.157.2 (2026-11-05), 4,665 stars; release notes add no repo-convention config.
+- Warp Factories: unmet — docs still list Factories under "Early Access".
+- Zencoder: unmet — `.zencoder/rules/*.md` still appears only in guide prose, not on a reference page.
+- Verdent: unmet — settings page still lists only `~/.verdent/` paths.
+- Databricks Genie Code: unmet — unchanged.
+
+Proposed as a target the same day: Zero (#3807), directly from the discovery pass.
+
+## Watchlist candidates recorded on 2026-11-08
+
+- zerostack: `https://github.com/gi-dellav/zerostack`,
+  `https://github.com/gi-dellav/zerostack/blob/main/docs/CONFIG.md`.
+- Octomind: `https://github.com/Muvon/octomind`.
+- tau: `https://github.com/huggingface/tau`.
+
 ## Promoted entries
+
+- **Zero** (`Twigpine/zero`) — `.zero/config.json` MCP, `.zero/hooks.json`,
+  `.zero/specialists/*.md`, `.zero/AGENTS.md` / `ZERO.md` rules plus
+  `~/.config/zero/`. Proposed as #3807 on 2026-11-08 directly from the discovery
+  pass. Do not re-add it — track the proposal on that issue.
 
 - **bb** — `.bb/AGENTS.md` / `~/.bb/AGENTS.md` provider-agnostic rules and
   `.bb/skills/<name>/SKILL.md` / `~/.bb/skills/`, on top of the

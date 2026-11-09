@@ -667,6 +667,10 @@ export class AugmentcodePermissions extends ToolPermissions {
  * in global mode it is dropped with a warning instead of written somewhere it
  * does nothing.
  *
+ * Only Auggie 0.x reads `recommendedMarketplaces`: the 1.x plugin settings
+ * reference lists `enabledPlugins` alone. The key is still written because the
+ * stable CLI is 0.x, and the write warning says it is 0.x-only.
+ *
  * Both make Auggie load code the repository did not ship — a recommended
  * marketplace is one prompt away from being cloned, and an enabled plugin can
  * carry its own hooks and MCP servers — so writing either is logged, unless
@@ -702,7 +706,7 @@ function buildPluginConsumptionPatch({
         !isDeepStrictEqual(recommendedMarketplaces, existingMarketplaces)
       ) {
         logger?.warn(
-          `Writing AugmentCode \`recommendedMarketplaces\` (${recommendedMarketplaces.map(quoteValueForWarning).join(", ")}): Auggie prompts everyone who opens this workspace to install these plugin marketplaces.`,
+          `Writing AugmentCode \`recommendedMarketplaces\` (${recommendedMarketplaces.map(quoteValueForWarning).join(", ")}): Auggie 0.x prompts everyone who opens this workspace to install these plugin marketplaces (Auggie 1.x no longer reads this key).`,
         );
       }
       warnAboutRemovedPluginIds({

@@ -7,6 +7,9 @@ import {
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { RulesyncSourceNotFoundError } from "../../utils/rulesync-source-path.js";
+import { AntigravityCliMcp } from "./antigravity-cli-mcp.js";
+import { AntigravityIdeMcp } from "./antigravity-ide-mcp.js";
+import { AntigravityPluginMcp } from "./antigravity-plugin-mcp.js";
 import { ClaudecodeMcp } from "./claudecode-mcp.js";
 import { ClineMcp } from "./cline-mcp.js";
 import { CodexcliMcp } from "./codexcli-mcp.js";
@@ -975,6 +978,36 @@ describe("McpProcessor", () => {
         "disabledTools",
       ]);
     });
+
+    it.each([
+      ["antigravity-cli", AntigravityCliMcp],
+      ["antigravity-ide", AntigravityIdeMcp],
+      ["antigravity-plugin", AntigravityPluginMcp],
+    ] as const)(
+      "should not strip enabledTools and disabledTools for %s",
+      async (toolTarget, mcpClass) => {
+        // Antigravity documents both a per-server `enabledTools` allowlist and a
+        // `disabledTools` denylist under the canonical names.
+        const rulesyncMcp = new RulesyncMcp({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: ".mcp.json",
+          fileContent: JSON.stringify({ mcpServers: {} }),
+        });
+
+        vi.spyOn(mcpClass, "fromRulesyncMcp").mockResolvedValue({} as any);
+
+        const processor = new McpProcessor({
+          logger: createMockLogger(),
+          outputRoot: testDir,
+          toolTarget,
+        });
+
+        await processor.convertRulesyncFilesToToolFiles([rulesyncMcp]);
+
+        expect(rulesyncMcp.stripMcpServerFields).toHaveBeenCalledWith([]);
+      },
+    );
 
     it("should not strip enabledTools and disabledTools for codexcli", async () => {
       const rulesyncMcp = new RulesyncMcp({

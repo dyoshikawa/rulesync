@@ -360,8 +360,165 @@ describe("ReasonixPermissions", () => {
       const parsed = smolToml.parse(instance.getFileContent()) as any;
       expect(parsed.permissions).toEqual({
         allow: ["Bash(npm *)", "Edit(docs/**)", "glob", "grep"],
-        ask: ["task", "web_fetch", "web_search"],
+        ask: ["spawn_agents", "task", "web_fetch", "web_search"],
         deny: ["notebook_edit", "read_file(.env)", "write_file(secrets/**)"],
+      });
+    });
+
+    it("should write an agent rule under both task and spawn_agents and replace stale copies", async () => {
+      await writeFileContent(
+        join(testDir, "reasonix.toml"),
+        ["[permissions]", 'allow = ["spawn_agents", "task", "grep"]'].join("\n"),
+      );
+
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: { agent: { "*": "deny" } },
+        }),
+      });
+
+      const instance = await ReasonixPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const parsed = smolToml.parse(instance.getFileContent()) as any;
+      expect(parsed.permissions).toEqual({
+        allow: ["grep"],
+        deny: ["spawn_agents", "task"],
+      });
+    });
+
+    it("should warn when a stricter existing spawn_agents or task entry is replaced by a looser one", async () => {
+      await writeFileContent(
+        join(testDir, "reasonix.toml"),
+        ["[permissions]", 'allow = ["grep"]', 'ask = ["task"]', 'deny = ["spawn_agents"]'].join(
+          "\n",
+        ),
+      );
+      const logger = createMockLogger();
+
+      const instance = await ReasonixPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({ permission: { agent: { "*": "allow" } } }),
+        }),
+        logger,
+      });
+
+      const parsed = smolToml.parse(instance.getFileContent()) as any;
+      expect(parsed.permissions).toEqual({ allow: ["grep", "spawn_agents", "task"] });
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      const [warning] = logger.warn.mock.calls[0] as [string];
+      expect(warning).toContain("2 stricter existing entries in reasonix.toml");
+      expect(warning).toContain('ask "task"');
+      expect(warning).toContain('deny "spawn_agents"');
+    });
+
+    it("should warn when a stricter pattern agent entry is dropped", async () => {
+      await writeFileContent(
+        join(testDir, "reasonix.toml"),
+        ["[permissions]", 'deny = ["spawn_agents(review)"]'].join("\n"),
+      );
+      const logger = createMockLogger();
+
+      await ReasonixPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({ permission: { agent: { "*": "allow" } } }),
+        }),
+        logger,
+      });
+
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      const [warning] = logger.warn.mock.calls[0] as [string];
+      expect(warning).toContain('deny "spawn_agents(review)"');
+      expect(warning).toContain(".rulesync/permissions.jsonc");
+    });
+
+    it("should not warn when a raw entry keeps the existing agent deny", async () => {
+      await writeFileContent(
+        join(testDir, "reasonix.toml"),
+        ["[permissions]", 'deny = ["spawn_agents"]'].join("\n"),
+      );
+      const logger = createMockLogger();
+
+      const instance = await ReasonixPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: { agent: { "*": "allow" } },
+            reasonix: { rawDeny: ["spawn_agents"] },
+          }),
+        }),
+        logger,
+      });
+
+      const parsed = smolToml.parse(instance.getFileContent()) as any;
+      expect(parsed.permissions.deny).toEqual(["spawn_agents"]);
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("should not warn when an existing name(*) entry is replaced by the same bare entry", async () => {
+      await writeFileContent(
+        join(testDir, "reasonix.toml"),
+        ["[permissions]", 'deny = ["spawn_agents(*)", "task(*)"]'].join("\n"),
+      );
+      const logger = createMockLogger();
+
+      await ReasonixPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({ permission: { agent: { "*": "deny" } } }),
+        }),
+        logger,
+      });
+
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("should not warn when the replaced agent entries are no stricter than the generated ones", async () => {
+      await writeFileContent(
+        join(testDir, "reasonix.toml"),
+        ["[permissions]", 'allow = ["spawn_agents"]', 'ask = ["task"]'].join("\n"),
+      );
+      const logger = createMockLogger();
+
+      await ReasonixPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({ permission: { agent: { "*": "ask" } } }),
+        }),
+        logger,
+      });
+
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("should round-trip an agent rule through generate and import", async () => {
+      const instance = await ReasonixPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({ permission: { agent: { "*": "deny" } } }),
+        }),
+      });
+
+      expect(instance.toRulesyncPermissions().getJson().permission).toEqual({
+        agent: { "*": "deny" },
       });
     });
 
@@ -1548,6 +1705,45 @@ describe("ReasonixPermissions", () => {
         read: { ".env": "deny", "*.pem": "deny" },
         write: { "secrets/**": "deny" },
         notebookedit: { "*": "deny" },
+      });
+    });
+
+    // `task(review)` / `spawn_agents(review)` never match a call in Reasonix:
+    // neither tool's arguments carry a subject key, so only bare rules apply.
+    // They are still read back so a hand-written file round-trips.
+    it("should import both task and spawn_agents as agent, letting the stricter action win", () => {
+      const instance = new ReasonixPermissions({
+        relativeDirPath: ".",
+        relativeFilePath: "reasonix.toml",
+        fileContent: [
+          "[permissions]",
+          'allow = ["task", "spawn_agents(review)"]',
+          'ask = ["spawn_agents"]',
+          'deny = ["task(review)"]',
+        ].join("\n"),
+      });
+
+      const config = instance.toRulesyncPermissions().getJson();
+
+      expect(config.permission).toEqual({
+        agent: { "*": "ask", review: "deny" },
+      });
+    });
+
+    it("should import legacy Agent, task and spawn_agents with conflicting actions as one agent rule, deny winning", () => {
+      const instance = new ReasonixPermissions({
+        relativeDirPath: ".",
+        relativeFilePath: "reasonix.toml",
+        fileContent: [
+          "[permissions]",
+          'allow = ["Agent", "spawn_agents"]',
+          'ask = ["task"]',
+          'deny = ["Agent"]',
+        ].join("\n"),
+      });
+
+      expect(instance.toRulesyncPermissions().getJson().permission).toEqual({
+        agent: { "*": "deny" },
       });
     });
 

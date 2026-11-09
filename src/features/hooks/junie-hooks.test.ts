@@ -50,8 +50,9 @@ describe("JunieHooks", () => {
           stopFailure: [{ type: "command", command: ".rulesync/hooks/stop-failure.sh" }],
           permissionRequest: [{ type: "command", command: ".rulesync/hooks/permission.sh" }],
           sessionEnd: [{ type: "command", command: ".rulesync/hooks/session-end.sh" }],
-          // postToolUse is not a Junie-supported event and must be dropped.
           postToolUse: [{ type: "command", command: ".rulesync/hooks/post-tool.sh" }],
+          // postToolUseFailure is not a Junie-supported event and must be dropped.
+          postToolUseFailure: [{ type: "command", command: ".rulesync/hooks/post-failure.sh" }],
         },
       };
       const rulesyncHooks = new RulesyncHooks({
@@ -73,12 +74,14 @@ describe("JunieHooks", () => {
       expect(JSON.stringify(parsed.hooks.SessionStart)).toContain(
         ".rulesync/hooks/session-start.sh",
       );
-      // UserPromptSubmit, PreToolUse, Stop, StopFailure, PermissionRequest, and
-      // SessionEnd are all supported.
+      // UserPromptSubmit, PreToolUse, PostToolUse, Stop, StopFailure,
+      // PermissionRequest, and SessionEnd are all supported.
       expect(parsed.hooks.UserPromptSubmit).toBeDefined();
       expect(JSON.stringify(parsed.hooks.UserPromptSubmit)).toContain(".rulesync/hooks/prompt.sh");
       expect(parsed.hooks.PreToolUse).toBeDefined();
       expect(JSON.stringify(parsed.hooks.PreToolUse)).toContain(".rulesync/hooks/pre-tool.sh");
+      expect(parsed.hooks.PostToolUse).toBeDefined();
+      expect(JSON.stringify(parsed.hooks.PostToolUse)).toContain(".rulesync/hooks/post-tool.sh");
       expect(parsed.hooks.Stop).toBeDefined();
       expect(JSON.stringify(parsed.hooks.Stop)).toContain(".rulesync/hooks/audit.sh");
       expect(parsed.hooks.StopFailure).toBeDefined();
@@ -89,11 +92,11 @@ describe("JunieHooks", () => {
       );
       expect(parsed.hooks.SessionEnd).toBeDefined();
       expect(JSON.stringify(parsed.hooks.SessionEnd)).toContain(".rulesync/hooks/session-end.sh");
-      // postToolUse is not supported by Junie, so it is dropped.
-      expect(parsed.hooks.PostToolUse).toBeUndefined();
+      // postToolUseFailure is not supported by Junie, so it is dropped.
+      expect(parsed.hooks.PostToolUseFailure).toBeUndefined();
     });
 
-    it("should drop matchers on matcher-less events (UserPromptSubmit, Stop) but keep them on SessionStart", async () => {
+    it("should drop matchers on matcher-less events (UserPromptSubmit, Stop) but keep them on SessionStart and PostToolUse", async () => {
       await ensureDir(join(testDir, ".junie"));
       await writeFileContent(join(testDir, ".junie", "config.json"), JSON.stringify({}));
 
@@ -107,6 +110,9 @@ describe("JunieHooks", () => {
             { type: "command", command: ".rulesync/hooks/prompt.sh", matcher: "ignored" },
           ],
           stop: [{ type: "command", command: ".rulesync/hooks/audit.sh", matcher: "ignored" }],
+          postToolUse: [
+            { type: "command", command: ".rulesync/hooks/format.sh", matcher: "Edit|Write" },
+          ],
         },
       };
       const rulesyncHooks = new RulesyncHooks({
@@ -126,6 +132,8 @@ describe("JunieHooks", () => {
       const parsed = JSON.parse(junieHooks.getFileContent());
       // SessionStart supports matchers, so it is preserved.
       expect(parsed.hooks.SessionStart[0].matcher).toBe("startup");
+      // PostToolUse matches on the tool name, so its matcher is preserved too.
+      expect(parsed.hooks.PostToolUse[0].matcher).toBe("Edit|Write");
       // UserPromptSubmit and Stop are matcher-less; the matcher key is stripped.
       expect(parsed.hooks.UserPromptSubmit[0].matcher).toBeUndefined();
       expect(parsed.hooks.UserPromptSubmit[0].hooks).toBeDefined();
@@ -263,6 +271,9 @@ describe("JunieHooks", () => {
         fileContent: JSON.stringify({
           hooks: {
             SessionStart: [{ hooks: [{ type: "command", command: "session-start.sh" }] }],
+            PostToolUse: [
+              { matcher: "Edit|Write", hooks: [{ type: "command", command: "format.sh" }] },
+            ],
           },
         }),
         validate: false,
@@ -272,6 +283,9 @@ describe("JunieHooks", () => {
       const json = rulesyncHooks.getJson();
       expect(json.hooks.sessionStart).toHaveLength(1);
       expect(json.hooks.sessionStart?.[0]?.command).toContain("session-start.sh");
+      expect(json.hooks.postToolUse).toHaveLength(1);
+      expect(json.hooks.postToolUse?.[0]?.command).toBe("format.sh");
+      expect(json.hooks.postToolUse?.[0]?.matcher).toBe("Edit|Write");
     });
 
     it("should import blockOnError/async back into canonical failClosed/async", () => {
