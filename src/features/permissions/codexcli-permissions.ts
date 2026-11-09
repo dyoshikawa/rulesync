@@ -20,11 +20,15 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { parseGlobPattern } from "../../utils/glob.js";
 import { type Logger, warnWithFallback } from "../../utils/logger.js";
+import { lookupOwn } from "../../utils/own-lookup.js";
 import { isRecord } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { withholdAllowsShadowedByAsks } from "./shadowed-allows.js";
-import { bashRulesHonoringAllTools } from "./shell-command-categories.js";
+import { honorAllToolsRestrictions, withholdAllowsShadowedByAsks } from "./shadowed-allows.js";
+import {
+  ALL_TOOLS_PERMISSION_CATEGORY,
+  bashRulesHonoringAllTools,
+} from "./shell-command-categories.js";
 import { isStricterAction } from "./single-action-collapse.js";
 import {
   ToolPermissions,
@@ -421,10 +425,23 @@ function convertRulesyncToCodexProfile({
     }
 
     if (toolName === "webfetch") {
-      // Codex has no ask tier for domains: a skipped ask withholds the allows
-      // that cover it, so the domain falls back to Codex's own prompt.
+      // Codex has no ask tier for domains and no all-tools rule: a skipped ask
+      // or a `*` deny/ask withholds the allows that cover it, so the domain
+      // falls back to Codex's own prompt.
+      const allToolsRules = lookupOwn({
+        record: config.permission,
+        key: ALL_TOOLS_PERMISSION_CATEGORY,
+      });
+      const honored = honorAllToolsRestrictions({
+        permission:
+          allToolsRules === undefined
+            ? { webfetch: rules }
+            : { [ALL_TOOLS_PERMISSION_CATEGORY]: allToolsRules, webfetch: rules },
+        toolLabel: "Codex CLI network domains",
+        logger,
+      });
       const { webfetch: webfetchRules = {} } = withholdAllowsShadowedByAsks({
-        permission: { webfetch: rules },
+        permission: { webfetch: honored.webfetch ?? {} },
         toolLabel: "Codex CLI network domains",
         logger,
       });

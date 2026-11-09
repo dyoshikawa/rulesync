@@ -848,8 +848,11 @@ function convertRulesyncToAugmentEntries({
   const resolvedBashRules = bashRulesHonoringAllTools(config.permission);
   // The managed tools with a category of their own lose the allows a
   // pattern-specific `*` restriction covers, since their entries cannot carry
-  // the pattern. The `*` catch-all is the default for tools with no rules of
-  // their own (see below), so it stays out of this.
+  // the pattern. A tool left with no entry this way is treated like a tool
+  // with no rules of its own: it gets the blanket all-tools deny/ask below
+  // rather than AugmentCode's own default, which would auto-run read-only
+  // tools such as `view` on the very input the restriction names. The `*`
+  // catch-all is that blanket default already, so it stays out of this.
   const honoredPermission = honorAllToolsRestrictions({
     permission: config.permission,
     toolLabel: "AugmentCode",
@@ -880,8 +883,9 @@ function convertRulesyncToAugmentEntries({
         `AugmentCode permissions: the all-tools '*' category cannot be emitted as a single entry ` +
           `because AugmentCode has no wildcard toolName. Deny/ask rules are folded into ` +
           `'launch-process' and, for any other managed tool that has no explicit rules of its ` +
-          `own, applied as a blanket deny/ask; all-tools allow rules and tools that already ` +
-          `define their own rules are left untouched.`,
+          `own (or whose allow rules were all withheld because a '*' deny/ask covers them), ` +
+          `applied as a blanket deny/ask; all-tools allow rules and tools that still define ` +
+          `rules of their own are left untouched.`,
       );
       continue;
     }
@@ -985,9 +989,10 @@ function computeAllToolsFailClosedType(
  * other managed tools: one that produced no entries of its own above must not fall back to
  * AugmentCode's own default just because it has no per-input matcher to narrow the all-tools
  * restriction onto. A category can be stated yet still emit nothing (e.g. only non-`*` allow/ask
- * patterns, dropped with a warning), so this checks emitted entries rather than whether the
- * category was merely present in the source config. A tool whose own rules did emit entries is
- * left untouched here.
+ * patterns, dropped with a warning, or only allows withheld by `honorAllToolsRestrictions`), so
+ * this checks emitted entries rather than whether the category was merely present in the source
+ * config. Falling back to AugmentCode's own default instead would let a read-only tool run on the
+ * input the restriction names. A tool whose own rules did emit entries is left untouched here.
  */
 function synthesizeManagedToolFallbackEntries(
   categoriesWithOwnEntries: Set<string>,

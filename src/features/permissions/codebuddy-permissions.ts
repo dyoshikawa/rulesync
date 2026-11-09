@@ -129,8 +129,10 @@ function categoryOfRule(rule: string): string | undefined {
  * - MCP rules take no specifier, so a scoped `mcp__<...>` category is written
  *   for its catch-all pattern only.
  * - The all-tools `*` category is CodeBuddy's documented standalone `*` rule
- *   for its catch-all pattern. Narrower `*` patterns are shell restrictions
- *   and reach the `Bash` rules through `honorAllToolsRestrictions`.
+ *   for its catch-all pattern. A narrower `*` pattern reaches the `Bash`
+ *   rules through `honorAllToolsRestrictions`, which also withholds every
+ *   allow it overlaps in the other categories — a `{"*": "allow"}` included,
+ *   even for a shell-only pattern such as `git push *`.
  */
 function buildCodebuddyRule({
   category,

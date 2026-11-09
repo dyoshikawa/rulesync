@@ -124,8 +124,10 @@ type ParsedCommandcodeRule = { category: string; pattern: string; notInAllow: bo
  * server or tool). A pattern on an MCP category is still written as the
  * `(specifier)` here; `writableCommandcodeRule` decides what to do with it,
  * because Command Code ignores it. The all-tools `*` category is only
- * written for its catch-all pattern; narrower `*` patterns are shell
- * restrictions and reach the `Shell` entries through `honorAllToolsRestrictions`.
+ * written for its catch-all pattern; a narrower `*` pattern reaches the `Shell`
+ * entries through `honorAllToolsRestrictions`, which also withholds every allow
+ * it overlaps in the other categories — a `{"*": "allow"}` included, even for a
+ * shell-only pattern such as `git push *`.
  */
 function buildCommandcodeRule(category: string, pattern: string): string | null {
   const catchAll = pattern === CATCH_ALL_PATTERN || pattern === "";

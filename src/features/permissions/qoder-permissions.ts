@@ -142,8 +142,10 @@ function categoryOfRule(rule: string): string | undefined {
  * when Qoder has no spelling for it.
  *
  * - The all-tools `*` category is Qoder's bare `*` rule; a narrower pattern
- *   under it names no single tool and is skipped (its shell restrictions
- *   already reached `bash` through `honorAllToolsRestrictions`).
+ *   under it names no single tool and is skipped. `honorAllToolsRestrictions`
+ *   already carried it onto `bash` and withheld every allow it overlaps in the
+ *   other categories — a `{"*": "allow"}` included, even for a shell-only
+ *   pattern such as `git push *`.
  * - An `mcp__...` category is a fully qualified MCP tool name (or a Qoder MCP
  *   wildcard like `mcp__github__*`) and only takes the catch-all pattern.
  * - Every other category maps to its Qoder tool name; `*` is the bare tool

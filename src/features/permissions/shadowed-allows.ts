@@ -11,6 +11,45 @@ import {
 
 type Permission = PermissionsConfig["permission"];
 
+/** The canonical category whose patterns are URLs or domains. */
+const WEBFETCH_CATEGORY = "webfetch";
+
+/**
+ * A URL or domain pattern lowercased and without its scheme, so `HTTPS://Evil.example/*`
+ * and `evil.example/*` are compared as the same host. Hosts are case-insensitive
+ * and a scheme-less allow covers every scheme.
+ */
+function normalizeUrlPattern(pattern: string): string {
+  return pattern.toLowerCase().replace(/^[a-z][a-z0-9+.-]*:\/\//, "");
+}
+
+/**
+ * Whether any of `restrictions` overlaps an allow pattern of `category`. For
+ * `webfetch` the patterns are compared both as written and normalized (see
+ * `normalizeUrlPattern`), and an overlap in either counts, so normalizing can
+ * only find more overlaps, never fewer.
+ */
+function createCategoryShadowTest({
+  restrictions,
+  category,
+}: {
+  restrictions: readonly { pattern: string; fromAllToolsCategory: boolean }[];
+  category: string;
+}): (allowPattern: string) => boolean {
+  const asWritten = createShadowingRestrictionsTest(restrictions);
+  if (category !== WEBFETCH_CATEGORY) {
+    return (allowPattern) => asWritten(allowPattern).length > 0;
+  }
+  const normalized = createShadowingRestrictionsTest(
+    restrictions.map(({ pattern, fromAllToolsCategory }) => ({
+      pattern: normalizeUrlPattern(pattern),
+      fromAllToolsCategory,
+    })),
+  );
+  return (allowPattern) =>
+    asWritten(allowPattern).length > 0 || normalized(normalizeUrlPattern(allowPattern)).length > 0;
+}
+
 /** One allow rule left out of a tool's config, named as `<category>: <pattern>`. */
 function describeRule(category: string, pattern: string): string {
   return `${category}: ${pattern}`;
@@ -65,6 +104,10 @@ function keepAllToolsCatchAll({
  * - Every other category loses each `allow` that names an input a `*`
  *   restriction also names (see `createShadowingRestrictionsTest`); the tool
  *   then falls back to its own prompt or default for it, the safe direction.
+ *   (AugmentCode instead applies its blanket all-tools fallback to a tool left
+ *   with no entries, since its own default would auto-run the tool.) Width
+ *   does not matter: a shell-only `{"*": {"git push *": "ask"}}` withholds a
+ *   `read: {"*": "allow"}` too, because the catch-all names every input.
  * - With `dropAllToolsPatterns`, the pattern-specific entries of `*` itself are
  *   removed, for a tool that would otherwise write them as an inert literal
  *   `*(<pattern>)` rule. They are honored by the withholding above.
@@ -108,7 +151,6 @@ export function honorAllToolsRestrictions({
 
   const result: Permission = {};
   const withheld: string[] = [];
-  const shadowingRestrictions = createShadowingRestrictionsTest(restrictions);
 
   for (const [category, rules] of Object.entries(permission)) {
     if (category === ALL_TOOLS_PERMISSION_CATEGORY) {
@@ -131,17 +173,21 @@ export function honorAllToolsRestrictions({
           restrictions.map(({ pattern }) => [pattern, allToolsRules[pattern] ?? "deny"]),
         ),
       });
+      // A withheld allow is either gone or replaced by the `*` rule of the
+      // same spelling (`{"*": {"git push *": "ask"}, "bash": {"git push *":
+      // "allow"}}` leaves an ask there); both are named.
       for (const [pattern, action] of Object.entries(rules)) {
-        if (action === "allow" && bash[pattern] === undefined) {
+        if (action === "allow" && bash[pattern] !== "allow") {
           withheld.push(describeRule(category, pattern));
         }
       }
       result[category] = bash;
       continue;
     }
+    const shadowingRestrictions = createCategoryShadowTest({ restrictions, category });
     const kept: Record<string, PermissionAction> = {};
     for (const [pattern, action] of Object.entries(rules)) {
-      if (action === "allow" && shadowingRestrictions(pattern).length > 0) {
+      if (action === "allow" && shadowingRestrictions(pattern)) {
         withheld.push(describeRule(category, pattern));
         continue;
       }
@@ -205,25 +251,21 @@ export function withholdAllowsShadowedByAsks({
     return permission;
   }
 
-  const testByGroup = new Map(
-    [...asksByGroup].map(([group, asks]) => [
-      group,
-      createShadowingRestrictionsTest(
-        asks.map((pattern) => ({ pattern, fromAllToolsCategory: false })),
-      ),
-    ]),
-  );
   const result: Permission = {};
   const withheld: string[] = [];
   for (const [category, rules] of Object.entries(permission)) {
-    const shadowingAsks = testByGroup.get(groupOf(category));
-    if (shadowingAsks === undefined) {
+    const asks = asksByGroup.get(groupOf(category));
+    if (asks === undefined) {
       result[category] = rules;
       continue;
     }
+    const shadowingAsks = createCategoryShadowTest({
+      restrictions: asks.map((pattern) => ({ pattern, fromAllToolsCategory: false })),
+      category,
+    });
     const kept: Record<string, PermissionAction> = {};
     for (const [pattern, action] of Object.entries(rules)) {
-      if (action !== "allow" || shadowingAsks(pattern).length === 0) {
+      if (action !== "allow" || !shadowingAsks(pattern)) {
         kept[pattern] = action;
         continue;
       }

@@ -120,6 +120,17 @@ export function widenToPrefixGlob(pattern: string): string {
   return pattern.endsWith("*") ? pattern : `${pattern}*`;
 }
 
+// The pattern with every globstar segment widened to a bare `*`, for the
+// overlap test only. The flat glob matcher reads `**/.env` as "something, then
+// `/.env`", so it misses `.env` itself, while most tools read a `**/` segment
+// as zero or more directories and `src/**` as also naming `src`. A `*` there
+// matches every spelling either reading allows (and some more), so the widened
+// comparison can only report more overlaps, never fewer — the direction that
+// withholds an allow rather than writing one a restriction covers.
+function widenDoubleStarSegments(pattern: string): string {
+  return pattern.replaceAll("**/", "*").replaceAll("/**", "*");
+}
+
 /**
  * Build the test an adapter applies to an `allow` pattern before writing it:
  * which restrictions it cannot write name some of the same commands? The
@@ -162,7 +173,9 @@ export function createShadowingRestrictionsTest(
   // ran out; leave it out for a run of its own.
   const normalized = restrictions.map(({ pattern, fromAllToolsCategory }) => ({
     pattern,
-    glob: parseGlobPattern(fromAllToolsCategory ? pattern : normalizePattern(pattern)),
+    glob: parseGlobPattern(
+      widenDoubleStarSegments(fromAllToolsCategory ? pattern : normalizePattern(pattern)),
+    ),
   }));
 
   return (allowPattern) => {
@@ -174,7 +187,7 @@ export function createShadowingRestrictionsTest(
       // is walked.
       return normalized.map(({ pattern }) => pattern);
     }
-    const allowGlob = parseGlobPattern(normalizePattern(allowPattern));
+    const allowGlob = parseGlobPattern(widenDoubleStarSegments(normalizePattern(allowPattern)));
     return normalized
       .filter(
         ({ pattern, glob }) =>

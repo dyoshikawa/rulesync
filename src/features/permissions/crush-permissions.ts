@@ -24,6 +24,7 @@ import {
 } from "../crush-config.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+import { honorAllToolsRestrictions } from "./shadowed-allows.js";
 import {
   ALL_TOOLS_PERMISSION_CATEGORY,
   CATCH_ALL_PATTERN,
@@ -647,6 +648,42 @@ function resolveCategoryAction({
 }
 
 /**
+ * The canonical rules with the all-tools `*` restrictions applied the way
+ * Crush can carry them. Crush has no all-tools list, so a `*` deny or ask
+ * withholds every `allow` it covers in the other categories (`{"*": {".env":
+ * "deny"}, "read": {"*": "allow"}}` keeps `view` out of `allowed_tools`, and
+ * Crush prompts for it), named in one warning. `bash` keeps the
+ * `honorAllToolsOnBash` treatment: its allow lines become `safe_commands`, and
+ * the safe-command and blocked-command logic reports what it withholds itself.
+ */
+function honorCrushAllToolsRestrictions({
+  config,
+  logger,
+}: {
+  config: PermissionsConfig;
+  logger?: Logger;
+}): PermissionsConfig["permission"] {
+  const withShell = honorAllToolsOnBash(config.permission);
+  const honored = honorAllToolsRestrictions({
+    permission: Object.fromEntries(
+      Object.entries(config.permission).filter(
+        ([category]) => category !== SHELL_PERMISSION_CATEGORY,
+      ),
+    ),
+    toolLabel: "Crush",
+    logger,
+  });
+  const permission: PermissionsConfig["permission"] = {};
+  for (const [category, rules] of Object.entries(withShell)) {
+    permission[category] =
+      category !== SHELL_PERMISSION_CATEGORY && Object.hasOwn(honored, category)
+        ? (honored[category] ?? rules)
+        : rules;
+  }
+  return permission;
+}
+
+/**
  * Convert a rulesync permissions config into Crush's two tool lists.
  */
 function convertRulesyncToCrushLists({
@@ -662,10 +699,13 @@ function convertRulesyncToCrushLists({
   // than silently resolved.
   const actionByTool = new Map<string, PermissionAction>();
 
-  for (const [category, rules] of Object.entries(honorAllToolsOnBash(config.permission))) {
+  for (const [category, rules] of Object.entries(
+    honorCrushAllToolsRestrictions({ config, logger }),
+  )) {
     if (isPrototypePollutionKey(category)) continue;
     if (category === ALL_TOOLS_PERMISSION_CATEGORY) {
-      // `honorAllToolsOnBash` has already mirrored the restrictions onto bash.
+      // The restrictions were already mirrored onto bash and honored in the
+      // other categories by `honorCrushAllToolsRestrictions`.
       for (const [rawPattern, action] of Object.entries(rules)) {
         if (isPrototypePollutionKey(rawPattern)) continue;
         logger?.warn(

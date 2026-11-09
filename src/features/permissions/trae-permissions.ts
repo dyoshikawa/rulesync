@@ -16,8 +16,8 @@ import {
   sharedConfigFileKey,
 } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { withholdAllowsShadowedByAsks } from "./shadowed-allows.js";
-import { CATCH_ALL_PATTERN, honorAllToolsOnBash } from "./shell-command-categories.js";
+import { honorAllToolsRestrictions, withholdAllowsShadowedByAsks } from "./shadowed-allows.js";
+import { CATCH_ALL_PATTERN } from "./shell-command-categories.js";
 import { isStricterAction } from "./single-action-collapse.js";
 import {
   ToolPermissions,
@@ -469,7 +469,13 @@ export class TraePermissions extends ToolPermissions {
     const existingContent = (await readFileContentOrNull(filePath)) ?? "{}";
     const existing = parseTraePermissionConfig({ fileContent: existingContent, relativePath });
 
-    const permission = honorAllToolsOnBash(rulesyncPermissions.getJson().permission);
+    // TRAE has no all-tools rule: `*` restrictions reach `bash` and withhold
+    // the allows they cover in `webfetch` and the MCP categories.
+    const permission = honorAllToolsRestrictions({
+      permission: rulesyncPermissions.getJson().permission,
+      toolLabel: "TRAE",
+      logger,
+    });
     warnUnmappedCategories({ permission, logger });
 
     return new TraePermissions({
