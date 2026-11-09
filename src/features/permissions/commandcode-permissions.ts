@@ -20,7 +20,7 @@ import {
   sharedConfigFileKey,
 } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { honorAllToolsRestrictions } from "./shadowed-allows.js";
+import { honorAllToolsRestrictions, restatesAsCategoryRule } from "./shadowed-allows.js";
 import {
   ALL_TOOLS_PERMISSION_CATEGORY,
   CATCH_ALL_PATTERN,
@@ -530,6 +530,9 @@ function buildCommandcodeRuleLists({
     permission: config.permission,
     toolLabel: "Command Code",
     logger,
+    // The default for an input with no rule may auto-approve it (reads), so a
+    // `*` path or URL restriction is also written as a rule of each category.
+    restateAs: restatesAsCategoryRule(),
     writesAllToolsCatchAll: true,
   });
   const ranked = new Map<string, PermissionAction>();

@@ -24,7 +24,12 @@ import { lookupOwn } from "../../utils/own-lookup.js";
 import { isRecord } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { honorAllToolsRestrictions, withholdAllowsShadowedByAsks } from "./shadowed-allows.js";
+import {
+  honorAllToolsRestrictions,
+  restateAllToolsRestrictionsInCategory,
+  restatesAsCategoryRule,
+  withholdAllowsShadowedByAsks,
+} from "./shadowed-allows.js";
 import {
   ALL_TOOLS_PERMISSION_CATEGORY,
   bashRulesHonoringAllTools,
@@ -401,6 +406,40 @@ function addCodexWebfetchRules({
   }
 }
 
+/**
+ * Copy the all-tools `*` path restrictions into the filesystem rules, when the
+ * config states a filesystem category at all: Codex has no all-tools rule, so
+ * `{"*": {".env": "deny"}, "edit": {"*": "allow"}}` would otherwise grant
+ * write access to `.env`. A `deny` becomes a `read` deny (no access at all)
+ * and an `ask` an `edit` ask (read-only, since Codex cannot prompt for a
+ * path). Only patterns that read as a path are copied — `git push *` is a
+ * command, not a path — so the sandbox gains nothing but these restrictions.
+ */
+function restateAllToolsPathRestrictions({
+  config,
+  filesystemCategoryRules,
+}: {
+  config: PermissionsConfig;
+  filesystemCategoryRules: Partial<
+    Record<"read" | "edit" | "write", Record<string, PermissionAction>>
+  >;
+}): void {
+  if (Object.keys(filesystemCategoryRules).length === 0) return;
+  for (const [category, action] of [
+    ["read", "deny"],
+    ["edit", "ask"],
+  ] as const) {
+    const restated = restateAllToolsRestrictionsInCategory({
+      permission: { ...config.permission, [category]: filesystemCategoryRules[category] ?? {} },
+      category,
+      restateAs: restatesAsCategoryRule([action]),
+    });
+    if (Object.keys(restated).length > 0) {
+      filesystemCategoryRules[category] = restated;
+    }
+  }
+}
+
 function convertRulesyncToCodexProfile({
   config,
   logger,
@@ -459,6 +498,8 @@ function convertRulesyncToCodexProfile({
       `Codex CLI permission profiles support only read/edit/write/webfetch categories (bash goes to .codex/rules/rulesync.rules). Skipping: ${toolName}`,
     );
   }
+
+  restateAllToolsPathRestrictions({ config, filesystemCategoryRules });
 
   addCodexFilesystemRules({
     categoryRules: filesystemCategoryRules,

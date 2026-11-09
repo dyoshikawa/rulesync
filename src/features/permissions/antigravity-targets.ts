@@ -1,7 +1,7 @@
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { parseGlobPattern } from "../../utils/glob.js";
 import type { Logger } from "../../utils/logger.js";
-import { getOrCreateOwn } from "../../utils/own-lookup.js";
+import { getOrCreateOwn, lookupOwn } from "../../utils/own-lookup.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import {
   ANTIGRAVITY_COMMAND_ACTIONS as COMMAND_ACTIONS,
@@ -11,8 +11,10 @@ import {
   toAntigravityCommandLiteralPrefix,
   toAntigravityCommandTarget,
 } from "./antigravity-command-patterns.js";
-import { honorAllToolsRestrictions } from "./shadowed-allows.js";
+import { honorAllToolsRestrictions, normalizeUrlPattern } from "./shadowed-allows.js";
 import {
+  ALL_TOOLS_PERMISSION_CATEGORY,
+  CATCH_ALL_PATTERN,
   createShadowingRestrictionsTest,
   MCP_CATEGORY_PREFIX,
 } from "./shell-command-categories.js";
@@ -545,14 +547,32 @@ export function convertRulesyncToAntigravityPermissions({
       ]);
     }
   }
-  const shadowingByAction = new Map(
-    [...skippedRestrictionsByAction].map(([action, patterns]) => [
-      action,
-      createShadowingRestrictionsTest(
-        patterns.map((pattern) => ({ pattern, fromAllToolsCategory: false })),
-      ),
-    ]),
-  );
+  // The pattern-specific `*` restrictions were dropped above (Antigravity has
+  // no all-tools entry), so they shadow the emitted allows of every group too.
+  const allToolsRestrictions = Object.entries(
+    lookupOwn({ record: config.permission, key: ALL_TOOLS_PERMISSION_CATEGORY }) ?? {},
+  )
+    .filter(
+      ([pattern, decision]) =>
+        decision !== "allow" && pattern !== CATCH_ALL_PATTERN && !isPrototypePollutionKey(pattern),
+    )
+    .map(([pattern]) => pattern);
+  const shadowingTests = new Map<string, (allowPattern: string) => string[]>();
+  const shadowingTestOf = (group: string): ((allowPattern: string) => string[]) => {
+    const cached = shadowingTests.get(group);
+    if (cached !== undefined) return cached;
+    const patterns = [...(skippedRestrictionsByAction.get(group) ?? []), ...allToolsRestrictions];
+    // Each restriction is also compared lowercased and without a scheme, which
+    // can only add overlaps.
+    const test = createShadowingRestrictionsTest(
+      [...new Set([...patterns, ...patterns.map(normalizeUrlPattern)])].map((pattern) => ({
+        pattern,
+        fromAllToolsCategory: false,
+      })),
+    );
+    shadowingTests.set(group, test);
+    return test;
+  };
   const withheld: string[] = [];
 
   for (const { action, category, pattern, decision, entry } of translated) {
@@ -561,7 +581,13 @@ export function convertRulesyncToAntigravityPermissions({
     }
     switch (decision) {
       case "allow":
-        if ((shadowingByAction.get(groupOf({ action, category }))?.(pattern).length ?? 0) > 0) {
+        if (
+          [pattern, effectiveTargetScope(entry)].some((candidate) =>
+            [candidate, normalizeUrlPattern(candidate)].some(
+              (spelling) => shadowingTestOf(groupOf({ action, category }))(spelling).length > 0,
+            ),
+          )
+        ) {
           withheld.push(`${category}: ${pattern}`);
           break;
         }
@@ -586,6 +612,32 @@ export function convertRulesyncToAntigravityPermissions({
   // Two patterns can translate to the same entry (`npm run *` and
   // `npm   run *`, or two denies widened to the same words), so drop repeats.
   return { allow: [...new Set(allow)], ask: [...new Set(ask)], deny: [...new Set(deny)] };
+}
+
+/**
+ * The widest glob an emitted entry grants, for comparing an allow against the
+ * restrictions Antigravity cannot express. The emitted target can grant more
+ * than the canonical pattern it came from: a path target also covers
+ * everything inside it (and `.` the whole workspace), a command target is a
+ * word prefix (`git push` approves `git push --force`), and a domain target
+ * covers its subdomains and every URL on it. Widening only ever withholds more.
+ */
+function effectiveTargetScope(entry: string): string {
+  const { toolName, pattern: target } = parseToolPatternEntry(entry);
+  if (target === CATCH_ALL_PATTERN) {
+    return CATCH_ALL_PATTERN;
+  }
+  if (PATH_ACTIONS.has(toolName)) {
+    const path = target.replace(/\/+$/, "");
+    return path === "." || path === "" ? CATCH_ALL_PATTERN : `${path}*`;
+  }
+  if (COMMAND_ACTIONS.has(toolName)) {
+    return target.endsWith("*") ? target : `${target}*`;
+  }
+  if (URL_ACTIONS.has(toolName)) {
+    return `*${target.toLowerCase()}*`;
+  }
+  return target;
 }
 
 /**

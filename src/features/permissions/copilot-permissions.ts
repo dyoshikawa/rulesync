@@ -36,6 +36,14 @@ import {
   warnOnTrustAffectingEntries,
 } from "./sandbox-trust.js";
 import {
+  restateAllToolsRestrictionsInCategory,
+  restatesAsCategoryRule,
+} from "./shadowed-allows.js";
+import {
+  bashRulesHonoringAllTools,
+  SHELL_PERMISSION_CATEGORY,
+} from "./shell-command-categories.js";
+import {
   ToolPermissions,
   type ToolPermissionsFromFileParams,
   type ToolPermissionsFromRulesyncPermissionsParams,
@@ -523,10 +531,21 @@ export class CopilotPermissions extends ToolPermissions {
     // nothing (an empty map) still retracts its key, since rulesync owns it.
     const patch: Record<string, unknown> = {};
     for (const [category, settingKey] of Object.entries(AUTO_APPROVE_KEYS)) {
-      const rules = config.permission[category];
-      if (rules === undefined) {
+      if (!Object.hasOwn(config.permission, category)) {
         continue;
       }
+      // A `*` deny/ask covers this surface too: shell commands take every one
+      // (as `honorAllToolsOnBash` does), and the edits/urls maps take the ones
+      // that read as a path or URL as `false` entries, which are placed where
+      // they win over a broader `true`.
+      const rules =
+        category === SHELL_PERMISSION_CATEGORY
+          ? bashRulesHonoringAllTools(config.permission)
+          : restateAllToolsRestrictionsInCategory({
+              permission: config.permission,
+              category,
+              restateAs: restatesAsCategoryRule(),
+            });
       patch[settingKey] = buildAutoApproveValue({ category, rules });
     }
     const existingSettings = (): Record<string, unknown> =>

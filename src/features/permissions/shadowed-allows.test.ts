@@ -1,3 +1,5 @@
+import { join } from "node:path";
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import {
@@ -7,6 +9,7 @@ import {
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import type { PermissionsConfig } from "../../types/permissions.js";
+import { writeFileContent } from "../../utils/file.js";
 import { AntigravityCliPermissions } from "./antigravity-cli-permissions.js";
 import { AntigravityIdePermissions } from "./antigravity-ide-permissions.js";
 import { AugmentcodePermissions } from "./augmentcode-permissions.js";
@@ -14,17 +17,20 @@ import { CodebuddyPermissions } from "./codebuddy-permissions.js";
 import { CodexcliPermissions } from "./codexcli-permissions.js";
 import { CommandcodePermissions } from "./commandcode-permissions.js";
 import { ContinuePermissions } from "./continue-permissions.js";
+import { CopilotPermissions } from "./copilot-permissions.js";
 import { CopilotcliPermissions } from "./copilotcli-permissions.js";
 import { CrushPermissions } from "./crush-permissions.js";
 import { CursorPermissions } from "./cursor-permissions.js";
 import { DevinPermissions } from "./devin-permissions.js";
 import { GrokcliPermissions } from "./grokcli-permissions.js";
 import { JuniePermissions } from "./junie-permissions.js";
+import { KiloPermissions } from "./kilo-permissions.js";
 import { KimiCodePermissions } from "./kimi-code-permissions.js";
 import { KiroCapabilityPermissions } from "./kiro-capability-permissions.js";
 import { LettacodePermissions } from "./lettacode-permissions.js";
 import { OpencodePermissions } from "./opencode-permissions.js";
 import { PoolPermissions } from "./pool-permissions.js";
+import { QoderPermissions } from "./qoder-permissions.js";
 import { QwencodePermissions } from "./qwencode-permissions.js";
 import { ReasonixPermissions } from "./reasonix-permissions.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
@@ -89,6 +95,20 @@ describe("honorAllToolsRestrictions", () => {
       toolLabel: "Tool",
     });
     expect(trailingGlobstar.read).toEqual({});
+  });
+
+  it("reads a trailing ' *' as optional and a brace alternation as overlapping everything", () => {
+    const result = honorAllToolsRestrictions({
+      permission: {
+        "*": { secrets: "deny", "{a,b}.env": "ask" },
+        bash: { "secrets *": "allow" },
+        read: { "src/**": "allow" },
+      },
+      toolLabel: "Tool",
+    });
+
+    expect(result.bash?.["secrets *"]).toBeUndefined();
+    expect(result.read).toEqual({});
   });
 
   it("compares webfetch patterns case-insensitively and without their scheme", () => {
@@ -417,10 +437,138 @@ describe("translators never leave an allow that covers a restriction they cannot
       }
     });
 
-    it("Vibe withholds the read_file allow instead of writing it always", async () => {
+    it("Vibe writes a withheld read_file catch-all as ask and the '*' deny into its denylist", async () => {
       const content = await generate({ generator: VibePermissions, permission: envDeny });
       expect(content).not.toContain('"always"');
-      expect(content).not.toContain("read_file");
+      expect(content).toContain('[tools.read_file]\npermission = "ask"\ndenylist = [ ".env" ]');
+    });
+
+    it("Vibe replaces a stale always and allowlist entry left by the withheld allow", async () => {
+      await writeFileContent(
+        join(testDir, ".vibe", "config.toml"),
+        '[tools.read_file]\npermission = "always"\nallowlist = ["src/**"]\n',
+      );
+      const catchAll = await generate({ generator: VibePermissions, permission: envDeny });
+      expect(catchAll).not.toContain('"always"');
+      await writeFileContent(
+        join(testDir, ".vibe", "config.toml"),
+        '[tools.read_file]\npermission = "always"\nallowlist = ["src/**"]\n',
+      );
+      const pattern = await generate({
+        generator: VibePermissions,
+        permission: { "*": { "**/.env": "deny" }, read: { "src/**": "allow" } },
+      });
+      expect(pattern).not.toContain('"always"');
+      expect(pattern).not.toContain("allowlist");
+    });
+
+    it("Kilo restates the '*' deny after the read allow that would override it", async () => {
+      const content = await generate({
+        generator: KiloPermissions,
+        permission: { "*": { "**/.env": "deny" }, read: { "*": "allow" } },
+      });
+      const read = Object.entries(JSON.parse(content).permission.read as Record<string, string>);
+      expect(read.at(-1)).toEqual(["**/.env", "deny"]);
+    });
+
+    it("OpenCode moves an own deny that absorbs a '*' ask below the allow after it", async () => {
+      expect(
+        await openCodeReadRules({
+          "*": { ".env": "ask" },
+          read: { ".env": "deny", "*": "allow" },
+        }),
+      ).toEqual([
+        ["*", "allow"],
+        [".env", "deny"],
+      ]);
+    });
+
+    it("OpenCode reads a trailing ' *' as optional when restating", async () => {
+      expect(
+        await openCodeReadRules({
+          "*": { secrets: "ask" },
+          read: { "*": "allow", "secrets *": "deny" },
+        }),
+      ).toEqual([
+        ["*", "allow"],
+        ["secrets", "ask"],
+        ["secrets *", "deny"],
+      ]);
+    });
+
+    it.each([
+      { read: { ".": "allow", "./**": "allow", "**/.env": "deny" } },
+      { "*": { "**/.env": "deny" }, read: { src: "allow" } },
+      { bash: { "git push": "allow", "* --force": "deny" } },
+      { webfetch: { localhost: "allow", "http://localhost:*/*": "deny" } },
+      { webfetch: { "https://Evil.com/x": "allow", "*evil*": "deny" } },
+    ] as PermissionsConfig["permission"][])(
+      "Antigravity compares what the emitted target grants: %j",
+      async (permission) => {
+        const content = await generate({
+          generator: AntigravityCliPermissions,
+          permission,
+          global: true,
+        });
+        expect(JSON.parse(content).permissions.allow).toBeUndefined();
+      },
+    );
+
+    it("Antigravity still writes allows no restriction covers", async () => {
+      const content = await generate({
+        generator: AntigravityCliPermissions,
+        permission: { read: { src: "allow" }, bash: { "git status": "allow" } },
+        global: true,
+      });
+      expect(JSON.parse(content).permissions.allow).toEqual([
+        "command(git status)",
+        "read_file(src)",
+      ]);
+    });
+
+    it("Codex CLI and TRAE withhold a host allow a URL-path restriction covers", async () => {
+      for (const permission of [
+        {
+          "*": { "https://upload.example.com/*": "deny" },
+          webfetch: { "upload.example.com": "allow" },
+        },
+        { webfetch: { "example.com": "allow", "https://example.com/upload/*": "ask" } },
+      ] as PermissionsConfig["permission"][]) {
+        const codex = await generate({ generator: CodexcliPermissions, permission });
+        expect(codex).not.toMatch(/example\.com" = "allow"/);
+        const trae = await generate({ generator: TraePermissions, permission, global: true });
+        expect(trae).not.toContain('"allow": [');
+      }
+    });
+
+    it("Codex CLI writes a '*' path deny into its filesystem rules", async () => {
+      const content = await generate({
+        generator: CodexcliPermissions,
+        permission: {
+          "*": { "**/.env": "deny", "git push *": "deny" },
+          edit: { "src/**": "allow" },
+        },
+      });
+      expect(content).toContain('"**/.env" = "deny"');
+      expect(content).not.toContain("git push");
+    });
+
+    it("Copilot (VS Code) writes the '*' restrictions as false entries", async () => {
+      const content = await generate({
+        generator: CopilotPermissions,
+        permission: {
+          "*": { "**/.env": "deny", "rm *": "deny" },
+          edit: { "*": "allow" },
+          bash: { "*": "allow" },
+        },
+      });
+      const settings = JSON.parse(content) as Record<string, Record<string, boolean>>;
+      expect(Object.entries(settings["chat.tools.edits.autoApprove"] ?? {})).toEqual([
+        ["*", true],
+        ["**/.env", false],
+      ]);
+      expect(settings["chat.tools.terminal.autoApprove"]?.["rm *"]).toBe(false);
+      expect(settings["chat.tools.terminal.autoApprove"]?.["*"]).toBeUndefined();
     });
 
     it("TRAE and Codex CLI withhold the network allow a '*' restriction covers", async () => {
@@ -440,11 +588,8 @@ describe("translators never leave an allow that covers a restriction they cannot
     });
 
     it.each([
-      ["CodeBuddy", CodebuddyPermissions, false],
-      ["Command Code", CommandcodePermissions, false],
       ["Continue", ContinuePermissions, true],
       ["Grok CLI", GrokcliPermissions, false],
-      ["Letta Code", LettacodePermissions, false],
       ["Kiro permissions.yaml", KiroCapabilityPermissions, true],
     ] as const)("%s writes no allow for the covered categories", async (_, generator, global) => {
       const baseline = await generate({
@@ -457,6 +602,38 @@ describe("translators never leave an allow that covers a restriction they cannot
       expect(content).not.toMatch(/Read|Edit|fs_read|fs_write/);
     });
 
+    it.each([
+      ["CodeBuddy", CodebuddyPermissions, "ask"],
+      ["Qoder", QoderPermissions, "ask"],
+      ["Command Code", CommandcodePermissions, "ask"],
+      ["Letta Code", LettacodePermissions, "alwaysAsk"],
+      ["Qwen Code", QwencodePermissions, "ask"],
+    ] as const)(
+      "%s writes the '*' path deny and ask as Read rules instead of falling back to its default",
+      async (_, generator, askKey) => {
+        const content = await generate({
+          generator,
+          permission: { "*": { ".env": "deny", "secrets/**": "ask" }, read: { "*": "allow" } },
+        });
+        const lists = JSON.parse(content).permissions as Record<string, string[]>;
+        expect(lists.deny).toContain("Read(.env)");
+        expect(lists[askKey]).toContain("Read(secrets/**)");
+        expect(lists.allow ?? []).not.toContain("Read");
+      },
+    );
+
+    it("AugmentCode falls back to ask-user when the shadowing '*' restriction is only an ask", async () => {
+      const content = await generate({
+        generator: AugmentcodePermissions,
+        permission: { "*": { ".env": "ask" }, read: { "*": "allow" } },
+      });
+      const entries = JSON.parse(content).toolPermissions as Array<{
+        toolName: string;
+        permission: { type: string };
+      }>;
+      expect(entries.find(({ toolName }) => toolName === "view")?.permission.type).toBe("ask-user");
+    });
+
     it("AugmentCode gives a tool whose allows were all withheld the blanket '*' fallback", async () => {
       const content = await generate({ generator: AugmentcodePermissions, permission: envDeny });
       const entries = JSON.parse(content).toolPermissions as Array<{
@@ -466,6 +643,14 @@ describe("translators never leave an allow that covers a restriction they cannot
       expect(entries.find(({ toolName }) => toolName === "view")?.permission.type).toBe("deny");
       expect(entries.some(({ permission }) => permission.type === "allow")).toBe(false);
     });
+  });
+
+  it("Takt derives readonly from an ask in a file category", async () => {
+    const content = await generate({
+      generator: TaktPermissions,
+      permission: { edit: { "*": "allow", ".env": "ask" }, bash: { "*": "allow" } },
+    });
+    expect(content).toContain("default_permission_mode: readonly");
   });
 
   it("Junie writes every ask ahead of every allow in a group", async () => {

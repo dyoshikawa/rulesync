@@ -1,5 +1,6 @@
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { type Logger, warnWithFallback } from "../../utils/logger.js";
+import { lookupOwn } from "../../utils/own-lookup.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import {
   ALL_TOOLS_PERMISSION_CATEGORY,
@@ -8,6 +9,7 @@ import {
   createShadowingRestrictionsTest,
   SHELL_PERMISSION_CATEGORY,
 } from "./shell-command-categories.js";
+import { isStricterAction } from "./single-action-collapse.js";
 
 type Permission = PermissionsConfig["permission"];
 
@@ -19,15 +21,16 @@ const WEBFETCH_CATEGORY = "webfetch";
  * and `evil.example/*` are compared as the same host. Hosts are case-insensitive
  * and a scheme-less allow covers every scheme.
  */
-function normalizeUrlPattern(pattern: string): string {
+export function normalizeUrlPattern(pattern: string): string {
   return pattern.toLowerCase().replace(/^[a-z][a-z0-9+.-]*:\/\//, "");
 }
 
 /**
  * Whether any of `restrictions` overlaps an allow pattern of `category`. For
  * `webfetch` the patterns are compared both as written and normalized (see
- * `normalizeUrlPattern`), and an overlap in either counts, so normalizing can
- * only find more overlaps, never fewer.
+ * `normalizeUrlPattern`), a pathless allow is also widened to its whole host,
+ * and an overlap in any of them counts, so this can only find more overlaps,
+ * never fewer.
  */
 function createCategoryShadowTest({
   restrictions,
@@ -46,8 +49,16 @@ function createCategoryShadowTest({
       fromAllToolsCategory,
     })),
   );
-  return (allowPattern) =>
-    asWritten(allowPattern).length > 0 || normalized(normalizeUrlPattern(allowPattern)).length > 0;
+  return (allowPattern) => {
+    if (asWritten(allowPattern).length > 0) return true;
+    const host = normalizeUrlPattern(allowPattern);
+    // A pathless allow is a host, which a domain-only tool (Codex, TRAE) reads
+    // as every URL on it and possibly its subdomains, so it is also compared
+    // as `*<host>*` against a restriction that names a URL path.
+    return [host, ...(host.includes("/") ? [] : [`*${host}*`])].some(
+      (spelling) => normalized(spelling).length > 0,
+    );
+  };
 }
 
 /** One allow rule left out of a tool's config, named as `<category>: <pattern>`. */
@@ -112,6 +123,14 @@ function keepAllToolsCatchAll({
  *   removed, for a tool that would otherwise write them as an inert literal
  *   `*(<pattern>)` rule. They are honored by the withholding above.
  *
+ * `restateAs` says which pattern-specific `*` restrictions the tool can write
+ * as a rule of the category itself (`Read(.env)`), for a tool whose default for
+ * an input with no rule would auto-approve it: such a restriction is copied
+ * into each stated category it applies to (see `restatesAsCategoryRule`), so
+ * the input stays restricted after its allow is withheld.
+ * `downgradeWithheldCatchAll` writes a withheld catch-all `*` allow as `ask`
+ * rather than dropping it, for a tool that keeps a stale `always` otherwise.
+ *
  * `writesAllToolsCatchAll` says the tool already enforces a `*` catch-all
  * (`{"*": {"*": "ask"}}`) natively over its per-tool allows, so the catch-all
  * is left out of the withholding. `isCatchAll` says which spellings the tool
@@ -126,6 +145,8 @@ export function honorAllToolsRestrictions({
   writesAllToolsCatchAll = false,
   dropAllToolsPatterns = false,
   isCatchAll = (pattern) => pattern === CATCH_ALL_PATTERN,
+  restateAs = () => false,
+  downgradeWithheldCatchAll = false,
 }: {
   permission: Permission;
   toolLabel: string;
@@ -133,6 +154,8 @@ export function honorAllToolsRestrictions({
   writesAllToolsCatchAll?: boolean;
   dropAllToolsPatterns?: boolean;
   isCatchAll?: (pattern: string) => boolean;
+  restateAs?: RestateAs;
+  downgradeWithheldCatchAll?: boolean;
 }): Permission {
   const allToolsRules = Object.hasOwn(permission, ALL_TOOLS_PERMISSION_CATEGORY)
     ? permission[ALL_TOOLS_PERMISSION_CATEGORY]
@@ -184,16 +207,17 @@ export function honorAllToolsRestrictions({
       result[category] = bash;
       continue;
     }
-    const shadowingRestrictions = createCategoryShadowTest({ restrictions, category });
-    const kept: Record<string, PermissionAction> = {};
-    for (const [pattern, action] of Object.entries(rules)) {
-      if (action === "allow" && shadowingRestrictions(pattern)) {
-        withheld.push(describeRule(category, pattern));
-        continue;
-      }
-      kept[pattern] = action;
-    }
-    result[category] = kept;
+    result[category] = honorInCategory({
+      category,
+      rules,
+      restrictions: restrictions.map(({ pattern }) => ({
+        pattern,
+        action: allToolsRules[pattern] ?? "deny",
+      })),
+      restateAs,
+      downgradeWithheldCatchAll,
+      withheld,
+    });
   }
 
   if (withheld.length > 0) {
@@ -205,6 +229,118 @@ export function honorAllToolsRestrictions({
     );
   }
   return result;
+}
+
+/** Which `*` restrictions a tool restates under a category; see `honorAllToolsRestrictions`. */
+type RestateAs = (params: {
+  category: string;
+  pattern: string;
+  action: PermissionAction;
+}) => boolean;
+
+/** File categories whose patterns are paths. */
+const PATH_CATEGORIES = new Set(["read", "edit", "write"]);
+
+/**
+ * The common `restateAs`: a restriction is restated under a path category when
+ * it reads as a path (no whitespace, so not a command such as `git push *`),
+ * and under `webfetch` when it reads as a URL or domain. `actions` limits it to
+ * the actions the tool can write per pattern.
+ */
+export function restatesAsCategoryRule(
+  actions: readonly PermissionAction[] = ["deny", "ask"],
+): RestateAs {
+  return ({ category, pattern, action }) => {
+    if (!actions.includes(action) || pattern === CATCH_ALL_PATTERN) return false;
+    if (PATH_CATEGORIES.has(category)) return !/\s/.test(pattern);
+    if (category === WEBFETCH_CATEGORY) {
+      return /^([a-z][a-z0-9+.-]*:\/\/)?[\w*-]+(\.[\w*-]+)+(:[\w*]+)?(\/\S*)?$/i.test(pattern);
+    }
+    return false;
+  };
+}
+
+/** One non-shell category with the `*` restrictions honored; see the caller. */
+function honorInCategory({
+  category,
+  rules,
+  restrictions,
+  restateAs,
+  downgradeWithheldCatchAll,
+  withheld,
+}: {
+  category: string;
+  rules: Record<string, PermissionAction>;
+  restrictions: { pattern: string; action: PermissionAction }[];
+  restateAs: RestateAs;
+  downgradeWithheldCatchAll: boolean;
+  withheld: string[];
+}): Record<string, PermissionAction> {
+  const shadowingRestrictions = createCategoryShadowTest({
+    restrictions: restrictions.map(({ pattern }) => ({ pattern, fromAllToolsCategory: true })),
+    category,
+  });
+  const kept: Record<string, PermissionAction> = {};
+  for (const [pattern, action] of Object.entries(rules)) {
+    if (action === "allow" && shadowingRestrictions(pattern)) {
+      withheld.push(describeRule(category, pattern));
+      if (downgradeWithheldCatchAll && pattern === CATCH_ALL_PATTERN) {
+        kept[pattern] = "ask";
+      }
+      continue;
+    }
+    kept[pattern] = action;
+  }
+  return restateInCategory({ category, rules: kept, restrictions, restateAs });
+}
+
+function restateInCategory({
+  category,
+  rules,
+  restrictions,
+  restateAs,
+}: {
+  category: string;
+  rules: Record<string, PermissionAction>;
+  restrictions: { pattern: string; action: PermissionAction }[];
+  restateAs: RestateAs;
+}): Record<string, PermissionAction> {
+  const restated = { ...rules };
+  for (const { pattern, action } of restrictions) {
+    if (isPrototypePollutionKey(pattern) || !restateAs({ category, pattern, action })) continue;
+    const existing = Object.hasOwn(restated, pattern) ? restated[pattern] : undefined;
+    if (isStricterAction({ action, existing })) {
+      restated[pattern] = action;
+    }
+  }
+  return restated;
+}
+
+/**
+ * One category's rules with the pattern-specific `*` restrictions `restateAs`
+ * accepts copied in as its own rules (the stricter action wins on a shared
+ * spelling), for a tool that can write them there and needs no allow
+ * withheld, because its own ordering already lets the copied rule win.
+ */
+export function restateAllToolsRestrictionsInCategory({
+  permission,
+  category,
+  restateAs,
+}: {
+  permission: Permission;
+  category: string;
+  restateAs: RestateAs;
+}): Record<string, PermissionAction> {
+  const rules = lookupOwn({ record: permission, key: category }) ?? {};
+  const allToolsRules = lookupOwn({ record: permission, key: ALL_TOOLS_PERMISSION_CATEGORY }) ?? {};
+  return restateInCategory({
+    category,
+    rules,
+    restrictions: Object.entries(allToolsRules)
+      .filter(([, action]) => action !== "allow")
+      .map(([pattern, action]) => ({ pattern, action })),
+    restateAs,
+  });
 }
 
 /**
