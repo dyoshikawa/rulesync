@@ -42,6 +42,7 @@ import {
   honorAllToolsRestrictions,
   restateAllToolsRestrictionsInCategory,
   restatesAsCategoryRule,
+  hasDoubleSlashWithoutScheme,
   stripUrlSchemeKeepingPathCase,
 } from "./shadowed-allows.js";
 import {
@@ -432,8 +433,13 @@ function honorCopilotAllToolsRestrictions({
 }): Record<string, PermissionAction> {
   const allToolsRules = lookupOwn({ record: permission, key: ALL_TOOLS_PERMISSION_CATEGORY }) ?? {};
   const isWritable = restatesAsCategoryRule();
+  // A URL spelled `<host>//<path>` (no `:` before the `//`) is not restated:
+  // its host is ambiguous, so the `true` entries it overlaps on either reading
+  // are withheld instead.
   const restateAs = (params: { category: string; pattern: string; action: PermissionAction }) =>
-    params.pattern === CATCH_ALL_PATTERN || isWritable(params);
+    params.pattern === CATCH_ALL_PATTERN ||
+    (isWritable(params) &&
+      !(params.category === "webfetch" && hasDoubleSlashWithoutScheme(params.pattern)));
   const writable: Record<string, PermissionAction> = {};
   const notWritable: Record<string, PermissionAction> = {};
   for (const [pattern, action] of Object.entries(allToolsRules)) {
