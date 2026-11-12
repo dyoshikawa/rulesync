@@ -126,6 +126,8 @@ describe("buildAntigravityPermissionEntry", () => {
       ["~/notes", "allow", "read_file(~/notes)"],
       ["config/${XDG_NAME}/x", "deny", "read_file(config/${XDG_NAME}/x)"],
       ["%USERPROFILE%/.ssh/**", "deny", "read_file(%USERPROFILE%/.ssh)"],
+      ["%ProgramFiles(x86)%/App/**", "deny", "read_file(%ProgramFiles(x86)%/App)"],
+      ["%Common Files%/x.txt", "deny", "read_file(%Common Files%/x.txt)"],
       ["~\\.ssh\\id_rsa", "deny", "read_file(~\\.ssh\\id_rsa)"],
       ["~alice/.ssh/id_rsa", "deny", "read_file(~alice/.ssh/id_rsa)"],
       ["~alice/**", "deny", "read_file(~alice)"],
