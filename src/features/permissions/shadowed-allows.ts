@@ -29,11 +29,37 @@ export function normalizeUrlPattern(pattern: string): string {
 /**
  * A URL pattern with its scheme stripped and only its host lowercased, for
  * writing it into a tool that matches paths case-sensitively (Copilot in VS
- * Code). A scheme spelled as a glob (a `*` scheme, `http*`, or a bare double
- * slash after a `*`) is stripped too.
+ * Code). A scheme spelled as a glob (a `*` scheme, `http*://`, or a bare double
+ * slash after a `*` or at the start) is stripped too. A double slash after
+ * anything else without a `:` is part of the path, so `evil.com//x` keeps its
+ * host `evil.com`.
  */
 export function stripUrlSchemeKeepingPathCase(pattern: string): string {
-  const withoutScheme = pattern.replace(/^[a-z0-9+.*-]*:?\/\//i, "");
+  return keepingPathCase(pattern.replace(/^(?:[a-z0-9+.*-]*:|\*)?\/\//i, ""));
+}
+
+/**
+ * The reading `stripUrlSchemeKeepingPathCase` gave before it required a `:`,
+ * which took any `<word>//` prefix for a scheme (`evil.com//x` became `x`).
+ * Overlap checks compare this reading too, so requiring the `:` only ever
+ * adds overlaps and never lets through an allow that was withheld before.
+ */
+function stripUrlSchemeLoosely(pattern: string): string {
+  return keepingPathCase(pattern.replace(/^[a-z0-9+.*-]*:?\/\//i, ""));
+}
+
+/**
+ * Whether a URL pattern has a `<word>//` prefix without a `:` (`evil.com//x`),
+ * which an earlier reading took for a scheme. Such a pattern names a host
+ * other than the one that reading gave, so a tool should not be handed a
+ * rewritten form of it.
+ */
+export function hasDoubleSlashWithoutScheme(pattern: string): boolean {
+  return stripUrlSchemeKeepingPathCase(pattern) !== stripUrlSchemeLoosely(pattern);
+}
+
+/** A scheme-less URL pattern with only its host lowercased. */
+function keepingPathCase(withoutScheme: string): string {
   const slash = withoutScheme.indexOf("/");
   return slash === -1
     ? withoutScheme.toLowerCase()
@@ -42,9 +68,9 @@ export function stripUrlSchemeKeepingPathCase(pattern: string): string {
 
 type UrlPatternParts = { host: string; port: string | undefined; path: string | undefined };
 
-/** Split a lowercased, scheme-less URL or domain pattern into host, port and path. */
-function splitUrlPattern(pattern: string): UrlPatternParts {
-  const normalized = stripUrlSchemeKeepingPathCase(pattern).toLowerCase();
+/** Split a scheme-less URL or domain pattern into lowercased host, port and path. */
+function splitUrlPattern(withoutScheme: string): UrlPatternParts {
+  const normalized = withoutScheme.toLowerCase();
   const slash = normalized.indexOf("/");
   const hostPort = slash === -1 ? normalized : normalized.slice(0, slash);
   const path = slash === -1 ? undefined : normalized.slice(slash);
@@ -62,8 +88,10 @@ function splitUrlPattern(pattern: string): UrlPatternParts {
  * tools read as every URL on it, on any port, and on its subdomains, so a
  * missing path or port matches every path or port, and each host also stands
  * for `*.<host>`. Because a glob can also match across those parts, the
- * whole strings are compared as well, and an overlap from either counts. A
- * pattern holding whitespace names no URL.
+ * whole strings are compared as well, a pathless `right` also as `<host>/*`
+ * (so an allowed `example.com` overlaps a restricted `*.pdf`), and an overlap
+ * from any of them counts. A pattern holding whitespace names no URL. Callers
+ * pass the restriction as `left` and the allow as `right`.
  */
 export function urlPatternsOverlap(left: string, right: string): boolean {
   if (left === right) return true;
@@ -77,12 +105,21 @@ export function urlPatternsOverlap(left: string, right: string): boolean {
  * The whole-string comparison a `*` restriction also gets, since a glob there
  * matches the whole URL (`*.pdf` names `https://example.com/doc.pdf`): the two
  * patterns compared as written and lowercased without a scheme, each widened
- * by `createShadowingRestrictionsTest`.
+ * by `createShadowingRestrictionsTest`. A pathless allow (`right`) is a host
+ * and stands for every path on it, so against a restriction without a `/`
+ * (`*.pdf`, `*admin`) it is also compared as `<host>/*`. A restriction with a
+ * `/` names its host and path itself and is compared part by part instead, and
+ * a pathless restriction is not widened: `.env/*` would reach every allow that
+ * starts with a `*` (`*.github.com`), and `*://evil.com/*` against
+ * `good.com/*` would match through the `*`.
  */
 function wholeStringsOverlap(left: string, right: string): boolean {
+  const normalizedLeft = normalizeUrlPattern(left);
+  const normalizedRight = normalizeUrlPattern(right);
   return [
     [left, right],
-    [normalizeUrlPattern(left), normalizeUrlPattern(right)],
+    [normalizedLeft, normalizedRight],
+    ...(normalizedLeft.includes("/") ? [] : [[normalizedLeft, withAnyPath(normalizedRight)]]),
   ].some(
     ([restriction = "", allow = ""]) =>
       createShadowingRestrictionsTest([{ pattern: restriction, fromAllToolsCategory: false }])(
@@ -91,9 +128,22 @@ function wholeStringsOverlap(left: string, right: string): boolean {
   );
 }
 
+/** A scheme-less pattern with `/*` appended when it has no path. */
+function withAnyPath(withoutScheme: string): string {
+  return stripUrlSchemeKeepingPathCase(withoutScheme).includes("/")
+    ? withoutScheme
+    : `${withoutScheme}/*`;
+}
+
 function urlPartsOverlap(left: string, right: string): boolean {
-  const a = splitUrlPattern(left);
-  const b = splitUrlPattern(right);
+  const readings = (pattern: string): UrlPatternParts[] =>
+    [...new Set([stripUrlSchemeKeepingPathCase(pattern), stripUrlSchemeLoosely(pattern)])].map(
+      splitUrlPattern,
+    );
+  return readings(left).some((a) => readings(right).some((b) => urlPartsPairOverlap(a, b)));
+}
+
+function urlPartsPairOverlap(a: UrlPatternParts, b: UrlPatternParts): boolean {
   const hosts = (host: string): string[] => [host, `*.${host}`];
   const hostsOverlap = hosts(a.host).some((x) => hosts(b.host).some((y) => globsIntersect(x, y)));
   if (!hostsOverlap) return false;

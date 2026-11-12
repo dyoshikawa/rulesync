@@ -90,6 +90,19 @@ describe("CopilotPermissions", () => {
       expect(json[URLS_KEY]).toEqual({ "internal.example": false, "*": true });
     });
 
+    it("withholds the url allows a '<host>//<path>' restriction under '*' covers instead of rewriting it", async () => {
+      const permissions = await CopilotPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          "*": { "Evil.com//Admin": "deny" },
+          webfetch: { "evil.com": "allow", admin: "allow", "good.com/z": "allow" },
+        }),
+      });
+
+      const json = JSON.parse(permissions.getFileContent());
+      expect(json[URLS_KEY]).toEqual({ "good.com/z": true });
+    });
+
     it("orders false entries where VS Code lets them win: last for edits, first for urls", async () => {
       const permissions = await CopilotPermissions.fromRulesyncPermissions({
         outputRoot: testDir,

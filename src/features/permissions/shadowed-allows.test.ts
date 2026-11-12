@@ -36,6 +36,7 @@ import { ReasonixPermissions } from "./reasonix-permissions.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   honorAllToolsRestrictions,
+  stripUrlSchemeKeepingPathCase,
   urlPatternsOverlap,
   withholdAllowsShadowedByAsks,
 } from "./shadowed-allows.js";
@@ -180,6 +181,14 @@ describe("urlPatternsOverlap", () => {
     ["{evil,bad}.com", "evil.com"],
     ["*://github.com/private/*", "github.com"],
     ["github.com/private/*", "*://github.com/*"],
+    // A pathless host allow stands for every path on that host.
+    ["*.pdf", "example.com"],
+    ["*admin", "example.com"],
+    ["*.pdf", "*.github.com"],
+    // `<host>//<path>` keeps its host, and the reading that took `evil.com//`
+    // for a scheme is still compared, so neither drops an overlap.
+    ["evil.com//x", "evil.com"],
+    ["evil.com//x", "x"],
   ])("%s overlaps %s", (left, right) => {
     expect(urlPatternsOverlap(left, right)).toBe(true);
   });
@@ -191,8 +200,28 @@ describe("urlPatternsOverlap", () => {
     ["example.com", "*.github.com:443"],
     ["github.com:80", "github.com:443"],
     ["example.com/a/*", "example.com/b/*"],
+    [".env", "*.github.com"],
+    ["*://evil.com/*", "good.com"],
+    ["*evil.com/*", "good.com"],
+    ["evil.com//x", "evil.com/z"],
   ])("%s does not overlap %s", (left, right) => {
     expect(urlPatternsOverlap(left, right)).toBe(false);
+  });
+});
+
+describe("stripUrlSchemeKeepingPathCase", () => {
+  it.each([
+    ["HTTPS://Evil.com/Admin", "evil.com/Admin"],
+    ["http*://Evil.com/Admin", "evil.com/Admin"],
+    ["*://Evil.com/Admin", "evil.com/Admin"],
+    ["*//Evil.com/Admin", "evil.com/Admin"],
+    ["//Evil.com/Admin", "evil.com/Admin"],
+    ["Evil.com", "evil.com"],
+    // No `:` before the `//`: the double slash is part of the path.
+    ["Evil.com//Admin", "evil.com//Admin"],
+    ["evil.com//x", "evil.com//x"],
+  ])("reads %s as %s", (pattern, expected) => {
+    expect(stripUrlSchemeKeepingPathCase(pattern)).toBe(expected);
   });
 });
 
@@ -212,6 +241,24 @@ describe("webfetch overlap through the adapters' helpers", () => {
       toolLabel: "Tool",
     });
     expect(command.webfetch).toEqual({ "github.com": "allow" });
+  });
+
+  it("withholds a pathless host allow a '*' suffix glob or a '<host>//<path>' restriction covers", () => {
+    for (const restriction of ["*.pdf", "evil.com//x"]) {
+      const result = honorAllToolsRestrictions({
+        permission: {
+          "*": { [restriction]: "deny" },
+          webfetch: { "example.com": "allow", "evil.com": "allow" },
+        },
+        toolLabel: "Tool",
+      });
+      expect(result.webfetch?.["evil.com"]).toBeUndefined();
+    }
+    const pdf = honorAllToolsRestrictions({
+      permission: { "*": { "*.pdf": "deny" }, webfetch: { "example.com": "allow" } },
+      toolLabel: "Tool",
+    });
+    expect(pdf.webfetch).toEqual({});
   });
 
   it("withholds a webfetch allow an in-category ask covers", () => {
