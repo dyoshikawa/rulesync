@@ -61,10 +61,12 @@ const MATCH_ALL_PATH_GLOBS = new Set(["*", "**", "**/*"]);
 // A trailing glob that means "everything under this directory".
 const DIRECTORY_CONTENTS_SUFFIX = /\/\*\*(?:\/\*)?$/;
 
-// A path that is `~` or starts with `~/` or a `$NAME` variable, or holds a
-// `${NAME}` reference. A `$` or `~` elsewhere is an ordinary file name
-// character (`routes/posts.$postId.tsx`, `~$report.docx`).
-const HOME_OR_VARIABLE_PATH = /^~(?:\/|$)|^\$[A-Za-z_]|\$\{[A-Za-z_]/;
+// A path that is `~`, starts with `~/`, `~\`, `~user` or `~user/`, starts with
+// a `$NAME` or `%NAME%` variable, or holds a `${NAME}` reference. A `$`, `%` or
+// `~` elsewhere is an ordinary file name character (`routes/posts.$postId.tsx`,
+// `~$report.docx`, `~$tmp/x`).
+const HOME_OR_VARIABLE_PATH =
+  /^~(?:[A-Za-z_][\w.-]*)?(?:[/\\]|$)|^\$[A-Za-z_]|^%[A-Za-z_]\w*%|\$\{[A-Za-z_]/;
 
 // A path that is the home directory itself or starts in it, written with `~`.
 const LEADING_HOME = /^~(?:\/|$)/;
@@ -83,7 +85,7 @@ function toAntigravityHomePath(homeDirectory: string): string {
  * apply (rulesync#3324). Only a file the user's own home holds, such as the
  * global Antigravity CLI settings, may carry a machine-specific path, so the
  * caller passes `homeDirectory` only then. `$HOME`, `${HOME}`, `%VAR%` and
- * `~user/` are left as written (the variable forms are still warned about).
+ * `~user/` are left as written and still warned about.
  */
 function expandLeadingHome(target: string, homeDirectory: string | undefined): string {
   if (homeDirectory === undefined || !LEADING_HOME.test(target)) {
