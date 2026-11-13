@@ -118,6 +118,16 @@ describe("createShadowingRestrictionsTest", () => {
     expect(shadowed("unrelated.sh")).toEqual(["backup-{1..3}.sh"]);
   });
 
+  it("also withholds allows covered by a nested brace range", () => {
+    // The overlap-only regex searches every brace group, including {1..3}
+    // nested inside {x,...}. Expanding that inner range must not grant allows.
+    const pattern = "backup-{x,{1..3}}.sh";
+    const shadowed = createShadowingRestrictionsTest([allToolsRule(pattern, "deny")]);
+
+    expect(shadowed("backup-2.sh")).toEqual([pattern]);
+    expect(shadowed("unrelated.sh")).toEqual([pattern]);
+  });
+
   it("compares the two patterns in both directions", () => {
     // The stricter rule wins whatever its width, so a broad restriction covers
     // a narrow allow and a broad allow is covered by a narrow restriction.
