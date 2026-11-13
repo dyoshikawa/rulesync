@@ -669,6 +669,7 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         // AGENTS.md, matching the codexcli target.
         // https://docs.snowflake.com/en/user-guide/cortex-code/cortex-code
         extension: "md",
+        // The adapter only handles the project-root AGENTS.md.
         supportsGlobal: false,
         ruleDiscoveryMode: "auto",
         collisionPolicy: "fold",
