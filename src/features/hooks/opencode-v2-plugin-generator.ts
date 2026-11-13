@@ -1,9 +1,10 @@
-// cspell:ignore nothrow -- Bun Shell API
 import { HooksConfig } from "../../types/hooks.js";
 import {
+  buildPayloadClosureLines,
+  buildRunHelperLines,
   buildRunStatement,
-  PRE_TOOL_USE_RESULT_HELPER_LINES,
-  stdinPayloadVariable,
+  type RunnableHandler,
+  type StdinPayload,
   validateAndSanitizeMatcher,
 } from "./opencode-style-generator.js";
 
@@ -19,10 +20,7 @@ import {
  * option; the per-type checks inside the loop stay, so an older 2.x that
  * ignores it still runs each command only for its own event).
  *
- * Commands run through a private Bun Shell instance (`new Bun.$.Shell()`, the
- * plugin runs inside the Bun-built OpenCode binary) whose working directory is
- * the plugin location's directory, so the global `Bun.$` defaults other
- * plugins see are left alone.
+ * Commands run in the plugin location's directory (see `buildRunHelperLines`).
  *
  * @see https://opencode.ai/v2/docs/build/plugins/
  */
@@ -48,14 +46,26 @@ const OPENCODE_V2_HANDLER_GATES: Record<string, string> = {
 };
 
 /**
- * Canonical events whose command receives a Claude Code-style `PreToolUse`
- * JSON payload on stdin and whose result can deny the call. Throwing from an
- * `execute.before` hook fails the tool call with the error message, which the
- * model sees — the same contract the V1 plugin implements, interpreted by the
- * shared `PRE_TOOL_USE_RESULT_HELPER`.
+ * The V2 counterparts of the V1 stdin payloads (`STDIN_PAYLOADS`), plus
+ * Claude Code's `PostToolUseFailure` input for a failed call.
  */
-const OPENCODE_V2_STDIN_PAYLOAD_EVENTS: Record<string, string> = {
-  preToolUse: "PreToolUse",
+const TOOL_CALL_FIELDS = [
+  "session_id: event.sessionID",
+  "tool_use_id: event.id",
+  "tool_name: event.tool",
+  "tool_input: event.input",
+];
+const OPENCODE_V2_STDIN_PAYLOADS: Record<string, StdinPayload> = {
+  preToolUse: { name: "PreToolUse", fields: TOOL_CALL_FIELDS },
+  postToolUse: {
+    name: "PostToolUse",
+    fields: [...TOOL_CALL_FIELDS, "tool_response: event.result"],
+  },
+  postToolUseFailure: {
+    name: "PostToolUseFailure",
+    fields: [...TOOL_CALL_FIELDS, "error: event.error?.message ?? event.error"],
+  },
+  stop: { name: "Stop", fields: ["session_id: event.data?.sessionID"] },
 };
 
 /**
@@ -80,11 +90,9 @@ const OPENCODE_V2_MATCHABLE_HOOKS: ReadonlySet<string> = new Set([
   "tool:execute.after",
 ]);
 
-type V2Handler = {
-  command: string;
+type V2Handler = RunnableHandler & {
   matcher?: string;
   gate?: string;
-  stdinEvent?: string;
 };
 
 /** Wrap a statement in the handler's gate and matcher conditions. */
@@ -108,25 +116,11 @@ function buildHookRegistrationLines(hookPoint: string, handlers: V2Handler[]): s
   const lines: string[] = [];
   lines.push("__rulesyncRegistrations.push(");
   lines.push(`  await ctx.${domain}.hook("${name}", async (event) => {`);
-  // Serialized at most once per invocation, by the first handler that runs.
-  // `stdinEvent` only ever holds a value from the payload table, never user
-  // input, so it is safe to emit as an identifier suffix and a string.
-  const stdinEvents = [
-    ...new Set(handlers.flatMap((handler) => (handler.stdinEvent ? [handler.stdinEvent] : []))),
-  ];
-  for (const stdinEvent of stdinEvents) {
-    const payload = stdinPayloadVariable(stdinEvent);
-    lines.push(`    let ${payload}Cache;`);
-    lines.push(`    const ${payload} = () =>`);
-    lines.push(`      (${payload}Cache ??= JSON.stringify({`);
-    lines.push(`        hook_event_name: "${stdinEvent}",`);
-    lines.push("        session_id: event.sessionID,");
-    lines.push("        tool_use_id: event.id,");
-    lines.push("        tool_name: event.tool,");
-    lines.push("        tool_input: event.input,");
-    lines.push("        cwd: directory,");
-    lines.push("      }));");
-  }
+  lines.push(
+    ...buildPayloadClosureLines({ handlers, cwdExpression: "directory" }).map(
+      (line) => `    ${line}`,
+    ),
+  );
   for (const handler of handlers) {
     lines.push(...wrapInConditions(handler, buildRunStatement(handler), "    "));
   }
@@ -136,9 +130,10 @@ function buildHookRegistrationLines(hookPoint: string, handlers: V2Handler[]): s
 }
 
 /**
- * Emit the event-stream loop. Each command is isolated in its own try/catch so
- * a failing hook neither skips its siblings nor ends the subscription. The
- * subscription passes `types` so the server delivers only the handled events.
+ * Emit the event-stream loop. Event handlers are non-blocking, so
+ * `__rulesyncRunHook` logs a failing command instead of throwing, and it
+ * neither skips its siblings nor ends the subscription. The subscription
+ * passes `types` so the server delivers only the handled events.
  */
 function buildEventLoopLines(eventHandlers: Map<string, V2Handler[]>): string[] {
   const lines: string[] = [];
@@ -154,12 +149,13 @@ function buildEventLoopLines(eventHandlers: Map<string, V2Handler[]>): string[] 
   for (const [eventType, handlers] of eventHandlers) {
     lines.push(`    ${isFirst ? "if" : "} else if"} (event.type === "${eventType}") {`);
     isFirst = false;
+    lines.push(
+      ...buildPayloadClosureLines({ handlers, cwdExpression: "directory" }).map(
+        (line) => `      ${line}`,
+      ),
+    );
     for (const handler of handlers) {
-      lines.push("      try {");
-      lines.push(...wrapInConditions(handler, buildRunStatement(handler), "        "));
-      lines.push("      } catch (error) {");
-      lines.push(`        console.error("[rulesync-hooks] ${eventType} hook failed:", error);`);
-      lines.push("      }");
+      lines.push(...wrapInConditions(handler, buildRunStatement(handler), "      "));
     }
   }
   lines.push("    }");
@@ -179,7 +175,7 @@ function buildHandlersFor({
   target: string;
 }): V2Handler[] {
   const gate = OPENCODE_V2_HANDLER_GATES[canonicalEvent];
-  const stdinEvent = OPENCODE_V2_STDIN_PAYLOAD_EVENTS[canonicalEvent];
+  const payload = OPENCODE_V2_STDIN_PAYLOADS[canonicalEvent];
   // The shell events and the non-tool hook points have nothing to test a
   // matcher against; matcher-carrying definitions there are skipped, matching
   // the "Skipped matcher hook(s)" warning the processor already emitted.
@@ -194,9 +190,13 @@ function buildHandlersFor({
     if (def.matcher && !matcherSupported) continue;
     handlers.push({
       command: def.command,
+      event: canonicalEvent,
+      // Every hook point but `execute.after` runs before its action, which a
+      // throw aborts; the event stream only observes.
+      blocking: !target.startsWith("event:") && target !== "tool:execute.after",
       ...(def.matcher ? { matcher: def.matcher } : {}),
       ...(gate ? { gate } : {}),
-      ...(stdinEvent ? { stdinEvent } : {}),
+      ...(payload ? { payload } : {}),
     });
   }
   return handlers;
@@ -211,19 +211,15 @@ function buildSetupBodyLines({
   eventHandlers: Map<string, V2Handler[]>;
 }): string[] {
   if (hookHandlers.size === 0 && eventHandlers.size === 0) return [];
-  const usesStdinPayload = [...hookHandlers.values()].some((handlers) =>
-    handlers.some((handler) => handler.stdinEvent !== undefined),
-  );
 
   const body: string[] = [
     "const directory = ctx.location?.directory ?? process.cwd();",
-    "const $ = new Bun.$.Shell();",
-    "$.cwd(directory);",
+    "",
+    ...buildRunHelperLines({
+      handlers: [...hookHandlers.values(), ...eventHandlers.values()].flat(),
+      cwdExpression: "directory",
+    }),
   ];
-  // The deny-aware result helper is defined only when a handler uses it.
-  if (usesStdinPayload) {
-    body.push("", ...PRE_TOOL_USE_RESULT_HELPER_LINES);
-  }
   const usesMatcher = [...hookHandlers.values()].some((handlers) =>
     handlers.some((handler) => handler.matcher !== undefined),
   );

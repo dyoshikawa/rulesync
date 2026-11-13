@@ -564,7 +564,7 @@ describe("Opencodev1Hooks", () => {
 
       const content = opencodeHooks.getFileContent();
       // ${} should be escaped in the template literal
-      expect(content).toContain("echo \\${HOME}");
+      expect(content).toContain('"echo \\\\${HOME}"');
       expect(content).not.toContain("echo ${HOME}");
     });
 
@@ -630,7 +630,7 @@ describe("Opencodev1Hooks", () => {
           "      {",
           '        const __re = new RegExp("Read");',
           "        if (__re.test(input.tool)) {",
-          "          await $`audit-read.sh`;",
+          '          await __rulesyncRunHook({ label: "postToolUse", command: "audit-read.sh", input: __rulesyncPostToolUseInput(), blocking: false });',
           "        }",
           "      }",
         ].join("\n"),
@@ -640,7 +640,7 @@ describe("Opencodev1Hooks", () => {
           "      {",
           '        const __re = new RegExp("Write");',
           "        if (__re.test(input.tool)) {",
-          "          await $`audit-write.sh`;",
+          '          await __rulesyncRunHook({ label: "postToolUse", command: "audit-write.sh", input: __rulesyncPostToolUseInput(), blocking: false });',
           "        }",
           "      }",
         ].join("\n"),
@@ -650,7 +650,7 @@ describe("Opencodev1Hooks", () => {
           "      {",
           '        const __re = new RegExp("Edit");',
           "        if (__re.test(input.tool)) {",
-          "          await $`audit-edit.sh`;",
+          '          await __rulesyncRunHook({ label: "postToolUse", command: "audit-edit.sh", input: __rulesyncPostToolUseInput(), blocking: false });',
           "        }",
           "      }",
         ].join("\n"),
@@ -815,7 +815,7 @@ describe("Opencodev1Hooks", () => {
 
       const content = opencodeHooks.getFileContent();
       // Backticks should be escaped in the template literal
-      expect(content).toContain("echo \\`date\\`");
+      expect(content).toContain('"echo \\\\`date\\\\`"');
     });
   });
 

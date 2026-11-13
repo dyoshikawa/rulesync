@@ -371,7 +371,7 @@ describe("KiloHooks", () => {
       // Canonical Kilo plugin shape: default export with id + server descriptor.
       expect(content).toContain("export default {");
       expect(content).toContain('  id: "rulesync-hooks",');
-      expect(content).toContain("  server: async ({ $, directory }) => {");
+      expect(content).toContain("  server: async ({ directory }) => {");
       // Must NOT emit the legacy named export used by the OpenCode target.
       expect(content).not.toContain("export const RulesyncHooksPlugin");
       // Handlers are still present, just nested under `server`.
@@ -404,7 +404,7 @@ describe("KiloHooks", () => {
 
       const content = kiloHooks.getFileContent();
       // ${} should be escaped in the template literal
-      expect(content).toContain("echo \\${HOME}");
+      expect(content).toContain('"echo \\\\${HOME}"');
       expect(content).not.toContain("echo ${HOME}");
     });
 
@@ -470,7 +470,7 @@ describe("KiloHooks", () => {
           "        {",
           '          const __re = new RegExp("Read");',
           "          if (__re.test(input.tool)) {",
-          "            await $`audit-read.sh`;",
+          '            await __rulesyncRunHook({ label: "postToolUse", command: "audit-read.sh", input: __rulesyncPostToolUseInput(), blocking: false });',
           "          }",
           "        }",
         ].join("\n"),
@@ -480,7 +480,7 @@ describe("KiloHooks", () => {
           "        {",
           '          const __re = new RegExp("Write");',
           "          if (__re.test(input.tool)) {",
-          "            await $`audit-write.sh`;",
+          '            await __rulesyncRunHook({ label: "postToolUse", command: "audit-write.sh", input: __rulesyncPostToolUseInput(), blocking: false });',
           "          }",
           "        }",
         ].join("\n"),
@@ -490,7 +490,7 @@ describe("KiloHooks", () => {
           "        {",
           '          const __re = new RegExp("Edit");',
           "          if (__re.test(input.tool)) {",
-          "            await $`audit-edit.sh`;",
+          '            await __rulesyncRunHook({ label: "postToolUse", command: "audit-edit.sh", input: __rulesyncPostToolUseInput(), blocking: false });',
           "          }",
           "        }",
         ].join("\n"),
@@ -653,7 +653,7 @@ describe("KiloHooks", () => {
 
       const content = kiloHooks.getFileContent();
       // Backticks should be escaped in the template literal
-      expect(content).toContain("echo \\`date\\`");
+      expect(content).toContain('"echo \\\\`date\\\\`"');
     });
   });
 

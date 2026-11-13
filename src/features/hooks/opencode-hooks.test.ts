@@ -1,5 +1,4 @@
-// cspell:ignore nothrow -- Bun Shell API
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -7,108 +6,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { CANONICAL_TO_OPENCODE_EVENT_NAMES, OPENCODE_HOOK_EVENTS } from "../../types/hooks.js";
+import { ensureDir, readFileContent, writeFileContent } from "../../utils/file.js";
 import { OpencodeHooks } from "./opencode-hooks.js";
+import { generateOpencodeStylePluginCode } from "./opencode-style-generator.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
-
-/**
- * Fake of the slice of the OpenCode V2 plugin context and Bun Shell the
- * generated plugin touches, used to run the plugin's `setup` in tests.
- */
-type ShellResult = { exitCode: number; stdout: string; stderr: string };
-type FakeHookHandler = (event: Record<string, unknown>) => Promise<void>;
-
-function createFakeRuntime(resultFor: (command: string) => ShellResult) {
-  const commands: string[] = [];
-  const hooks = new Map<string, FakeHookHandler>();
-  const pendingEvents: Array<Record<string, unknown>> = [];
-  let wakeEventStream: (() => void) | undefined;
-
-  const shell = (strings: TemplateStringsArray, ...values: unknown[]) => {
-    const command = strings.reduce(
-      (acc, part, index) => acc + part + (index < values.length ? String(values[index]) : ""),
-      "",
-    );
-    commands.push(command);
-    const result = resultFor(command);
-    const nothrowPromise = Promise.resolve(result);
-    const promise = Object.assign(
-      result.exitCode === 0
-        ? Promise.resolve(result)
-        : Promise.reject(new Error(`exit ${result.exitCode}`)),
-      {
-        nothrow: () => Object.assign(nothrowPromise, { quiet: () => nothrowPromise }),
-        quiet: () => promise,
-      },
-    );
-    // Silence unhandled rejections for promises the plugin converts with nothrow().
-    promise.catch(() => {});
-    return promise;
-  };
-  const shellInstance = Object.assign(shell, { cwd: vi.fn() });
-
-  const domain = (name: string) => ({
-    hook: async (hookName: string, handler: FakeHookHandler) => {
-      hooks.set(`${name}:${hookName}`, handler);
-      return { dispose: async () => {} };
-    },
-  });
-
-  const ctx = {
-    location: { directory: "/project" },
-    tool: domain("tool"),
-    session: domain("session"),
-    event: {
-      // Delivers every emitted event regardless of `types`, like an older
-      // OpenCode 2.x that ignores the option.
-      subscribe: ({ signal, types }: { signal: AbortSignal; types?: string[] }) => ({
-        types,
-        async *[Symbol.asyncIterator]() {
-          while (!signal.aborted) {
-            const next = pendingEvents.shift();
-            if (next) {
-              yield next;
-              continue;
-            }
-            await new Promise<void>((resolve) => {
-              wakeEventStream = resolve;
-              signal.addEventListener("abort", () => resolve(), { once: true });
-            });
-          }
-        },
-      }),
-    },
-  };
-
-  const bun = {
-    $: {
-      Shell: function Shell() {
-        return shellInstance;
-      },
-    },
-  };
-
-  const subscribe = ctx.event.subscribe;
-  const subscribedTypes: Array<string[] | undefined> = [];
-  ctx.event.subscribe = (options) => {
-    subscribedTypes.push(options.types);
-    return subscribe(options);
-  };
-
-  return {
-    ctx,
-    bun,
-    commands,
-    subscribedTypes,
-    hooks,
-    emit: async (event: Record<string, unknown>) => {
-      pendingEvents.push(event);
-      wakeEventStream?.();
-      // Let the event loop pick the event up and run its command.
-      for (let i = 0; i < 10; i++) await Promise.resolve();
-    },
-  };
-}
 
 describe("OpencodeHooks (OpenCode V2)", () => {
   let testDir: string;
@@ -140,16 +42,6 @@ describe("OpencodeHooks (OpenCode V2)", () => {
     }).getFileContent();
   };
 
-  const loadPlugin = async (content: string, name: string) => {
-    const filePath = join(testDir, `${name}.mjs`);
-    await writeFileContent(filePath, content);
-    const module = await import(pathToFileURL(filePath).href);
-    return module.default as {
-      id: string;
-      setup: (ctx: unknown) => Promise<(() => Promise<void>) | void>;
-    };
-  };
-
   describe("getSettablePaths", () => {
     it("should return .opencode/plugins and rulesync-hooks.js", () => {
       expect(OpencodeHooks.getSettablePaths()).toEqual({
@@ -175,8 +67,7 @@ describe("OpencodeHooks (OpenCode V2)", () => {
       expect(content.startsWith("export default {\n")).toBe(true);
       expect(content).toContain('id: "rulesync-hooks"');
       expect(content).toContain("setup: async (ctx) => {");
-      expect(content).toContain("const $ = new Bun.$.Shell();");
-      expect(content).toContain("$.cwd(directory);");
+      expect(content).toContain("cwd: directory,");
       expect(content).not.toContain("RulesyncHooksPlugin");
       expect(content).not.toContain("server:");
       execFileSync("node", ["--input-type=module", "--check"], {
@@ -321,7 +212,7 @@ describe("OpencodeHooks (OpenCode V2)", () => {
       expect(content).toContain("tool_input: event.input,");
       expect(content).toContain("cwd: directory,");
       expect(content).toContain(
-        "__rulesyncEnforcePreToolUseResult(await $`echo ${__rulesyncPreToolUseInput()} | ./guard.sh`.nothrow().quiet());",
+        '__rulesyncEnforcePreToolUseResult(await __rulesyncRunCommand({ command: "./guard.sh", input: __rulesyncPreToolUseInput() }));',
       );
       expect(content).toContain("function sanitizeBlockReason(raw) {");
     });
@@ -355,7 +246,9 @@ describe("OpencodeHooks (OpenCode V2)", () => {
       const content = generate({
         hooks: { stop: [{ command: "echo ${HOME} `date` \\n" }] },
       });
-      expect(content).toContain("await $`echo \\${HOME} \\`date\\` \\\\n`;");
+      expect(content).toContain(
+        'command: "echo \\\\${HOME} \\\\`date\\\\` \\\\\\\\n", input: __rulesyncStopInput(), blocking: false',
+      );
       execFileSync("node", ["--input-type=module", "--check"], {
         input: content,
       });
@@ -370,141 +263,186 @@ describe("OpencodeHooks (OpenCode V2)", () => {
     });
   });
 
-  describe("generated plugin at runtime", () => {
-    it("blocks a tool call when a preToolUse command exits 2, with a sanitized reason", async () => {
+  describe("generated plugin at runtime (real Bun)", () => {
+    // Records each run: argv, stdin, BUN_BE_BUN and a variable only `.env` sets; prints
+    // `visible-<name>` and exits with the given code.
+    const HOOK_SCRIPT = [
+      'const fs = require("node:fs");',
+      'let stdin = "";',
+      'process.stdin.on("data", (c) => (stdin += c)).on("end", () => {',
+      "  const [name, code, ...rest] = process.argv.slice(2);",
+      "  const BUN_BE_BUN = process.env.BUN_BE_BUN || null, RS_DOTENV = process.env.RS_DOTENV || null;",
+      '  fs.appendFileSync("rec.jsonl", JSON.stringify({ name, rest, stdin, BUN_BE_BUN, RS_DOTENV }) + "\\n");',
+      '  process.stdout.write("visible-" + name + "\\n");',
+      "  process.exit(Number(code));",
+      "});",
+    ].join("\n");
+
+    /**
+     * Loads the plugin under the real `bun` with an open stdin, as OpenCode's own is (the TTY,
+     * or the pipe of `opencode serve --stdio`), runs `body` (with `hooks`, `push` and `call` in
+     * scope) and returns each call's outcome, the subscribed event types, the hook records and
+     * what Bun printed.
+     */
+    type HookRecord = { name: string; rest: string[]; stdin: string } & Record<string, unknown>;
+    type RunResult = { out: string[]; types: string[][]; records: HookRecord[]; printed: string };
+    const payloadOf = (record?: HookRecord): unknown => JSON.parse(record?.stdin ?? "null");
+    const runUnderBun = async ({
+      content,
+      prelude,
+      body,
+    }: {
+      content: string;
+      prelude: string;
+      body: string;
+    }): Promise<RunResult> => {
+      await writeFileContent(join(testDir, "hook.cjs"), HOOK_SCRIPT);
+      await writeFileContent(join(testDir, "rec.jsonl"), "");
+      await writeFileContent(join(testDir, ".env"), "RS_DOTENV=leaked\n");
+      const pluginPath = join(testDir, "plugin.mjs");
+      await writeFileContent(pluginPath, content);
+      const outPath = join(testDir, "out.json");
+      const runnerPath = join(testDir, "runner.mjs");
+      await writeFileContent(
+        runnerPath,
+        [
+          `const mod = await import(${JSON.stringify(pathToFileURL(pluginPath).href)});`,
+          `const directory = ${JSON.stringify(testDir)};`,
+          "let hooks = {}; const types = []; const out = []; let push;",
+          "const domain = (d) => ({ hook: async (n, h) => { hooks[d + ':' + n] = h; return { dispose: async () => {} }; } });",
+          "const subscribe = (o) => { types.push(o.types); return { [Symbol.asyncIterator]: () => ({ next: () => new Promise((r) => { push = (e) => r({ value: e, done: false }); }) }) }; };",
+          "const ctx = { location: { directory }, tool: domain('tool'), session: domain('session'), event: { subscribe } };",
+          "const call = async (fn) => { try { await fn(); out.push('ok'); } catch (e) { out.push('threw: ' + e.message); } };",
+          prelude,
+          body,
+          `await Bun.write(${JSON.stringify(outPath)}, JSON.stringify({ out, types }));`,
+          "process.exit(0);",
+        ].join("\n"),
+      );
+      const child = spawn("bun", [runnerPath], { stdio: ["pipe", "pipe", "inherit"] });
+      let printed = "";
+      child.stdout.on("data", (chunk) => (printed += chunk));
+      const exit = await new Promise<number | "timeout">((resolve) => {
+        const timer = setTimeout(() => (child.kill(), resolve("timeout")), 30_000);
+        child.on("exit", (code) => (clearTimeout(timer), resolve(code ?? 1)));
+      });
+      expect(exit).toBe(0);
+      const records = (await readFileContent(join(testDir, "rec.jsonl")))
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => JSON.parse(line) as HookRecord);
+      return { ...JSON.parse(await readFileContent(outPath)), records, printed };
+    };
+
+    const LEFTOVER_DENY =
+      "console.log(JSON.stringify({ hookSpecificOutput: { permissionDecision: 'deny', permissionDecisionReason: 'kept' } })); require('child_process').spawn(process.execPath, ['-e', 'setTimeout(() => {}, 3000)'], { stdio: 'inherit' }).unref()";
+
+    it("feeds payloads to every reader, blocks only in hooks that run before their action", async () => {
       const content = generate({
         hooks: {
-          preToolUse: [{ matcher: "^shell$", command: "./guard.sh" }],
-          beforeShellExecution: [{ command: "echo before-shell" }],
+          preToolUse: [
+            { matcher: "^bash$", command: "node hook.cjs pre 0" },
+            // Denies through JSON, then leaves a process holding its output: the deny must survive.
+            { matcher: "^edit$", command: `node -e "${LEFTOVER_DENY}"` },
+          ],
+          beforeShellExecution: [{ command: "node hook.cjs shell-gate 1" }],
+          postToolUse: [
+            {
+              command:
+                'node hook.cjs post 0 && node hook.cjs post-b 0 $(node hook.cjs sub 0) "quote\\"inner"',
+            },
+            { command: "node hook.cjs post-fail 1 # a trailing comment" },
+          ],
+          stop: [{ command: "node hook.cjs fails 3" }, { command: "node hook.cjs stop 0" }],
         },
       });
-      const runtime = createFakeRuntime((command) =>
-        command.endsWith("./guard.sh") && command.includes("rm -rf")
-          ? { exitCode: 2, stdout: "", stderr: "no rm\u001b[31m here\n" }
-          : { exitCode: 0, stdout: "", stderr: "" },
-      );
-      vi.stubGlobal("Bun", runtime.bun);
-      const plugin = await loadPlugin(content, "block");
-      const dispose = await plugin.setup(runtime.ctx);
-      const before = runtime.hooks.get("tool:execute.before");
-      expect(before).toBeDefined();
+      const { out, types, records, printed } = await runUnderBun({
+        content,
+        prelude: "await mod.default.setup(ctx);",
+        body: [
+          "await call(() => hooks['tool:execute.before']({ tool: 'shell', sessionID: 's1', id: 'c1', input: { command: 'rm -rf /' } }));",
+          "await call(() => hooks['tool:execute.before']({ tool: 'edit', input: {} }));",
+          "await call(() => hooks['tool:execute.after']({ tool: 'write', sessionID: 's1', id: 'c2', input: { path: 'a' }, status: 'completed', result: { ok: 1 } }));",
+          "push({ type: 'session.execution.succeeded', data: { sessionID: 's1' } });",
+          "await Bun.sleep(3000);",
+        ].join("\n"),
+      });
 
-      await expect(
-        before?.({
-          tool: "shell",
-          sessionID: "s1",
-          id: "c1",
-          input: { command: "rm -rf /" },
-        }),
-      ).rejects.toThrow("no rm here");
-      const payload = JSON.parse(
-        runtime.commands[0]?.replace(/^echo /, "").replace(/ \| \.\/guard\.sh$/, "") ?? "",
-      );
-      expect(payload).toEqual({
+      // `shell` matches `^bash$` through its OpenCode 1.x name; the guard allows, then the
+      // shell gate's non-zero exit blocks the call, as it did before; postToolUse only logs.
+      expect(out).toEqual([
+        "threw: [rulesync-hooks] beforeShellExecution hook exited with code 1",
+        "threw: kept",
+        "ok",
+      ]);
+      expect(types).toEqual([["session.execution.succeeded"]]);
+      const byName = Object.fromEntries(records.map((record) => [record.name, record]));
+      expect(payloadOf(byName.pre)).toEqual({
         hook_event_name: "PreToolUse",
         session_id: "s1",
         tool_use_id: "c1",
         tool_name: "shell",
         tool_input: { command: "rm -rf /" },
-        cwd: "/project",
+        cwd: testDir,
       });
-
-      await before?.({
-        tool: "shell",
-        sessionID: "s1",
-        id: "c2",
-        input: { command: "ls" },
+      expect(payloadOf(byName.post)).toMatchObject({
+        hook_event_name: "PostToolUse",
+        tool_input: { path: "a" },
+        tool_response: { ok: 1 },
       });
-      expect(runtime.commands).toContain("echo before-shell");
+      // The first reader consumes the payload; `$(...)` and later parts see its end.
+      expect([byName.sub?.stdin, byName["post-b"]?.stdin]).toEqual(["", ""]);
+      expect(byName["post-b"]?.rest).toEqual(["visible-sub", "quote\\inner"]);
+      expect(byName["post-fail"]?.rest).toEqual([]);
+      expect(payloadOf(byName.stop)).toMatchObject({ hook_event_name: "Stop", session_id: "s1" });
+      expect(
+        records.every((record) => record.BUN_BE_BUN === null && record.RS_DOTENV === null),
+      ).toBe(true);
+      expect(printed).toContain("visible-post-b");
+    }, 60_000);
 
-      await before?.({ tool: "read", sessionID: "s1", id: "c3", input: {} });
-      expect(runtime.commands.filter((command) => command === "echo before-shell")).toHaveLength(1);
-      await (dispose as () => Promise<void>)();
-    });
-
-    it("matches a V1 tool name against the renamed V2 tool", async () => {
-      const content = generate({
-        hooks: { preToolUse: [{ matcher: "^bash$", command: "./guard.sh" }] },
-      });
-      const runtime = createFakeRuntime(() => ({ exitCode: 2, stdout: "", stderr: "blocked" }));
-      vi.stubGlobal("Bun", runtime.bun);
-      const plugin = await loadPlugin(content, "alias");
-      const dispose = await plugin.setup(runtime.ctx);
-      const before = runtime.hooks.get("tool:execute.before");
-
-      await expect(before?.({ tool: "shell", input: {} })).rejects.toThrow("blocked");
-      await before?.({ tool: "read", input: {} });
-      expect(runtime.commands).toHaveLength(1);
-      await (dispose as () => Promise<void>)();
-    });
-
-    it("blocks a tool call on a JSON permissionDecision deny", async () => {
-      const content = generate({
-        hooks: { preToolUse: [{ command: "./guard.sh" }] },
-      });
-      const runtime = createFakeRuntime(() => ({
-        exitCode: 0,
-        stdout: JSON.stringify({
-          hookSpecificOutput: {
-            permissionDecision: "deny",
-            permissionDecisionReason: "nope",
+    it("runs the V1 plugin the same way, and falls back to Bun Shell without the Bun CLI", async () => {
+      const content = generateOpencodeStylePluginCode(
+        {
+          version: 1,
+          hooks: {
+            postToolUse: [{ command: "node hook.cjs post 0" }],
+            beforeSubmitPrompt: [{ command: "node hook.cjs prompt 1" }],
+            stop: [{ command: "node hook.cjs stop 0" }],
           },
-        }),
-        stderr: "",
-      }));
-      vi.stubGlobal("Bun", runtime.bun);
-      const plugin = await loadPlugin(content, "deny");
-      const dispose = await plugin.setup(runtime.ctx);
-
-      await expect(
-        runtime.hooks.get("tool:execute.before")?.({
-          tool: "write",
-          input: {},
-        }),
-      ).rejects.toThrow("nope");
-      await (dispose as () => Promise<void>)();
-    });
-
-    it("runs event-stream hooks and keeps the stream alive after a failing command", async () => {
-      const content = generate({
-        hooks: {
-          sessionStart: [{ command: "exit 1" }, { command: "echo session-start" }],
-          stop: [{ command: "echo stop" }],
-          permissionDenied: [{ command: "echo denied" }],
         },
-      });
-      const runtime = createFakeRuntime((command) =>
-        command === "exit 1"
-          ? { exitCode: 1, stdout: "", stderr: "" }
-          : { exitCode: 0, stdout: "", stderr: "" },
+        OPENCODE_HOOK_EVENTS,
+        "opencodev1",
+        CANONICAL_TO_OPENCODE_EVENT_NAMES,
       );
-      vi.spyOn(console, "error").mockImplementation(() => {});
-      vi.stubGlobal("Bun", runtime.bun);
-      const plugin = await loadPlugin(content, "events");
-      const dispose = await plugin.setup(runtime.ctx);
-      expect(runtime.subscribedTypes).toEqual([
-        ["session.created", "session.execution.succeeded", "permission.replied"],
+      const body = [
+        "await call(() => hooks['tool.execute.after']({ tool: 'write', sessionID: 's1', callID: 'c1', args: { filePath: 'a' } }, { title: 'a', output: 'done', metadata: {} }));",
+        "await call(() => hooks['chat.message']({ sessionID: 's1' }, { parts: [] }));",
+        "await call(() => hooks.event({ event: { type: 'session.idle', properties: { sessionID: 's1' } } }));",
+      ].join("\n");
+      const prelude = "hooks = await mod.RulesyncHooksPlugin({ directory });";
+      const viaExec = await runUnderBun({ content, prelude, body });
+      expect(viaExec.out).toEqual([
+        "ok",
+        "threw: [rulesync-hooks] beforeSubmitPrompt hook exited with code 1",
+        "ok",
       ]);
-
-      await runtime.emit({ type: "session.created", data: {} });
-      await runtime.emit({
-        type: "permission.replied",
-        data: { reply: "once" },
+      expect(payloadOf(viaExec.records[0])).toMatchObject({
+        hook_event_name: "PostToolUse",
+        tool_input: { filePath: "a" },
+        tool_response: { title: "a", output: "done", metadata: {} },
       });
-      await runtime.emit({
-        type: "permission.replied",
-        data: { reply: "reject" },
-      });
-      await runtime.emit({ type: "session.execution.succeeded", data: {} });
+      expect(payloadOf(viaExec.records[2])).toMatchObject({ hook_event_name: "Stop" });
 
-      expect(runtime.commands).toEqual([
-        "exit 1",
-        "echo session-start",
-        "echo denied",
-        "echo stop",
-      ]);
-      await (dispose as () => Promise<void>)();
-    });
+      // A host binary that is not the Bun CLI: the probe fails and Bun Shell runs the commands.
+      const fallback = await runUnderBun({
+        content,
+        prelude: `process.execPath = ${JSON.stringify(process.execPath)};\n${prelude}`,
+        body,
+      });
+      expect(fallback.out).toEqual(viaExec.out);
+      expect(payloadOf(fallback.records[0])).toMatchObject({ hook_event_name: "PostToolUse" });
+    }, 60_000);
   });
 
   describe("toRulesyncHooks", () => {
