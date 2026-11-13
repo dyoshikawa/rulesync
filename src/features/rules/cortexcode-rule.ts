@@ -6,11 +6,10 @@ import { ToolRuleRootOnlySettablePaths } from "./tool-rule.js";
  * Rule generator for Snowflake Cortex Code.
  *
  * The Cortex Code CLI documents `AGENTS.md` at the project root as its
- * instruction file ("Support for AGENTS.md files and Agent Skills"). No nested
- * rule directory and no user-scoped rule file are documented for the CLI, so
- * rulesync's topic-based non-root rules are folded into the single root
- * `AGENTS.md` by the RulesProcessor (`nonRoot` is `undefined`, mirroring the
- * codexcli and warp targets) and the target is project-only.
+ * instruction file. The RulesProcessor folds non-root rules into that file
+ * (`nonRoot` is `undefined`, mirroring the codexcli and warp targets).
+ * This target covers project rules. CoCo Desktop also documents a user
+ * instruction file at `~/.snowflake/cortex/AGENTS.md`.
  *
  * @see https://docs.snowflake.com/en/user-guide/cortex-code/cortex-code
  */

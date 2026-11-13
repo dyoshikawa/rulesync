@@ -412,9 +412,8 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
   [
     "cortexcode",
     {
-      // Cortex Code reads MCP servers only from the single GLOBAL file
-      // `~/.snowflake/cortex/mcp.json`; no project-scoped MCP location is
-      // documented.
+      // Rulesync syncs Cortex Code MCP servers in the user-scoped file
+      // `~/.snowflake/cortex/mcp.json`.
       // https://docs.snowflake.com/en/user-guide/cortex-code/extensibility#mcp-configuration
       class: CortexcodeMcp,
       meta: {

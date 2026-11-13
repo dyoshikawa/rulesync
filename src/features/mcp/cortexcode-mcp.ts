@@ -180,9 +180,9 @@ function convertFromCortexcodeFormat(mcpServers: unknown): McpServers {
 /**
  * Snowflake Cortex Code MCP configuration.
  *
- * Cortex Code reads `mcpServers` only from the single user-scoped file
- * `~/.snowflake/cortex/mcp.json`; no project-scoped MCP location is
- * documented, so the target is global-only. The file is created and edited by
+ * This target syncs the user-scoped `~/.snowflake/cortex/mcp.json`.
+ * CoCo Desktop also documents workspace MCP paths outside this target's
+ * global scope. The user-scoped file is created and edited by
  * `cortex mcp add` as well, so `--delete` leaves it in place rather than
  * removing a file the user did not create through rulesync.
  *

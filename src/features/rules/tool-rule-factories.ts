@@ -665,10 +665,8 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
     {
       class: CortexcodeRule,
       meta: {
-        // Cortex Code CLI documents only the project-root AGENTS.md; it has
-        // no modular rules directory and no user-scoped rule file, so topic
-        // rules fold into the root file (mirrors codexcli) and the target is
-        // project-only.
+        // Rulesync folds Cortex Code topic rules into the project-root
+        // AGENTS.md, matching the codexcli target.
         // https://docs.snowflake.com/en/user-guide/cortex-code/cortex-code
         extension: "md",
         supportsGlobal: false,
