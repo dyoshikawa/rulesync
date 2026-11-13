@@ -108,6 +108,16 @@ describe("collectShellCommandRules", () => {
 });
 
 describe("createShadowingRestrictionsTest", () => {
+  it("withholds allows potentially covered by a numeric brace-range restriction", () => {
+    // A downstream shell can expand {1..3}; the intersection checker only
+    // understands glob characters and must never treat the braces literally.
+    const shadowed = createShadowingRestrictionsTest([
+      allToolsRule("backup-{1..3}.sh", "deny"),
+    ]);
+    expect(shadowed("backup-2.sh")).toEqual(["backup-{1..3}.sh"]);
+    expect(shadowed("unrelated.sh")).toEqual(["backup-{1..3}.sh"]);
+  });
+
   it("compares the two patterns in both directions", () => {
     // The stricter rule wins whatever its width, so a broad restriction covers
     // a narrow allow and a broad allow is covered by a narrow restriction.
