@@ -114,13 +114,13 @@ describe("generateOpencodeStylePluginCode", () => {
         true,
       );
       for (const line of [
-        "  const __rulesyncEnforcePreToolUseResult = (result) => {",
+        "  const __rulesyncEnforcePreToolUseResult = (result, failClosed) => {",
         '    "tool.execute.before": async (input, output) => {',
         "          tool_input: output?.args,",
         "          cwd: directory ?? process.cwd(),",
-        '      __rulesyncEnforcePreToolUseResult(await __rulesyncRunCommand({ command: "guard.sh", input: __rulesyncPreToolUseInput() }));',
+        '      __rulesyncEnforcePreToolUseResult(await __rulesyncRunCommand({ command: "guard.sh", input: __rulesyncPreToolUseInput(), seconds: 600 }), false);',
         '        const __re = new RegExp("bash");',
-        '          __rulesyncEnforcePreToolUseResult(await __rulesyncRunCommand({ command: "bash-guard.sh", input: __rulesyncPreToolUseInput() }));',
+        '          __rulesyncEnforcePreToolUseResult(await __rulesyncRunCommand({ command: "bash-guard.sh", input: __rulesyncPreToolUseInput(), seconds: 600 }), false);',
       ]) {
         expect(code).toContain(line);
       }
@@ -371,7 +371,7 @@ describe("generateOpencodeStylePluginCode", () => {
       });
 
       expect(code).toContain(
-        '__rulesyncRunCommand({ command: "echo \\\\${HOME} \\\\`id\\\\` \\\\\\\\x", input: __rulesyncPreToolUseInput() })',
+        '__rulesyncRunCommand({ command: "echo \\\\${HOME} \\\\`id\\\\` \\\\\\\\x", input: __rulesyncPreToolUseInput(), seconds: 600 })',
       );
       execFileSync("node", ["--input-type=module", "--check"], { input: code });
     });
@@ -383,7 +383,7 @@ describe("generateOpencodeStylePluginCode", () => {
 
       expect(code).toContain('"tool.execute.before": async (input) => {');
       expect(code).toContain(
-        '        await __rulesyncRunHook({ label: "beforeShellExecution", command: "pre-shell.sh", input: "", blocking: true });',
+        '        await __rulesyncRunHook({ label: "beforeShellExecution", command: "pre-shell.sh", input: "", blocking: true, seconds: 600 });',
       );
       expect(code).not.toContain("__rulesyncEnforcePreToolUseResult");
       expect(code).not.toContain("JSON.stringify");
@@ -394,7 +394,7 @@ describe("generateOpencodeStylePluginCode", () => {
 
       expect(code).toContain('"tool.execute.after": async (input, output) => {');
       expect(code).toContain(
-        '      await __rulesyncRunHook({ label: "postToolUse", command: "post.sh", input: __rulesyncPostToolUseInput(), blocking: false });',
+        '      await __rulesyncRunHook({ label: "postToolUse", command: "post.sh", input: __rulesyncPostToolUseInput(), blocking: false, seconds: 600 });',
       );
       expect(code).not.toContain("__rulesyncEnforcePreToolUseResult");
     });
@@ -423,7 +423,7 @@ describe("generateOpencodeStylePluginCode", () => {
         ].join("\n"),
       );
       expect(code).toContain(
-        '            __rulesyncEnforcePreToolUseResult(await __rulesyncRunCommand({ command: "guard.sh", input: __rulesyncPreToolUseInput() }));',
+        '            __rulesyncEnforcePreToolUseResult(await __rulesyncRunCommand({ command: "guard.sh", input: __rulesyncPreToolUseInput(), seconds: 600 }), false);',
       );
       execFileSync("node", ["--input-type=module", "--check"], { input: code });
     });

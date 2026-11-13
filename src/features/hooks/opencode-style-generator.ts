@@ -1,4 +1,4 @@
-// cspell:ignore nothrow -- Bun Shell API
+// cspell:ignore nothrow setsid procfs lstart reparented subreaper -- Bun Shell API, POSIX
 import { HooksConfig } from "../../types/hooks.js";
 import { buildBlockReasonSanitizerLines } from "./hook-block-reason.js";
 import { sanitizeMatcherRegex } from "./hook-matcher-regex.js";
@@ -131,6 +131,18 @@ const BLOCKING_HOOKS: ReadonlySet<string> = new Set(
  * (`inProcess`) take the Bun Shell path too: starting the child takes about
  * 250 ms, and OpenCode 1.x's one-shot `opencode run` exits right after
  * `session.idle`, before a `stop` command run that way could start.
+ * A command that outlives its timeout (counted from its start) resolves to
+ * `null` and is killed. On POSIX its process tree, read from procfs or else
+ * `ps`, gets SIGTERM and, 2 s later, SIGKILL for each of those processes still
+ * alive (same start time, wherever it was reparented) and what it started
+ * since; the command's own process is signalled through its Bun handle only,
+ * so a PID reused after it exited is never signalled. The command keeps
+ * OpenCode's process group, so it keeps the terminal
+ * and Ctrl-C, but a process that left the tree before the timeout (orphaned or
+ * `setsid`) escapes, and without procfs and `ps` only
+ * the command's own process is killed (logged). The pending SIGKILL keeps the
+ * host alive for those 2 s. On Windows the child is ended with the processes
+ * it started. Bun Shell (the fallback) cannot kill: it stops waiting.
  * `__rulesyncRunHook` echoes the output, as Bun Shell did, and on a failure
  * throws in a blocking hook or logs it otherwise.
  *
@@ -148,7 +160,64 @@ function buildRunHelperLinesFor(cwdExpression: string): string[] {
     "  return { done, text: () => Buffer.concat(chunks).toString() };",
     "};",
     "let __rulesyncCanExec;",
-    "const __rulesyncRunCommand = async ({ command, input, inProcess = false }) => {",
+    "// pid -> [ppid, start time], from procfs or else ps; a reused PID gets a new start time.",
+    "const __rulesyncProcesses = () => {",
+    "  const processes = new Map();",
+    "  try {",
+    '    const fs = require("node:fs");',
+    '    for (const pid of fs.readdirSync("/proc").filter((name) => /^\\d+$/.test(name))) {',
+    "      try {",
+    '        const stat = fs.readFileSync("/proc/" + pid + "/stat", "utf8");',
+    '        const fields = stat.slice(stat.lastIndexOf(")") + 2).split(" ");',
+    "        processes.set(pid, [fields[1], fields[19]]);",
+    "      } catch {}",
+    "    }",
+    "    if (processes.size > 0) return processes;",
+    "  } catch {}",
+    "  try {",
+    "    // The C locale keeps `lstart` in one format; it is compared as text, never parsed.",
+    '    const env = { ...process.env, LC_ALL: "C", LANG: "C" };',
+    '    const ps = Bun.spawnSync(["ps", "-A", "-o", "pid=,ppid=,lstart="], { env });',
+    "    if (ps.exitCode === 0) {",
+    '      for (const line of ps.stdout.toString().trim().split("\\n")) {',
+    "        const [pid, ppid, ...started] = line.trim().split(/\\s+/);",
+    '        processes.set(pid, [ppid, started.join(" ")]);',
+    "      }",
+    "      return processes;",
+    "    }",
+    "  } catch {}",
+    '  console.error("[rulesync-hooks] neither /proc nor ps is available: only the hook process is killed");',
+    "};",
+    "const __rulesyncTree = (roots, processes) => {",
+    "  const tree = [...roots];",
+    "  for (let size = -1; size !== tree.length; ) {",
+    "    size = tree.length;",
+    "    for (const [pid, [ppid]] of processes ?? []) if (tree.includes(ppid) && !tree.includes(pid)) tree.push(pid);",
+    "  }",
+    "  return tree;",
+    "};",
+    "// The child itself is signalled only through its handle, a no-op once Bun has reaped it, so a",
+    "// reused PID is never signalled; its descendants only while it is running, and in the SIGKILL",
+    "// round only with both snapshots, as the same processes (same start time).",
+    "const __rulesyncKillTree = (proc) => {",
+    "  const kill = (pids, signal) => pids.forEach((pid) => { try { process.kill(Number(pid), signal); } catch {} });",
+    "  const running = () => proc.exitCode === null && proc.signalCode === null;",
+    "  const root = String(proc.pid);",
+    "  const before = running() ? __rulesyncProcesses() : undefined;",
+    "  const first = before && running() ? __rulesyncTree([root], before).slice(1) : [];",
+    '  proc.kill("SIGTERM");',
+    '  kill(first, "SIGTERM");',
+    "  setTimeout(() => {",
+    '    proc.kill("SIGKILL");',
+    "    const now = first.length > 0 ? __rulesyncProcesses() : undefined;",
+    "    if (!now) return;",
+    "    // Every first-snapshot descendant that is still the same process, wherever it was",
+    "    // reparented (to PID 1 or a subreaper), and what it has started since.",
+    "    const same = first.filter((pid) => now.get(pid)?.[1] === before.get(pid)?.[1]);",
+    '    kill(__rulesyncTree(same, now).filter((pid) => pid !== root), "SIGKILL");',
+    "  }, 2000);",
+    "};",
+    "const __rulesyncRunCommand = async ({ command, input, seconds, inProcess = false }) => {",
     "  if (!inProcess) __rulesyncCanExec ??= (async () => {",
     `    const probe = ${spawn({ script: '"echo rulesync"', stdin: '"ignore"' })};`,
     "    let killed = false;",
@@ -159,24 +228,37 @@ function buildRunHelperLinesFor(cwdExpression: string): string[] {
     "    if (killed) __rulesyncCanExec = undefined;",
     '    return output.text().trim() === "rulesync";',
     "  })().catch(() => false);",
+    "  let timer;",
+    "  const timeout = () => new Promise((resolve) => (timer = setTimeout(resolve, seconds * 1000, null)));",
     "  if (inProcess || !(await __rulesyncCanExec)) {",
-    `    const result = await Bun.$\`echo -n \${input} | \${{ raw: command }}\`.cwd(${cwdExpression}).nothrow().quiet();`,
-    "    return { exitCode: result.exitCode, stdout: result.stdout.toString(), stderr: result.stderr.toString() };",
+    `    const run = Bun.$\`echo -n \${input} | \${{ raw: command }}\`.cwd(${cwdExpression}).nothrow().quiet();`,
+    "    const result = await Promise.race([run, timeout()]).finally(() => clearTimeout(timer));",
+    "    return result && { exitCode: result.exitCode, stdout: result.stdout.toString(), stderr: result.stderr.toString() };",
     "  }",
     `  const proc = ${spawn({ script: '"export BUN_BE_BUN=\\n" + command', stdin: "new TextEncoder().encode(input)" })};`,
     "  const [stdout, stderr] = [__rulesyncRead(proc.stdout), __rulesyncRead(proc.stderr)];",
-    "  const exitCode = await proc.exited;",
+    "  const exitCode = await Promise.race([proc.exited, timeout()]).finally(() => clearTimeout(timer));",
+    "  if (exitCode === null) {",
+    '    if (process.platform === "win32") proc.kill();',
+    "    else __rulesyncKillTree(proc);",
+    "    return null;",
+    "  }",
     "  await Promise.race([Promise.all([stdout.done, stderr.done]), Bun.sleep(1000)]);",
     "  return { exitCode, stdout: stdout.text(), stderr: stderr.text() };",
     "};",
-    "const __rulesyncRunHook = async ({ label, command, input, blocking, inProcess = false }) => {",
+    "const __rulesyncRunHook = async ({ label, command, input, blocking, seconds, inProcess = false }) => {",
     "  let result;",
     "  try {",
-    "    result = await __rulesyncRunCommand({ command, input, inProcess });",
+    "    result = await __rulesyncRunCommand({ command, input, seconds, inProcess });",
     "  } catch (error) {",
     "    if (blocking) throw error;",
     '    console.error("[rulesync-hooks] " + label + " hook failed:", error);',
     "    return;",
+    "  }",
+    "  if (result === null) {",
+    '    const message = "[rulesync-hooks] " + label + " hook timed out after " + seconds + "s";',
+    "    if (blocking) throw new Error(message);",
+    "    return console.error(message);",
     "  }",
     "  process.stdout.write(result.stdout);",
     "  process.stderr.write(result.stderr);",
@@ -197,7 +279,9 @@ function buildRunHelperLinesFor(cwdExpression: string): string[] {
  * - exit code 0 with JSON stdout whose `hookSpecificOutput.permissionDecision`
  *   is `"deny"` → deny, with `permissionDecisionReason` as the reason;
  * - exit code 0 otherwise → allow;
- * - any other non-zero exit → deny too, with stderr or the exit code.
+ * - any other non-zero exit → deny too, with stderr or the exit code;
+ * - a command killed by its timeout → deny when the hook sets `failClosed`,
+ *   otherwise allow and log, like Claude Code without `onFailure: "block"`.
  *
  * Every reason goes through the `sanitizeBlockReason` helper shared with the
  * Pi extension (`hook-block-reason.ts`): control and format characters are
@@ -214,7 +298,11 @@ const PRE_TOOL_USE_RESULT_HELPER = "__rulesyncEnforcePreToolUseResult";
 const PRE_TOOL_USE_RESULT_HELPER_LINES: readonly string[] = [
   ...buildBlockReasonSanitizerLines({ typed: false }),
   "",
-  `const ${PRE_TOOL_USE_RESULT_HELPER} = (result) => {`,
+  `const ${PRE_TOOL_USE_RESULT_HELPER} = (result, failClosed) => {`,
+  "  if (result === null) {",
+  '    if (failClosed) throw new Error("preToolUse hook timed out.");',
+  '    return console.error("[rulesync-hooks] preToolUse hook timed out");',
+  "  }",
   "  const stderr = result.stderr.toString();",
   "  if (result.exitCode === 0) {",
   "    let parsed;",
@@ -261,8 +349,19 @@ export type RunnableHandler = {
   event: string;
   blocking: boolean;
   inProcess?: boolean;
+  timeout: number;
+  failClosed: boolean;
   payload?: StdinPayload;
 };
+
+/**
+ * A hook's `timeout` in seconds, Claude Code's default of 600 when it sets none,
+ * capped at what `setTimeout` can wait (larger values fire at once).
+ */
+export function hookTimingOf(def: { timeout?: number; failClosed?: boolean }) {
+  const timeout = def.timeout !== undefined && def.timeout > 0 ? def.timeout : 600;
+  return { timeout: Math.min(timeout, 2_147_483), failClosed: def.failClosed === true };
+}
 
 type Handler = RunnableHandler & {
   matcher?: string;
@@ -327,6 +426,7 @@ function collectOpencodeStyleHandlers({
         command: def.command,
         matcher: def.matcher ? def.matcher : undefined,
         blocking: BLOCKING_HOOKS.has(toolEvent),
+        ...hookTimingOf(def),
         inProcess: !isNamedHook,
         ...extras,
       });
@@ -416,13 +516,14 @@ export function buildRunStatement(handler: RunnableHandler): string {
   const command = JSON.stringify(escapeForTemplateLiteral(handler.command));
   const input = handler.payload ? `${stdinPayloadVariable(handler.payload.name)}()` : '""';
   if (handler.payload?.name === "PreToolUse") {
-    return `${PRE_TOOL_USE_RESULT_HELPER}(await __rulesyncRunCommand({ command: ${command}, input: ${input} }));`;
+    return `${PRE_TOOL_USE_RESULT_HELPER}(await __rulesyncRunCommand({ command: ${command}, input: ${input}, seconds: ${handler.timeout} }), ${handler.failClosed});`;
   }
   const options = [
     `label: ${JSON.stringify(handler.event)}`,
     `command: ${command}`,
     `input: ${input}`,
     `blocking: ${handler.blocking}`,
+    `seconds: ${handler.timeout}`,
     ...(handler.inProcess ? ["inProcess: true"] : []),
   ];
   return `await __rulesyncRunHook({ ${options.join(", ")} });`;

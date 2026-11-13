@@ -212,7 +212,7 @@ describe("OpencodeHooks (OpenCode V2)", () => {
       expect(content).toContain("tool_input: event.input,");
       expect(content).toContain("cwd: directory,");
       expect(content).toContain(
-        '__rulesyncEnforcePreToolUseResult(await __rulesyncRunCommand({ command: "./guard.sh", input: __rulesyncPreToolUseInput() }));',
+        '__rulesyncEnforcePreToolUseResult(await __rulesyncRunCommand({ command: "./guard.sh", input: __rulesyncPreToolUseInput(), seconds: 600 }), false);',
       );
       expect(content).toContain("function sanitizeBlockReason(raw) {");
     });
@@ -247,7 +247,7 @@ describe("OpencodeHooks (OpenCode V2)", () => {
         hooks: { stop: [{ command: "echo ${HOME} `date` \\n" }] },
       });
       expect(content).toContain(
-        'command: "echo \\\\${HOME} \\\\`date\\\\` \\\\\\\\n", input: __rulesyncStopInput(), blocking: false',
+        'command: "echo \\\\${HOME} \\\\`date\\\\` \\\\\\\\n", input: __rulesyncStopInput(), blocking: false, seconds: 600',
       );
       execFileSync("node", ["--input-type=module", "--check"], {
         input: content,
@@ -443,6 +443,56 @@ describe("OpencodeHooks (OpenCode V2)", () => {
       expect(fallback.out).toEqual(viaExec.out);
       expect(payloadOf(fallback.records[0])).toMatchObject({ hook_event_name: "PostToolUse" });
     }, 60_000);
+
+    it("kills a command at its timeout and stops waiting for output pipes a leftover holds", async () => {
+      // Writes its pid and runs forever; with "bg", starts such a child on its own output and exits.
+      const forever = [
+        'const fs = require("node:fs");',
+        "const [name, mode] = process.argv.slice(2);",
+        'if (mode === "bg") {',
+        '  const child = require("node:child_process").spawn(process.execPath, ["forever.cjs", name], { stdio: "inherit" });',
+        "  process.exit(0);",
+        "}",
+        'fs.appendFileSync("pids.txt", name + " " + process.pid + "\\n");',
+        "setInterval(() => {}, 1000);",
+      ].join("\n");
+      await writeFileContent(join(testDir, "forever.cjs"), forever);
+      const run = (failClosed: boolean) =>
+        runUnderBun({
+          content: generate({
+            hooks: {
+              preToolUse: [
+                { matcher: "^write$", command: "node forever.cjs pre", timeout: 1, failClosed },
+              ],
+              // Beyond what `setTimeout` can wait: capped, not fired at once.
+              beforeShellExecution: [{ command: "node forever.cjs bg bg", timeout: 1e12 }],
+              postToolUse: [{ command: "node forever.cjs post", timeout: 1 }],
+            },
+          }),
+          prelude: "await mod.default.setup(ctx);",
+          body: [
+            "await call(() => hooks['tool:execute.before']({ tool: 'shell', input: {} }));",
+            "await call(() => hooks['tool:execute.before']({ tool: 'write', input: {} }));",
+            "await call(() => hooks['tool:execute.after']({ tool: 'write', input: {}, status: 'completed' }));",
+            // Checked while the host still runs: its exit could end the processes itself.
+            "await Bun.sleep(2500);",
+            "const alive = (pid) => { try { return process.kill(pid, 0); } catch { return false; } };",
+            "const pids = (await Bun.file(directory + '/pids.txt').text()).trim().split('\\n').map((line) => line.split(' '));",
+            "out.push('alive: ' + pids.filter(([name, pid]) => name !== 'bg' && alive(Number(pid))).length);",
+            // The leftover of the command that exited is not waited for, nor killed on POSIX,
+            // where it has left the command's tree; the test ends it.
+            "pids.forEach(([, pid]) => alive(Number(pid)) && process.kill(Number(pid)));",
+          ].join("\n"),
+        });
+
+      expect((await run(false)).out).toEqual(["ok", "ok", "ok", "alive: 0"]);
+      expect((await run(true)).out).toEqual([
+        "ok",
+        "threw: preToolUse hook timed out.",
+        "ok",
+        "alive: 0",
+      ]);
+    }, 90_000);
   });
 
   describe("toRulesyncHooks", () => {

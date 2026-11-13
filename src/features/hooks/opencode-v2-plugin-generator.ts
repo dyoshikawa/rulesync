@@ -3,6 +3,7 @@ import {
   buildPayloadClosureLines,
   buildRunHelperLines,
   buildRunStatement,
+  hookTimingOf,
   type RunnableHandler,
   type StdinPayload,
   validateAndSanitizeMatcher,
@@ -194,6 +195,7 @@ function buildHandlersFor({
       // Every hook point but `execute.after` runs before its action, which a
       // throw aborts; the event stream only observes.
       blocking: !target.startsWith("event:") && target !== "tool:execute.after",
+      ...hookTimingOf(def),
       ...(def.matcher ? { matcher: def.matcher } : {}),
       ...(gate ? { gate } : {}),
       ...(payload ? { payload } : {}),
