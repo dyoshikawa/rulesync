@@ -122,7 +122,9 @@ describe("createShadowingRestrictionsTest", () => {
     // The overlap-only regex searches every brace group, including {1..3}
     // nested inside {x,...}. Expanding that inner range must not grant allows.
     const pattern = "backup-{x,{1..3}}.sh";
-    const shadowed = createShadowingRestrictionsTest([allToolsRule(pattern, "deny")]);
+    const shadowed = createShadowingRestrictionsTest([
+      allToolsRule(pattern, "deny"),
+    ]);
 
     expect(shadowed("backup-2.sh")).toEqual([pattern]);
     expect(shadowed("unrelated.sh")).toEqual([pattern]);
