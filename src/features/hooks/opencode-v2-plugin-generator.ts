@@ -284,7 +284,10 @@ export function generateOpencodeV2PluginCode({
   const body = buildSetupBodyLines({ hookHandlers, eventHandlers });
   const lines: string[] = [];
   lines.push("export default {");
-  lines.push('  id: "rulesync-hooks",');
+  // OpenCode 2.x loads one plugin per id, from the global config and from every
+  // `.opencode` directory up from the project, so a fixed id would silently drop
+  // all but one of them. The module URL makes the id unique per plugin file.
+  lines.push('  id: "rulesync-hooks:" + import.meta.url,');
   lines.push(`  setup: async (${body.length > 0 ? "ctx" : ""}) => {`);
   for (const line of body) {
     lines.push(line === "" ? "" : `    ${line}`);
