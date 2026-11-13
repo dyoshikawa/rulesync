@@ -111,9 +111,7 @@ describe("createShadowingRestrictionsTest", () => {
   it("withholds allows potentially covered by a numeric brace-range restriction", () => {
     // A downstream shell can expand {1..3}; the intersection checker only
     // understands glob characters and must never treat the braces literally.
-    const shadowed = createShadowingRestrictionsTest([
-      allToolsRule("backup-{1..3}.sh", "deny"),
-    ]);
+    const shadowed = createShadowingRestrictionsTest([allToolsRule("backup-{1..3}.sh", "deny")]);
     expect(shadowed("backup-2.sh")).toEqual(["backup-{1..3}.sh"]);
     expect(shadowed("unrelated.sh")).toEqual(["backup-{1..3}.sh"]);
   });
@@ -122,9 +120,7 @@ describe("createShadowingRestrictionsTest", () => {
     // The overlap-only regex searches every brace group, including {1..3}
     // nested inside {x,...}. Expanding that inner range must not grant allows.
     const pattern = "backup-{x,{1..3}}.sh";
-    const shadowed = createShadowingRestrictionsTest([
-      allToolsRule(pattern, "deny"),
-    ]);
+    const shadowed = createShadowingRestrictionsTest([allToolsRule(pattern, "deny")]);
 
     expect(shadowed("backup-2.sh")).toEqual([pattern]);
     expect(shadowed("unrelated.sh")).toEqual([pattern]);
