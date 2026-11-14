@@ -127,14 +127,15 @@ export function widenToPrefixGlob(pattern: string): string {
 //   directories and `src/**` as also naming `src`. Both become a bare `*`.
 // - A trailing ` *` is optional in the canonical reading and in OpenCode's
 //   matcher (`secrets *` also matches `secrets`), so it becomes `*`.
-// - `{a,b}` alternatives and `{1..3}` ranges are not modeled; a pattern
-//   holding either is read as `*`, overlapping everything.
+// - Brace patterns may contain nested alternatives or ranges, which the glob
+//   matcher cannot model. Any `{` is therefore read as `*` for overlap checks,
+//   even if it might be literal in a particular tool.
 // Each rewrite matches every spelling the original allows (and some more), so
 // the widened comparison can only report more overlaps, never fewer — the
 // direction that withholds an allow rather than writing one a restriction
 // covers.
 function widenForOverlap(pattern: string): string {
-  if (/\{[^{}]*(?:,|\.\.)[^{}]*\}/.test(pattern)) {
+  if (pattern.includes("{")) {
     return "*";
   }
   const widened = pattern.replaceAll("**/", "*").replaceAll("/**", "*");

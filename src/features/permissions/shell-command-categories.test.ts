@@ -116,14 +116,24 @@ describe("createShadowingRestrictionsTest", () => {
     expect(shadowed("unrelated.sh")).toEqual(["backup-{1..3}.sh"]);
   });
 
-  it("also withholds allows covered by a nested brace range", () => {
-    // The overlap-only regex searches every brace group, including {1..3}
-    // nested inside {x,...}. Expanding that inner range must not grant allows.
-    const pattern = "backup-{x,{1..3}}.sh";
+  it.each([
+    ["rm -rf {build,${OUT}}", "rm -rf build"],
+    ["git {push,{fetch}}", "git push"],
+    ["x{a,{b}}", "xa"],
+    ["x{{a},b}", "xb"],
+  ])("withholds allows covered by a nested brace restriction %s", (pattern, allow) => {
+    // Nested groups (including an inner literal group) are not reliably
+    // recognized by a flat regex. Widen only for the overlap comparison.
     const shadowed = createShadowingRestrictionsTest([allToolsRule(pattern, "deny")]);
 
-    expect(shadowed("backup-2.sh")).toEqual([pattern]);
-    expect(shadowed("unrelated.sh")).toEqual([pattern]);
+    expect(shadowed(allow)).toEqual([pattern]);
+    expect(shadowed("unrelated-command")).toEqual([pattern]);
+  });
+
+  it("withholds an expanding brace allow when a plain restriction could cover it", () => {
+    const shadowed = createShadowingRestrictionsTest([allToolsRule("rm -rf build", "deny")]);
+
+    expect(shadowed("rm -rf {build,${OUT}}")).toEqual(["rm -rf build"]);
   });
 
   it("compares the two patterns in both directions", () => {
