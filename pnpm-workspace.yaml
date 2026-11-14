@@ -15,15 +15,15 @@ patchedDependencies:
 # There is deliberately no `vite` / `vitest` override: VitePress depends on
 # its own Vite 5 (`vitepress` -> `vite@^5`) and must keep it for `docs:*`.
 catalog:
-  vite: npm:@voidzero-dev/vite-plus-core@1.5.0
+  vite: npm:@voidzero-dev/vite-plus-core@1.6.0
   vitest: 5.1.0
-  vite-plus: 1.5.0
+  vite-plus: 1.6.0
   "@vitest/coverage-v8": 5.1.0
   # `vp` resolves oxfmt and oxlint from the working directory before its own
   # copies, and scripts/run-oxfmt.ts calls the root `oxfmt` directly, so both
   # stay direct dependencies here.
-  oxfmt: 0.76.0
-  oxlint: 1.91.0
+  oxfmt: 0.78.0
+  oxlint: 1.93.0
 # Vitest and its mocker declare peer ranges on upstream Vite; the aliased
 # Vite+ core satisfies them. Scoped so VitePress's peers are still checked.
 peerDependencyRules:
