@@ -180,9 +180,9 @@ function convertFromCortexcodeFormat(mcpServers: unknown): McpServers {
 /**
  * Snowflake Cortex Code MCP configuration.
  *
- * This target syncs the user-scoped `~/.snowflake/cortex/mcp.json`.
- * This target skips CoCo Desktop's workspace files (`.snowflake/cortex/mcp.json`
- * and `.cortex/mcp.json`). The user-scoped file is created and edited by
+ * This global-only adapter syncs the user-scoped `~/.snowflake/cortex/mcp.json`
+ * and skips CoCo Desktop's workspace files (`.snowflake/cortex/mcp.json` and
+ * `.cortex/mcp.json`). The user-scoped file is created and edited by
  * `cortex mcp add` as well, so `--delete` leaves it in place rather than
  * removing a file the user did not create through rulesync.
  *
