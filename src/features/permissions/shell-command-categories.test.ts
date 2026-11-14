@@ -108,6 +108,34 @@ describe("collectShellCommandRules", () => {
 });
 
 describe("createShadowingRestrictionsTest", () => {
+  it("withholds allows potentially covered by a numeric brace-range restriction", () => {
+    // A downstream shell can expand {1..3}; the intersection checker only
+    // understands glob characters and must never treat the braces literally.
+    const shadowed = createShadowingRestrictionsTest([allToolsRule("backup-{1..3}.sh", "deny")]);
+    expect(shadowed("backup-2.sh")).toEqual(["backup-{1..3}.sh"]);
+    expect(shadowed("unrelated.sh")).toEqual(["backup-{1..3}.sh"]);
+  });
+
+  it.each([
+    ["rm -rf {build,${OUT}}", "rm -rf build"],
+    ["git {push,{fetch}}", "git push"],
+    ["x{a,{b}}", "xa"],
+    ["x{{a},b}", "xb"],
+  ])("withholds allows covered by a nested brace restriction %s", (pattern, allow) => {
+    // Nested groups (including an inner literal group) are not reliably
+    // recognized by a flat regex. Widen only for the overlap comparison.
+    const shadowed = createShadowingRestrictionsTest([allToolsRule(pattern, "deny")]);
+
+    expect(shadowed(allow)).toEqual([pattern]);
+    expect(shadowed("unrelated-command")).toEqual([pattern]);
+  });
+
+  it("withholds an expanding brace allow when a plain restriction could cover it", () => {
+    const shadowed = createShadowingRestrictionsTest([allToolsRule("rm -rf build", "deny")]);
+
+    expect(shadowed("rm -rf {build,${OUT}}")).toEqual(["rm -rf build"]);
+  });
+
   it("compares the two patterns in both directions", () => {
     // The stricter rule wins whatever its width, so a broad restriction covers
     // a narrow allow and a broad allow is covered by a narrow restriction.
