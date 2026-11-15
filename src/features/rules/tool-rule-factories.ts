@@ -665,11 +665,10 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
     {
       class: CortexcodeRule,
       meta: {
-        // Rulesync folds Cortex Code topic rules into the project-root
-        // AGENTS.md, matching the codexcli target.
+        // Cortex Code rules are project-only. Rulesync folds topic rules
+        // into the project-root AGENTS.md, matching the codexcli target.
         // https://docs.snowflake.com/en/user-guide/cortex-code/cortex-code
         extension: "md",
-        // The adapter only handles the project-root AGENTS.md.
         supportsGlobal: false,
         ruleDiscoveryMode: "auto",
         collisionPolicy: "fold",
