@@ -75,9 +75,9 @@ function splitUrlPattern(withoutScheme: string): UrlPatternParts {
   const hostPort = slash === -1 ? normalized : normalized.slice(0, slash);
   const path = slash === -1 ? undefined : normalized.slice(slash);
   const port = /:([0-9*]+)$/.exec(hostPort);
-  return port === null
-    ? { host: hostPort, port: undefined, path }
-    : { host: hostPort.slice(0, port.index), port: port[1], path };
+  const host = port === null ? hostPort : hostPort.slice(0, port.index);
+  // A final DNS root dot names the same host; normalize only for overlap checks.
+  return { host: host.replace(/([a-z0-9])\.$/, "$1"), port: port?.[1], path };
 }
 
 /**
