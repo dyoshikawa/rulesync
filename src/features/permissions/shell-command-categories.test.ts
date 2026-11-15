@@ -130,6 +130,15 @@ describe("createShadowingRestrictionsTest", () => {
     expect(shadowed("unrelated-command")).toEqual([pattern]);
   });
 
+  it("withholds allows covered by a restriction with a variable reference", () => {
+    // `${OUT}` has no comma, so a check that widens only brace alternations
+    // would compare it literally and let `rm -rf build` through.
+    const shadowed = createShadowingRestrictionsTest([allToolsRule("rm -rf ${OUT}", "deny")]);
+
+    expect(shadowed("rm -rf build")).toEqual(["rm -rf ${OUT}"]);
+    expect(shadowed("unrelated-command")).toEqual(["rm -rf ${OUT}"]);
+  });
+
   it("withholds an expanding brace allow when a plain restriction could cover it", () => {
     const shadowed = createShadowingRestrictionsTest([allToolsRule("rm -rf build", "deny")]);
 
