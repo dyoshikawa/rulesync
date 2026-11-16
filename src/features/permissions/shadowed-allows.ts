@@ -75,9 +75,9 @@ function splitUrlPattern(withoutScheme: string): UrlPatternParts {
   const hostPort = slash === -1 ? normalized : normalized.slice(0, slash);
   const path = slash === -1 ? undefined : normalized.slice(slash);
   const port = /:([0-9*]+)$/.exec(hostPort);
-  const host = port === null ? hostPort : hostPort.slice(0, port.index);
-  // A final DNS root dot names the same host; normalize only for overlap checks.
-  return { host: host.replace(/([a-z0-9])\.$/, "$1"), port: port?.[1], path };
+  return port === null
+    ? { host: hostPort, port: undefined, path }
+    : { host: hostPort.slice(0, port.index), port: port[1], path };
 }
 
 /**
@@ -137,9 +137,12 @@ function withAnyPath(withoutScheme: string): string {
 
 function urlPartsOverlap(left: string, right: string): boolean {
   const readings = (pattern: string): UrlPatternParts[] =>
-    [...new Set([stripUrlSchemeKeepingPathCase(pattern), stripUrlSchemeLoosely(pattern)])].map(
-      splitUrlPattern,
-    );
+    [...new Set([stripUrlSchemeKeepingPathCase(pattern), stripUrlSchemeLoosely(pattern)])]
+      .map(splitUrlPattern)
+      .flatMap((parts) =>
+        // Preserve the original reading so this can only add overlaps, never remove them.
+        parts.host.endsWith(".") ? [parts, { ...parts, host: parts.host.slice(0, -1) }] : [parts],
+      );
   return readings(left).some((a) => readings(right).some((b) => urlPartsPairOverlap(a, b)));
 }
 
