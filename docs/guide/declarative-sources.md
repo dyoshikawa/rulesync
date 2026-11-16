@@ -13,6 +13,27 @@ rulesync add acme/ai-standards --rules testing-guidelines
 
 The command fetches only the source being added. Existing sources must already be locked and installed; run `rulesync install` first when they are not. If the new source fails, Rulesync restores the manifest, source lockfiles, curated rules, and curated skills to their previous state.
 
+## Sharing MCP and other configuration
+
+In the default install mode, `sources` and its lockfiles cover rules and skills.
+To share MCP servers, commands, subagents, hooks, or permissions, make the shared
+Rulesync source tree available separately, such as by checking out your team's
+configuration repository at a pinned revision. Add that tree before your project
+tree in [`inputRoots`](separate-input-root.md):
+
+```jsonc
+{
+  "inputRoots": ["./team-config/.rulesync", "./.rulesync"],
+}
+```
+
+For example, if the shared tree contains `mcp.jsonc`, `rulesync generate` reads its
+servers alongside the local ones. Local entries replace shared entries with the
+same server name. For hooks and permissions, the last tree with a file supplies
+the whole file. `rulesync install --frozen` does not fetch or verify this shared
+checkout. Pin and update it separately from the Rulesync lockfiles. Only use shared
+source trees you [trust](separate-input-root.md#symlinks-and-trust).
+
 ## Configuration
 
 Add a `sources` array to your `rulesync.jsonc`:
