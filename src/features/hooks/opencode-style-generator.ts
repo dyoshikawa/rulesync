@@ -127,8 +127,9 @@ const BLOCKING_HOOKS: ReadonlySet<string> = new Set(
  * and falls back to Bun Shell, piping the payload into the first command only
  * (a probe its 10 s limit cut short is retried on the next command). Output
  * pipes a background process keeps open are read for 1 s after the command
- * exits; what arrived by then is kept. The OpenCode 1.x-style `event` hooks
- * (`inProcess`) take the Bun Shell path too: starting the child takes about
+ * exits; what arrived by then is kept, and the reads are then cancelled, as
+ * they are at a timeout. The OpenCode 1.x-style `event` hooks (`inProcess`)
+ * take the Bun Shell path too: starting the child takes about
  * 250 ms, and OpenCode 1.x's one-shot `opencode run` exits right after
  * `session.idle`, before a `stop` command run that way could start.
  * A command that outlives its timeout (counted from its start) resolves to
@@ -154,10 +155,15 @@ function buildRunHelperLinesFor(cwdExpression: string): string[] {
   return [
     "const __rulesyncRead = (stream) => {",
     "  const chunks = [];",
+    "  const reader = stream.getReader();",
+    "  let reading = true;",
     "  const done = (async () => {",
-    "    for await (const chunk of stream) chunks.push(chunk);",
+    "    for (let read; reading && !(read = await reader.read()).done; ) if (reading) chunks.push(read.value);",
     "  })().catch(() => {});",
-    "  return { done, text: () => Buffer.concat(chunks).toString() };",
+    "  const stop = () => {",
+    "    if (reading) (reading = false), reader.cancel().catch(() => {});",
+    "  };",
+    "  return { done, stop, text: () => Buffer.concat(chunks).toString() };",
     "};",
     "let __rulesyncCanExec;",
     "// pid -> [ppid, start time], from procfs or else ps; a reused PID gets a new start time.",
@@ -197,8 +203,10 @@ function buildRunHelperLinesFor(cwdExpression: string): string[] {
     "  return tree;",
     "};",
     "// The child itself is signalled only through its handle, a no-op once Bun has reaped it, so a",
-    "// reused PID is never signalled; its descendants only while it is running, and in the SIGKILL",
-    "// round only with both snapshots, as the same processes (same start time).",
+    "// reused PID is never signalled; its descendants only while it is running (not reaped, its PID",
+    "// cannot be reused), and in the SIGKILL round only with both snapshots: the first snapshot's",
+    "// descendants that are the same processes (same start time), and what they and the child,",
+    "// if it ran across the second snapshot, have started since.",
     "const __rulesyncKillTree = (proc) => {",
     "  const kill = (pids, signal) => pids.forEach((pid) => { try { process.kill(Number(pid), signal); } catch {} });",
     "  const running = () => proc.exitCode === null && proc.signalCode === null;",
@@ -208,13 +216,16 @@ function buildRunHelperLinesFor(cwdExpression: string): string[] {
     '  proc.kill("SIGTERM");',
     '  kill(first, "SIGTERM");',
     "  setTimeout(() => {",
-    '    proc.kill("SIGKILL");',
-    "    const now = first.length > 0 ? __rulesyncProcesses() : undefined;",
-    "    if (!now) return;",
+    "    const alive = running();",
+    "    const now = before && __rulesyncProcesses();",
+    '    if (!now) return proc.kill("SIGKILL");',
     "    // Every first-snapshot descendant that is still the same process, wherever it was",
-    "    // reparented (to PID 1 or a subreaper), and what it has started since.",
+    "    // reparented (to PID 1 or a subreaper), and the child if it survived SIGTERM, with what",
+    "    // they have started since. The child is killed first, so it starts nothing more.",
     "    const same = first.filter((pid) => now.get(pid)?.[1] === before.get(pid)?.[1]);",
-    '    kill(__rulesyncTree(same, now).filter((pid) => pid !== root), "SIGKILL");',
+    "    const own = alive && running() && now.get(root)?.[1] === before.get(root)?.[1];",
+    '    proc.kill("SIGKILL");',
+    '    kill(__rulesyncTree(own ? [root, ...same] : same, now).filter((pid) => pid !== root), "SIGKILL");',
     "  }, 2000);",
     "};",
     "const __rulesyncRunCommand = async ({ command, input, seconds, inProcess = false }) => {",
@@ -239,11 +250,13 @@ function buildRunHelperLinesFor(cwdExpression: string): string[] {
     "  const [stdout, stderr] = [__rulesyncRead(proc.stdout), __rulesyncRead(proc.stderr)];",
     "  const exitCode = await Promise.race([proc.exited, timeout()]).finally(() => clearTimeout(timer));",
     "  if (exitCode === null) {",
+    "    stdout.stop(), stderr.stop();",
     '    if (process.platform === "win32") proc.kill();',
     "    else __rulesyncKillTree(proc);",
     "    return null;",
     "  }",
     "  await Promise.race([Promise.all([stdout.done, stderr.done]), Bun.sleep(1000)]);",
+    "  stdout.stop(), stderr.stop();",
     "  return { exitCode, stdout: stdout.text(), stderr: stderr.text() };",
     "};",
     "const __rulesyncRunHook = async ({ label, command, input, blocking, seconds, inProcess = false }) => {",

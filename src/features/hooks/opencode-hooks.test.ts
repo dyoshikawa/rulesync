@@ -1,4 +1,5 @@
 import { execFileSync, spawn } from "node:child_process";
+import { chmod } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -493,6 +494,104 @@ describe("OpencodeHooks (OpenCode V2)", () => {
         "alive: 0",
       ]);
     }, 90_000);
+
+    // POSIX only: the check relies on a write to a pipe whose reader is gone failing.
+    it.runIf(process.platform !== "win32")(
+      "stops reading output pipes a leftover holds once the command has exited",
+      async () => {
+        // With "bg", prints a line and leaves a child writing to its stdout; that child counts
+        // the writes that went through in written.txt and stops at the first failing one.
+        const writer = [
+          'const fs = require("node:fs");',
+          'if (process.argv[2] === "bg") {',
+          '  require("node:child_process").spawn(process.execPath, ["writer.cjs"], { stdio: "inherit" });',
+          '  console.log("before-exit");',
+          "  process.exit(0);",
+          "}",
+          'fs.writeFileSync("writer.pid", String(process.pid));',
+          "const chunk = Buffer.alloc(1024, 120);",
+          "let writes = 0;",
+          "const timer = setInterval(() => {",
+          "  try {",
+          "    fs.writeSync(1, chunk);",
+          '    fs.writeFileSync("written.txt", String(++writes));',
+          "  } catch (error) {",
+          '    fs.writeFileSync("written.txt", writes + " " + error.code);',
+          "    clearInterval(timer);",
+          "  }",
+          "}, 10);",
+        ].join("\n");
+        await writeFileContent(join(testDir, "writer.cjs"), writer);
+        const { out, printed } = await runUnderBun({
+          content: generate({ hooks: { postToolUse: [{ command: "node writer.cjs bg" }] } }),
+          prelude: "await mod.default.setup(ctx);",
+          body: [
+            "const started = Date.now();",
+            "await call(() => hooks['tool:execute.after']({ tool: 'write', input: {}, status: 'completed' }));",
+            "out.push(Date.now() - started < 5000 ? 'prompt' : 'slow');",
+            "const written = () => Bun.file(directory + '/written.txt').text();",
+            "await Bun.sleep(500);",
+            "const first = await written();",
+            "await Bun.sleep(1000);",
+            // EPIPE, or ECONNRESET when the pipe is closed with data still unread.
+            "const closed = /^\\d+ (EPIPE|ECONNRESET)$/.test(first);",
+            "out.push(first === (await written()) ? (closed ? 'closed' : 'stopped: ' + first) : 'still read');",
+            "try { process.kill(Number(await Bun.file(directory + '/writer.pid').text())); } catch {}",
+          ].join("\n"),
+        });
+
+        // What arrived in the 1 s after the exit is echoed; then the pipe is closed.
+        expect(out).toEqual(["ok", "prompt", "closed"]);
+        expect(printed).toContain("before-exit");
+      },
+      60_000,
+    );
+
+    it.runIf(process.platform === "linux")(
+      "kills what a command that survives SIGTERM starts during the grace",
+      async () => {
+        // Stands in for the host's Bun CLI (a `bun exec` process dies on SIGTERM): answers the
+        // exec probe, and for a command records its pid, survives SIGTERM and starts a child then.
+        const host = [
+          "#!/usr/bin/env node",
+          'const fs = require("node:fs");',
+          'if (process.argv[4] === "echo rulesync") {',
+          '  console.log("rulesync");',
+          "  process.exit(0);",
+          "}",
+          'fs.appendFileSync("pids.txt", "root " + process.pid + "\\n");',
+          'process.on("SIGTERM", () => {',
+          '  const late = require("node:child_process").spawn("sleep", ["300"], { stdio: "ignore" });',
+          '  fs.appendFileSync("pids.txt", "late " + late.pid + "\\n");',
+          "});",
+          "setInterval(() => {}, 1000);",
+        ].join("\n");
+        const hostPath = join(testDir, "host.cjs");
+        await writeFileContent(hostPath, host);
+        await chmod(hostPath, 0o755);
+        const { out } = await runUnderBun({
+          content: generate({
+            hooks: { postToolUse: [{ command: "ignored by the stand-in", timeout: 1 }] },
+          }),
+          prelude: `process.execPath = ${JSON.stringify(hostPath)};\nawait mod.default.setup(ctx);`,
+          body: [
+            "await call(() => hooks['tool:execute.after']({ tool: 'write', input: {}, status: 'completed' }));",
+            // A zombie (its parent gone, not reaped yet) counts as dead.
+            "const alive = (pid) => { try { const stat = require('node:fs').readFileSync('/proc/' + pid + '/stat', 'utf8'); return stat[stat.lastIndexOf(')') + 2] !== 'Z'; } catch { return false; } };",
+            "const read = async () => (await Bun.file(directory + '/pids.txt').text()).trim().split('\\n').map((line) => line.split(' '));",
+            // Polled instead of a fixed wait so a slow machine does not fail the test early.
+            "let pids = await read();",
+            "for (let i = 0; i < 100 && (pids.length < 2 || pids.some(([, pid]) => alive(Number(pid)))); i++) { await Bun.sleep(100); pids = await read(); }",
+            "out.push(pids.map(([name]) => name).join(' '));",
+            "out.push('alive: ' + pids.filter(([, pid]) => alive(Number(pid))).map(([name]) => name).join(' '));",
+            "pids.forEach(([, pid]) => alive(Number(pid)) && process.kill(Number(pid), 'SIGKILL'));",
+          ].join("\n"),
+        });
+
+        expect(out).toEqual(["ok", "root late", "alive: "]);
+      },
+      60_000,
+    );
   });
 
   describe("toRulesyncHooks", () => {
