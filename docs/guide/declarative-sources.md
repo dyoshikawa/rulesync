@@ -221,7 +221,7 @@ Files that a previous run deployed and the upstream no longer ships are removed 
 
 ## Sharing MCP and other configuration
 
-In the default install mode, `sources` and its lockfiles cover rules and skills. To share MCP servers, commands, subagents, hooks, or permissions, make the shared Rulesync source tree available separately, such as by checking out your team's configuration repository at a pinned revision. Add that tree before your project tree in [`inputRoots`](separate-input-root.md):
+In the default install mode, `sources` and its lockfiles cover rules and skills. To share MCP servers, commands, subagents, hooks, or permissions, make the shared Rulesync source tree available separately, such as by checking out your team's configuration repository at a specific commit (for example as a git submodule). Add that tree before your project tree in [`inputRoots`](separate-input-root.md):
 
 ```jsonc
 {
@@ -229,15 +229,15 @@ In the default install mode, `sources` and its lockfiles cover rules and skills.
 }
 ```
 
-For example, if the shared tree contains `mcp.jsonc`, `rulesync generate` reads its servers alongside the local ones. Local entries replace shared entries with the same server name. Commands and subagents are merged file by file, so a local file replaces a shared file with the same name. For hooks, permissions, and ignore, the last tree with a file supplies the whole file. See [Merge rules per feature](separate-input-root.md#merge-rules-per-feature) for the full rules.
+For example, if the shared tree contains `mcp.jsonc`, `rulesync generate` reads its servers alongside the local ones. Local entries replace shared entries with the same server name. Commands and subagents are merged file by file, so a local file replaces a shared file with the same name (compared case-insensitively). For hooks, permissions, and ignore, the last tree with a file supplies the whole file, and Rulesync warns when it replaces one. See [Merge rules per feature](separate-input-root.md#merge-rules-per-feature) for the full rules.
 
 Keep these caveats in mind:
 
 - The first input root is the required base. With the order above, `rulesync generate` fails when `./team-config/.rulesync` is missing, for example in a fresh clone where the shared checkout or submodule has not been initialized yet.
-- `inputRoots` only affects `rulesync generate`. `install`, `import`, `gitignore`, and the other commands still read `.rulesync/` from the current working directory.
+- `inputRoots` only affects `rulesync generate`. `install`, `import`, `gitignore`, and the other commands still use `.rulesync/` in the current working directory.
 - `rulesync install --frozen` does not fetch or verify this shared checkout. Pin and update it separately from the Rulesync lockfiles.
 
-Only use shared source trees you [trust](separate-input-root.md#symlinks-and-trust). Shared MCP servers and hooks run commands on each developer's machine, and shared permissions widen what agents may do without asking, so review the changes before bumping the pinned revision.
+Only use shared source trees you [trust](separate-input-root.md#symlinks-and-trust). Shared MCP servers and hooks run commands on each developer's machine, shared permissions widen what agents may do without asking, and shared rules, commands, and subagents become instructions to the agent, so review the changes before bumping the pinned revision.
 
 ## CLI Options
 
