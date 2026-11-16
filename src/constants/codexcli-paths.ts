@@ -34,4 +34,5 @@ export const CODEXCLI_OVERRIDE_KEYS = [
   "approvals_reviewer",
   "auto_review",
   "tui",
+  "tools",
 ] as const;

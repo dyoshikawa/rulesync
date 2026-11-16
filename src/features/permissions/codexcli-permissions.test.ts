@@ -2850,6 +2850,41 @@ command = "node"
       });
     });
 
+    it("authors and round-trips the [tools] table (update_plan.enabled)", async () => {
+      const logger = createMockLogger();
+      const rulesyncPermissions = new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: { read: { "src/**": "allow" } },
+          codexcli: { tools: { update_plan: { enabled: true } } },
+        }),
+      });
+
+      const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger,
+      });
+
+      const parsed = smolToml.parse(codexPermissions.getFileContent()) as Record<string, unknown>;
+      expect(parsed.tools).toEqual({ update_plan: { enabled: true } });
+      expect(logger.warn.mock.calls.map((call) => String(call[0])).join("\n")).not.toContain(
+        '"tools" is not managed',
+      );
+
+      const reimported = new CodexcliPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".codex",
+        relativeFilePath: "config.toml",
+        fileContent: codexPermissions.getFileContent(),
+      });
+      expect(reimported.toRulesyncPermissions().getJson().codexcli?.tools).toEqual({
+        update_plan: { enabled: true },
+      });
+    });
+
     it("authors and round-trips the [auto_review] table, shallow-merged with existing keys", async () => {
       const codexDir = join(testDir, ".codex");
       await ensureDir(codexDir);
