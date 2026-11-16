@@ -1555,7 +1555,7 @@ const CodexBasePermissionProfileSchema = z.enum(CODEX_BASE_PERMISSION_PROFILES);
  * passthrough: only `CODEXCLI_OVERRIDE_KEYS`
  * (`src/constants/codexcli-paths.ts` — `approval_policy`, `sandbox_mode`,
  * `sandbox_workspace_write`, `apps`, `approvals_reviewer`, `auto_review`,
- * `tui`) are emitted, and
+ * `tui`, `tools`) are emitted, and
  * `computeCodexcliOverridePatch` skips anything else with a warning.
  * `base_permission_profile`, `git_write_rules` and `bash_canonical_matching`
  * are consumed by the generators rather than written, as described above, and `permission` is the
@@ -1617,6 +1617,15 @@ const CodexcliPermissionsOverrideSchema = z.looseObject({
    * @see https://developers.openai.com/codex/config-reference
    */
   tui: z.optional(z.looseObject({})),
+  /**
+   * The `[tools]` table of `config.toml` (e.g. `update_plan.enabled`, which
+   * Codex 0.152.0+ needs to register the `update_plan` tool). Values are
+   * written verbatim: Codex ignores unknown keys inside this table unless
+   * strict config validation is on, and its JSON schema flags them.
+   *
+   * @see https://github.com/openai/codex/blob/main/codex-rs/config/src/config_toml.rs (`ToolsToml`)
+   */
+  tools: z.optional(z.looseObject({})),
   git_write_rules: z.optional(z.boolean()),
   bash_canonical_matching: z.optional(z.boolean()),
 });
