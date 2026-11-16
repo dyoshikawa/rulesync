@@ -13,27 +13,6 @@ rulesync add acme/ai-standards --rules testing-guidelines
 
 The command fetches only the source being added. Existing sources must already be locked and installed; run `rulesync install` first when they are not. If the new source fails, Rulesync restores the manifest, source lockfiles, curated rules, and curated skills to their previous state.
 
-## Sharing MCP and other configuration
-
-In the default install mode, `sources` and its lockfiles cover rules and skills.
-To share MCP servers, commands, subagents, hooks, or permissions, make the shared
-Rulesync source tree available separately, such as by checking out your team's
-configuration repository at a pinned revision. Add that tree before your project
-tree in [`inputRoots`](separate-input-root.md):
-
-```jsonc
-{
-  "inputRoots": ["./team-config/.rulesync", "./.rulesync"],
-}
-```
-
-For example, if the shared tree contains `mcp.jsonc`, `rulesync generate` reads its
-servers alongside the local ones. Local entries replace shared entries with the
-same server name. For hooks and permissions, the last tree with a file supplies
-the whole file. `rulesync install --frozen` does not fetch or verify this shared
-checkout. Pin and update it separately from the Rulesync lockfiles. Only use shared
-source trees you [trust](separate-input-root.md#symlinks-and-trust).
-
 ## Configuration
 
 Add a `sources` array to your `rulesync.jsonc`:
@@ -239,6 +218,26 @@ A plain `rulesync install --mode gh` installs each source at the commit recorded
 At project scope, a deployed file is refused when any path component below the project root — the install directory, the skill directory, or the file itself — is a symbolic link, and the install fails with `Refusing to follow a symbolic link`. This stops a cloned repository from committing a link such as `.agents/skills/x/config -> ../../../.git/config` that would send the remote bytes into another file of the project. User scope is not checked, so a `~/.claude` linked into a dotfiles checkout keeps working.
 
 Files that a previous run deployed and the upstream no longer ships are removed again, but only from that skill's own install directory. A stale file that is itself a symbolic link is removed as a link, without touching its target; a stale file reached through a linked directory is left alone with a warning. Because `rulesync-gh.lock.yaml` is committed with the project, user-scope files are only cleaned up while the current config still installs the same source with the same agent at user scope; otherwise rulesync warns and leaves them for you to remove.
+
+## Sharing MCP and other configuration
+
+In the default install mode, `sources` and its lockfiles cover rules and skills. To share MCP servers, commands, subagents, hooks, or permissions, make the shared Rulesync source tree available separately, such as by checking out your team's configuration repository at a specific commit (for example as a git submodule). Add that tree before your project tree in [`inputRoots`](separate-input-root.md):
+
+```jsonc
+{
+  "inputRoots": ["./team-config/.rulesync", "./.rulesync"],
+}
+```
+
+For example, if the shared tree contains `mcp.jsonc`, `rulesync generate` reads its servers alongside the local ones. Local entries replace shared entries with the same server name. Commands and subagents are merged file by file, so a local file replaces a shared file with the same name (compared case-insensitively). For hooks, permissions, and ignore, the last tree with a file supplies the whole file, and Rulesync warns when it replaces one. See [Merge rules per feature](separate-input-root.md#merge-rules-per-feature) for the full rules.
+
+Keep these caveats in mind:
+
+- The first input root is the required base. With the order above, `rulesync generate` fails when `./team-config/.rulesync` is missing, for example in a fresh clone where the shared checkout or submodule has not been initialized yet.
+- `inputRoots` only affects `rulesync generate`. `install`, `import`, `gitignore`, and the other commands still use `.rulesync/` in the current working directory.
+- `rulesync install --frozen` does not fetch or verify this shared checkout. Pin and update it separately from the Rulesync lockfiles.
+
+Only use shared source trees you [trust](separate-input-root.md#symlinks-and-trust). Shared MCP servers and hooks run commands on each developer's machine, shared permissions widen what agents may do without asking, and shared rules, commands, and subagents become instructions to the agent, so review the changes before bumping the pinned revision.
 
 ## CLI Options
 
