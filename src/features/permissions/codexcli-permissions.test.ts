@@ -2885,6 +2885,45 @@ command = "node"
       });
     });
 
+    it("shallow-merges an authored [tools] table with existing keys and imports it", async () => {
+      const codexDir = join(testDir, ".codex");
+      await ensureDir(codexDir);
+      await writeFileContent(
+        join(codexDir, "config.toml"),
+        ["[tools.web_search]", 'context_size = "low"'].join("\n"),
+      );
+      const rulesyncPermissions = new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: { bash: { "git status": "allow" } },
+          codexcli: { tools: { update_plan: { enabled: true } } },
+        }),
+      });
+
+      const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const parsed = smolToml.parse(codexPermissions.getFileContent()) as Record<string, unknown>;
+      expect(parsed.tools).toEqual({
+        web_search: { context_size: "low" },
+        update_plan: { enabled: true },
+      });
+
+      const imported = new CodexcliPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".codex",
+        relativeFilePath: "config.toml",
+        fileContent: ["[tools.web_search]", 'context_size = "low"'].join("\n"),
+      });
+      expect(imported.toRulesyncPermissions().getJson().codexcli?.tools).toEqual({
+        web_search: { context_size: "low" },
+      });
+    });
+
     it("authors and round-trips the [auto_review] table, shallow-merged with existing keys", async () => {
       const codexDir = join(testDir, ".codex");
       await ensureDir(codexDir);

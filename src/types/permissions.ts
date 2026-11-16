@@ -1619,9 +1619,9 @@ const CodexcliPermissionsOverrideSchema = z.looseObject({
   tui: z.optional(z.looseObject({})),
   /**
    * The `[tools]` table of `config.toml` (e.g. `update_plan.enabled`, which
-   * Codex 0.152.0+ needs to register the `update_plan` tool, or
-   * `web_search`). Codex rejects unknown keys inside this table, so values
-   * are written verbatim and must match Codex's schema.
+   * Codex 0.152.0+ needs to register the `update_plan` tool). Values are
+   * written verbatim: Codex ignores unknown keys inside this table unless
+   * strict config validation is on, and its JSON schema flags them.
    *
    * @see https://github.com/openai/codex/blob/main/codex-rs/config/src/config_toml.rs (`ToolsToml`)
    */
