@@ -522,12 +522,13 @@ describe("OpencodeHooks (OpenCode V2)", () => {
           "}, 10);",
         ].join("\n");
         await writeFileContent(join(testDir, "writer.cjs"), writer);
-        const { out, printed } = await runUnderBun({
-          content: generate({ hooks: { postToolUse: [{ command: "node writer.cjs bg" }] } }),
+        // Only preToolUse output is read; an ordinary command writes to the host's own stdout.
+        const { out } = await runUnderBun({
+          content: generate({ hooks: { preToolUse: [{ command: "node writer.cjs bg" }] } }),
           prelude: "await mod.default.setup(ctx);",
           body: [
             "const started = Date.now();",
-            "await call(() => hooks['tool:execute.after']({ tool: 'write', input: {}, status: 'completed' }));",
+            "await call(() => hooks['tool:execute.before']({ tool: 'write', input: {} }));",
             "out.push(Date.now() - started < 5000 ? 'prompt' : 'slow');",
             "const written = () => Bun.file(directory + '/written.txt').text();",
             "await Bun.sleep(500);",
@@ -540,9 +541,86 @@ describe("OpencodeHooks (OpenCode V2)", () => {
           ].join("\n"),
         });
 
-        // What arrived in the 1 s after the exit is echoed; then the pipe is closed.
+        // What arrived in the 1 s after the exit is read; then the pipe is closed.
         expect(out).toEqual(["ok", "prompt", "closed"]);
-        expect(printed).toContain("before-exit");
+      },
+      60_000,
+    );
+
+    it("streams ordinary hook output without keeping it and denies over 1 MiB of preToolUse stdout", async () => {
+      const write = (size: number, tail: string) =>
+        `node -e "process.stdout.write(' '.repeat(${size}) + '${tail}')"`;
+      const { out, printed } = await runUnderBun({
+        content: generate({
+          hooks: {
+            preToolUse: [{ command: write(2 * 1024 * 1024, "{}") }],
+            postToolUse: [{ command: write(50 * 1024 * 1024, "streamed-end") }],
+          },
+        }),
+        prelude: "await mod.default.setup(ctx);",
+        body: [
+          "await call(() => hooks['tool:execute.before']({ tool: 'write', input: {} }));",
+          "const base = process.memoryUsage.rss(); let peak = base;",
+          "const sample = setInterval(() => (peak = Math.max(peak, process.memoryUsage.rss())), 5);",
+          "await call(() => hooks['tool:execute.after']({ tool: 'write', input: {}, status: 'completed' }));",
+          "clearInterval(sample);",
+          "out.push(peak - base < 20 * 1048576 ? 'not kept' : 'kept: ' + (peak - base));",
+        ].join("\n"),
+      });
+
+      expect(out).toEqual([
+        "threw: preToolUse hook wrote more than 1 MiB to stdout.",
+        "ok",
+        "not kept",
+      ]);
+      expect(printed.endsWith("streamed-end")).toBe(true);
+    }, 60_000);
+
+    // POSIX only: the guard is an `sh` script.
+    it.runIf(process.platform !== "win32")(
+      "ends the payload with a newline",
+      async () => {
+        const { out } = await runUnderBun({
+          content: generate({ hooks: { preToolUse: [{ command: "sh -c 'read -r payload'" }] } }),
+          prelude: "await mod.default.setup(ctx);",
+          body: "await call(() => hooks['tool:execute.before']({ tool: 'write', input: {} }));",
+        });
+
+        // `read` fails at an end of input that is not preceded by a newline, as `echo` wrote it.
+        expect(out).toEqual(["ok"]);
+      },
+      60_000,
+    );
+
+    // POSIX only: the stand-in host is a script run through its shebang.
+    it.runIf(process.platform !== "win32")(
+      "falls back when the Bun CLI probe never settles, and does not probe again for a while",
+      async () => {
+        // Stands in for a host binary whose probe hangs: it ignores SIGTERM and only exits at 60 s.
+        const host = [
+          "#!/usr/bin/env node",
+          'require("node:fs").appendFileSync("probes.txt", "probe\\n");',
+          'process.on("SIGTERM", () => {});',
+          "setTimeout(() => {}, 60000);",
+        ].join("\n");
+        const hostPath = join(testDir, "host.cjs");
+        await writeFileContent(hostPath, host);
+        await chmod(hostPath, 0o755);
+        const { out, records } = await runUnderBun({
+          content: generate({ hooks: { postToolUse: [{ command: "node hook.cjs post 0" }] } }),
+          prelude: `process.execPath = ${JSON.stringify(hostPath)};\nawait mod.default.setup(ctx);`,
+          body: [
+            "for (const _ of [1, 2]) {",
+            "  const started = Date.now();",
+            "  await call(() => hooks['tool:execute.after']({ tool: 'write', input: {}, status: 'completed' }));",
+            "  out.push(Date.now() - started < 9000 ? 'at once' : 'after the deadline');",
+            "}",
+            "out.push((await Bun.file(directory + '/probes.txt').text()).trim());",
+          ].join("\n"),
+        });
+
+        expect(out).toEqual(["ok", "after the deadline", "ok", "at once", "probe"]);
+        expect(records.map((record) => record.name)).toEqual(["post", "post"]);
       },
       60_000,
     );

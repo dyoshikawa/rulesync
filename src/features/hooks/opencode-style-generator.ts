@@ -125,7 +125,10 @@ const BLOCKING_HOOKS: ReadonlySet<string> = new Set(
  * versions held, with the payload as stdin. The script clears `BUN_BE_BUN` for
  * the programs the command starts. A host without the Bun CLI fails the probe
  * and falls back to Bun Shell, piping the payload into the first command only
- * (a probe its 10 s limit cut short is retried on the next command). Output
+ * (a probe still running after 10 s is killed; it, or a failing one, means no
+ * Bun CLI for 5 minutes). Ordinary commands write to the host's stdout and
+ * stderr, as Bun Shell echoed them; a `preToolUse` command's are read, 1 MiB
+ * each kept (more stdout denies). Output
  * pipes a background process keeps open are read for 1 s after the command
  * exits; what arrived by then is kept, and the reads are then cancelled, as
  * they are at a timeout. The OpenCode 1.x-style `event` hooks (`inProcess`)
@@ -144,28 +147,32 @@ const BLOCKING_HOOKS: ReadonlySet<string> = new Set(
  * the command's own process is killed (logged). The pending SIGKILL keeps the
  * host alive for those 2 s. On Windows the child is ended with the processes
  * it started. Bun Shell (the fallback) cannot kill: it stops waiting.
- * `__rulesyncRunHook` echoes the output, as Bun Shell did, and on a failure
- * throws in a blocking hook or logs it otherwise.
+ * On a failure, `__rulesyncRunHook` throws in a blocking hook or logs it
+ * otherwise.
  *
  * @see https://bun.sh/docs/bundler/executables
  */
 function buildRunHelperLinesFor(cwdExpression: string): string[] {
-  const spawn = ({ script, stdin }: { script: string; stdin: string }) =>
-    `Bun.spawn([process.execPath, "--no-env-file", "exec", ${script}], { cwd: ${cwdExpression}, env: { ...process.env, BUN_BE_BUN: "1" }, stdin: ${stdin}, stdout: "pipe", stderr: "pipe", windowsHide: true })`;
+  const spawn = (script: string, stdin: string, stdout = '"pipe"', stderr = stdout) =>
+    `Bun.spawn([process.execPath, "--no-env-file", "exec", ${script}], { cwd: ${cwdExpression}, env: { ...process.env, BUN_BE_BUN: "1" }, stdin: ${stdin}, stdout: ${stdout}, stderr: ${stderr}, windowsHide: true })`;
   return [
-    "const __rulesyncRead = (stream) => {",
+    "const __rulesyncRead = (stream, limit = 1048576) => {",
     "  const chunks = [];",
+    "  let size = 0;",
     "  const reader = stream.getReader();",
     "  let reading = true;",
     "  const done = (async () => {",
-    "    for (let read; reading && !(read = await reader.read()).done; ) if (reading) chunks.push(read.value);",
+    "    for (let read; reading && !(read = await reader.read()).done; ) {",
+    "      if (reading && (size += read.value.length) <= limit) chunks.push(read.value);",
+    "    }",
     "  })().catch(() => {});",
     "  const stop = () => {",
     "    if (reading) (reading = false), reader.cancel().catch(() => {});",
     "  };",
-    "  return { done, stop, text: () => Buffer.concat(chunks).toString() };",
+    "  return { done, stop, text: () => Buffer.concat(chunks).toString(), overflow: () => size > limit };",
     "};",
     "let __rulesyncCanExec;",
+    "let __rulesyncRetryAt = 0;",
     "// pid -> [ppid, start time], from procfs or else ps; a reused PID gets a new start time.",
     "const __rulesyncProcesses = () => {",
     "  const processes = new Map();",
@@ -183,7 +190,7 @@ function buildRunHelperLinesFor(cwdExpression: string): string[] {
     "  try {",
     "    // The C locale keeps `lstart` in one format; it is compared as text, never parsed.",
     '    const env = { ...process.env, LC_ALL: "C", LANG: "C" };',
-    '    const ps = Bun.spawnSync(["ps", "-A", "-o", "pid=,ppid=,lstart="], { env });',
+    '    const ps = Bun.spawnSync(["ps", "-A", "-o", "pid=,ppid=,lstart="], { env, timeout: 5000 });',
     "    if (ps.exitCode === 0) {",
     '      for (const line of ps.stdout.toString().trim().split("\\n")) {',
     "        const [pid, ppid, ...started] = line.trim().split(/\\s+/);",
@@ -228,41 +235,56 @@ function buildRunHelperLinesFor(cwdExpression: string): string[] {
     '    kill(__rulesyncTree(own ? [root, ...same] : same, now).filter((pid) => pid !== root), "SIGKILL");',
     "  }, 2000);",
     "};",
-    "const __rulesyncRunCommand = async ({ command, input, seconds, inProcess = false }) => {",
-    "  if (!inProcess) __rulesyncCanExec ??= (async () => {",
-    `    const probe = ${spawn({ script: '"echo rulesync"', stdin: '"ignore"' })};`,
-    "    let killed = false;",
-    "    const timer = setTimeout(() => ((killed = true), probe.kill()), 10000);",
-    "    const output = __rulesyncRead(probe.stdout);",
-    "    await Promise.all([output.done, probe.exited]);",
-    "    clearTimeout(timer);",
-    "    if (killed) __rulesyncCanExec = undefined;",
-    '    return output.text().trim() === "rulesync";',
-    "  })().catch(() => false);",
+    "const __rulesyncRunCommand = async ({ command, input, seconds, inProcess = false, echo = false }) => {",
+    "  // A probe that exited 0 is kept; one past its deadline or failing means no Bun CLI for",
+    "  // 5 minutes; one that threw is dropped, so the next command probes again.",
+    "  if (!inProcess && (__rulesyncCanExec === undefined || (__rulesyncRetryAt && Date.now() >= __rulesyncRetryAt))) {",
+    "    __rulesyncRetryAt = 0;",
+    "    const probing = (__rulesyncCanExec = (async () => {",
+    `      const probe = ${spawn('"echo rulesync"', '"ignore"', '"pipe"', '"ignore"')};`,
+    "      const output = __rulesyncRead(probe.stdout, 1024);",
+    "      let timer;",
+    "      // Settles on its own, even if the probe ignores the kill or a process holds its stdout.",
+    "      const deadline = new Promise((resolve) => (timer = setTimeout(resolve, 10000, null)));",
+    "      const exited = Promise.all([probe.exited, output.done]).then(([code]) => code);",
+    "      const exitCode = await Promise.race([exited, deadline]).finally(() => clearTimeout(timer));",
+    '      if (exitCode === null) probe.kill("SIGKILL"), output.stop();',
+    "      if (exitCode !== 0) __rulesyncRetryAt = Date.now() + 300000;",
+    '      return exitCode === 0 && output.text().trim() === "rulesync";',
+    "    })().catch(() => {",
+    "      if (__rulesyncCanExec === probing) __rulesyncCanExec = undefined;",
+    "      return false;",
+    "    }));",
+    "  }",
     "  let timer;",
     "  const timeout = () => new Promise((resolve) => (timer = setTimeout(resolve, seconds * 1000, null)));",
     "  if (inProcess || !(await __rulesyncCanExec)) {",
-    `    const run = Bun.$\`echo -n \${input} | \${{ raw: command }}\`.cwd(${cwdExpression}).nothrow().quiet();`,
-    "    const result = await Promise.race([run, timeout()]).finally(() => clearTimeout(timer));",
-    "    return result && { exitCode: result.exitCode, stdout: result.stdout.toString(), stderr: result.stderr.toString() };",
+    `    const run = Bun.$\`echo \${input} | \${{ raw: command }}\`.cwd(${cwdExpression}).nothrow();`,
+    "    const result = await Promise.race([echo ? run : run.quiet(), timeout()]).finally(() => clearTimeout(timer));",
+    "    if (!result || echo) return result && { exitCode: result.exitCode };",
+    "    const { exitCode, stdout, stderr } = result;",
+    "    return { exitCode, stdout: stdout.toString(), stderr: stderr.toString(), overflow: stdout.length > 1048576 };",
     "  }",
-    `  const proc = ${spawn({ script: '"export BUN_BE_BUN=\\n" + command', stdin: "new TextEncoder().encode(input)" })};`,
-    "  const [stdout, stderr] = [__rulesyncRead(proc.stdout), __rulesyncRead(proc.stderr)];",
+    "  // An ordinary command writes to the host's stdout and stderr; a preToolUse one is read.",
+    '  const output = echo ? "inherit" : "pipe";',
+    `  const proc = ${spawn('"export BUN_BE_BUN=\\n" + command', 'new TextEncoder().encode(input + "\\n")', "output")};`,
+    "  const [stdout, stderr] = echo ? [] : [__rulesyncRead(proc.stdout), __rulesyncRead(proc.stderr)];",
     "  const exitCode = await Promise.race([proc.exited, timeout()]).finally(() => clearTimeout(timer));",
     "  if (exitCode === null) {",
-    "    stdout.stop(), stderr.stop();",
+    "    stdout?.stop(), stderr?.stop();",
     '    if (process.platform === "win32") proc.kill();',
     "    else __rulesyncKillTree(proc);",
     "    return null;",
     "  }",
+    "  if (echo) return { exitCode };",
     "  await Promise.race([Promise.all([stdout.done, stderr.done]), Bun.sleep(1000)]);",
     "  stdout.stop(), stderr.stop();",
-    "  return { exitCode, stdout: stdout.text(), stderr: stderr.text() };",
+    "  return { exitCode, stdout: stdout.text(), stderr: stderr.text(), overflow: stdout.overflow() };",
     "};",
     "const __rulesyncRunHook = async ({ label, command, input, blocking, seconds, inProcess = false }) => {",
     "  let result;",
     "  try {",
-    "    result = await __rulesyncRunCommand({ command, input, seconds, inProcess });",
+    "    result = await __rulesyncRunCommand({ command, input, seconds, inProcess, echo: true });",
     "  } catch (error) {",
     "    if (blocking) throw error;",
     '    console.error("[rulesync-hooks] " + label + " hook failed:", error);',
@@ -273,8 +295,6 @@ function buildRunHelperLinesFor(cwdExpression: string): string[] {
     "    if (blocking) throw new Error(message);",
     "    return console.error(message);",
     "  }",
-    "  process.stdout.write(result.stdout);",
-    "  process.stderr.write(result.stderr);",
     "  if (result.exitCode === 0) return;",
     '  const message = "[rulesync-hooks] " + label + " hook exited with code " + result.exitCode;',
     "  if (blocking) throw new Error(message);",
@@ -293,6 +313,7 @@ function buildRunHelperLinesFor(cwdExpression: string): string[] {
  *   is `"deny"` → deny, with `permissionDecisionReason` as the reason;
  * - exit code 0 otherwise → allow;
  * - any other non-zero exit → deny too, with stderr or the exit code;
+ * - more than 1 MiB of stdout → deny, without parsing it;
  * - a command killed by its timeout → deny when the hook sets `failClosed`,
  *   otherwise allow and log, like Claude Code without `onFailure: "block"`.
  *
@@ -316,6 +337,7 @@ const PRE_TOOL_USE_RESULT_HELPER_LINES: readonly string[] = [
   '    if (failClosed) throw new Error("preToolUse hook timed out.");',
   '    return console.error("[rulesync-hooks] preToolUse hook timed out");',
   "  }",
+  '  if (result.overflow) throw new Error("preToolUse hook wrote more than 1 MiB to stdout.");',
   "  const stderr = result.stderr.toString();",
   "  if (result.exitCode === 0) {",
   "    let parsed;",

@@ -342,8 +342,10 @@ describe("generateOpencodeStylePluginCode", () => {
       const settled = expect(first).rejects.toThrow();
       await vi.advanceTimersByTimeAsync(10_000);
       await settled;
-      vi.useRealTimers();
+      // It counts as no Bun CLI for 5 minutes; past that, the next command probes again.
+      await vi.advanceTimersByTimeAsync(300_000);
       await before({ tool: "bash", sessionID: "s", callID: "c" }, { args: {} });
+      vi.useRealTimers();
 
       expect(probes).toBe(2);
       expect(calls.map((call) => call.command)).toEqual(["guard.sh"]);
@@ -412,7 +414,7 @@ describe("generateOpencodeStylePluginCode", () => {
           "export default {",
           '  id: "rulesync-hooks",',
           "  server: async ({ directory }) => {",
-          "    const __rulesyncRead = (stream) => {",
+          "    const __rulesyncRead = (stream, limit = 1048576) => {",
         ].join("\n"),
       );
       expect(code).toContain(
