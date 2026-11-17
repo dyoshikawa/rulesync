@@ -137,9 +137,12 @@ function withAnyPath(withoutScheme: string): string {
 
 function urlPartsOverlap(left: string, right: string): boolean {
   const readings = (pattern: string): UrlPatternParts[] =>
-    [...new Set([stripUrlSchemeKeepingPathCase(pattern), stripUrlSchemeLoosely(pattern)])].map(
-      splitUrlPattern,
-    );
+    [...new Set([stripUrlSchemeKeepingPathCase(pattern), stripUrlSchemeLoosely(pattern)])]
+      .map(splitUrlPattern)
+      .flatMap((parts) =>
+        // Preserve the original reading so this can only add overlaps, never remove them.
+        parts.host.endsWith(".") ? [parts, { ...parts, host: parts.host.slice(0, -1) }] : [parts],
+      );
   return readings(left).some((a) => readings(right).some((b) => urlPartsPairOverlap(a, b)));
 }
 

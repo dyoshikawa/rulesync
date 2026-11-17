@@ -185,6 +185,17 @@ describe("urlPatternsOverlap", () => {
     ["*.pdf", "example.com"],
     ["*admin", "example.com"],
     ["*.pdf", "*.github.com"],
+    // A final DNS root dot does not identify a different host.
+    ["example.com", "https://example.com./readme"],
+    ["example.com.", "https://example.com/private"],
+    ["*.example.com", "https://sub.example.com.:8443/private"],
+    // Retain existing overlaps even when only one host's root dot is stripped.
+    ["evil.*.", "https://evil.com./x"],
+    ["evil.com.", "https://evil.*./x"],
+    // DNS root-dot equivalence also applies to IDNs and uppercase spellings.
+    ["example.рф", "https://example.рф./x"],
+    ["example.рф.", "https://example.рф/x"],
+    ["EXAMPLE.COM.", "https://example.com/x"],
     // `<host>//<path>` keeps its host, and the reading that took `evil.com//`
     // for a scheme is still compared, so neither drops an overlap.
     ["evil.com//x", "evil.com"],
@@ -204,6 +215,7 @@ describe("urlPatternsOverlap", () => {
     ["*://evil.com/*", "good.com"],
     ["*evil.com/*", "good.com"],
     ["evil.com//x", "evil.com/z"],
+    ["example.com.", "different.example.org"],
   ])("%s does not overlap %s", (left, right) => {
     expect(urlPatternsOverlap(left, right)).toBe(false);
   });
@@ -259,6 +271,34 @@ describe("webfetch overlap through the adapters' helpers", () => {
       toolLabel: "Tool",
     });
     expect(pdf.webfetch).toEqual({});
+  });
+
+  it("withholds a trailing-root-dot host allow but preserves unrelated hosts", () => {
+    const result = honorAllToolsRestrictions({
+      permission: {
+        "*": { "example.com": "deny" },
+        webfetch: { "https://example.com./private": "allow", "safe.example.org": "allow" },
+      },
+      toolLabel: "Tool",
+    });
+    expect(result.webfetch).toEqual({ "safe.example.org": "allow" });
+  });
+
+  it.each([
+    ["evil.*.", "https://evil.com./x"],
+    ["evil.com.", "https://evil.*./x"],
+    ["example.рф", "https://example.рф./x"],
+    ["example.рф.", "https://example.рф/x"],
+    ["EXAMPLE.COM.", "https://example.com/x"],
+  ])("withholds %s over %s", (restriction, allow) => {
+    const result = honorAllToolsRestrictions({
+      permission: {
+        "*": { [restriction]: "deny" },
+        webfetch: { [allow]: "allow" },
+      },
+      toolLabel: "Tool",
+    });
+    expect(result.webfetch).toEqual({});
   });
 
   it("withholds a webfetch allow an in-category ask covers", () => {
