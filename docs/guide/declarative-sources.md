@@ -408,16 +408,6 @@ When a local and curated artifact in the same source tree share a name, the loca
 
 ### Changing the invocation policy of a sourced skill
 
-For a skill you want to invoke explicitly, copy its entire directory from
-`.rulesync/skills/.curated/<name>/` to `.rulesync/skills/<name>/`, keeping the same
-name and any companion files. Set `disable-model-invocation: true` in the local
-`SKILL.md` frontmatter and run `rulesync generate`. Rulesync uses this local copy
-and maps the flag for targets that support it, such as Claude Code and Codex CLI.
-If the copied skill already has a conflicting target override, update or remove
-it. In particular, `claudecode.disable-model-invocation: false` and
-`codexcli.policy.allow_implicit_invocation: true` take precedence over the root flag.
-See [the file format reference](../reference/file-formats.md) for target-specific behavior.
+To make a sourced skill explicit-only (the model does not load it on its own, while users can still invoke it), copy its entire directory from `.rulesync/skills/.curated/<name>/` to `.rulesync/skills/<name>/`, keeping the same name and any companion files. Set `disable-model-invocation: true` in the local `SKILL.md` frontmatter and run `rulesync generate`. Rulesync uses this local copy and maps the flag for the targets that support it, such as Claude Code and Codex CLI. Targets that do not read the root flag keep allowing model invocation, so check [the file format reference](../reference/file-formats.md#rulesyncskillsskillmd) for each target you generate. If the copied skill already sets its own value in a tool section, update or remove it, because a tool section's value takes precedence over the root flag: for example `claudecode.disable-model-invocation: false` or `codexcli.policy.allow_implicit_invocation: true`.
 
-Keep edits in the local directory and sync it manually when the source changes.
-Rulesync generates from the whole local skill directory, so companion files from
-the curated skill are not merged into it.
+Keep edits in the local directory. Rulesync generates from the whole local skill directory, so companion files from the curated skill are not merged into it. Once the local copy exists, `rulesync install` stops fetching that skill and may remove the previous `.curated/<name>/` copy when it re-fetches the source, so upstream updates, fixes included, no longer arrive on their own. Compare the local copy with the upstream source directly when you want to pick them up.
