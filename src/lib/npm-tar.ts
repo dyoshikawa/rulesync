@@ -58,8 +58,9 @@ export function extractPackageTarball(params: {
   const { tarball, onSkippedEntry } = params;
   const maxFiles = params.maxFiles ?? MAX_TAR_FILES;
   const maxTotalBytes = params.maxTotalBytes ?? MAX_TAR_TOTAL_BYTES;
-  const subject =
-    params.packageLabel === undefined ? "Package tarball" : `Package ${params.packageLabel}`;
+  const label = params.packageLabel;
+  const subject = label === undefined ? "Package tarball" : `Package ${label}`;
+  const forLabel = label === undefined ? "" : ` for ${label}`;
 
   let tar: Buffer;
   try {
@@ -78,7 +79,7 @@ export function extractPackageTarball(params: {
       );
     }
     throw new NpmTarError(
-      `Failed to gunzip ${params.packageLabel === undefined ? "package tarball" : `package tarball for ${params.packageLabel}`} (the archive may be corrupt)`,
+      `Failed to gunzip package tarball${forLabel} (the archive may be corrupt)`,
       error,
     );
   }
@@ -91,10 +92,7 @@ export function extractPackageTarball(params: {
  * `RangeError` with code `ERR_BUFFER_TOO_LARGE`) rather than corrupt data.
  */
 function isOutputLimitError(error: unknown): boolean {
-  if (error instanceof Error && "code" in error && error.code === "ERR_BUFFER_TOO_LARGE") {
-    return true;
-  }
-  return error instanceof RangeError;
+  return error instanceof Error && "code" in error && error.code === "ERR_BUFFER_TOO_LARGE";
 }
 
 function formatByteLimit(bytes: number): string {

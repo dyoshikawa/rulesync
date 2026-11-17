@@ -9,7 +9,7 @@ import {
   MAX_FILE_SIZE_MB,
   RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
-import { quoteForLog } from "../utils/control-characters.js";
+import { quoteForLog, stripControlCharacters } from "../utils/control-characters.js";
 import { isRootDirPath, normalizePosixDirPath } from "../utils/file.js";
 import type { Logger } from "../utils/logger.js";
 import {
@@ -585,7 +585,8 @@ export async function fetchSourceViaNpm(params: {
 
   const allFiles = extractNpmRemoteFiles({
     tarball,
-    packageLabel: `${packageName}@${resolvedVersion}`,
+    // The version can come from registry metadata (a dist-tag), so keep it to one printable line.
+    packageLabel: stripControlCharacters(`${packageName}@${resolvedVersion}`),
     logger,
   });
 
