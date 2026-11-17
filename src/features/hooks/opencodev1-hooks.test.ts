@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { Opencodev1Hooks } from "./opencodev1-hooks.js";
@@ -42,6 +43,42 @@ describe("Opencodev1Hooks", () => {
   });
 
   describe("fromRulesyncHooks", () => {
+    it("warns that a failClosed: true is ignored on every V1 event but preToolUse", () => {
+      const logger = createMockLogger();
+      const warnSpy = vi.spyOn(logger, "warn");
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            preToolUse: [{ command: "guard.sh", failClosed: true }],
+            // A V1-only event: OpenCode V2 has no `file.edited`.
+            afterFileEdit: [{ command: "format.sh", failClosed: true }],
+            // A V2-only event the V1 plugin never emits, so nothing is ignored.
+            postToolUseFailure: [{ command: "report.sh", failClosed: true }],
+            sessionStart: [{ command: "init.sh", failClosed: false }],
+          },
+          opencodev1: { hooks: { stop: [{ command: "audit.sh", failClosed: true }] } },
+        }),
+        validate: false,
+      });
+
+      Opencodev1Hooks.fromRulesyncHooks({ outputRoot: testDir, rulesyncHooks, logger });
+
+      expect(warnSpy.mock.calls).toEqual([
+        [
+          'failClosed on "afterFileEdit" hook will be ignored — the generated OpenCode V1 plugin only supports failClosed on preToolUse',
+        ],
+        [
+          'failClosed on "stop" hook will be ignored — the generated OpenCode V1 plugin only supports failClosed on preToolUse',
+        ],
+      ]);
+      // A dropped `false` is the plugin's own behavior there, so it is not warned about.
+      expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining('"sessionStart"'));
+    });
+
     it("should gate shell events on the bash tool inside the named hooks", () => {
       const config = {
         version: 1,

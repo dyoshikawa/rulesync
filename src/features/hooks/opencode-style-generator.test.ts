@@ -127,6 +127,35 @@ describe("generateOpencodeStylePluginCode", () => {
       execFileSync("node", ["--input-type=module", "--check"], { input: code });
     });
 
+    it("should pass an explicit failClosed to the timeout check and leave an unset one out", () => {
+      const code = generate({
+        preToolUse: [
+          { type: "command", command: "closed.sh", failClosed: true },
+          { type: "command", command: "open.sh", failClosed: false },
+          { type: "command", command: "default.sh" },
+        ],
+      });
+      const runStatement = (command: string) =>
+        code
+          .split("\n")
+          .map((line) => line.trim())
+          .find((line) => line.includes(`command: ${JSON.stringify(command)},`));
+
+      expect(runStatement("closed.sh")).toMatch(
+        /^__rulesyncEnforcePreToolUseResult\(await __rulesyncRunCommand\(\{ .* \}\), true\);$/,
+      );
+      expect(runStatement("open.sh")).toMatch(
+        /^__rulesyncEnforcePreToolUseResult\(await __rulesyncRunCommand\(\{ .* \}\), false\);$/,
+      );
+      expect(runStatement("default.sh")).toMatch(
+        /^__rulesyncEnforcePreToolUseResult\(await __rulesyncRunCommand\(\{ .* \}\)\);$/,
+      );
+      // Unset and `true` both deny a timed-out call; only an explicit `false` lets it through.
+      expect(code).toContain(
+        'if (failClosed !== false) throw new Error("preToolUse hook timed out.");',
+      );
+    });
+
     it("should pass a Claude Code-style payload with the raw OpenCode tool name on stdin", async () => {
       const { $, calls } = createFakeShell(() => ok());
       const before = await loadBeforeHook({

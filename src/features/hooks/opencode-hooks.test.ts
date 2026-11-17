@@ -6,6 +6,7 @@ import { pathToFileURL } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { CANONICAL_TO_OPENCODE_EVENT_NAMES, OPENCODE_HOOK_EVENTS } from "../../types/hooks.js";
 import { ensureDir, readFileContent, writeFileContent } from "../../utils/file.js";
@@ -60,6 +61,36 @@ describe("OpencodeHooks (OpenCode V2)", () => {
   });
 
   describe("fromRulesyncHooks", () => {
+    it("warns that a failClosed: true is ignored on every event but preToolUse", () => {
+      const logger = createMockLogger();
+      const warnSpy = vi.spyOn(logger, "warn");
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            preToolUse: [{ command: "guard.sh", failClosed: true }],
+            beforeShellExecution: [{ command: "shell-guard.sh", failClosed: false }],
+            postToolUse: [{ command: "format.sh", failClosed: true }],
+            stop: [{ command: "audit.sh" }],
+          },
+        }),
+        validate: false,
+      });
+
+      OpencodeHooks.fromRulesyncHooks({ outputRoot: testDir, rulesyncHooks, logger });
+
+      expect(warnSpy.mock.calls).toEqual([
+        [
+          'failClosed on "postToolUse" hook will be ignored — the generated OpenCode plugin only supports failClosed on preToolUse',
+        ],
+      ]);
+      // A dropped `false` is the plugin's own behavior there, so it is not warned about.
+      expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining('"beforeShellExecution"'));
+    });
+
     it("emits a V2 `{ id, setup }` plugin instead of the V1 module", () => {
       const content = generate({
         hooks: { preToolUse: [{ command: "echo pre" }] },

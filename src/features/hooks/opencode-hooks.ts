@@ -12,7 +12,10 @@ import {
   OPENCODE_V2_HOOK_EVENTS,
 } from "../../types/hooks.js";
 import { readFileContent } from "../../utils/file.js";
-import { generateOpencodeStylePluginCode } from "./opencode-style-generator.js";
+import {
+  generateOpencodeStylePluginCode,
+  warnIgnoredFailClosed,
+} from "./opencode-style-generator.js";
 import { generateOpencodeV2PluginCode } from "./opencode-v2-plugin-generator.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import {
@@ -57,8 +60,16 @@ export class OpencodeHooks extends ToolHooks {
     rulesyncHooks,
     validate = true,
     global = false,
+    logger,
   }: ToolHooksFromRulesyncHooksParams & { global?: boolean }): OpencodeHooks {
     const config = rulesyncHooks.getJson();
+    warnIgnoredFailClosed({
+      config,
+      supportedEvents:
+        this.layout.configVersion === "v2" ? OPENCODE_V2_HOOK_EVENTS : OPENCODE_HOOK_EVENTS,
+      toolConfigKey: this.layout.toolTarget,
+      logger,
+    });
     // OpenCode 2.x only runs `{ id, setup }` plugins, while OpenCode 1.x and
     // its forks keep the V1 `RulesyncHooksPlugin` module.
     const fileContent =

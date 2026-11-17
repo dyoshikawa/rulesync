@@ -1,5 +1,6 @@
 // cspell:ignore nothrow setsid procfs lstart reparented subreaper taskkill -- Bun Shell API, POSIX, Windows
 import { HooksConfig } from "../../types/hooks.js";
+import type { Logger } from "../../utils/logger.js";
 import { buildBlockReasonSanitizerLines } from "./hook-block-reason.js";
 import { sanitizeMatcherRegex } from "./hook-matcher-regex.js";
 
@@ -413,6 +414,43 @@ export type RunnableHandler = {
 export function hookTimingOf(def: { timeout?: number; failClosed?: boolean }) {
   const timeout = def.timeout !== undefined && def.timeout > 0 ? def.timeout : 600;
   return { timeout: Math.min(timeout, 2_147_483), failClosed: def.failClosed };
+}
+
+const FAIL_CLOSED_TOOL_LABELS = {
+  kilo: "Kilo Code",
+  mimocode: "MiMo Code",
+  opencode: "OpenCode",
+  opencodev1: "OpenCode V1",
+} as const;
+
+/**
+ * Warn about each `failClosed: true` the generated plugin ignores: it only
+ * decides what a timed-out `preToolUse` command does. Elsewhere a hook that runs
+ * before its action always fails on a timeout and any other only logs it. Only a
+ * dropped `true` is warned about, like the other targets do: a `false` there
+ * already matches what the plugin does, so omitting it changes nothing.
+ */
+export function warnIgnoredFailClosed({
+  config,
+  supportedEvents,
+  toolConfigKey,
+  logger,
+}: {
+  config: HooksConfig;
+  supportedEvents: readonly string[];
+  toolConfigKey: keyof typeof FAIL_CLOSED_TOOL_LABELS;
+  logger?: Logger;
+}): void {
+  const configHooks = { ...config.hooks, ...config[toolConfigKey]?.hooks };
+  for (const [event, definitions] of Object.entries(configHooks)) {
+    if (event === "preToolUse" || !supportedEvents.includes(event)) continue;
+    for (const def of definitions) {
+      if (def.failClosed !== true) continue;
+      logger?.warn(
+        `failClosed on "${event}" hook will be ignored — the generated ${FAIL_CLOSED_TOOL_LABELS[toolConfigKey]} plugin only supports failClosed on preToolUse`,
+      );
+    }
+  }
 }
 
 type Handler = RunnableHandler & {
