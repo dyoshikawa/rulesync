@@ -511,6 +511,45 @@ describe("OpencodeHooks (OpenCode V2)", () => {
       expect(fallback.out).toEqual(["threw: preToolUse hook timed out.", "alive: true"]);
     }, 90_000);
 
+    // Killing the command's own process (TerminateProcess) ends that one process. libuv's job
+    // object (KILL_ON_JOB_CLOSE | SILENT_BREAKAWAY_OK) then still ends what node spawned itself
+    // ("direct"), but not a process started through a non-libuv program ("via-cmd") or a
+    // detached one ("detached"): only ending the tree by parent PID reaches those two.
+    it.runIf(process.platform === "win32")(
+      "ends a timed-out command's descendants on Windows, including via cmd.exe and detached ones",
+      async () => {
+        const tree = [
+          'const fs = require("node:fs");',
+          'const { spawn } = require("node:child_process");',
+          'fs.appendFileSync("pids.txt", process.argv[2] + " " + process.pid + "\\n");',
+          'if (process.argv[2] === "command") {',
+          '  spawn(process.execPath, ["tree.cjs", "direct"], { stdio: "ignore" });',
+          '  spawn("cmd.exe", ["/c", "node tree.cjs via-cmd"], { stdio: "ignore" });',
+          '  spawn(process.execPath, ["tree.cjs", "detached"], { stdio: "ignore", detached: true }).unref();',
+          "}",
+          "setInterval(() => {}, 1000);",
+        ].join("\n");
+        await writeFileContent(join(testDir, "tree.cjs"), tree);
+        const { out } = await runUnderBun({
+          content: generate({
+            hooks: { postToolUse: [{ command: "node tree.cjs command", timeout: 2 }] },
+          }),
+          prelude: "await mod.default.setup(ctx);",
+          body: [
+            "await call(() => hooks['tool:execute.after']({ tool: 'write', input: {}, status: 'completed' }));",
+            "await Bun.sleep(1000);",
+            "const alive = (pid) => { try { return process.kill(pid, 0); } catch { return false; } };",
+            "const pids = (await Bun.file(directory + '/pids.txt').text()).trim().split('\\n').map((line) => line.trim().split(' '));",
+            "out.push('started: ' + pids.map(([name]) => name).sort().join(','));",
+            "out.push('alive: ' + pids.filter(([, pid]) => alive(Number(pid))).map(([name]) => name).sort().join(','));",
+            "pids.forEach(([, pid]) => alive(Number(pid)) && process.kill(Number(pid)));",
+          ].join("\n"),
+        });
+        expect(out).toEqual(["ok", "started: command,detached,direct,via-cmd", "alive: "]);
+      },
+      90_000,
+    );
+
     // POSIX only: the check relies on a write to a pipe whose reader is gone failing.
     it.runIf(process.platform !== "win32")(
       "stops reading output pipes a leftover holds once the command has exited",

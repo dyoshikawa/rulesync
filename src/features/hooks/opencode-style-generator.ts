@@ -1,4 +1,4 @@
-// cspell:ignore nothrow setsid procfs lstart reparented subreaper -- Bun Shell API, POSIX
+// cspell:ignore nothrow setsid procfs lstart reparented subreaper taskkill -- Bun Shell API, POSIX, Windows
 import { HooksConfig } from "../../types/hooks.js";
 import { buildBlockReasonSanitizerLines } from "./hook-block-reason.js";
 import { sanitizeMatcherRegex } from "./hook-matcher-regex.js";
@@ -145,8 +145,10 @@ const BLOCKING_HOOKS: ReadonlySet<string> = new Set(
  * and Ctrl-C, but a process that left the tree before the timeout (orphaned or
  * `setsid`) escapes, and without procfs and `ps` only
  * the command's own process is killed (logged). The pending SIGKILL keeps the
- * host alive for those 2 s. On Windows the child is ended with the processes
- * it started. Bun Shell (the fallback) cannot kill: it stops waiting.
+ * host alive for those 2 s. On Windows, `taskkill /T /F` ends the tree as
+ * linked by parent PID at that moment, then the child is ended through its
+ * handle; a process whose parent had already exited is not reached. Bun Shell
+ * (the fallback) cannot kill: it stops waiting, and the command keeps running.
  * On a failure, `__rulesyncRunHook` throws in a blocking hook or logs it
  * otherwise.
  *
@@ -235,6 +237,19 @@ function buildRunHelperLinesFor(cwdExpression: string): string[] {
     '    kill(__rulesyncTree(own ? [root, ...same] : same, now).filter((pid) => pid !== root), "SIGKILL");',
     "  }, 2000);",
     "};",
+    "// `proc.kill()` is TerminateProcess on the child alone. A libuv program (node) that dies takes",
+    "// the children it spawned along through its job object, but not ones started through another",
+    "// program (cmd.exe) or detached. taskkill /T ends the tree as linked by parent PID at that",
+    "// moment; System32's copy, so a taskkill earlier on PATH is never run.",
+    "const __rulesyncKillWindowsTree = (proc) => {",
+    "  if (proc.exitCode === null && proc.signalCode === null) {",
+    '    const taskkill = (process.env.SystemRoot ?? "C:\\\\Windows") + "\\\\System32\\\\taskkill.exe";',
+    "    try {",
+    '      Bun.spawnSync([taskkill, "/T", "/F", "/PID", String(proc.pid)], { stdout: "ignore", stderr: "ignore", windowsHide: true, timeout: 5000 });',
+    "    } catch {}",
+    "  }",
+    "  proc.kill();",
+    "};",
     "const __rulesyncRunCommand = async ({ command, input, seconds, inProcess = false, echo = false }) => {",
     "  // A probe that exited 0 is kept; one past its deadline or failing means no Bun CLI for",
     "  // 5 minutes; one that threw is dropped, so the next command probes again.",
@@ -272,7 +287,7 @@ function buildRunHelperLinesFor(cwdExpression: string): string[] {
     "  const exitCode = await Promise.race([proc.exited, timeout()]).finally(() => clearTimeout(timer));",
     "  if (exitCode === null) {",
     "    stdout?.stop(), stderr?.stop();",
-    '    if (process.platform === "win32") proc.kill();',
+    '    if (process.platform === "win32") __rulesyncKillWindowsTree(proc);',
     "    else __rulesyncKillTree(proc);",
     "    return null;",
     "  }",
