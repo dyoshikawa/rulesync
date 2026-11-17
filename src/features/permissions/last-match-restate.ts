@@ -34,13 +34,28 @@ export function restateAllToolsRestrictionsLast(
     ([pattern, action]) =>
       action !== "allow" && pattern !== CATCH_ALL_PATTERN && !isPrototypePollutionKey(pattern),
   );
-  if (restrictions.length === 0) {
+  if (restrictions.length === 0 && !allToolsRules) {
     return sharedPermission;
   }
   const result: Record<string, Record<string, PermissionAction>> = {};
   for (const [key, rules] of Object.entries(sharedPermission)) {
     result[key] =
-      key === ALL_TOOLS_PERMISSION_CATEGORY ? rules : restateInKey({ rules, restrictions });
+      key === ALL_TOOLS_PERMISSION_CATEGORY
+        ? strictestAllToolsRulesLast(rules)
+        : restateInKey({ rules, restrictions });
+  }
+  return result;
+}
+
+/** Last-match-wins tools must not let a catch-all allow override a narrower deny. */
+function strictestAllToolsRulesLast(
+  rules: Record<string, PermissionAction>,
+): Record<string, PermissionAction> {
+  const result: Record<string, PermissionAction> = {};
+  for (const action of ["allow", "ask", "deny"] as const) {
+    for (const [pattern, value] of Object.entries(rules)) {
+      if (value === action) result[pattern] = value;
+    }
   }
   return result;
 }
