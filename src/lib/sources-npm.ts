@@ -193,10 +193,15 @@ async function downloadVerifiedNpmTarball(params: {
  * Extract a verified npm tarball in memory and convert its entries into
  * remote skill files, skipping any file above MAX_FILE_SIZE.
  */
-function extractNpmRemoteFiles(params: { tarball: Buffer; logger: Logger }): RemoteSkillFile[] {
-  const { tarball, logger } = params;
+function extractNpmRemoteFiles(params: {
+  tarball: Buffer;
+  packageLabel: string;
+  logger: Logger;
+}): RemoteSkillFile[] {
+  const { tarball, packageLabel, logger } = params;
   const extracted = extractPackageTarball({
     tarball,
+    packageLabel,
     onSkippedEntry: (message) => logger.warn(message),
   });
   const allFiles: RemoteSkillFile[] = [];
@@ -578,7 +583,11 @@ export async function fetchSourceViaNpm(params: {
     logger,
   });
 
-  const allFiles = extractNpmRemoteFiles({ tarball, logger });
+  const allFiles = extractNpmRemoteFiles({
+    tarball,
+    packageLabel: `${packageName}@${resolvedVersion}`,
+    logger,
+  });
 
   // Adapter so writeSkillAndComputeIntegrity can compare per-skill integrity
   // against the npm lock entry the same way it does for git sources.
