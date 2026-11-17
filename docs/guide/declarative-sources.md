@@ -405,3 +405,19 @@ GITHUB_TOKEN=$(gh auth token) npx rulesync install
 | `.rulesync/rules/.curated/<name>.md` | Curated | Lower                      | No (gitignored)  |
 
 When a local and curated artifact in the same source tree share a name, the local artifact is used and the remote one is not fetched. With multiple input roots, this per-root selection happens before the roots are merged in order; see [Separate Input Root](./separate-input-root.md#merge-rules-per-feature).
+
+### Changing the invocation policy of a sourced skill
+
+For a skill you want to invoke explicitly, copy its entire directory from
+`.rulesync/skills/.curated/<name>/` to `.rulesync/skills/<name>/`, keeping the same
+name and any companion files. Set `disable-model-invocation: true` in the local
+`SKILL.md` frontmatter and run `rulesync generate`. Rulesync uses this local copy
+and maps the flag for targets that support it, such as Claude Code and Codex CLI.
+If the copied skill already has a conflicting target override, update or remove
+it. In particular, `claudecode.disable-model-invocation: false` and
+`codexcli.policy.allow_implicit_invocation: true` take precedence over the root flag.
+See [the file format reference](../reference/file-formats.md) for target-specific behavior.
+
+Keep edits in the local directory and sync it manually when the source changes.
+Rulesync generates from the whole local skill directory, so companion files from
+the curated skill are not merged into it.
