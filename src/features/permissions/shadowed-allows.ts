@@ -90,8 +90,11 @@ function splitUrlPattern(withoutScheme: string): UrlPatternParts {
  * for `*.<host>`. Because a glob can also match across those parts, the
  * whole strings are compared as well, a pathless `right` also as `<host>/*`
  * (so an allowed `example.com` overlaps a restricted `*.pdf`), and an overlap
- * from any of them counts. A pattern holding whitespace names no URL. Callers
- * pass the restriction as `left` and the allow as `right`.
+ * from any of them counts. A host ending in a DNS root dot (`example.com.`)
+ * is also compared with one and with all trailing dots removed, in addition
+ * to its original reading, so this only ever adds overlaps. A pattern holding
+ * whitespace names no URL. Callers pass the restriction as `left` and the
+ * allow as `right`.
  */
 export function urlPatternsOverlap(left: string, right: string): boolean {
   if (left === right) return true;
@@ -141,7 +144,13 @@ function urlPartsOverlap(left: string, right: string): boolean {
       .map(splitUrlPattern)
       .flatMap((parts) =>
         // Preserve the original reading so this can only add overlaps, never remove them.
-        parts.host.endsWith(".") ? [parts, { ...parts, host: parts.host.slice(0, -1) }] : [parts],
+        parts.host.endsWith(".")
+          ? [
+              parts,
+              { ...parts, host: parts.host.slice(0, -1) },
+              { ...parts, host: parts.host.replace(/\.+$/, "") },
+            ]
+          : [parts],
       );
   return readings(left).some((a) => readings(right).some((b) => urlPartsPairOverlap(a, b)));
 }

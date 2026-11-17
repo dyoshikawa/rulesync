@@ -192,6 +192,13 @@ describe("urlPatternsOverlap", () => {
     // Retain existing overlaps even when only one host's root dot is stripped.
     ["evil.*.", "https://evil.com./x"],
     ["evil.com.", "https://evil.*./x"],
+    ["evil.*.:443", "https://evil.com.:443/x"],
+    // Repeated trailing dots are also compared with all of them removed.
+    ["example.com..", "example.com"],
+    ["example.com", "https://example.com../x"],
+    // IPv6 literals keep their brackets, with or without a port.
+    ["[::1]", "http://[::1]:8080/x"],
+    ["http://[::1]/*", "[::1]"],
     // DNS root-dot equivalence also applies to IDNs and uppercase spellings.
     ["example.рф", "https://example.рф./x"],
     ["example.рф.", "https://example.рф/x"],
@@ -216,6 +223,8 @@ describe("urlPatternsOverlap", () => {
     ["*evil.com/*", "good.com"],
     ["evil.com//x", "evil.com/z"],
     ["example.com.", "different.example.org"],
+    ["evil.*.:443", "https://evil.com.:80/x"],
+    ["[::1]:80", "http://[::1]:8080/x"],
   ])("%s does not overlap %s", (left, right) => {
     expect(urlPatternsOverlap(left, right)).toBe(false);
   });
