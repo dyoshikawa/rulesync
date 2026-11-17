@@ -253,6 +253,26 @@ describe("CrushPermissions", () => {
       }
     });
 
+    it("should withhold safe commands shadowed by denied executable paths", async () => {
+      const logger = createMockLogger();
+      const permissions = await CrushPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          bash: {
+            "go build": "allow",
+            "/usr/bin/go build": "deny",
+            "cargo test": "allow",
+          },
+        }),
+        logger,
+      });
+
+      expect(permissions.getJson()).toEqual({ permissions: { safe_commands: ["cargo test"] } });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringMatching(/pattern "go build"\).*"\/usr\/bin\/go build"/),
+      );
+    });
+
     it.each([
       ["a relative path", { "go build": "allow", "./nice *": "deny" }],
       ["a Windows path with a suffix", { "go build": "allow", "bin\\Env.EXE *": "ask" }],
