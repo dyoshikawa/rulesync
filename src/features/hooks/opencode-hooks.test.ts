@@ -213,7 +213,7 @@ describe("OpencodeHooks (OpenCode V2)", () => {
       expect(content).toContain("tool_input: event.input,");
       expect(content).toContain("cwd: directory,");
       expect(content).toContain(
-        '__rulesyncEnforcePreToolUseResult(await __rulesyncRunCommand({ command: "./guard.sh", input: __rulesyncPreToolUseInput(), seconds: 600 }), false);',
+        '__rulesyncEnforcePreToolUseResult(await __rulesyncRunCommand({ command: "./guard.sh", input: __rulesyncPreToolUseInput(), seconds: 600 }));',
       );
       expect(content).toContain("function sanitizeBlockReason(raw) {");
     });
@@ -458,7 +458,7 @@ describe("OpencodeHooks (OpenCode V2)", () => {
         "setInterval(() => {}, 1000);",
       ].join("\n");
       await writeFileContent(join(testDir, "forever.cjs"), forever);
-      const run = (failClosed: boolean) =>
+      const run = (failClosed?: boolean) =>
         runUnderBun({
           content: generate({
             hooks: {
@@ -486,13 +486,29 @@ describe("OpencodeHooks (OpenCode V2)", () => {
           ].join("\n"),
         });
 
+      // A timeout denies like a non-zero exit; only an explicit `failClosed: false` lets it through.
+      const denied = ["ok", "threw: preToolUse hook timed out.", "ok", "alive: 0"];
+      expect((await run()).out).toEqual(denied);
+      expect((await run(true)).out).toEqual(denied);
       expect((await run(false)).out).toEqual(["ok", "ok", "ok", "alive: 0"]);
-      expect((await run(true)).out).toEqual([
-        "ok",
-        "threw: preToolUse hook timed out.",
-        "ok",
-        "alive: 0",
-      ]);
+
+      // Without the Bun CLI, Bun Shell cannot kill the command: the call is still denied,
+      // while the command keeps running (the test ends it).
+      const fallback = await runUnderBun({
+        content: generate({
+          hooks: { preToolUse: [{ command: "node forever.cjs fallback", timeout: 1 }] },
+        }),
+        prelude: `process.execPath = ${JSON.stringify(process.execPath)};\nawait mod.default.setup(ctx);`,
+        body: [
+          "await call(() => hooks['tool:execute.before']({ tool: 'write', input: {} }));",
+          "await Bun.sleep(500);",
+          "const alive = (pid) => { try { return process.kill(pid, 0); } catch { return false; } };",
+          "const [, pid] = (await Bun.file(directory + '/pids.txt').text()).trim().split('\\n').map((line) => line.trim().split(' ')).find(([name]) => name === 'fallback');",
+          "out.push('alive: ' + alive(Number(pid)));",
+          "alive(Number(pid)) && process.kill(Number(pid));",
+        ].join("\n"),
+      });
+      expect(fallback.out).toEqual(["threw: preToolUse hook timed out.", "alive: true"]);
     }, 90_000);
 
     // POSIX only: the check relies on a write to a pipe whose reader is gone failing.

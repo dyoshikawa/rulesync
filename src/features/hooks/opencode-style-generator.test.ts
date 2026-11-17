@@ -118,9 +118,9 @@ describe("generateOpencodeStylePluginCode", () => {
         '    "tool.execute.before": async (input, output) => {',
         "          tool_input: output?.args,",
         "          cwd: directory ?? process.cwd(),",
-        '      __rulesyncEnforcePreToolUseResult(await __rulesyncRunCommand({ command: "guard.sh", input: __rulesyncPreToolUseInput(), seconds: 600 }), false);',
+        '      __rulesyncEnforcePreToolUseResult(await __rulesyncRunCommand({ command: "guard.sh", input: __rulesyncPreToolUseInput(), seconds: 600 }));',
         '        const __re = new RegExp("bash");',
-        '          __rulesyncEnforcePreToolUseResult(await __rulesyncRunCommand({ command: "bash-guard.sh", input: __rulesyncPreToolUseInput(), seconds: 600 }), false);',
+        '          __rulesyncEnforcePreToolUseResult(await __rulesyncRunCommand({ command: "bash-guard.sh", input: __rulesyncPreToolUseInput(), seconds: 600 }));',
       ]) {
         expect(code).toContain(line);
       }
@@ -425,7 +425,7 @@ describe("generateOpencodeStylePluginCode", () => {
         ].join("\n"),
       );
       expect(code).toContain(
-        '            __rulesyncEnforcePreToolUseResult(await __rulesyncRunCommand({ command: "guard.sh", input: __rulesyncPreToolUseInput(), seconds: 600 }), false);',
+        '            __rulesyncEnforcePreToolUseResult(await __rulesyncRunCommand({ command: "guard.sh", input: __rulesyncPreToolUseInput(), seconds: 600 }));',
       );
       execFileSync("node", ["--input-type=module", "--check"], { input: code });
     });

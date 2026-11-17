@@ -314,8 +314,8 @@ function buildRunHelperLinesFor(cwdExpression: string): string[] {
  * - exit code 0 otherwise → allow;
  * - any other non-zero exit → deny too, with stderr or the exit code;
  * - more than 1 MiB of stdout → deny, without parsing it;
- * - a command killed by its timeout → deny when the hook sets `failClosed`,
- *   otherwise allow and log, like Claude Code without `onFailure: "block"`.
+ * - a command past its timeout → deny, like a non-zero exit, unless the hook
+ *   sets `failClosed: false`, which allows the call and logs the timeout.
  *
  * Every reason goes through the `sanitizeBlockReason` helper shared with the
  * Pi extension (`hook-block-reason.ts`): control and format characters are
@@ -334,7 +334,7 @@ const PRE_TOOL_USE_RESULT_HELPER_LINES: readonly string[] = [
   "",
   `const ${PRE_TOOL_USE_RESULT_HELPER} = (result, failClosed) => {`,
   "  if (result === null) {",
-  '    if (failClosed) throw new Error("preToolUse hook timed out.");',
+  '    if (failClosed !== false) throw new Error("preToolUse hook timed out.");',
   '    return console.error("[rulesync-hooks] preToolUse hook timed out");',
   "  }",
   '  if (result.overflow) throw new Error("preToolUse hook wrote more than 1 MiB to stdout.");',
@@ -385,17 +385,19 @@ export type RunnableHandler = {
   blocking: boolean;
   inProcess?: boolean;
   timeout: number;
-  failClosed: boolean;
+  /** Unset and `true` deny a timed-out `preToolUse` call; only `false` allows it. */
+  failClosed: boolean | undefined;
   payload?: StdinPayload;
 };
 
 /**
  * A hook's `timeout` in seconds, Claude Code's default of 600 when it sets none,
- * capped at what `setTimeout` can wait (larger values fire at once).
+ * capped at what `setTimeout` can wait (larger values fire at once), and its
+ * `failClosed` as written: unset is not `false`.
  */
 export function hookTimingOf(def: { timeout?: number; failClosed?: boolean }) {
   const timeout = def.timeout !== undefined && def.timeout > 0 ? def.timeout : 600;
-  return { timeout: Math.min(timeout, 2_147_483), failClosed: def.failClosed === true };
+  return { timeout: Math.min(timeout, 2_147_483), failClosed: def.failClosed };
 }
 
 type Handler = RunnableHandler & {
@@ -551,7 +553,9 @@ export function buildRunStatement(handler: RunnableHandler): string {
   const command = JSON.stringify(escapeForTemplateLiteral(handler.command));
   const input = handler.payload ? `${stdinPayloadVariable(handler.payload.name)}()` : '""';
   if (handler.payload?.name === "PreToolUse") {
-    return `${PRE_TOOL_USE_RESULT_HELPER}(await __rulesyncRunCommand({ command: ${command}, input: ${input}, seconds: ${handler.timeout} }), ${handler.failClosed});`;
+    // An unset `failClosed` is left out: the helper denies on a timeout unless it is `false`.
+    const failClosed = handler.failClosed === undefined ? "" : `, ${handler.failClosed}`;
+    return `${PRE_TOOL_USE_RESULT_HELPER}(await __rulesyncRunCommand({ command: ${command}, input: ${input}, seconds: ${handler.timeout} })${failClosed});`;
   }
   const options = [
     `label: ${JSON.stringify(handler.event)}`,
