@@ -371,7 +371,7 @@ describe("OpencodeHooks (OpenCode V2)", () => {
 
     it("gives every plugin file its own id, so OpenCode loads the global, project and parent ones", async () => {
       const content = generate({ hooks: { stop: [{ command: "echo stop" }] } });
-      const ids = [];
+      const ids: string[] = [];
       for (const name of ["first", "second"]) {
         const filePath = join(testDir, `${name}.mjs`);
         await writeFileContent(filePath, content);
