@@ -9,7 +9,10 @@ import {
 } from "../../constants/kilo-paths.js";
 import { CANONICAL_TO_KILO_EVENT_NAMES, KILO_HOOK_EVENTS } from "../../types/hooks.js";
 import { readFileContent, readFileContentOrNull } from "../../utils/file.js";
-import { generateOpencodeStylePluginCode } from "./opencode-style-generator.js";
+import {
+  generateOpencodeStylePluginCode,
+  warnIgnoredFailClosed,
+} from "./opencode-style-generator.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import {
   ToolHooks,
@@ -74,8 +77,15 @@ export class KiloHooks extends ToolHooks {
     rulesyncHooks,
     validate = true,
     global = false,
+    logger,
   }: ToolHooksFromRulesyncHooksParams & { global?: boolean }): KiloHooks {
     const config = rulesyncHooks.getJson();
+    warnIgnoredFailClosed({
+      config,
+      supportedEvents: KILO_HOOK_EVENTS,
+      toolConfigKey: "kilo",
+      logger,
+    });
     // Kilo's canonical plugin shape is a default-export module descriptor
     // `export default { id, server }`. Named exports are documented as legacy,
     // so the Kilo target emits the default-export form (unlike OpenCode, which

@@ -1,114 +1,18 @@
-// cspell:ignore nothrow -- Bun Shell API
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
+import { chmod } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { CANONICAL_TO_OPENCODE_EVENT_NAMES, OPENCODE_HOOK_EVENTS } from "../../types/hooks.js";
+import { ensureDir, readFileContent, writeFileContent } from "../../utils/file.js";
 import { OpencodeHooks } from "./opencode-hooks.js";
+import { generateOpencodeStylePluginCode } from "./opencode-style-generator.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
-
-/**
- * Fake of the slice of the OpenCode V2 plugin context and Bun Shell the
- * generated plugin touches, used to run the plugin's `setup` in tests.
- */
-type ShellResult = { exitCode: number; stdout: string; stderr: string };
-type FakeHookHandler = (event: Record<string, unknown>) => Promise<void>;
-
-function createFakeRuntime(resultFor: (command: string) => ShellResult) {
-  const commands: string[] = [];
-  const hooks = new Map<string, FakeHookHandler>();
-  const pendingEvents: Array<Record<string, unknown>> = [];
-  let wakeEventStream: (() => void) | undefined;
-
-  const shell = (strings: TemplateStringsArray, ...values: unknown[]) => {
-    const command = strings.reduce(
-      (acc, part, index) => acc + part + (index < values.length ? String(values[index]) : ""),
-      "",
-    );
-    commands.push(command);
-    const result = resultFor(command);
-    const nothrowPromise = Promise.resolve(result);
-    const promise = Object.assign(
-      result.exitCode === 0
-        ? Promise.resolve(result)
-        : Promise.reject(new Error(`exit ${result.exitCode}`)),
-      {
-        nothrow: () => Object.assign(nothrowPromise, { quiet: () => nothrowPromise }),
-        quiet: () => promise,
-      },
-    );
-    // Silence unhandled rejections for promises the plugin converts with nothrow().
-    promise.catch(() => {});
-    return promise;
-  };
-  const shellInstance = Object.assign(shell, { cwd: vi.fn() });
-
-  const domain = (name: string) => ({
-    hook: async (hookName: string, handler: FakeHookHandler) => {
-      hooks.set(`${name}:${hookName}`, handler);
-      return { dispose: async () => {} };
-    },
-  });
-
-  const ctx = {
-    location: { directory: "/project" },
-    tool: domain("tool"),
-    session: domain("session"),
-    event: {
-      // Delivers every emitted event regardless of `types`, like an older
-      // OpenCode 2.x that ignores the option.
-      subscribe: ({ signal, types }: { signal: AbortSignal; types?: string[] }) => ({
-        types,
-        async *[Symbol.asyncIterator]() {
-          while (!signal.aborted) {
-            const next = pendingEvents.shift();
-            if (next) {
-              yield next;
-              continue;
-            }
-            await new Promise<void>((resolve) => {
-              wakeEventStream = resolve;
-              signal.addEventListener("abort", () => resolve(), { once: true });
-            });
-          }
-        },
-      }),
-    },
-  };
-
-  const bun = {
-    $: {
-      Shell: function Shell() {
-        return shellInstance;
-      },
-    },
-  };
-
-  const subscribe = ctx.event.subscribe;
-  const subscribedTypes: Array<string[] | undefined> = [];
-  ctx.event.subscribe = (options) => {
-    subscribedTypes.push(options.types);
-    return subscribe(options);
-  };
-
-  return {
-    ctx,
-    bun,
-    commands,
-    subscribedTypes,
-    hooks,
-    emit: async (event: Record<string, unknown>) => {
-      pendingEvents.push(event);
-      wakeEventStream?.();
-      // Let the event loop pick the event up and run its command.
-      for (let i = 0; i < 10; i++) await Promise.resolve();
-    },
-  };
-}
 
 describe("OpencodeHooks (OpenCode V2)", () => {
   let testDir: string;
@@ -140,16 +44,6 @@ describe("OpencodeHooks (OpenCode V2)", () => {
     }).getFileContent();
   };
 
-  const loadPlugin = async (content: string, name: string) => {
-    const filePath = join(testDir, `${name}.mjs`);
-    await writeFileContent(filePath, content);
-    const module = await import(pathToFileURL(filePath).href);
-    return module.default as {
-      id: string;
-      setup: (ctx: unknown) => Promise<(() => Promise<void>) | void>;
-    };
-  };
-
   describe("getSettablePaths", () => {
     it("should return .opencode/plugins and rulesync-hooks.js", () => {
       expect(OpencodeHooks.getSettablePaths()).toEqual({
@@ -167,6 +61,36 @@ describe("OpencodeHooks (OpenCode V2)", () => {
   });
 
   describe("fromRulesyncHooks", () => {
+    it("warns that a failClosed: true is ignored on every event but preToolUse", () => {
+      const logger = createMockLogger();
+      const warnSpy = vi.spyOn(logger, "warn");
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            preToolUse: [{ command: "guard.sh", failClosed: true }],
+            beforeShellExecution: [{ command: "shell-guard.sh", failClosed: false }],
+            postToolUse: [{ command: "format.sh", failClosed: true }],
+            stop: [{ command: "audit.sh" }],
+          },
+        }),
+        validate: false,
+      });
+
+      OpencodeHooks.fromRulesyncHooks({ outputRoot: testDir, rulesyncHooks, logger });
+
+      expect(warnSpy.mock.calls).toEqual([
+        [
+          'failClosed on "postToolUse" hook will be ignored — the generated OpenCode plugin only supports failClosed on preToolUse',
+        ],
+      ]);
+      // A dropped `false` is the plugin's own behavior there, so it is not warned about.
+      expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining('"beforeShellExecution"'));
+    });
+
     it("emits a V2 `{ id, setup }` plugin instead of the V1 module", () => {
       const content = generate({
         hooks: { preToolUse: [{ command: "echo pre" }] },
@@ -175,8 +99,7 @@ describe("OpencodeHooks (OpenCode V2)", () => {
       expect(content.startsWith("export default {\n")).toBe(true);
       expect(content).toContain('id: "rulesync-hooks:" + import.meta.url,');
       expect(content).toContain("setup: async (ctx) => {");
-      expect(content).toContain("const $ = new Bun.$.Shell();");
-      expect(content).toContain("$.cwd(directory);");
+      expect(content).toContain("cwd: directory,");
       expect(content).not.toContain("RulesyncHooksPlugin");
       expect(content).not.toContain("server:");
       execFileSync("node", ["--input-type=module", "--check"], {
@@ -321,7 +244,7 @@ describe("OpencodeHooks (OpenCode V2)", () => {
       expect(content).toContain("tool_input: event.input,");
       expect(content).toContain("cwd: directory,");
       expect(content).toContain(
-        "__rulesyncEnforcePreToolUseResult(await $`echo ${__rulesyncPreToolUseInput()} | ./guard.sh`.nothrow().quiet());",
+        '__rulesyncEnforcePreToolUseResult(await __rulesyncRunCommand({ command: "./guard.sh", input: __rulesyncPreToolUseInput(), seconds: 600 }));',
       );
       expect(content).toContain("function sanitizeBlockReason(raw) {");
     });
@@ -355,7 +278,9 @@ describe("OpencodeHooks (OpenCode V2)", () => {
       const content = generate({
         hooks: { stop: [{ command: "echo ${HOME} `date` \\n" }] },
       });
-      expect(content).toContain("await $`echo \\${HOME} \\`date\\` \\\\n`;");
+      expect(content).toContain(
+        'command: "echo \\\\${HOME} \\\\`date\\\\` \\\\\\\\n", input: __rulesyncStopInput(), blocking: false, seconds: 600',
+      );
       execFileSync("node", ["--input-type=module", "--check"], {
         input: content,
       });
@@ -383,141 +308,467 @@ describe("OpencodeHooks (OpenCode V2)", () => {
     });
   });
 
-  describe("generated plugin at runtime", () => {
-    it("blocks a tool call when a preToolUse command exits 2, with a sanitized reason", async () => {
+  describe("generated plugin at runtime (real Bun)", () => {
+    // Records each run: argv, stdin, BUN_BE_BUN and a variable only `.env` sets; prints
+    // `visible-<name>` and exits with the given code.
+    const HOOK_SCRIPT = [
+      'const fs = require("node:fs");',
+      'let stdin = "";',
+      'process.stdin.on("data", (c) => (stdin += c)).on("end", () => {',
+      "  const [name, code, ...rest] = process.argv.slice(2);",
+      "  const BUN_BE_BUN = process.env.BUN_BE_BUN || null, RS_DOTENV = process.env.RS_DOTENV || null;",
+      '  fs.appendFileSync("rec.jsonl", JSON.stringify({ name, rest, stdin, BUN_BE_BUN, RS_DOTENV }) + "\\n");',
+      '  process.stdout.write("visible-" + name + "\\n");',
+      "  process.exit(Number(code));",
+      "});",
+    ].join("\n");
+
+    /**
+     * Loads the plugin under the real `bun` with an open stdin, as OpenCode's own is (the TTY,
+     * or the pipe of `opencode serve --stdio`), runs `body` (with `hooks`, `push` and `call` in
+     * scope) and returns each call's outcome, the subscribed event types, the hook records and
+     * what Bun printed.
+     */
+    type HookRecord = { name: string; rest: string[]; stdin: string } & Record<string, unknown>;
+    type RunResult = { out: string[]; types: string[][]; records: HookRecord[]; printed: string };
+    const payloadOf = (record?: HookRecord): unknown => JSON.parse(record?.stdin ?? "null");
+    const runUnderBun = async ({
+      content,
+      prelude,
+      body,
+    }: {
+      content: string;
+      prelude: string;
+      body: string;
+    }): Promise<RunResult> => {
+      await writeFileContent(join(testDir, "hook.cjs"), HOOK_SCRIPT);
+      await writeFileContent(join(testDir, "rec.jsonl"), "");
+      await writeFileContent(join(testDir, ".env"), "RS_DOTENV=leaked\n");
+      const pluginPath = join(testDir, "plugin.mjs");
+      await writeFileContent(pluginPath, content);
+      const outPath = join(testDir, "out.json");
+      const runnerPath = join(testDir, "runner.mjs");
+      await writeFileContent(
+        runnerPath,
+        [
+          `const mod = await import(${JSON.stringify(pathToFileURL(pluginPath).href)});`,
+          `const directory = ${JSON.stringify(testDir)};`,
+          "let hooks = {}; const types = []; const out = []; let push;",
+          "const domain = (d) => ({ hook: async (n, h) => { hooks[d + ':' + n] = h; return { dispose: async () => {} }; } });",
+          "const subscribe = (o) => { types.push(o.types); return { [Symbol.asyncIterator]: () => ({ next: () => new Promise((r) => { push = (e) => r({ value: e, done: false }); }) }) }; };",
+          "const ctx = { location: { directory }, tool: domain('tool'), session: domain('session'), event: { subscribe } };",
+          "const call = async (fn) => { try { await fn(); out.push('ok'); } catch (e) { out.push('threw: ' + e.message); } };",
+          prelude,
+          body,
+          `await Bun.write(${JSON.stringify(outPath)}, JSON.stringify({ out, types }));`,
+          "process.exit(0);",
+        ].join("\n"),
+      );
+      const child = spawn("bun", [runnerPath], { stdio: ["pipe", "pipe", "inherit"] });
+      let printed = "";
+      child.stdout.on("data", (chunk) => (printed += chunk));
+      const exit = await new Promise<number | "timeout">((resolve) => {
+        const timer = setTimeout(() => (child.kill(), resolve("timeout")), 30_000);
+        child.on("exit", (code) => (clearTimeout(timer), resolve(code ?? 1)));
+      });
+      expect(exit).toBe(0);
+      const records = (await readFileContent(join(testDir, "rec.jsonl")))
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => JSON.parse(line) as HookRecord);
+      return { ...JSON.parse(await readFileContent(outPath)), records, printed };
+    };
+
+    const LEFTOVER_DENY =
+      "console.log(JSON.stringify({ hookSpecificOutput: { permissionDecision: 'deny', permissionDecisionReason: 'kept' } })); require('child_process').spawn(process.execPath, ['-e', 'setTimeout(() => {}, 3000)'], { stdio: 'inherit' }).unref()";
+
+    it("feeds payloads to every reader, blocks only in hooks that run before their action", async () => {
       const content = generate({
         hooks: {
-          preToolUse: [{ matcher: "^shell$", command: "./guard.sh" }],
-          beforeShellExecution: [{ command: "echo before-shell" }],
+          preToolUse: [
+            { matcher: "^bash$", command: "node hook.cjs pre 0" },
+            // Denies through JSON, then leaves a process holding its output: the deny must survive.
+            { matcher: "^edit$", command: `node -e "${LEFTOVER_DENY}"` },
+          ],
+          beforeShellExecution: [{ command: "node hook.cjs shell-gate 1" }],
+          postToolUse: [
+            {
+              command:
+                'node hook.cjs post 0 && node hook.cjs post-b 0 $(node hook.cjs sub 0) "quote\\"inner"',
+            },
+            { command: "node hook.cjs post-fail 1 # a trailing comment" },
+          ],
+          stop: [{ command: "node hook.cjs fails 3" }, { command: "node hook.cjs stop 0" }],
         },
       });
-      const runtime = createFakeRuntime((command) =>
-        command.endsWith("./guard.sh") && command.includes("rm -rf")
-          ? { exitCode: 2, stdout: "", stderr: "no rm\u001b[31m here\n" }
-          : { exitCode: 0, stdout: "", stderr: "" },
-      );
-      vi.stubGlobal("Bun", runtime.bun);
-      const plugin = await loadPlugin(content, "block");
-      const dispose = await plugin.setup(runtime.ctx);
-      const before = runtime.hooks.get("tool:execute.before");
-      expect(before).toBeDefined();
+      const { out, types, records, printed } = await runUnderBun({
+        content,
+        prelude: "await mod.default.setup(ctx);",
+        body: [
+          "await call(() => hooks['tool:execute.before']({ tool: 'shell', sessionID: 's1', id: 'c1', input: { command: 'rm -rf /' } }));",
+          "await call(() => hooks['tool:execute.before']({ tool: 'edit', input: {} }));",
+          "await call(() => hooks['tool:execute.after']({ tool: 'write', sessionID: 's1', id: 'c2', input: { path: 'a' }, status: 'completed', result: { ok: 1 } }));",
+          "push({ type: 'session.execution.succeeded', data: { sessionID: 's1' } });",
+          "await Bun.sleep(3000);",
+        ].join("\n"),
+      });
 
-      await expect(
-        before?.({
-          tool: "shell",
-          sessionID: "s1",
-          id: "c1",
-          input: { command: "rm -rf /" },
-        }),
-      ).rejects.toThrow("no rm here");
-      const payload = JSON.parse(
-        runtime.commands[0]?.replace(/^echo /, "").replace(/ \| \.\/guard\.sh$/, "") ?? "",
-      );
-      expect(payload).toEqual({
+      // `shell` matches `^bash$` through its OpenCode 1.x name; the guard allows, then the
+      // shell gate's non-zero exit blocks the call, as it did before; postToolUse only logs.
+      expect(out).toEqual([
+        "threw: [rulesync-hooks] beforeShellExecution hook exited with code 1",
+        "threw: kept",
+        "ok",
+      ]);
+      expect(types).toEqual([["session.execution.succeeded"]]);
+      const byName = Object.fromEntries(records.map((record) => [record.name, record]));
+      expect(payloadOf(byName.pre)).toEqual({
         hook_event_name: "PreToolUse",
         session_id: "s1",
         tool_use_id: "c1",
         tool_name: "shell",
         tool_input: { command: "rm -rf /" },
-        cwd: "/project",
+        cwd: testDir,
       });
-
-      await before?.({
-        tool: "shell",
-        sessionID: "s1",
-        id: "c2",
-        input: { command: "ls" },
+      expect(payloadOf(byName.post)).toMatchObject({
+        hook_event_name: "PostToolUse",
+        tool_input: { path: "a" },
+        tool_response: { ok: 1 },
       });
-      expect(runtime.commands).toContain("echo before-shell");
+      // The first reader consumes the payload; `$(...)` and later parts see its end.
+      expect([byName.sub?.stdin, byName["post-b"]?.stdin]).toEqual(["", ""]);
+      expect(byName["post-b"]?.rest).toEqual(["visible-sub", "quote\\inner"]);
+      expect(byName["post-fail"]?.rest).toEqual([]);
+      expect(payloadOf(byName.stop)).toMatchObject({ hook_event_name: "Stop", session_id: "s1" });
+      expect(
+        records.every((record) => record.BUN_BE_BUN === null && record.RS_DOTENV === null),
+      ).toBe(true);
+      expect(printed).toContain("visible-post-b");
+    }, 60_000);
 
-      await before?.({ tool: "read", sessionID: "s1", id: "c3", input: {} });
-      expect(runtime.commands.filter((command) => command === "echo before-shell")).toHaveLength(1);
-      await (dispose as () => Promise<void>)();
-    });
-
-    it("matches a V1 tool name against the renamed V2 tool", async () => {
-      const content = generate({
-        hooks: { preToolUse: [{ matcher: "^bash$", command: "./guard.sh" }] },
+    it("runs the V1 plugin the same way, and falls back to Bun Shell without the Bun CLI", async () => {
+      const content = generateOpencodeStylePluginCode(
+        {
+          version: 1,
+          hooks: {
+            postToolUse: [{ command: "node hook.cjs post 0" }],
+            beforeSubmitPrompt: [{ command: "node hook.cjs prompt 1" }],
+            stop: [{ command: "node hook.cjs stop 0" }],
+          },
+        },
+        OPENCODE_HOOK_EVENTS,
+        "opencodev1",
+        CANONICAL_TO_OPENCODE_EVENT_NAMES,
+      );
+      const body = [
+        "await call(() => hooks['tool.execute.after']({ tool: 'write', sessionID: 's1', callID: 'c1', args: { filePath: 'a' } }, { title: 'a', output: 'done', metadata: {} }));",
+        "await call(() => hooks['chat.message']({ sessionID: 's1' }, { parts: [] }));",
+        "await call(() => hooks.event({ event: { type: 'session.idle', properties: { sessionID: 's1' } } }));",
+      ].join("\n");
+      const prelude = "hooks = await mod.RulesyncHooksPlugin({ directory });";
+      const viaExec = await runUnderBun({ content, prelude, body });
+      expect(viaExec.out).toEqual([
+        "ok",
+        "threw: [rulesync-hooks] beforeSubmitPrompt hook exited with code 1",
+        "ok",
+      ]);
+      expect(payloadOf(viaExec.records[0])).toMatchObject({
+        hook_event_name: "PostToolUse",
+        tool_input: { filePath: "a" },
+        tool_response: { title: "a", output: "done", metadata: {} },
       });
-      const runtime = createFakeRuntime(() => ({ exitCode: 2, stdout: "", stderr: "blocked" }));
-      vi.stubGlobal("Bun", runtime.bun);
-      const plugin = await loadPlugin(content, "alias");
-      const dispose = await plugin.setup(runtime.ctx);
-      const before = runtime.hooks.get("tool:execute.before");
+      expect(payloadOf(viaExec.records[2])).toMatchObject({ hook_event_name: "Stop" });
 
-      await expect(before?.({ tool: "shell", input: {} })).rejects.toThrow("blocked");
-      await before?.({ tool: "read", input: {} });
-      expect(runtime.commands).toHaveLength(1);
-      await (dispose as () => Promise<void>)();
-    });
-
-    it("blocks a tool call on a JSON permissionDecision deny", async () => {
-      const content = generate({
-        hooks: { preToolUse: [{ command: "./guard.sh" }] },
+      // A host binary that is not the Bun CLI: the probe fails and Bun Shell runs the commands.
+      const fallback = await runUnderBun({
+        content,
+        prelude: `process.execPath = ${JSON.stringify(process.execPath)};\n${prelude}`,
+        body,
       });
-      const runtime = createFakeRuntime(() => ({
-        exitCode: 0,
-        stdout: JSON.stringify({
-          hookSpecificOutput: {
-            permissionDecision: "deny",
-            permissionDecisionReason: "nope",
+      expect(fallback.out).toEqual(viaExec.out);
+      expect(payloadOf(fallback.records[0])).toMatchObject({ hook_event_name: "PostToolUse" });
+    }, 60_000);
+
+    it("kills a command at its timeout and stops waiting for output pipes a leftover holds", async () => {
+      // Writes its pid and runs forever; with "bg", starts such a child on its own output and exits.
+      const forever = [
+        'const fs = require("node:fs");',
+        "const [name, mode] = process.argv.slice(2);",
+        'if (mode === "bg") {',
+        '  const child = require("node:child_process").spawn(process.execPath, ["forever.cjs", name], { stdio: "inherit" });',
+        "  process.exit(0);",
+        "}",
+        'fs.appendFileSync("pids.txt", name + " " + process.pid + "\\n");',
+        "setInterval(() => {}, 1000);",
+      ].join("\n");
+      await writeFileContent(join(testDir, "forever.cjs"), forever);
+      const run = (failClosed?: boolean) =>
+        runUnderBun({
+          content: generate({
+            hooks: {
+              preToolUse: [
+                { matcher: "^write$", command: "node forever.cjs pre", timeout: 1, failClosed },
+              ],
+              // Beyond what `setTimeout` can wait: capped, not fired at once.
+              beforeShellExecution: [{ command: "node forever.cjs bg bg", timeout: 1e12 }],
+              postToolUse: [{ command: "node forever.cjs post", timeout: 1 }],
+            },
+          }),
+          prelude: "await mod.default.setup(ctx);",
+          body: [
+            "await call(() => hooks['tool:execute.before']({ tool: 'shell', input: {} }));",
+            "await call(() => hooks['tool:execute.before']({ tool: 'write', input: {} }));",
+            "await call(() => hooks['tool:execute.after']({ tool: 'write', input: {}, status: 'completed' }));",
+            // Checked while the host still runs: its exit could end the processes itself.
+            "await Bun.sleep(2500);",
+            "const alive = (pid) => { try { return process.kill(pid, 0); } catch { return false; } };",
+            "const pids = (await Bun.file(directory + '/pids.txt').text()).trim().split('\\n').map((line) => line.split(' '));",
+            "out.push('alive: ' + pids.filter(([name, pid]) => name !== 'bg' && alive(Number(pid))).length);",
+            // The leftover of the command that exited is not waited for, nor killed on POSIX,
+            // where it has left the command's tree; the test ends it.
+            "pids.forEach(([, pid]) => alive(Number(pid)) && process.kill(Number(pid)));",
+          ].join("\n"),
+        });
+
+      // A timeout denies like a non-zero exit; only an explicit `failClosed: false` lets it through.
+      const denied = ["ok", "threw: preToolUse hook timed out.", "ok", "alive: 0"];
+      expect((await run()).out).toEqual(denied);
+      expect((await run(true)).out).toEqual(denied);
+      expect((await run(false)).out).toEqual(["ok", "ok", "ok", "alive: 0"]);
+
+      // Without the Bun CLI, Bun Shell cannot kill the command: the call is still denied,
+      // while the command keeps running (the test ends it).
+      const fallback = await runUnderBun({
+        content: generate({
+          hooks: { preToolUse: [{ command: "node forever.cjs fallback", timeout: 1 }] },
+        }),
+        prelude: `process.execPath = ${JSON.stringify(process.execPath)};\nawait mod.default.setup(ctx);`,
+        body: [
+          "await call(() => hooks['tool:execute.before']({ tool: 'write', input: {} }));",
+          "await Bun.sleep(500);",
+          "const alive = (pid) => { try { return process.kill(pid, 0); } catch { return false; } };",
+          "const [, pid] = (await Bun.file(directory + '/pids.txt').text()).trim().split('\\n').map((line) => line.trim().split(' ')).find(([name]) => name === 'fallback');",
+          "out.push('alive: ' + alive(Number(pid)));",
+          "alive(Number(pid)) && process.kill(Number(pid));",
+        ].join("\n"),
+      });
+      expect(fallback.out).toEqual(["threw: preToolUse hook timed out.", "alive: true"]);
+    }, 90_000);
+
+    // Killing the command's own process (TerminateProcess) ends that one process. libuv's job
+    // object (KILL_ON_JOB_CLOSE | SILENT_BREAKAWAY_OK) then still ends what node spawned itself
+    // ("direct"), but not a process started through a non-libuv program ("via-cmd") or a
+    // detached one ("detached"): only ending the tree by parent PID reaches those two.
+    it.runIf(process.platform === "win32")(
+      "ends a timed-out command's descendants on Windows, including via cmd.exe and detached ones",
+      async () => {
+        const tree = [
+          'const fs = require("node:fs");',
+          'const { spawn } = require("node:child_process");',
+          'fs.appendFileSync("pids.txt", process.argv[2] + " " + process.pid + "\\n");',
+          'if (process.argv[2] === "command") {',
+          '  spawn(process.execPath, ["tree.cjs", "direct"], { stdio: "ignore" });',
+          '  spawn("cmd.exe", ["/c", "node tree.cjs via-cmd"], { stdio: "ignore" });',
+          '  spawn(process.execPath, ["tree.cjs", "detached"], { stdio: "ignore", detached: true }).unref();',
+          "}",
+          "setInterval(() => {}, 1000);",
+        ].join("\n");
+        await writeFileContent(join(testDir, "tree.cjs"), tree);
+        const { out } = await runUnderBun({
+          content: generate({
+            hooks: { postToolUse: [{ command: "node tree.cjs command", timeout: 2 }] },
+          }),
+          prelude: "await mod.default.setup(ctx);",
+          body: [
+            "await call(() => hooks['tool:execute.after']({ tool: 'write', input: {}, status: 'completed' }));",
+            "await Bun.sleep(1000);",
+            "const alive = (pid) => { try { return process.kill(pid, 0); } catch { return false; } };",
+            "const pids = (await Bun.file(directory + '/pids.txt').text()).trim().split('\\n').map((line) => line.trim().split(' '));",
+            "out.push('started: ' + pids.map(([name]) => name).sort().join(','));",
+            "out.push('alive: ' + pids.filter(([, pid]) => alive(Number(pid))).map(([name]) => name).sort().join(','));",
+            "pids.forEach(([, pid]) => alive(Number(pid)) && process.kill(Number(pid)));",
+          ].join("\n"),
+        });
+        expect(out).toEqual(["ok", "started: command,detached,direct,via-cmd", "alive: "]);
+      },
+      90_000,
+    );
+
+    // POSIX only: the check relies on a write to a pipe whose reader is gone failing.
+    it.runIf(process.platform !== "win32")(
+      "stops reading output pipes a leftover holds once the command has exited",
+      async () => {
+        // With "bg", prints a line and leaves a child writing to its stdout; that child counts
+        // the writes that went through in written.txt and stops at the first failing one.
+        const writer = [
+          'const fs = require("node:fs");',
+          'if (process.argv[2] === "bg") {',
+          '  require("node:child_process").spawn(process.execPath, ["writer.cjs"], { stdio: "inherit" });',
+          '  console.log("before-exit");',
+          "  process.exit(0);",
+          "}",
+          'fs.writeFileSync("writer.pid", String(process.pid));',
+          "const chunk = Buffer.alloc(1024, 120);",
+          "let writes = 0;",
+          "const timer = setInterval(() => {",
+          "  try {",
+          "    fs.writeSync(1, chunk);",
+          '    fs.writeFileSync("written.txt", String(++writes));',
+          "  } catch (error) {",
+          '    fs.writeFileSync("written.txt", writes + " " + error.code);',
+          "    clearInterval(timer);",
+          "  }",
+          "}, 10);",
+        ].join("\n");
+        await writeFileContent(join(testDir, "writer.cjs"), writer);
+        // Only preToolUse output is read; an ordinary command writes to the host's own stdout.
+        const { out } = await runUnderBun({
+          content: generate({ hooks: { preToolUse: [{ command: "node writer.cjs bg" }] } }),
+          prelude: "await mod.default.setup(ctx);",
+          body: [
+            "const started = Date.now();",
+            "await call(() => hooks['tool:execute.before']({ tool: 'write', input: {} }));",
+            "out.push(Date.now() - started < 5000 ? 'prompt' : 'slow');",
+            "const written = () => Bun.file(directory + '/written.txt').text();",
+            "await Bun.sleep(500);",
+            "const first = await written();",
+            "await Bun.sleep(1000);",
+            // EPIPE, or ECONNRESET when the pipe is closed with data still unread.
+            "const closed = /^\\d+ (EPIPE|ECONNRESET)$/.test(first);",
+            "out.push(first === (await written()) ? (closed ? 'closed' : 'stopped: ' + first) : 'still read');",
+            "try { process.kill(Number(await Bun.file(directory + '/writer.pid').text())); } catch {}",
+          ].join("\n"),
+        });
+
+        // What arrived in the 1 s after the exit is read; then the pipe is closed.
+        expect(out).toEqual(["ok", "prompt", "closed"]);
+      },
+      60_000,
+    );
+
+    it("streams ordinary hook output without keeping it and denies over 1 MiB of preToolUse stdout", async () => {
+      const write = (size: number, tail: string) =>
+        `node -e "process.stdout.write(' '.repeat(${size}) + '${tail}')"`;
+      const { out, printed } = await runUnderBun({
+        content: generate({
+          hooks: {
+            preToolUse: [{ command: write(2 * 1024 * 1024, "{}") }],
+            postToolUse: [{ command: write(50 * 1024 * 1024, "streamed-end") }],
           },
         }),
-        stderr: "",
-      }));
-      vi.stubGlobal("Bun", runtime.bun);
-      const plugin = await loadPlugin(content, "deny");
-      const dispose = await plugin.setup(runtime.ctx);
-
-      await expect(
-        runtime.hooks.get("tool:execute.before")?.({
-          tool: "write",
-          input: {},
-        }),
-      ).rejects.toThrow("nope");
-      await (dispose as () => Promise<void>)();
-    });
-
-    it("runs event-stream hooks and keeps the stream alive after a failing command", async () => {
-      const content = generate({
-        hooks: {
-          sessionStart: [{ command: "exit 1" }, { command: "echo session-start" }],
-          stop: [{ command: "echo stop" }],
-          permissionDenied: [{ command: "echo denied" }],
-        },
+        prelude: "await mod.default.setup(ctx);",
+        body: [
+          "await call(() => hooks['tool:execute.before']({ tool: 'write', input: {} }));",
+          "const base = process.memoryUsage.rss(); let peak = base;",
+          "const sample = setInterval(() => (peak = Math.max(peak, process.memoryUsage.rss())), 5);",
+          "await call(() => hooks['tool:execute.after']({ tool: 'write', input: {}, status: 'completed' }));",
+          "clearInterval(sample);",
+          "out.push(peak - base < 20 * 1048576 ? 'not kept' : 'kept: ' + (peak - base));",
+        ].join("\n"),
       });
-      const runtime = createFakeRuntime((command) =>
-        command === "exit 1"
-          ? { exitCode: 1, stdout: "", stderr: "" }
-          : { exitCode: 0, stdout: "", stderr: "" },
-      );
-      vi.spyOn(console, "error").mockImplementation(() => {});
-      vi.stubGlobal("Bun", runtime.bun);
-      const plugin = await loadPlugin(content, "events");
-      const dispose = await plugin.setup(runtime.ctx);
-      expect(runtime.subscribedTypes).toEqual([
-        ["session.created", "session.execution.succeeded", "permission.replied"],
+
+      expect(out).toEqual([
+        "threw: preToolUse hook wrote more than 1 MiB to stdout.",
+        "ok",
+        "not kept",
       ]);
+      expect(printed.endsWith("streamed-end")).toBe(true);
+    }, 60_000);
 
-      await runtime.emit({ type: "session.created", data: {} });
-      await runtime.emit({
-        type: "permission.replied",
-        data: { reply: "once" },
-      });
-      await runtime.emit({
-        type: "permission.replied",
-        data: { reply: "reject" },
-      });
-      await runtime.emit({ type: "session.execution.succeeded", data: {} });
+    // POSIX only: the guard is an `sh` script.
+    it.runIf(process.platform !== "win32")(
+      "ends the payload with a newline",
+      async () => {
+        const { out } = await runUnderBun({
+          content: generate({ hooks: { preToolUse: [{ command: "sh -c 'read -r payload'" }] } }),
+          prelude: "await mod.default.setup(ctx);",
+          body: "await call(() => hooks['tool:execute.before']({ tool: 'write', input: {} }));",
+        });
 
-      expect(runtime.commands).toEqual([
-        "exit 1",
-        "echo session-start",
-        "echo denied",
-        "echo stop",
-      ]);
-      await (dispose as () => Promise<void>)();
-    });
+        // `read` fails at an end of input that is not preceded by a newline, as `echo` wrote it.
+        expect(out).toEqual(["ok"]);
+      },
+      60_000,
+    );
+
+    // POSIX only: the stand-in host is a script run through its shebang.
+    it.runIf(process.platform !== "win32")(
+      "falls back when the Bun CLI probe never settles, and does not probe again for a while",
+      async () => {
+        // Stands in for a host binary whose probe hangs: it ignores SIGTERM and only exits at 60 s.
+        const host = [
+          "#!/usr/bin/env node",
+          'require("node:fs").appendFileSync("probes.txt", "probe\\n");',
+          'process.on("SIGTERM", () => {});',
+          "setTimeout(() => {}, 60000);",
+        ].join("\n");
+        const hostPath = join(testDir, "host.cjs");
+        await writeFileContent(hostPath, host);
+        await chmod(hostPath, 0o755);
+        const { out, records } = await runUnderBun({
+          content: generate({ hooks: { postToolUse: [{ command: "node hook.cjs post 0" }] } }),
+          prelude: `process.execPath = ${JSON.stringify(hostPath)};\nawait mod.default.setup(ctx);`,
+          body: [
+            "for (const _ of [1, 2]) {",
+            "  const started = Date.now();",
+            "  await call(() => hooks['tool:execute.after']({ tool: 'write', input: {}, status: 'completed' }));",
+            "  out.push(Date.now() - started < 9000 ? 'at once' : 'after the deadline');",
+            "}",
+            "out.push((await Bun.file(directory + '/probes.txt').text()).trim());",
+          ].join("\n"),
+        });
+
+        expect(out).toEqual(["ok", "after the deadline", "ok", "at once", "probe"]);
+        expect(records.map((record) => record.name)).toEqual(["post", "post"]);
+      },
+      60_000,
+    );
+
+    it.runIf(process.platform === "linux")(
+      "kills what a command that survives SIGTERM starts during the grace",
+      async () => {
+        // Stands in for the host's Bun CLI (a `bun exec` process dies on SIGTERM): answers the
+        // exec probe, and for a command records its pid, survives SIGTERM and starts a child then.
+        const host = [
+          "#!/usr/bin/env node",
+          'const fs = require("node:fs");',
+          'if (process.argv[4] === "echo rulesync") {',
+          '  console.log("rulesync");',
+          "  process.exit(0);",
+          "}",
+          'fs.appendFileSync("pids.txt", "root " + process.pid + "\\n");',
+          'process.on("SIGTERM", () => {',
+          '  const late = require("node:child_process").spawn("sleep", ["300"], { stdio: "ignore" });',
+          '  fs.appendFileSync("pids.txt", "late " + late.pid + "\\n");',
+          "});",
+          "setInterval(() => {}, 1000);",
+        ].join("\n");
+        const hostPath = join(testDir, "host.cjs");
+        await writeFileContent(hostPath, host);
+        await chmod(hostPath, 0o755);
+        const { out } = await runUnderBun({
+          content: generate({
+            hooks: { postToolUse: [{ command: "ignored by the stand-in", timeout: 1 }] },
+          }),
+          prelude: `process.execPath = ${JSON.stringify(hostPath)};\nawait mod.default.setup(ctx);`,
+          body: [
+            "await call(() => hooks['tool:execute.after']({ tool: 'write', input: {}, status: 'completed' }));",
+            // A zombie (its parent gone, not reaped yet) counts as dead.
+            "const alive = (pid) => { try { const stat = require('node:fs').readFileSync('/proc/' + pid + '/stat', 'utf8'); return stat[stat.lastIndexOf(')') + 2] !== 'Z'; } catch { return false; } };",
+            "const read = async () => (await Bun.file(directory + '/pids.txt').text()).trim().split('\\n').map((line) => line.split(' '));",
+            // Polled instead of a fixed wait so a slow machine does not fail the test early.
+            "let pids = await read();",
+            "for (let i = 0; i < 100 && (pids.length < 2 || pids.some(([, pid]) => alive(Number(pid)))); i++) { await Bun.sleep(100); pids = await read(); }",
+            "out.push(pids.map(([name]) => name).join(' '));",
+            "out.push('alive: ' + pids.filter(([, pid]) => alive(Number(pid))).map(([name]) => name).join(' '));",
+            "pids.forEach(([, pid]) => alive(Number(pid)) && process.kill(Number(pid), 'SIGKILL'));",
+          ].join("\n"),
+        });
+
+        expect(out).toEqual(["ok", "root late", "alive: "]);
+      },
+      60_000,
+    );
   });
 
   describe("toRulesyncHooks", () => {

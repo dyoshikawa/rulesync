@@ -1,5 +1,6 @@
-// cspell:ignore nothrow subshell redirections -- Bun Shell API and shell terms
+// cspell:ignore nothrow setsid procfs lstart reparented subreaper taskkill -- Bun Shell API, POSIX, Windows
 import { HooksConfig } from "../../types/hooks.js";
+import type { Logger } from "../../utils/logger.js";
 import { buildBlockReasonSanitizerLines } from "./hook-block-reason.js";
 import { sanitizeMatcherRegex } from "./hook-matcher-regex.js";
 
@@ -72,35 +73,251 @@ const SHELL_EVENT_TOOL_GATES: Record<string, { toolEvent: string; tool: string }
 };
 
 /**
- * Canonical events whose command receives a Claude Code-style JSON payload on
- * stdin and whose result can deny the call, mapped to the `hook_event_name`
- * the payload carries. Only `preToolUse` (`tool.execute.before`) takes part:
- * it is the one named hook where throwing aborts the call — OpenCode rejects
- * the tool call and returns the error message to the model (the `.env`
- * protection example in the plugins doc).
- *
- * The payload mirrors Claude Code's `PreToolUse` input: `hook_event_name`,
- * `session_id` (`input.sessionID`), `tool_use_id` (`input.callID`),
- * `tool_name` (the raw OpenCode tool name — `bash`, `edit`, `<server>_<tool>`
- * for MCP — the same subject a `matcher` is tested against), `tool_input`
- * (`output.args`) and `cwd` (the plugin context's `directory`, falling back to
- * `process.cwd()`). It is serialized lazily, on the first handler whose
- * matcher matches, so a tool call no hook applies to pays nothing for it.
- *
- * Bun Shell has no stdin option on a command and rejects redirections on a
- * subshell, so the payload is piped in by the shell's builtin `echo`
- * (`echo ${payload} | <command>`); Bun escapes the interpolated value, so the
- * payload never reaches the shell as syntax. The pipe feeds the first
- * pipeline of the command — a compound `a && b` or `a; b` gives the payload
- * to `a` only, so multi-step guards belong in a script.
+ * Canonical events whose command receives Claude Code's JSON input for the
+ * event on stdin (every other command gets an empty stdin), with the fields
+ * besides `hook_event_name` and `cwd`. `tool_name` is the raw OpenCode tool
+ * name, the subject a `matcher` is tested against. A payload is serialized
+ * lazily, once per invocation, by the first handler that runs.
  *
  * @see https://opencode.ai/docs/plugins/
  * @see https://bun.sh/docs/runtime/shell
  * @see https://code.claude.com/docs/en/hooks
  */
-const STDIN_PAYLOAD_EVENTS: Record<string, string> = {
-  preToolUse: "PreToolUse",
+const STDIN_PAYLOADS: Record<string, StdinPayload> = {
+  preToolUse: {
+    name: "PreToolUse",
+    fields: [
+      "session_id: input.sessionID",
+      "tool_use_id: input.callID",
+      "tool_name: input.tool",
+      "tool_input: output?.args",
+    ],
+  },
+  postToolUse: {
+    name: "PostToolUse",
+    fields: [
+      "session_id: input.sessionID",
+      "tool_use_id: input.callID",
+      "tool_name: input.tool",
+      "tool_input: input.args",
+      "tool_response: output",
+    ],
+  },
+  stop: { name: "Stop", fields: ["session_id: event.properties?.sessionID"] },
 };
+
+/**
+ * V1 hooks that run before the action they belong to — every named hook but
+ * `tool.execute.after`: like the Bun Shell call earlier versions emitted, a
+ * failing command throws there, which aborts the action. Everywhere else a
+ * failure is only logged.
+ */
+const BLOCKING_HOOKS: ReadonlySet<string> = new Set(
+  Object.keys(NAMED_HOOK_MATCHER_SUBJECTS).filter((hook) => hook !== "tool.execute.after"),
+);
+
+/**
+ * Helpers of every plugin with a handler. Bun Shell cannot give a command a
+ * stdin of its own, and one that inherits OpenCode's (the TTY, or the pipe of
+ * `opencode serve --stdio`) blocks forever once any part of it reads stdin. So
+ * `__rulesyncRunCommand` runs the command in the host's own Bun-compiled binary
+ * as the Bun CLI (`BUN_BE_BUN=1`, without the project's `.env`): `exec` runs it
+ * with the same Bun Shell, parsing the text the template literal of earlier
+ * versions held, with the payload as stdin. The script clears `BUN_BE_BUN` for
+ * the programs the command starts. A host without the Bun CLI fails the probe
+ * and falls back to Bun Shell, piping the payload into the first command only
+ * (a probe still running after 10 s is killed; it, or a failing one, means no
+ * Bun CLI for 5 minutes). Ordinary commands write to the host's stdout and
+ * stderr, as Bun Shell echoed them; a `preToolUse` command's are read, 1 MiB
+ * each kept (more stdout denies). Output
+ * pipes a background process keeps open are read for 1 s after the command
+ * exits; what arrived by then is kept, and the reads are then cancelled, as
+ * they are at a timeout. The OpenCode 1.x-style `event` hooks (`inProcess`)
+ * take the Bun Shell path too: starting the child takes about
+ * 250 ms, and OpenCode 1.x's one-shot `opencode run` exits right after
+ * `session.idle`, before a `stop` command run that way could start.
+ * A command that outlives its timeout (counted from its start) resolves to
+ * `null` and is killed. On POSIX its process tree, read from procfs or else
+ * `ps`, gets SIGTERM and, 2 s later, SIGKILL for each of those processes still
+ * alive (same start time, wherever it was reparented) and what it started
+ * since; the command's own process is signalled through its Bun handle only,
+ * so a PID reused after it exited is never signalled. The command keeps
+ * OpenCode's process group, so it keeps the terminal
+ * and Ctrl-C, but a process that left the tree before the timeout (orphaned or
+ * `setsid`) escapes, and without procfs and `ps` only
+ * the command's own process is killed (logged). The pending SIGKILL keeps the
+ * host alive for those 2 s. On Windows, `taskkill /T /F` ends the tree as
+ * linked by parent PID at that moment, then the child is ended through its
+ * handle; a process whose parent had already exited is not reached. Bun Shell
+ * (the fallback) cannot kill: it stops waiting, and the command keeps running.
+ * On a failure, `__rulesyncRunHook` throws in a blocking hook or logs it
+ * otherwise.
+ *
+ * @see https://bun.sh/docs/bundler/executables
+ */
+function buildRunHelperLinesFor(cwdExpression: string): string[] {
+  const spawn = (script: string, stdin: string, stdout = '"pipe"', stderr = stdout) =>
+    `Bun.spawn([process.execPath, "--no-env-file", "exec", ${script}], { cwd: ${cwdExpression}, env: { ...process.env, BUN_BE_BUN: "1" }, stdin: ${stdin}, stdout: ${stdout}, stderr: ${stderr}, windowsHide: true })`;
+  return [
+    "const __rulesyncRead = (stream, limit = 1048576) => {",
+    "  const chunks = [];",
+    "  let size = 0;",
+    "  const reader = stream.getReader();",
+    "  let reading = true;",
+    "  const done = (async () => {",
+    "    for (let read; reading && !(read = await reader.read()).done; ) {",
+    "      if (reading && (size += read.value.length) <= limit) chunks.push(read.value);",
+    "    }",
+    "  })().catch(() => {});",
+    "  const stop = () => {",
+    "    if (reading) (reading = false), reader.cancel().catch(() => {});",
+    "  };",
+    "  return { done, stop, text: () => Buffer.concat(chunks).toString(), overflow: () => size > limit };",
+    "};",
+    "let __rulesyncCanExec;",
+    "let __rulesyncRetryAt = 0;",
+    "// pid -> [ppid, start time], from procfs or else ps; a reused PID gets a new start time.",
+    "const __rulesyncProcesses = () => {",
+    "  const processes = new Map();",
+    "  try {",
+    '    const fs = require("node:fs");',
+    '    for (const pid of fs.readdirSync("/proc").filter((name) => /^\\d+$/.test(name))) {',
+    "      try {",
+    '        const stat = fs.readFileSync("/proc/" + pid + "/stat", "utf8");',
+    '        const fields = stat.slice(stat.lastIndexOf(")") + 2).split(" ");',
+    "        processes.set(pid, [fields[1], fields[19]]);",
+    "      } catch {}",
+    "    }",
+    "    if (processes.size > 0) return processes;",
+    "  } catch {}",
+    "  try {",
+    "    // The C locale keeps `lstart` in one format; it is compared as text, never parsed.",
+    '    const env = { ...process.env, LC_ALL: "C", LANG: "C" };',
+    '    const ps = Bun.spawnSync(["ps", "-A", "-o", "pid=,ppid=,lstart="], { env, timeout: 5000 });',
+    "    if (ps.exitCode === 0) {",
+    '      for (const line of ps.stdout.toString().trim().split("\\n")) {',
+    "        const [pid, ppid, ...started] = line.trim().split(/\\s+/);",
+    '        processes.set(pid, [ppid, started.join(" ")]);',
+    "      }",
+    "      return processes;",
+    "    }",
+    "  } catch {}",
+    '  console.error("[rulesync-hooks] neither /proc nor ps is available: only the hook process is killed");',
+    "};",
+    "const __rulesyncTree = (roots, processes) => {",
+    "  const tree = [...roots];",
+    "  for (let size = -1; size !== tree.length; ) {",
+    "    size = tree.length;",
+    "    for (const [pid, [ppid]] of processes ?? []) if (tree.includes(ppid) && !tree.includes(pid)) tree.push(pid);",
+    "  }",
+    "  return tree;",
+    "};",
+    "// The child itself is signalled only through its handle, a no-op once Bun has reaped it, so a",
+    "// reused PID is never signalled; its descendants only while it is running (not reaped, its PID",
+    "// cannot be reused), and in the SIGKILL round only with both snapshots: the first snapshot's",
+    "// descendants that are the same processes (same start time), and what they and the child,",
+    "// if it ran across the second snapshot, have started since.",
+    "const __rulesyncKillTree = (proc) => {",
+    "  const kill = (pids, signal) => pids.forEach((pid) => { try { process.kill(Number(pid), signal); } catch {} });",
+    "  const running = () => proc.exitCode === null && proc.signalCode === null;",
+    "  const root = String(proc.pid);",
+    "  const before = running() ? __rulesyncProcesses() : undefined;",
+    "  const first = before && running() ? __rulesyncTree([root], before).slice(1) : [];",
+    '  proc.kill("SIGTERM");',
+    '  kill(first, "SIGTERM");',
+    "  setTimeout(() => {",
+    "    const alive = running();",
+    "    const now = before && __rulesyncProcesses();",
+    '    if (!now) return proc.kill("SIGKILL");',
+    "    // Every first-snapshot descendant that is still the same process, wherever it was",
+    "    // reparented (to PID 1 or a subreaper), and the child if it survived SIGTERM, with what",
+    "    // they have started since. The child is killed first, so it starts nothing more.",
+    "    const same = first.filter((pid) => now.get(pid)?.[1] === before.get(pid)?.[1]);",
+    "    const own = alive && running() && now.get(root)?.[1] === before.get(root)?.[1];",
+    '    proc.kill("SIGKILL");',
+    '    kill(__rulesyncTree(own ? [root, ...same] : same, now).filter((pid) => pid !== root), "SIGKILL");',
+    "  }, 2000);",
+    "};",
+    "// `proc.kill()` is TerminateProcess on the child alone. A libuv program (node) that dies takes",
+    "// the children it spawned along through its job object, but not ones started through another",
+    "// program (cmd.exe) or detached. taskkill /T ends the tree as linked by parent PID at that",
+    "// moment; System32's copy, so a taskkill earlier on PATH is never run.",
+    "const __rulesyncKillWindowsTree = (proc) => {",
+    "  if (proc.exitCode === null && proc.signalCode === null) {",
+    '    const taskkill = (process.env.SystemRoot ?? "C:\\\\Windows") + "\\\\System32\\\\taskkill.exe";',
+    "    try {",
+    '      Bun.spawnSync([taskkill, "/T", "/F", "/PID", String(proc.pid)], { stdout: "ignore", stderr: "ignore", windowsHide: true, timeout: 5000 });',
+    "    } catch {}",
+    "  }",
+    "  proc.kill();",
+    "};",
+    "const __rulesyncRunCommand = async ({ command, input, seconds, inProcess = false, echo = false }) => {",
+    "  // A probe that exited 0 is kept; one past its deadline or failing means no Bun CLI for",
+    "  // 5 minutes; one that threw is dropped, so the next command probes again.",
+    "  if (!inProcess && (__rulesyncCanExec === undefined || (__rulesyncRetryAt && Date.now() >= __rulesyncRetryAt))) {",
+    "    __rulesyncRetryAt = 0;",
+    "    const probing = (__rulesyncCanExec = (async () => {",
+    `      const probe = ${spawn('"echo rulesync"', '"ignore"', '"pipe"', '"ignore"')};`,
+    "      const output = __rulesyncRead(probe.stdout, 1024);",
+    "      let timer;",
+    "      // Settles on its own, even if the probe ignores the kill or a process holds its stdout.",
+    "      const deadline = new Promise((resolve) => (timer = setTimeout(resolve, 10000, null)));",
+    "      const exited = Promise.all([probe.exited, output.done]).then(([code]) => code);",
+    "      const exitCode = await Promise.race([exited, deadline]).finally(() => clearTimeout(timer));",
+    '      if (exitCode === null) probe.kill("SIGKILL"), output.stop();',
+    "      if (exitCode !== 0) __rulesyncRetryAt = Date.now() + 300000;",
+    '      return exitCode === 0 && output.text().trim() === "rulesync";',
+    "    })().catch(() => {",
+    "      if (__rulesyncCanExec === probing) __rulesyncCanExec = undefined;",
+    "      return false;",
+    "    }));",
+    "  }",
+    "  let timer;",
+    "  const timeout = () => new Promise((resolve) => (timer = setTimeout(resolve, seconds * 1000, null)));",
+    "  if (inProcess || !(await __rulesyncCanExec)) {",
+    `    const run = Bun.$\`echo \${input} | \${{ raw: command }}\`.cwd(${cwdExpression}).nothrow();`,
+    "    const result = await Promise.race([echo ? run : run.quiet(), timeout()]).finally(() => clearTimeout(timer));",
+    "    if (!result || echo) return result && { exitCode: result.exitCode };",
+    "    const { exitCode, stdout, stderr } = result;",
+    "    return { exitCode, stdout: stdout.toString(), stderr: stderr.toString(), overflow: stdout.length > 1048576 };",
+    "  }",
+    "  // An ordinary command writes to the host's stdout and stderr; a preToolUse one is read.",
+    '  const output = echo ? "inherit" : "pipe";',
+    `  const proc = ${spawn('"export BUN_BE_BUN=\\n" + command', 'new TextEncoder().encode(input + "\\n")', "output")};`,
+    "  const [stdout, stderr] = echo ? [] : [__rulesyncRead(proc.stdout), __rulesyncRead(proc.stderr)];",
+    "  const exitCode = await Promise.race([proc.exited, timeout()]).finally(() => clearTimeout(timer));",
+    "  if (exitCode === null) {",
+    "    stdout?.stop(), stderr?.stop();",
+    '    if (process.platform === "win32") __rulesyncKillWindowsTree(proc);',
+    "    else __rulesyncKillTree(proc);",
+    "    return null;",
+    "  }",
+    "  if (echo) return { exitCode };",
+    "  await Promise.race([Promise.all([stdout.done, stderr.done]), Bun.sleep(1000)]);",
+    "  stdout.stop(), stderr.stop();",
+    "  return { exitCode, stdout: stdout.text(), stderr: stderr.text(), overflow: stdout.overflow() };",
+    "};",
+    "const __rulesyncRunHook = async ({ label, command, input, blocking, seconds, inProcess = false }) => {",
+    "  let result;",
+    "  try {",
+    "    result = await __rulesyncRunCommand({ command, input, seconds, inProcess, echo: true });",
+    "  } catch (error) {",
+    "    if (blocking) throw error;",
+    '    console.error("[rulesync-hooks] " + label + " hook failed:", error);',
+    "    return;",
+    "  }",
+    "  if (result === null) {",
+    '    const message = "[rulesync-hooks] " + label + " hook timed out after " + seconds + "s";',
+    "    if (blocking) throw new Error(message);",
+    "    return console.error(message);",
+    "  }",
+    "  if (result.exitCode === 0) return;",
+    '  const message = "[rulesync-hooks] " + label + " hook exited with code " + result.exitCode;',
+    "  if (blocking) throw new Error(message);",
+    "  console.error(message);",
+    "};",
+  ];
+}
 
 /**
  * Name of the helper the generated plugin defines when a `preToolUse` handler
@@ -111,7 +328,10 @@ const STDIN_PAYLOAD_EVENTS: Record<string, string> = {
  * - exit code 0 with JSON stdout whose `hookSpecificOutput.permissionDecision`
  *   is `"deny"` → deny, with `permissionDecisionReason` as the reason;
  * - exit code 0 otherwise → allow;
- * - any other non-zero exit → deny too, with stderr or the exit code.
+ * - any other non-zero exit → deny too, with stderr or the exit code;
+ * - more than 1 MiB of stdout → deny, without parsing it;
+ * - a command past its timeout → deny, like a non-zero exit, unless the hook
+ *   sets `failClosed: false`, which allows the call and logs the timeout.
  *
  * Every reason goes through the `sanitizeBlockReason` helper shared with the
  * Pi extension (`hook-block-reason.ts`): control and format characters are
@@ -125,10 +345,15 @@ const STDIN_PAYLOAD_EVENTS: Record<string, string> = {
  */
 const PRE_TOOL_USE_RESULT_HELPER = "__rulesyncEnforcePreToolUseResult";
 
-export const PRE_TOOL_USE_RESULT_HELPER_LINES: readonly string[] = [
+const PRE_TOOL_USE_RESULT_HELPER_LINES: readonly string[] = [
   ...buildBlockReasonSanitizerLines({ typed: false }),
   "",
-  `const ${PRE_TOOL_USE_RESULT_HELPER} = (result) => {`,
+  `const ${PRE_TOOL_USE_RESULT_HELPER} = (result, failClosed) => {`,
+  "  if (result === null) {",
+  '    if (failClosed !== false) throw new Error("preToolUse hook timed out.");',
+  '    return console.error("[rulesync-hooks] preToolUse hook timed out");',
+  "  }",
+  '  if (result.overflow) throw new Error("preToolUse hook wrote more than 1 MiB to stdout.");',
   "  const stderr = result.stderr.toString();",
   "  if (result.exitCode === 0) {",
   "    let parsed;",
@@ -166,27 +391,87 @@ export function validateAndSanitizeMatcher(matcher: string): string {
   return sanitized.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
-type Handler = {
+/** A stdin payload: its `hook_event_name` and extra fields. */
+export type StdinPayload = { name: string; fields: readonly string[] };
+
+/** `event` labels log messages; `blocking` makes a failure abort the action. */
+export type RunnableHandler = {
   command: string;
+  event: string;
+  blocking: boolean;
+  inProcess?: boolean;
+  timeout: number;
+  /** Unset and `true` deny a timed-out `preToolUse` call; only `false` allows it. */
+  failClosed: boolean | undefined;
+  payload?: StdinPayload;
+};
+
+/**
+ * A hook's `timeout` in seconds, Claude Code's default of 600 when it sets none,
+ * capped at what `setTimeout` can wait (larger values fire at once), and its
+ * `failClosed` as written: unset is not `false`.
+ */
+export function hookTimingOf(def: { timeout?: number; failClosed?: boolean }) {
+  const timeout = def.timeout !== undefined && def.timeout > 0 ? def.timeout : 600;
+  return { timeout: Math.min(timeout, 2_147_483), failClosed: def.failClosed };
+}
+
+const FAIL_CLOSED_TOOL_LABELS = {
+  kilo: "Kilo Code",
+  mimocode: "MiMo Code",
+  opencode: "OpenCode",
+  opencodev1: "OpenCode V1",
+} as const;
+
+/**
+ * Warn about each `failClosed: true` the generated plugin ignores: it only
+ * decides what a timed-out `preToolUse` command does. Elsewhere a hook that runs
+ * before its action always fails on a timeout and any other only logs it. Only a
+ * dropped `true` is warned about, like the other targets do: a `false` there
+ * already matches what the plugin does, so omitting it changes nothing.
+ */
+export function warnIgnoredFailClosed({
+  config,
+  supportedEvents,
+  toolConfigKey,
+  logger,
+}: {
+  config: HooksConfig;
+  supportedEvents: readonly string[];
+  toolConfigKey: keyof typeof FAIL_CLOSED_TOOL_LABELS;
+  logger?: Logger;
+}): void {
+  const configHooks = { ...config.hooks, ...config[toolConfigKey]?.hooks };
+  for (const [event, definitions] of Object.entries(configHooks)) {
+    if (event === "preToolUse" || !supportedEvents.includes(event)) continue;
+    for (const def of definitions) {
+      if (def.failClosed !== true) continue;
+      logger?.warn(
+        `failClosed on "${event}" hook will be ignored — the generated ${FAIL_CLOSED_TOOL_LABELS[toolConfigKey]} plugin only supports failClosed on preToolUse`,
+      );
+    }
+  }
+}
+
+type Handler = RunnableHandler & {
   matcher?: string;
   toolGate?: string;
   propertyGate?: string;
-  /** `hook_event_name` of the stdin payload; set only for `STDIN_PAYLOAD_EVENTS`. */
-  stdinEvent?: string;
 };
 type HandlerGroup = Record<string, Handler[]>;
 
-/** The per-canonical-event gates and payload flag every handler of it carries. */
+/** The per-canonical-event gates and payload every handler of it carries. */
 function handlerExtrasFor(
   canonicalEvent: string,
-): Pick<Handler, "toolGate" | "propertyGate" | "stdinEvent"> {
+): Pick<Handler, "event" | "toolGate" | "propertyGate" | "payload"> {
   const shellGate = SHELL_EVENT_TOOL_GATES[canonicalEvent];
   const propertyGate = GENERIC_EVENT_PROPERTY_GATES[canonicalEvent];
-  const stdinEvent = shellGate ? undefined : STDIN_PAYLOAD_EVENTS[canonicalEvent];
+  const payload = shellGate ? undefined : STDIN_PAYLOADS[canonicalEvent];
   return {
+    event: canonicalEvent,
     ...(shellGate ? { toolGate: shellGate.tool } : {}),
     ...(propertyGate ? { propertyGate } : {}),
-    ...(stdinEvent ? { stdinEvent } : {}),
+    ...(payload ? { payload } : {}),
   };
 }
 
@@ -218,10 +503,9 @@ function collectOpencodeStyleHandlers({
     // the generic `event.type` dispatches — there is nothing to test the regex
     // against, so a matcher-carrying definition is skipped here to match the
     // "Skipped matcher hook(s)" warning the processor already emitted.
+    const isNamedHook = Object.hasOwn(NAMED_HOOK_MATCHER_SUBJECTS, toolEvent);
     const matcherSupported =
-      !shellGate &&
-      Object.hasOwn(NAMED_HOOK_MATCHER_SUBJECTS, toolEvent) &&
-      NAMED_HOOK_MATCHER_SUBJECTS[toolEvent] !== null;
+      !shellGate && isNamedHook && NAMED_HOOK_MATCHER_SUBJECTS[toolEvent] !== null;
 
     const handlers: Handler[] = [];
     for (const def of definitions) {
@@ -231,14 +515,15 @@ function collectOpencodeStyleHandlers({
       handlers.push({
         command: def.command,
         matcher: def.matcher ? def.matcher : undefined,
+        blocking: BLOCKING_HOOKS.has(toolEvent),
+        ...hookTimingOf(def),
+        inProcess: !isNamedHook,
         ...extras,
       });
     }
 
     if (handlers.length > 0) {
-      const grouped = Object.hasOwn(NAMED_HOOK_MATCHER_SUBJECTS, toolEvent)
-        ? namedEventHandlers
-        : genericEventHandlers;
+      const grouped = isNamedHook ? namedEventHandlers : genericEventHandlers;
       const existing = grouped[toolEvent];
       if (existing) {
         existing.push(...handlers);
@@ -260,16 +545,19 @@ function buildGenericEventBodyLines(genericEventHandlers: HandlerGroup): string[
   for (const [eventName, handlers] of Object.entries(genericEventHandlers)) {
     bodyLines.push(`      ${isFirst ? "if" : "else if"} (event.type === "${eventName}") {`);
     isFirst = false;
+    for (const line of buildPayloadClosureLines({ handlers, cwdExpression: V1_CWD_EXPRESSION })) {
+      bodyLines.push(`        ${line}`);
+    }
     for (const handler of handlers) {
-      const escapedCommand = escapeForTemplateLiteral(handler.command);
+      const runStatement = buildRunStatement(handler);
       if (handler.propertyGate) {
         // The dispatch fires more broadly than the canonical event it came
         // from, so this handler narrows it to the matching payload.
         bodyLines.push(`        if (${handler.propertyGate}) {`);
-        bodyLines.push(`          await $\`${escapedCommand}\`;`);
+        bodyLines.push(`          ${runStatement}`);
         bodyLines.push("        }");
       } else {
-        bodyLines.push(`        await $\`${escapedCommand}\`;`);
+        bodyLines.push(`        ${runStatement}`);
       }
     }
     bodyLines.push("      }");
@@ -278,22 +566,75 @@ function buildGenericEventBodyLines(genericEventHandlers: HandlerGroup): string[
   return bodyLines;
 }
 
-export function stdinPayloadVariable(stdinEvent: string): string {
+function stdinPayloadVariable(stdinEvent: string): string {
   return `__rulesync${stdinEvent}Input`;
 }
 
-/**
- * The statement that runs a handler's command. A handler with a stdin payload
- * pipes the payload in and hands the result to the deny-aware helper; every
- * other handler keeps Bun Shell's default mode, where a non-zero exit throws.
- */
-export function buildRunStatement(handler: { command: string; stdinEvent?: string }): string {
-  const escapedCommand = escapeForTemplateLiteral(handler.command);
-  if (handler.stdinEvent) {
-    const payload = stdinPayloadVariable(handler.stdinEvent);
-    return `${PRE_TOOL_USE_RESULT_HELPER}(await $\`echo \${${payload}()} | ${escapedCommand}\`.nothrow().quiet());`;
+/** The `cwd` a V1 payload reports: the session directory, else the process's. */
+const V1_CWD_EXPRESSION = "directory ?? process.cwd()";
+
+/** Lazily serialized closures for the payloads the handlers use (internal tables only). */
+export function buildPayloadClosureLines({
+  handlers,
+  cwdExpression,
+}: {
+  handlers: ReadonlyArray<{ payload?: StdinPayload }>;
+  cwdExpression: string;
+}): string[] {
+  const payloads = new Map<string, StdinPayload>();
+  for (const handler of handlers) {
+    if (handler.payload) payloads.set(handler.payload.name, handler.payload);
   }
-  return `await $\`${escapedCommand}\`;`;
+  const lines: string[] = [];
+  for (const payload of payloads.values()) {
+    const variable = stdinPayloadVariable(payload.name);
+    lines.push(`let ${variable}Cache;`, `const ${variable} = () =>`);
+    lines.push(`  (${variable}Cache ??= JSON.stringify({`);
+    lines.push(`    hook_event_name: "${payload.name}",`);
+    lines.push(...payload.fields.map((field) => `    ${field},`));
+    lines.push(`    cwd: ${cwdExpression},`, "  }));");
+  }
+  return lines;
+}
+
+/**
+ * The statement that runs a handler's command with its stdin payload, or an
+ * empty stdin. The command keeps the escaping it had in the template literal
+ * earlier versions emitted, so `bun exec` parses the same text.
+ */
+export function buildRunStatement(handler: RunnableHandler): string {
+  const command = JSON.stringify(escapeForTemplateLiteral(handler.command));
+  const input = handler.payload ? `${stdinPayloadVariable(handler.payload.name)}()` : '""';
+  if (handler.payload?.name === "PreToolUse") {
+    // An unset `failClosed` is left out: the helper denies on a timeout unless it is `false`.
+    const failClosed = handler.failClosed === undefined ? "" : `, ${handler.failClosed}`;
+    return `${PRE_TOOL_USE_RESULT_HELPER}(await __rulesyncRunCommand({ command: ${command}, input: ${input}, seconds: ${handler.timeout} })${failClosed});`;
+  }
+  const options = [
+    `label: ${JSON.stringify(handler.event)}`,
+    `command: ${command}`,
+    `input: ${input}`,
+    `blocking: ${handler.blocking}`,
+    `seconds: ${handler.timeout}`,
+    ...(handler.inProcess ? ["inProcess: true"] : []),
+  ];
+  return `await __rulesyncRunHook({ ${options.join(", ")} });`;
+}
+
+/** The helpers a plugin body defines before its handlers, run in `cwdExpression`. */
+export function buildRunHelperLines({
+  handlers,
+  cwdExpression,
+}: {
+  handlers: ReadonlyArray<RunnableHandler>;
+  cwdExpression: string;
+}): string[] {
+  if (handlers.length === 0) return [];
+  const usesPreToolUse = handlers.some((handler) => handler.payload?.name === "PreToolUse");
+  return [
+    ...buildRunHelperLinesFor(cwdExpression),
+    ...(usesPreToolUse ? ["", ...PRE_TOOL_USE_RESULT_HELPER_LINES] : []),
+  ];
 }
 
 /** Emit the named (`tool.execute.*`) handler blocks. */
@@ -301,28 +642,11 @@ function buildNamedEventBodyLines(namedEventHandlers: HandlerGroup): string[] {
   const bodyLines: string[] = [];
   for (const [eventName, handlers] of Object.entries(namedEventHandlers)) {
     const matcherSubject = NAMED_HOOK_MATCHER_SUBJECTS[eventName] ?? null;
-    const stdinEvents = [
-      ...new Set(handlers.flatMap((handler) => (handler.stdinEvent ? [handler.stdinEvent] : []))),
-    ];
+    const payloadLines = buildPayloadClosureLines({ handlers, cwdExpression: V1_CWD_EXPRESSION });
     bodyLines.push(
-      `    "${eventName}": async (${stdinEvents.length > 0 ? "input, output" : "input"}) => {`,
+      `    "${eventName}": async (${payloadLines.length > 0 ? "input, output" : "input"}) => {`,
     );
-    // Serialized at most once per invocation, by the first handler that runs.
-    // `stdinEvent` only ever holds a value from `STDIN_PAYLOAD_EVENTS`, never
-    // user input, so it is safe to emit as an identifier suffix and a string.
-    for (const stdinEvent of stdinEvents) {
-      const payload = stdinPayloadVariable(stdinEvent);
-      bodyLines.push(`      let ${payload}Cache;`);
-      bodyLines.push(`      const ${payload} = () =>`);
-      bodyLines.push(`        (${payload}Cache ??= JSON.stringify({`);
-      bodyLines.push(`          hook_event_name: "${stdinEvent}",`);
-      bodyLines.push("          session_id: input.sessionID,");
-      bodyLines.push("          tool_use_id: input.callID,");
-      bodyLines.push("          tool_name: input.tool,");
-      bodyLines.push("          tool_input: output?.args,");
-      bodyLines.push("          cwd: directory ?? process.cwd(),");
-      bodyLines.push("        }));");
-    }
+    bodyLines.push(...payloadLines.map((line) => `      ${line}`));
     for (const handler of handlers) {
       const runStatement = buildRunStatement(handler);
       if (handler.toolGate) {
@@ -358,9 +682,8 @@ function wrapInExportShape({
   exportStyle: "named" | "default";
 }): string[] {
   // `directory` (the session's working directory, in both the OpenCode and the
-  // Kilo plugin context) is only read by the stdin payload, so plugins without
-  // one keep destructuring `$` alone.
-  const pluginContextPattern = preambleLines.length > 0 ? "{ $, directory }" : "{ $ }";
+  // Kilo plugin context) is where commands run and what the payloads report.
+  const pluginContextPattern = preambleLines.length > 0 ? "{ directory }" : "{ $ }";
   const lines: string[] = [];
   if (exportStyle === "default") {
     lines.push("export default {");
@@ -433,13 +756,10 @@ export function generateOpencodeStylePluginCode(
     ...buildNamedEventBodyLines(namedEventHandlers),
   ];
 
-  // The deny-aware result helper is defined once in the plugin function body,
-  // and only when a handler uses it, so plugins without a stdin-payload hook
-  // stay byte-for-byte unchanged.
-  const usesStdinPayload = Object.values(namedEventHandlers).some((handlers) =>
-    handlers.some((handler) => handler.stdinEvent !== undefined),
-  );
-  const preambleLines = usesStdinPayload ? PRE_TOOL_USE_RESULT_HELPER_LINES : [];
+  const preambleLines = buildRunHelperLines({
+    handlers: [...Object.values(namedEventHandlers), ...Object.values(genericEventHandlers)].flat(),
+    cwdExpression: V1_CWD_EXPRESSION,
+  });
 
   const lines = wrapInExportShape({ preambleLines, bodyLines, exportStyle });
 

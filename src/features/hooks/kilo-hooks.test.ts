@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { KiloHooks } from "./kilo-hooks.js";
@@ -42,6 +43,41 @@ describe("KiloHooks", () => {
   });
 
   describe("fromRulesyncHooks", () => {
+    it("warns that a failClosed: true is ignored on every event but preToolUse", () => {
+      const logger = createMockLogger();
+      const warnSpy = vi.spyOn(logger, "warn");
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            preToolUse: [{ command: "guard.sh", failClosed: false }],
+            sessionStart: [{ command: "init.sh", failClosed: true }],
+            postToolUse: [{ command: "format.sh", failClosed: false }],
+            stop: [{ command: "shared-audit.sh", failClosed: false }],
+          },
+          // The tool-scoped override replaces the shared list for its event.
+          kilo: { hooks: { stop: [{ command: "audit.sh", failClosed: true }] } },
+        }),
+        validate: false,
+      });
+
+      KiloHooks.fromRulesyncHooks({ outputRoot: testDir, rulesyncHooks, logger });
+
+      expect(warnSpy.mock.calls).toEqual([
+        [
+          'failClosed on "sessionStart" hook will be ignored — the generated Kilo Code plugin only supports failClosed on preToolUse',
+        ],
+        [
+          'failClosed on "stop" hook will be ignored — the generated Kilo Code plugin only supports failClosed on preToolUse',
+        ],
+      ]);
+      // A dropped `false` is the plugin's own behavior there, so it is not warned about.
+      expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining('"postToolUse"'));
+    });
+
     it("should filter shared hooks to Kilo-supported events only", () => {
       const config = {
         version: 1,
@@ -371,7 +407,7 @@ describe("KiloHooks", () => {
       // Canonical Kilo plugin shape: default export with id + server descriptor.
       expect(content).toContain("export default {");
       expect(content).toContain('  id: "rulesync-hooks",');
-      expect(content).toContain("  server: async ({ $, directory }) => {");
+      expect(content).toContain("  server: async ({ directory }) => {");
       // Must NOT emit the legacy named export used by the OpenCode target.
       expect(content).not.toContain("export const RulesyncHooksPlugin");
       // Handlers are still present, just nested under `server`.
@@ -404,7 +440,7 @@ describe("KiloHooks", () => {
 
       const content = kiloHooks.getFileContent();
       // ${} should be escaped in the template literal
-      expect(content).toContain("echo \\${HOME}");
+      expect(content).toContain('"echo \\\\${HOME}"');
       expect(content).not.toContain("echo ${HOME}");
     });
 
@@ -470,7 +506,7 @@ describe("KiloHooks", () => {
           "        {",
           '          const __re = new RegExp("Read");',
           "          if (__re.test(input.tool)) {",
-          "            await $`audit-read.sh`;",
+          '            await __rulesyncRunHook({ label: "postToolUse", command: "audit-read.sh", input: __rulesyncPostToolUseInput(), blocking: false, seconds: 600 });',
           "          }",
           "        }",
         ].join("\n"),
@@ -480,7 +516,7 @@ describe("KiloHooks", () => {
           "        {",
           '          const __re = new RegExp("Write");',
           "          if (__re.test(input.tool)) {",
-          "            await $`audit-write.sh`;",
+          '            await __rulesyncRunHook({ label: "postToolUse", command: "audit-write.sh", input: __rulesyncPostToolUseInput(), blocking: false, seconds: 600 });',
           "          }",
           "        }",
         ].join("\n"),
@@ -490,7 +526,7 @@ describe("KiloHooks", () => {
           "        {",
           '          const __re = new RegExp("Edit");',
           "          if (__re.test(input.tool)) {",
-          "            await $`audit-edit.sh`;",
+          '            await __rulesyncRunHook({ label: "postToolUse", command: "audit-edit.sh", input: __rulesyncPostToolUseInput(), blocking: false, seconds: 600 });',
           "          }",
           "        }",
         ].join("\n"),
@@ -653,7 +689,7 @@ describe("KiloHooks", () => {
 
       const content = kiloHooks.getFileContent();
       // Backticks should be escaped in the template literal
-      expect(content).toContain("echo \\`date\\`");
+      expect(content).toContain('"echo \\\\`date\\\\`"');
     });
   });
 
