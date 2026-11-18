@@ -1507,6 +1507,44 @@ describe("E2E: hooks (global mode)", () => {
     ]);
   });
 
+  it("should round-trip Crush lifecycle hooks in the user config", async () => {
+    const homeDir = getHomeDir();
+    const configPath = join(homeDir, ".config", "crush", "crush.json");
+    const hooks = {
+      SessionStart: [{ command: "echo start" }],
+      TurnEnd: [{ command: "echo done" }],
+    };
+    const options = { debug: true };
+    await writeFileContent(configPath, JSON.stringify({ hooks, options }));
+
+    await runImport({
+      target: "crush",
+      features: "hooks",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const imported = JSON.parse(
+      await readFileContent(join(homeDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH)),
+    );
+    expect(imported.hooks.sessionStart).toEqual([{ type: "command", command: "echo start" }]);
+    expect(imported.hooks.stop).toEqual([{ type: "command", command: "echo done" }]);
+
+    // Remove the existing native hooks so the assertions prove generation wrote them back.
+    await writeFileContent(configPath, JSON.stringify({ options }));
+    await runGenerate({
+      target: "crush",
+      features: "hooks",
+      global: true,
+      inputRoots: [join(homeDir, RULESYNC_RELATIVE_DIR_PATH)],
+      env: { HOME_DIR: homeDir },
+    });
+
+    const generated = JSON.parse(await readFileContent(configPath));
+    expect(generated.hooks).toEqual(hooks);
+    expect(generated.options).toEqual(options);
+  });
+
   it("should generate pool hooks in the user settings", async () => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();
