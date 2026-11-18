@@ -169,6 +169,63 @@ describe("extractPackageTarball", () => {
     expect(() => extractPackageTarball({ tarball, maxTotalBytes: 1000 })).toThrow(/max total size/);
   });
 
+  it("names the package and the limits when it exceeds the max file count", () => {
+    const tarball = buildTarball([
+      { name: "package/a.md", content: "a" },
+      { name: "package/b.md", content: "b" },
+      { name: "package/c.md", content: "c" },
+    ]);
+
+    expect(() =>
+      extractPackageTarball({ tarball, maxFiles: 2, packageLabel: "pkg@1.0.0" }),
+    ).toThrow("Package pkg@1.0.0 exceeds the npm transport's max file count of 2.");
+  });
+
+  it("names the package when it exceeds the max total extracted bytes", () => {
+    const tarball = buildTarball([
+      { name: "package/a.md", content: "x".repeat(600) },
+      { name: "package/b.md", content: "y".repeat(600) },
+    ]);
+
+    expect(() =>
+      extractPackageTarball({ tarball, maxTotalBytes: 1000, packageLabel: "pkg@1.0.0" }),
+    ).toThrow("Package pkg@1.0.0 exceeds the npm transport's max total size of 1000 bytes.");
+  });
+
+  it("reports an unpacked size over the limit instead of a gunzip failure", () => {
+    // A valid gzip whose output passes the gunzip-layer cap
+    // (maxTotalBytes + maxFiles * 3 blocks + 2 blocks = 1000 + 1536 + 1024).
+    const tarball = gzipSync(Buffer.alloc(10_000));
+
+    let thrown: unknown;
+    try {
+      extractPackageTarball({
+        tarball,
+        maxFiles: 1,
+        maxTotalBytes: 1000,
+        packageLabel: "big-pkg@6.9.0",
+      });
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(NpmTarError);
+    const message = (thrown as NpmTarError).message;
+    expect(message).toContain("Package big-pkg@6.9.0 unpacks to more than");
+    expect(message).toContain("1000 bytes of file data, 1 files");
+    expect(message).not.toMatch(/gunzip|corrupt/);
+  });
+
+  it("formats a whole-megabyte limit in MB when the package label is omitted", () => {
+    const tarball = gzipSync(Buffer.alloc(2 * 1024 * 1024));
+
+    expect(() =>
+      extractPackageTarball({ tarball, maxFiles: 1, maxTotalBytes: 1024 * 1024 }),
+    ).toThrow(
+      "Package tarball unpacks to more than the npm transport's extraction limit (1MB of file data, 1 files).",
+    );
+  });
+
   it("throws on truncated archives", () => {
     const tar = buildTar([{ name: "package/a.md", content: "abc" }]);
     // Cut the archive in the middle of the file data.
@@ -187,6 +244,9 @@ describe("extractPackageTarball", () => {
     expect(() => extractPackageTarball({ tarball: Buffer.from("not a tarball") })).toThrow(
       /gunzip/,
     );
+    expect(() =>
+      extractPackageTarball({ tarball: Buffer.from("not a tarball"), packageLabel: "pkg@1.0.0" }),
+    ).toThrow("Failed to gunzip package tarball for pkg@1.0.0 (the archive may be corrupt)");
   });
 
   it("rejects pax size overrides instead of misparsing offsets", () => {

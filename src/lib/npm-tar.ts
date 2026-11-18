@@ -51,11 +51,16 @@ export function extractPackageTarball(params: {
   tarball: Buffer;
   maxFiles?: number;
   maxTotalBytes?: number;
+  /** Package label used in error messages, e.g. `name@version`. */
+  packageLabel?: string;
   onSkippedEntry?: (message: string) => void;
 }): TarFileEntry[] {
   const { tarball, onSkippedEntry } = params;
   const maxFiles = params.maxFiles ?? MAX_TAR_FILES;
   const maxTotalBytes = params.maxTotalBytes ?? MAX_TAR_TOTAL_BYTES;
+  const label = params.packageLabel;
+  const subject = label === undefined ? "Package tarball" : `Package ${label}`;
+  const forLabel = label === undefined ? "" : ` for ${label}`;
 
   let tar: Buffer;
   try {
@@ -65,19 +70,44 @@ export function extractPackageTarball(params: {
       maxOutputLength: maxTotalBytes + maxFiles * 3 * BLOCK_SIZE + 2 * BLOCK_SIZE,
     });
   } catch (error) {
-    throw new NpmTarError("Failed to gunzip package tarball", error);
+    if (isOutputLimitError(error)) {
+      // The archive is not necessarily corrupt: gunzip stopped because the
+      // unpacked tar is larger than the extraction limits allow.
+      throw new NpmTarError(
+        `${subject} unpacks to more than the npm transport's extraction limit (${formatByteLimit(maxTotalBytes)} of file data, ${maxFiles} files). Aborting to prevent resource exhaustion.`,
+        error,
+      );
+    }
+    throw new NpmTarError(
+      `Failed to gunzip package tarball${forLabel} (the archive may be corrupt)`,
+      error,
+    );
   }
 
-  return parseTarBuffer({ tar, maxFiles, maxTotalBytes, onSkippedEntry });
+  return parseTarBuffer({ tar, maxFiles, maxTotalBytes, subject, onSkippedEntry });
+}
+
+/**
+ * Whether a zlib error means `maxOutputLength` was exceeded (Node throws a
+ * `RangeError` with code `ERR_BUFFER_TOO_LARGE`) rather than corrupt data.
+ */
+function isOutputLimitError(error: unknown): boolean {
+  return error instanceof Error && "code" in error && error.code === "ERR_BUFFER_TOO_LARGE";
+}
+
+function formatByteLimit(bytes: number): string {
+  const megabytes = bytes / 1024 / 1024;
+  return Number.isInteger(megabytes) ? `${megabytes}MB` : `${bytes} bytes`;
 }
 
 function parseTarBuffer(params: {
   tar: Buffer;
   maxFiles: number;
   maxTotalBytes: number;
+  subject: string;
   onSkippedEntry?: (message: string) => void;
 }): TarFileEntry[] {
-  const { tar, maxFiles, maxTotalBytes, onSkippedEntry } = params;
+  const { tar, maxFiles, maxTotalBytes, subject, onSkippedEntry } = params;
   const files: TarFileEntry[] = [];
   let totalBytes = 0;
   let offset = 0;
@@ -135,13 +165,13 @@ function parseTarBuffer(params: {
         if (relativePath !== null) {
           if (files.length + 1 > maxFiles) {
             throw new NpmTarError(
-              `Package tarball exceeds max file count of ${maxFiles}. Aborting to prevent resource exhaustion.`,
+              `${subject} exceeds the npm transport's max file count of ${maxFiles}. Aborting to prevent resource exhaustion.`,
             );
           }
           totalBytes += size;
           if (totalBytes > maxTotalBytes) {
             throw new NpmTarError(
-              `Package tarball exceeds max total size of ${maxTotalBytes / 1024 / 1024}MB. Aborting to prevent resource exhaustion.`,
+              `${subject} exceeds the npm transport's max total size of ${formatByteLimit(maxTotalBytes)}. Aborting to prevent resource exhaustion.`,
             );
           }
           files.push({

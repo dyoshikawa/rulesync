@@ -97,7 +97,7 @@ describe("OpencodeHooks (OpenCode V2)", () => {
       });
 
       expect(content.startsWith("export default {\n")).toBe(true);
-      expect(content).toContain('id: "rulesync-hooks"');
+      expect(content).toContain('id: "rulesync-hooks:" + import.meta.url,');
       expect(content).toContain("setup: async (ctx) => {");
       expect(content).toContain("cwd: directory,");
       expect(content).not.toContain("RulesyncHooksPlugin");
@@ -197,7 +197,7 @@ describe("OpencodeHooks (OpenCode V2)", () => {
       expect(content).toBe(
         [
           "export default {",
-          '  id: "rulesync-hooks",',
+          '  id: "rulesync-hooks:" + import.meta.url,',
           "  setup: async () => {",
           "  },",
           "};",
@@ -292,6 +292,19 @@ describe("OpencodeHooks (OpenCode V2)", () => {
           hooks: { preToolUse: [{ matcher: "[invalid", command: "echo x" }] },
         }),
       ).toThrow("Invalid regex pattern in hook matcher: [invalid");
+    });
+
+    it("gives every plugin file its own id, so OpenCode loads the global, project and parent ones", async () => {
+      const content = generate({ hooks: { stop: [{ command: "echo stop" }] } });
+      const ids: string[] = [];
+      for (const name of ["first", "second"]) {
+        const filePath = join(testDir, `${name}.mjs`);
+        await writeFileContent(filePath, content);
+        ids.push((await import(pathToFileURL(filePath).href)).default.id);
+      }
+
+      expect(ids[0]).toMatch(/^rulesync-hooks:file:/);
+      expect(ids[0]).not.toBe(ids[1]);
     });
   });
 
