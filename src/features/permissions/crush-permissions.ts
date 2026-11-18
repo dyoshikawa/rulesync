@@ -252,7 +252,7 @@ function createSafeCommandShadowTest(
   return (line) =>
     uniq([
       ...withSeparator([line, ...wrapped(line)]).flatMap((spelling) => test(spelling)),
-      ...withSeparator(wrapped(line.toLowerCase())).flatMap((spelling) =>
+      ...withSeparator([line.toLowerCase(), ...wrapped(line.toLowerCase())]).flatMap((spelling) =>
         testNormalized(spelling).map((pattern) => originalOf.get(pattern) ?? pattern),
       ),
     ]);
