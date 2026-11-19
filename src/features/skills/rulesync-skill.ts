@@ -64,7 +64,7 @@ export const RulesyncSkillFrontmatterSchema = z.looseObject({
   targets: z._default(RulesyncTargetsSchema, ["*"]),
   // Default for tools that support the flag (claudecode, codebuddy, copilot, copilotcli, crush,
   // cursor, zed, pi, omp, qwencode, vibe, grokcli, factorydroid, dsh, reasonix, commandcode,
-  // lettacode, opencode, opencodev1, mimocode, xum, firebender).
+  // lettacode, opencode, opencodev1, mimocode, xum, firebender, openclaw).
   // A target-section value of the same key overrides this default.
   // `devin` also consumes this root value (mapping `true` onto a user-only
   // `triggers` list); it has no section key of the same name, but a
@@ -76,7 +76,7 @@ export const RulesyncSkillFrontmatterSchema = z.looseObject({
   "disable-model-invocation": z.optional(z.boolean()),
   // Default for tools that support the flag (claudecode, codebuddy, copilot, copilotcli,
   // crush, cursor, qwencode, vibe, grokcli, factorydroid, dsh, reasonix, commandcode, lettacode,
-  // xum).
+  // xum, openclaw).
   // A target-section value of the same key overrides this default.
   // `devin` also consumes this root value (mapping `false` onto a model-only
   // `triggers` list); it has no section key of the same name, but a
@@ -383,6 +383,21 @@ export const RulesyncSkillFrontmatterSchema = z.looseObject({
       metadata: z.optional(z.looseObject({})),
       "disable-model-invocation": z.optional(z.boolean()),
       "user-invocable": z.optional(z.boolean()),
+    }),
+  ),
+  // OpenClaw reads both invocation flags, `homepage`, the
+  // `command-dispatch` / `command-tool` / `command-arg-mode` trio and a
+  // `metadata.openclaw` gating block; any other key is carried verbatim.
+  // https://docs.openclaw.ai/tools/skills
+  openclaw: z.optional(
+    z.looseObject({
+      homepage: z.optional(z.string()),
+      "user-invocable": z.optional(z.boolean()),
+      "disable-model-invocation": z.optional(z.boolean()),
+      "command-dispatch": z.optional(z.string()),
+      "command-tool": z.optional(z.string()),
+      "command-arg-mode": z.optional(z.string()),
+      metadata: z.optional(z.looseObject({})),
     }),
   ),
   // Reasonix reads both invocation flags natively on the CLI v2 line; the
