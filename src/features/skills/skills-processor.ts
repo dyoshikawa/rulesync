@@ -77,6 +77,7 @@ import { LettacodeSkill } from "./lettacode-skill.js";
 import { MimocodeSkill } from "./mimocode-skill.js";
 import { MusecodeSkill } from "./musecode-skill.js";
 import { OmpSkill } from "./omp-skill.js";
+import { OpenclawSkill } from "./openclaw-skill.js";
 import { OpenCodeSkill } from "./opencode-skill.js";
 import { Opencodev1Skill } from "./opencodev1-skill.js";
 import { PiSkill } from "./pi-skill.js";
@@ -867,6 +868,16 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     "dsh",
     {
       class: DshSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "openclaw",
+    {
+      // OpenClaw loads the execution folder's `.agents/skills/` (project) and
+      // the managed/local `~/.openclaw/skills/` root (global).
+      // https://docs.openclaw.ai/tools/skills
+      class: OpenclawSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],

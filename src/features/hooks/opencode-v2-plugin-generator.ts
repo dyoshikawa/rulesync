@@ -133,8 +133,10 @@ function buildHookRegistrationLines(hookPoint: string, handlers: V2Handler[]): s
 /**
  * Emit the event-stream loop. Event handlers are non-blocking, so
  * `__rulesyncRunHook` logs a failing command instead of throwing, and it
- * neither skips its siblings nor ends the subscription. The subscription
- * passes `types` so the server delivers only the handled events.
+ * neither skips its siblings nor ends the subscription. Each handler also runs
+ * in its own try/catch, so a throw while evaluating its gate or building its
+ * payload, outside `__rulesyncRunHook`, is logged the same way. The
+ * subscription passes `types` so the server delivers only the handled events.
  */
 function buildEventLoopLines(eventHandlers: Map<string, V2Handler[]>): string[] {
   const lines: string[] = [];
@@ -156,13 +158,26 @@ function buildEventLoopLines(eventHandlers: Map<string, V2Handler[]>): string[] 
       ),
     );
     for (const handler of handlers) {
-      lines.push(...wrapInConditions(handler, buildRunStatement(handler), "      "));
+      lines.push("      try {");
+      lines.push(...wrapInConditions(handler, buildRunStatement(handler), "        "));
+      lines.push("      } catch (error) {");
+      const message = JSON.stringify(`[rulesync-hooks] ${handler.event} hook failed:`);
+      lines.push(`        console.error(${message}, error);`);
+      lines.push("      }");
     }
   }
   lines.push("    }");
   lines.push("  }");
   lines.push("})().catch(() => {});");
   return lines;
+}
+
+/**
+ * Every hook point but `execute.after` runs before its action, which a throw
+ * aborts; the event stream only observes.
+ */
+export function isBlockingOpencodeV2Target(target: string): boolean {
+  return !target.startsWith("event:") && target !== "tool:execute.after";
 }
 
 /** Build the handlers of one canonical event's command definitions. */
@@ -192,9 +207,7 @@ function buildHandlersFor({
     handlers.push({
       command: def.command,
       event: canonicalEvent,
-      // Every hook point but `execute.after` runs before its action, which a
-      // throw aborts; the event stream only observes.
-      blocking: !target.startsWith("event:") && target !== "tool:execute.after",
+      blocking: isBlockingOpencodeV2Target(target),
       ...hookTimingOf(def),
       ...(def.matcher ? { matcher: def.matcher } : {}),
       ...(gate ? { gate } : {}),
