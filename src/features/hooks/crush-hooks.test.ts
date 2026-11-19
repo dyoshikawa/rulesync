@@ -310,6 +310,37 @@ describe("CrushHooks", () => {
       expect(logger.warn).not.toHaveBeenCalled();
     });
 
+    it("should skip a crush override key that names no Crush event, with a warning", async () => {
+      const logger = createMockLogger();
+      const hooks = await CrushHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks: buildRulesyncHooks({
+          version: 1,
+          hooks: { stop: [{ command: "./shared.sh" }] },
+          crush: {
+            hooks: {
+              Stop: [{ command: "./claude-style.sh" }],
+              permission_result: [{ command: "./result.sh" }],
+            },
+          },
+        }),
+        logger,
+      });
+
+      // `Stop` is Claude Code's name; Crush calls the event `TurnEnd` and
+      // rejects the whole config on an unknown event, so it must not be written.
+      expect(hooks.getJson()).toEqual({
+        hooks: {
+          TurnEnd: [{ command: "./shared.sh" }],
+          permission_result: [{ command: "./result.sh" }],
+        },
+      });
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('crush.hooks event "Stop" is not a Crush hook event'),
+      );
+    });
+
     it("should preserve unrelated keys and replace the hooks block wholesale", async () => {
       await writeFileContent(
         join(testDir, "crush.json"),

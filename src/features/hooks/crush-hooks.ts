@@ -69,6 +69,20 @@ const NORMALIZED_CRUSH_TOOL_EVENTS: ReadonlySet<string> = new Set(
 );
 
 /**
+ * Every event Crush fires, by normalized spelling: the twelve with a canonical
+ * counterpart plus `PermissionResult`, which is a tool event. Crush refuses to
+ * load the whole config when a `hooks` key names any other event
+ * ("hook <key>: unknown event").
+ * @see https://github.com/charmbracelet/crush/blob/v0.102.0/internal/hooks/events.go
+ * @see https://github.com/charmbracelet/crush/blob/v0.102.0/internal/config/hooks.go
+ */
+const NORMALIZED_KNOWN_CRUSH_EVENTS: ReadonlySet<string> = new Set(
+  [...Object.values(CANONICAL_TO_CRUSH_EVENT_NAMES), ...CRUSH_TOOL_EVENTS].map((event) =>
+    normalizeCrushEventName(event),
+  ),
+);
+
+/**
  * Resolve a `crush.hooks` override key to the canonical event it names, or
  * null when it names no canonical event. The key may be spelled the canonical
  * way (`stop`) or in any spelling Crush accepts for the event (`TurnEnd`,
@@ -99,10 +113,11 @@ function resolveOverrideCanonicalEvent(key: string): string | null {
  * spelling it uses: the override replaces the shared entries of that event
  * (as for every other tool's override), and override keys that name the same
  * event are concatenated in order, the way Crush itself merges them. A key
- * that names no canonical event — such as `PermissionResult`, or one an
- * import filed there — is written verbatim so it round-trips; keys of that
- * kind that Crush reads as the same event are concatenated under the first
- * spelling. A `matcher` is only written on a tool event: Crush rejects the
+ * that names a Crush event with no canonical counterpart (`PermissionResult`)
+ * is written verbatim so it round-trips; keys of that kind that Crush reads as
+ * the same event are concatenated under the first spelling. A key that names
+ * no Crush event at all (such as the Claude Code spelling `Stop`) is skipped
+ * with a warning, since Crush would refuse to load the whole config. A `matcher` is only written on a tool event: Crush rejects the
  * whole config when one appears anywhere else.
  */
 function canonicalToCrushHooks({
@@ -138,6 +153,13 @@ function canonicalToCrushHooks({
       crushEvent = lookupOwn({ record: CANONICAL_TO_CRUSH_EVENT_NAMES, key: canonical }) ?? key;
     } else {
       const normalized = normalizeCrushEventName(key);
+      if (!NORMALIZED_KNOWN_CRUSH_EVENTS.has(normalized)) {
+        logger?.warn(
+          `crush.hooks event ${quoteValueForWarning(key)} is not a Crush hook event, so it was ` +
+            `skipped — Crush refuses to load a config with an unknown hook event.`,
+        );
+        continue;
+      }
       crushEvent = verbatimSpellings.get(normalized) ?? key;
       verbatimSpellings.set(normalized, crushEvent);
     }
