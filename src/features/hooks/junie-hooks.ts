@@ -40,10 +40,13 @@ export const JUNIE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   // Junie hook objects support `blockOnError` (block the action on hook failure)
   // and `async` (run in the background). `blockOnError` maps onto the canonical
   // `failClosed` field (shared with Cursor's identical semantics); `async` maps
-  // onto the canonical `async` field. https://junie.jetbrains.com/docs/junie-cli-hooks.html
+  // onto the canonical `async` field. `strictJsonOutput` (a Junie extension
+  // requiring non-empty stdout to be a JSON object) keeps its name.
+  // https://junie.jetbrains.com/docs/junie-cli-hooks.html
   booleanPassthroughFields: [
     { canonical: "failClosed", tool: "blockOnError" },
     { canonical: "async", tool: "async" },
+    { canonical: "strictJsonOutput", tool: "strictJsonOutput" },
   ],
 };
 
@@ -113,7 +116,7 @@ export class JunieHooks extends ToolHooks {
     });
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify(
-        buildImportedHooksConfig({ hooks, overrideKey: "junie" }),
+        buildImportedHooksConfig({ logger, hooks, overrideKey: "junie" }),
         null,
         2,
       ),

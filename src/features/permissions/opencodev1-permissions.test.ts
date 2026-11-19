@@ -66,6 +66,29 @@ describe("Opencodev1Permissions", () => {
     });
   });
 
+  it("should order the all-tools rules allow, ask, deny with a warning", async () => {
+    const logger = { warn: vi.fn() } as any;
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({ permission: { "*": { "*": "ask", "src/**": "allow" } } }),
+    });
+
+    const instance = await Opencodev1Permissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+
+    const json = JSON.parse(instance.getFileContent());
+    expect(Object.entries(json.permission["*"])).toEqual([
+      ["src/**", "allow"],
+      ["*", "ask"],
+    ]);
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('opencodev1.permission["*"]'));
+  });
+
   it("should warn when .opencode/opencode.json overrides a generated permission key", async () => {
     await writeFileContent(
       join(testDir, ".opencode", "opencode.jsonc"),

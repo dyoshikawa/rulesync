@@ -13,10 +13,18 @@ import {
   getDeepagentsRulesyncOutputRoot,
 } from "../../utils/deepagents.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import type { Logger } from "../../utils/logger.js";
 import { lookupOwn } from "../../utils/own-lookup.js";
+import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isRecord } from "../../utils/type-guards.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
-import { buildImportedHooksConfig } from "./tool-hooks-converter.js";
+import {
+  buildImportedHooksConfig,
+  emitKeywordFields,
+  importKeywordFields,
+  type KeywordPassthroughFieldSpec,
+  warnOnce,
+} from "./tool-hooks-converter.js";
 import {
   ToolHooks,
   type ToolHooksFromFileParams,
@@ -30,7 +38,27 @@ type DeepagentsHandler = {
   command: string;
   timeout?: number;
   statusMessage?: string;
+  onError?: "continue" | "deny";
 };
+
+/**
+ * deepagents-code 0.2.11+ spells the canonical `failClosed` as a per-handler
+ * `onError: "continue" | "deny"`. Only `"deny"` changes behavior: a failed,
+ * timed-out or invalid-output `PreToolUse` handler then denies the tool call.
+ * `"continue"` is the default, so `false` is omitted; upstream ignores the
+ * field on every other event, so a `true` there is dropped with a warning.
+ * Older dcode versions ignore the field and keep failing open.
+ * https://github.com/langchain-ai/deepagents/blob/main/libs/code/HOOKS.md
+ */
+const DEEPAGENTS_KEYWORD_FIELDS: readonly KeywordPassthroughFieldSpec[] = [
+  {
+    canonical: "failClosed",
+    tool: "onError",
+    trueValue: "deny",
+    falseValue: "continue",
+    events: new Set(["preToolUse"]),
+  },
+];
 
 /** A matcher and its ordered handlers, upstream's `MatcherGroup`. */
 type DeepagentsMatcherGroup = {
@@ -53,7 +81,11 @@ type DeepagentsHooksFile = {
  * Definitions sharing an event and matcher land in one group, preserving their
  * authored order — upstream runs a group's handlers in sequence.
  */
-function canonicalToDeepagentsHooks(config: HooksConfig): DeepagentsHooksFile["hooks"] {
+function canonicalToDeepagentsHooks(
+  config: HooksConfig,
+  logger?: Logger,
+): DeepagentsHooksFile["hooks"] {
+  const warn = warnOnce(logger);
   const supported: Set<string> = new Set(DEEPAGENTS_HOOK_EVENTS);
   // Merge shared hooks + deepagents-specific overrides.
   // Note: this class handles the deepagents.hooks merge internally rather than
@@ -89,6 +121,16 @@ function canonicalToDeepagentsHooks(config: HooksConfig): DeepagentsHooksFile["h
       if (def.statusMessage !== undefined && def.statusMessage !== null) {
         handler.statusMessage = def.statusMessage;
       }
+      Object.assign(
+        handler,
+        emitKeywordFields({
+          def,
+          hookType: "command",
+          eventName: canonicalEvent,
+          fields: DEEPAGENTS_KEYWORD_FIELDS,
+          warn,
+        }),
+      );
 
       const matcher =
         def.matcher !== undefined && def.matcher !== null && def.matcher !== ""
@@ -113,7 +155,11 @@ function canonicalToDeepagentsHooks(config: HooksConfig): DeepagentsHooksFile["h
 /**
  * Convert the Hooks v2 document back to the canonical hooks record.
  */
-function deepagentsToCanonicalHooks(hooks: DeepagentsHooksFile["hooks"]): HooksConfig["hooks"] {
+function deepagentsToCanonicalHooks(
+  hooks: DeepagentsHooksFile["hooks"],
+  logger?: Logger,
+): HooksConfig["hooks"] {
+  const warn = warnOnce(logger);
   const canonical: HooksConfig["hooks"] = {};
 
   for (const [deepagentsEvent, groups] of Object.entries(hooks)) {
@@ -135,6 +181,34 @@ function deepagentsToCanonicalHooks(hooks: DeepagentsHooksFile["hooks"]): HooksC
         }
         if (typeof handler.timeout === "number") def.timeout = handler.timeout;
         if (typeof handler.statusMessage === "string") def.statusMessage = handler.statusMessage;
+        // An unknown `onError` keyword is dropped here rather than in the shared
+        // helper, so the warning can say what dropping it means: the imported
+        // hook carries no `failClosed` and fails open once regenerated.
+        let keywordSource: Record<string, unknown> = handler;
+        if (
+          canonicalEvent === "preToolUse" &&
+          handler.onError !== undefined &&
+          handler.onError !== "deny" &&
+          handler.onError !== "continue"
+        ) {
+          warn(
+            `Dropping "onError" from an imported "command" hook on "${canonicalEvent}": ` +
+              `${quoteValueForWarning(handler.onError)} is not "deny" or "continue", so the hook ` +
+              `is imported without "failClosed" and fails open on the next generate.`,
+          );
+          const { onError: _dropped, ...rest } = handler;
+          keywordSource = rest;
+        }
+        Object.assign(
+          def,
+          importKeywordFields({
+            h: keywordSource,
+            hookType: "command",
+            eventName: canonicalEvent,
+            fields: DEEPAGENTS_KEYWORD_FIELDS,
+            warn,
+          }),
+        );
 
         (canonical[canonicalEvent] ??= []).push(def);
       }
@@ -216,9 +290,10 @@ export class DeepagentsHooks extends ToolHooks {
     rulesyncHooks,
     validate = true,
     global = false,
+    logger,
   }: ToolHooksFromRulesyncHooksParams & { global?: boolean }): DeepagentsHooks {
     const config = rulesyncHooks.getJson();
-    const hooks = canonicalToDeepagentsHooks(config);
+    const hooks = canonicalToDeepagentsHooks(config, logger);
     const fileContent = JSON.stringify({ hooks }, null, 2);
     const paths = DeepagentsHooks.getSettablePaths({ global });
 
@@ -231,7 +306,7 @@ export class DeepagentsHooks extends ToolHooks {
     });
   }
 
-  toRulesyncHooks(): RulesyncHooks {
+  toRulesyncHooks({ logger }: { logger?: Logger } = {}): RulesyncHooks {
     const parsed: unknown = this.parseFileContentOrThrow({
       displayName: "deepagents",
       parse: (fileContent) => JSON.parse(fileContent),
@@ -243,7 +318,7 @@ export class DeepagentsHooks extends ToolHooks {
     const hooks = Array.isArray(rawHooks)
       ? deepagentsLegacyToCanonicalHooks(rawHooks)
       : isRecord(rawHooks)
-        ? deepagentsToCanonicalHooks(rawHooks as DeepagentsHooksFile["hooks"])
+        ? deepagentsToCanonicalHooks(rawHooks as DeepagentsHooksFile["hooks"], logger)
         : {};
 
     return this.toRulesyncHooksDefault({
@@ -252,7 +327,7 @@ export class DeepagentsHooks extends ToolHooks {
         global: this.global,
       }),
       fileContent: JSON.stringify(
-        buildImportedHooksConfig({ hooks, overrideKey: "deepagents" }),
+        buildImportedHooksConfig({ logger, hooks, overrideKey: "deepagents" }),
         null,
         2,
       ),

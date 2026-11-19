@@ -108,7 +108,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | Firebender                |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |             |        |
 | OpenCode                  |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | OpenCode V1               |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
-| OpenClaw                  |  ✅   |        | ✅  |          |           |        |       |             |        |
+| OpenClaw                  |  ✅   |        | ✅  |          |           |   ✅   |       |             |        |
 | MiMo Code                 |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | GitLab Duo CLI            |  ✅   |        | ✅  |    ✅    |           |   ✅   |  ✅   |             |   ✅   |
 | Cline                     |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |

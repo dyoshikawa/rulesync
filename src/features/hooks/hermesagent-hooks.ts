@@ -472,7 +472,7 @@ export class HermesagentHooks extends ToolHooks {
     });
   }
 
-  toRulesyncHooks(): RulesyncHooks {
+  toRulesyncHooks({ logger }: { logger?: Logger } = {}): RulesyncHooks {
     const config = parseSharedConfig({ format: "yaml", fileContent: this.getFileContent() });
     const hooks = hermesHooksToCanonical(config.hooks);
     return this.toRulesyncHooksDefault({
@@ -481,7 +481,7 @@ export class HermesagentHooks extends ToolHooks {
         global: this.global,
       }),
       fileContent: JSON.stringify(
-        buildImportedHooksConfig({ hooks, overrideKey: "hermesagent" }),
+        buildImportedHooksConfig({ logger, hooks, overrideKey: "hermesagent" }),
         null,
         2,
       ),

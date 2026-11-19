@@ -312,7 +312,7 @@ export class CopilotHooks extends ToolHooks {
     const hooks = copilotHooksToCanonical(parsed.hooks, options?.logger);
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify(
-        buildImportedHooksConfig({ hooks, overrideKey: "copilot" }),
+        buildImportedHooksConfig({ logger: options?.logger, hooks, overrideKey: "copilot" }),
         null,
         2,
       ),

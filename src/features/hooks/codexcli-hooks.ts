@@ -313,7 +313,7 @@ export class CodexcliHooks extends ToolHooks {
     });
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify(
-        buildImportedHooksConfig({ hooks, overrideKey: "codexcli" }),
+        buildImportedHooksConfig({ logger, hooks, overrideKey: "codexcli" }),
         null,
         2,
       ),

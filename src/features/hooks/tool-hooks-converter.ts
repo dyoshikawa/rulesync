@@ -13,6 +13,7 @@ import {
 import type { Logger } from "../../utils/logger.js";
 import { compact } from "../../utils/object.js";
 import { lookupOwn } from "../../utils/own-lookup.js";
+import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isPlainObject, isStringArray } from "../../utils/type-guards.js";
 import { anchorDotPaths, importProjectDirVariable } from "./hook-command-paths.js";
@@ -63,7 +64,8 @@ export type ToolHooksConverterConfig = {
       | "once"
       | "asyncRewake"
       | "continueOnBlock"
-      | "enabled";
+      | "enabled"
+      | "strictJsonOutput";
     readonly tool: string;
     /** Emit only on `command` hooks, for a field the tool documents there only. */
     readonly commandOnly?: boolean;
@@ -1053,7 +1055,7 @@ function isSupportedHookType({
   return converterConfig.supportedHookTypes?.has(type ?? "command") ?? true;
 }
 
-type KeywordPassthroughFieldSpec = NonNullable<
+export type KeywordPassthroughFieldSpec = NonNullable<
   ToolHooksConverterConfig["keywordPassthroughFields"]
 >[number];
 
@@ -1127,7 +1129,7 @@ function isKeywordFieldApplicable({
  * tool would not honour on this hook is warned about, like the other kinds;
  * a `false` there is dropped silently, since omitting it changes nothing.
  */
-function emitKeywordFields({
+export function emitKeywordFields({
   def,
   hookType,
   eventName,
@@ -1168,7 +1170,7 @@ function emitKeywordFields({
  * read; anything else is warned about and dropped, so a typo in a hand-written
  * tool file never lands in `.rulesync/hooks.*` as a boolean it did not mean.
  */
-function importKeywordFields({
+export function importKeywordFields({
   h,
   hookType,
   eventName,
@@ -1392,7 +1394,7 @@ function buildToolHooks({
 /**
  * A `warn` that says each distinct thing once per conversion.
  */
-function warnOnce(logger: Logger | undefined): (message: string) => void {
+export function warnOnce(logger: Logger | undefined): (message: string) => void {
   const seen = new Set<string>();
   return (message) => {
     if (seen.has(message)) {
@@ -2079,21 +2081,34 @@ function toolMatcherEntryToCanonical({
  * tool-native keys through verbatim — so documented native triggers (e.g.
  * kiro-ide's `PostFileSave`) survive an import → generate round-trip instead
  * of failing canonical validation.
+ *
+ * An event key named `__proto__`, `constructor` or `prototype` is dropped with
+ * a warning: no tool documents such an event, and carrying it into
+ * `.rulesync/hooks.jsonc` would make the next `generate` fail the
+ * prototype-pollution key validation.
  */
 export function buildImportedHooksConfig({
   hooks,
   overrideKey,
   version = 1,
   extraOverride,
+  logger,
 }: {
   hooks: HooksConfig["hooks"];
   overrideKey: string;
   version?: number;
   extraOverride?: Record<string, unknown>;
+  logger?: Logger;
 }): HooksConfig {
   const canonical: HooksConfig["hooks"] = {};
   const native: HooksConfig["hooks"] = {};
   for (const [event, defs] of Object.entries(hooks)) {
+    if (isPrototypePollutionKey(event)) {
+      logger?.warn(
+        `Skipping imported ${overrideKey} hooks event ${quoteValueForWarning(event)}: reserved key names cannot be used as hook events.`,
+      );
+      continue;
+    }
     if (isHookEvent(event)) {
       canonical[event] = defs;
     } else {

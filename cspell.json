@@ -89,6 +89,7 @@
     "pypirc",
     "pytest",
     "secring",
+    "dont",
     "dontAsk",
     "Mcpjson",
     "bwrap",

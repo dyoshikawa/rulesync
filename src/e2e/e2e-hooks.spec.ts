@@ -530,13 +530,15 @@ describe("E2E: hooks", () => {
     const testDir = getTestDir();
 
     // Vibe supports pre_tool/post_tool/post_agent (← preToolUse/
-    // postToolUse/stop). It emits a flat `[[hooks]]` TOML array, not JSON.
+    // postToolUse/stop) and, since v3.1, session_start and the other lifecycle
+    // types. It emits a flat `[[hooks]]` TOML array, not JSON.
     const hooksContent = JSON.stringify(
       {
         version: 1,
         hooks: {
           preToolUse: [{ command: ".rulesync/hooks/audit.sh", matcher: "bash" }],
           stop: [{ command: ".rulesync/hooks/session-start.sh" }],
+          sessionStart: [{ command: ".rulesync/hooks/on-start.sh", matcher: "startup" }],
         },
       },
       null,
@@ -550,6 +552,8 @@ describe("E2E: hooks", () => {
     // Snake_case event types and the matcher mapped to `match`.
     expect(generatedContent).toContain('type = "pre_tool"');
     expect(generatedContent).toContain('type = "post_agent"');
+    expect(generatedContent).toContain('type = "session_start"');
+    expect(generatedContent).toContain('match = "startup"');
     // A canonical shell matcher also catches background commands.
     expect(generatedContent).toContain('match = "re:bash|process_start"');
     expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
@@ -1475,6 +1479,9 @@ describe("E2E: hooks (global mode)", () => {
     },
   );
 
+  const crushUserConfigPath = (homeDir: string) => join(homeDir, ".config", "crush", "crush.json");
+
+  // Covers global generation of a matcher-scoped `preToolUse` hook into the Crush user config.
   it("should generate crush hooks in the user config", async () => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();
@@ -1499,17 +1506,16 @@ describe("E2E: hooks (global mode)", () => {
       env: { HOME_DIR: homeDir },
     });
 
-    const parsed = JSON.parse(
-      await readFileContent(join(homeDir, ".config", "crush", "crush.json")),
-    );
+    const parsed = JSON.parse(await readFileContent(crushUserConfigPath(homeDir)));
     expect(parsed.hooks.PreToolUse).toEqual([
       { matcher: "bash", command: ".rulesync/hooks/audit.sh" },
     ]);
   });
 
-  it("should round-trip Crush lifecycle hooks in the user config", async () => {
+  // Covers the global import -> generate round trip, including the `stop` <-> `TurnEnd` mapping.
+  it("should round-trip crush lifecycle hooks in the user config", async () => {
     const homeDir = getHomeDir();
-    const configPath = join(homeDir, ".config", "crush", "crush.json");
+    const configPath = crushUserConfigPath(homeDir);
     const hooks = {
       SessionStart: [{ command: "echo start" }],
       TurnEnd: [{ command: "echo done" }],
@@ -1527,8 +1533,11 @@ describe("E2E: hooks (global mode)", () => {
     const imported = JSON.parse(
       await readFileContent(join(homeDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH)),
     );
-    expect(imported.hooks.sessionStart).toEqual([{ type: "command", command: "echo start" }]);
-    expect(imported.hooks.stop).toEqual([{ type: "command", command: "echo done" }]);
+    expect(imported.hooks).toEqual({
+      sessionStart: [{ type: "command", command: "echo start" }],
+      stop: [{ type: "command", command: "echo done" }],
+    });
+    expect(imported.crush).toBeUndefined();
 
     // Remove the existing native hooks so the assertions prove generation wrote them back.
     await writeFileContent(configPath, JSON.stringify({ options }));

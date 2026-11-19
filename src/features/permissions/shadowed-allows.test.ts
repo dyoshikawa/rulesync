@@ -920,7 +920,9 @@ describe("translators never leave an allow that covers a restriction they cannot
       expect(Object.keys(urls)[0]).toBe("example.com/Admin/*");
     });
 
-    it("Vibe retires a web_fetch allowlist URL a host restriction covers", async () => {
+    it("Vibe drops the retired web_fetch table, allowlist URLs included", async () => {
+      // Vibe 3.x retired `web_fetch`, so the whole table is inert and removed
+      // once the category is configured, rather than having entries retired.
       await writeFileContent(
         join(testDir, ".vibe", "config.toml"),
         '[tools.web_fetch]\nallowlist = ["https://evil.com/x", "https://good.com/x"]\n',
@@ -929,8 +931,8 @@ describe("translators never leave an allow that covers a restriction they cannot
         generator: VibePermissions,
         permission: { webfetch: { "evil.com": "deny" } },
       });
+      expect(content).not.toContain("web_fetch");
       expect(content).not.toContain("https://evil.com/x");
-      expect(content).toContain("https://good.com/x");
     });
 
     it("Vibe writes a withheld catch-all as never under a '*' catch-all deny", async () => {

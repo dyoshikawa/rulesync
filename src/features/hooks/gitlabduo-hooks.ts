@@ -87,7 +87,7 @@ export class GitlabduoHooks extends ToolHooks {
     });
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify(
-        buildImportedHooksConfig({ hooks, overrideKey: "gitlabduo" }),
+        buildImportedHooksConfig({ logger, hooks, overrideKey: "gitlabduo" }),
         null,
         2,
       ),
