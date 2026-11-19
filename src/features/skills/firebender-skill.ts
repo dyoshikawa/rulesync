@@ -66,16 +66,7 @@ export class FirebenderSkill extends AgentsSkillsSkill {
       ...base.getFrontmatter(),
       firebender: firebenderSection,
     };
-    return new RulesyncSkill({
-      outputRoot: base.getOutputRoot(),
-      relativeDirPath: base.getRelativeDirPath(),
-      dirName: base.getDirName(),
-      frontmatter: rulesyncFrontmatter,
-      body: base.getBody(),
-      otherFiles: base.getOtherFiles(),
-      validate: true,
-      global: this.global,
-    });
+    return this.toRulesyncSkillWith(rulesyncFrontmatter);
   }
 
   static override fromRulesyncSkill({
