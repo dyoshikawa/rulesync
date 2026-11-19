@@ -439,7 +439,7 @@ const ClaudecodePermissionsOverrideSchema = z.looseObject({
  * `default`, `accept-edits`, `plan`, `yolo` or `dont-ask`, plus the aliases
  * Command Code accepts such as `bypassPermissions` or `acceptEdits`),
  * `additionalDirectories` (extra directories treated as inside the workspace)
- * and `disableBypass` (`"disable"` or `true` makes `yolo` unenterable). Only
+ * and `disableBypass` (`"disable"` or `true` makes `yolo` impossible to enter). Only
  * these three are written; the managed `allow`/`ask`/`deny` lists stay driven
  * by the shared `permission` block, and any other key placed here is ignored
  * with a warning. Values that widen trust are written with a warning.
