@@ -216,9 +216,9 @@ function normalizeRestrictionCommandWord(pattern: string): string {
  * rules govern a command Crush would approve through it? Besides the line
  * itself, Crush approves it followed by `--` and behind a wrapper (or the
  * `time` keyword), whose name it normalizes (`./nice`, `/usr/bin/env`, `NICE`,
- * `nohup.exe`). The line and its wrapper spellings are compared against the
- * restrictions as written, and the wrapper spellings also against the
- * restrictions with their command word normalized the same way — which keeps
+ * `nohup.exe`). The line, its `--` form and its wrapper spellings are compared
+ * against both the restrictions as written and those with their command word
+ * normalized like Crush (including executable paths and case) — which keeps
  * an unrelated `rm *` from withholding the line, as a leading wildcard on the
  * spelling would. Canonically the stricter rule wins whatever its width
  * (`deny > ask > allow`), so any overlap withholds the line.
