@@ -67,7 +67,7 @@ const GENERIC_EVENT_PROPERTY_GATES: Record<string, string> = {
  *
  * @see https://opencode.ai/docs/plugins/
  */
-const SHELL_EVENT_TOOL_GATES: Record<string, { toolEvent: string; tool: string }> = {
+export const SHELL_EVENT_TOOL_GATES: Record<string, { toolEvent: string; tool: string }> = {
   beforeShellExecution: { toolEvent: "tool.execute.before", tool: "bash" },
   afterShellExecution: { toolEvent: "tool.execute.after", tool: "bash" },
 };
@@ -112,7 +112,7 @@ const STDIN_PAYLOADS: Record<string, StdinPayload> = {
  * failing command throws there, which aborts the action. Everywhere else a
  * failure is only logged.
  */
-const BLOCKING_HOOKS: ReadonlySet<string> = new Set(
+export const BLOCKING_HOOKS: ReadonlySet<string> = new Set(
   Object.keys(NAMED_HOOK_MATCHER_SUBJECTS).filter((hook) => hook !== "tool.execute.after"),
 );
 
@@ -432,10 +432,10 @@ const FAIL_CLOSED_TOOL_LABELS = {
 /**
  * Canonical events other than `preToolUse` whose hook runs before its action in
  * every OpenCode-style plugin (V1 and V2): a failing or timed-out command always
- * aborts the action there. Must stay in step with `BLOCKING_HOOKS` and the V2
- * generator's `blocking` flag.
+ * aborts the action there. A test checks it against `BLOCKING_HOOKS` and the V2
+ * generator's `isBlockingOpencodeV2Target`.
  */
-const ALWAYS_BLOCKING_EVENTS: ReadonlySet<string> = new Set([
+export const ALWAYS_BLOCKING_EVENTS: ReadonlySet<string> = new Set([
   "beforeShellExecution",
   "beforeSubmitPrompt",
   "preModelInvocation",

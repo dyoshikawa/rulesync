@@ -172,6 +172,14 @@ function buildEventLoopLines(eventHandlers: Map<string, V2Handler[]>): string[] 
   return lines;
 }
 
+/**
+ * Every hook point but `execute.after` runs before its action, which a throw
+ * aborts; the event stream only observes.
+ */
+export function isBlockingOpencodeV2Target(target: string): boolean {
+  return !target.startsWith("event:") && target !== "tool:execute.after";
+}
+
 /** Build the handlers of one canonical event's command definitions. */
 function buildHandlersFor({
   canonicalEvent,
@@ -199,9 +207,7 @@ function buildHandlersFor({
     handlers.push({
       command: def.command,
       event: canonicalEvent,
-      // Every hook point but `execute.after` runs before its action, which a
-      // throw aborts; the event stream only observes.
-      blocking: !target.startsWith("event:") && target !== "tool:execute.after",
+      blocking: isBlockingOpencodeV2Target(target),
       ...hookTimingOf(def),
       ...(def.matcher ? { matcher: def.matcher } : {}),
       ...(gate ? { gate } : {}),

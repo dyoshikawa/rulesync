@@ -5,9 +5,19 @@ import { pathToFileURL } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { CANONICAL_TO_OPENCODE_EVENT_NAMES, type HooksConfig } from "../../types/hooks.js";
+import {
+  CANONICAL_TO_OPENCODE_EVENT_NAMES,
+  CANONICAL_TO_OPENCODE_V2_EVENT_NAMES,
+  type HooksConfig,
+} from "../../types/hooks.js";
 import { writeFileContent } from "../../utils/file.js";
-import { generateOpencodeStylePluginCode } from "./opencode-style-generator.js";
+import {
+  ALWAYS_BLOCKING_EVENTS,
+  BLOCKING_HOOKS,
+  generateOpencodeStylePluginCode,
+  SHELL_EVENT_TOOL_GATES,
+} from "./opencode-style-generator.js";
+import { isBlockingOpencodeV2Target } from "./opencode-v2-plugin-generator.js";
 
 const SUPPORTED_EVENTS = [
   "sessionStart",
@@ -506,5 +516,34 @@ describe("generateOpencodeStylePluginCode", () => {
         tool_input: { command: "ls" },
       });
     });
+  });
+});
+
+describe("ALWAYS_BLOCKING_EVENTS", () => {
+  // The failClosed warnings rely on this set; it must match what the plugins actually block on.
+  const expected = [...ALWAYS_BLOCKING_EVENTS, "preToolUse"].toSorted();
+
+  it("matches the V1 plugin's blocking hooks", () => {
+    const blocking = Object.keys({
+      ...CANONICAL_TO_OPENCODE_EVENT_NAMES,
+      ...SHELL_EVENT_TOOL_GATES,
+    })
+      .filter((event) => {
+        const toolEvent =
+          SHELL_EVENT_TOOL_GATES[event]?.toolEvent ?? CANONICAL_TO_OPENCODE_EVENT_NAMES[event];
+        return toolEvent !== undefined && BLOCKING_HOOKS.has(toolEvent);
+      })
+      .toSorted();
+
+    expect(blocking).toEqual(expected);
+  });
+
+  it("matches the V2 plugin's blocking hook points, minus the V1-only userPromptExpansion", () => {
+    const blocking = Object.entries(CANONICAL_TO_OPENCODE_V2_EVENT_NAMES)
+      .filter(([, target]) => isBlockingOpencodeV2Target(target))
+      .map(([event]) => event)
+      .toSorted();
+
+    expect(blocking).toEqual(expected.filter((event) => event !== "userPromptExpansion"));
   });
 });

@@ -458,9 +458,12 @@ describe("OpencodeHooks (OpenCode V2)", () => {
           permissionDenied: [{ command: "node hook.cjs denied 0" }],
         },
       });
-      const { records } = await runUnderBun({
+      const { out, records } = await runUnderBun({
         content,
-        prelude: "await mod.default.setup(ctx);",
+        prelude: [
+          "console.error = (message) => out.push('error: ' + message);",
+          "await mod.default.setup(ctx);",
+        ].join("\n"),
         body: [
           // A BigInt session ID makes the Stop payload's JSON.stringify throw.
           "push({ type: 'session.execution.succeeded', data: { sessionID: 1n } });",
@@ -470,6 +473,7 @@ describe("OpencodeHooks (OpenCode V2)", () => {
         ].join("\n"),
       });
 
+      expect(out).toEqual(["error: [rulesync-hooks] stop hook failed:"]);
       expect(records.map((record) => record.name)).toEqual(["denied"]);
     }, 60_000);
 
