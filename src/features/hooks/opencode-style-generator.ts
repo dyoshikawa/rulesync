@@ -67,7 +67,7 @@ const GENERIC_EVENT_PROPERTY_GATES: Record<string, string> = {
  *
  * @see https://opencode.ai/docs/plugins/
  */
-const SHELL_EVENT_TOOL_GATES: Record<string, { toolEvent: string; tool: string }> = {
+export const SHELL_EVENT_TOOL_GATES: Record<string, { toolEvent: string; tool: string }> = {
   beforeShellExecution: { toolEvent: "tool.execute.before", tool: "bash" },
   afterShellExecution: { toolEvent: "tool.execute.after", tool: "bash" },
 };
@@ -112,7 +112,7 @@ const STDIN_PAYLOADS: Record<string, StdinPayload> = {
  * failing command throws there, which aborts the action. Everywhere else a
  * failure is only logged.
  */
-const BLOCKING_HOOKS: ReadonlySet<string> = new Set(
+export const BLOCKING_HOOKS: ReadonlySet<string> = new Set(
   Object.keys(NAMED_HOOK_MATCHER_SUBJECTS).filter((hook) => hook !== "tool.execute.after"),
 );
 
@@ -124,12 +124,16 @@ const BLOCKING_HOOKS: ReadonlySet<string> = new Set(
  * as the Bun CLI (`BUN_BE_BUN=1`, without the project's `.env`): `exec` runs it
  * with the same Bun Shell, parsing the text the template literal of earlier
  * versions held, with the payload as stdin. The script clears `BUN_BE_BUN` for
- * the programs the command starts. A host without the Bun CLI fails the probe
- * and falls back to Bun Shell, piping the payload into the first command only
- * (a probe still running after 10 s is killed; it, or a failing one, means no
- * Bun CLI for 5 minutes). Ordinary commands write to the host's stdout and
- * stderr, as Bun Shell echoed them; a `preToolUse` command's are read, 1 MiB
- * each kept (more stdout denies). Output
+ * the programs the command starts: Bun Shell has no `unset`, so it exports an
+ * empty value, which Bun treats as unset (only a non-empty value other than
+ * `0` makes a Bun-compiled binary act as the Bun CLI). A host without the Bun
+ * CLI fails the probe and falls back to Bun Shell, piping the payload into the
+ * first command only (a probe still running after 10 s is killed; it, a
+ * failing one or one that prints anything but `rulesync` means no Bun CLI for
+ * 5 minutes). Ordinary commands write to the host's stdout and stderr, as Bun
+ * Shell echoed them; a `preToolUse` command's are read, 1 MiB each kept (more
+ * stdout denies; on the Bun Shell fallback the whole output is buffered before
+ * that check). Output
  * pipes a background process keeps open are read for 1 s after the command
  * exits; what arrived by then is kept, and the reads are then cancelled, as
  * they are at a timeout. The OpenCode 1.x-style `event` hooks (`inProcess`)
@@ -252,8 +256,9 @@ function buildRunHelperLinesFor(cwdExpression: string): string[] {
     "  proc.kill();",
     "};",
     "const __rulesyncRunCommand = async ({ command, input, seconds, inProcess = false, echo = false }) => {",
-    "  // A probe that exited 0 is kept; one past its deadline or failing means no Bun CLI for",
-    "  // 5 minutes; one that threw is dropped, so the next command probes again.",
+    "  // A probe that printed `rulesync` is kept; one past its deadline, failing or printing",
+    "  // anything else means no Bun CLI for 5 minutes; one that threw is dropped, so the next",
+    "  // command probes again.",
     "  if (!inProcess && (__rulesyncCanExec === undefined || (__rulesyncRetryAt && Date.now() >= __rulesyncRetryAt))) {",
     "    __rulesyncRetryAt = 0;",
     "    const probing = (__rulesyncCanExec = (async () => {",
@@ -265,8 +270,9 @@ function buildRunHelperLinesFor(cwdExpression: string): string[] {
     "      const exited = Promise.all([probe.exited, output.done]).then(([code]) => code);",
     "      const exitCode = await Promise.race([exited, deadline]).finally(() => clearTimeout(timer));",
     '      if (exitCode === null) probe.kill("SIGKILL"), output.stop();',
-    "      if (exitCode !== 0) __rulesyncRetryAt = Date.now() + 300000;",
-    '      return exitCode === 0 && output.text().trim() === "rulesync";',
+    '      const found = exitCode === 0 && output.text().trim() === "rulesync";',
+    "      if (!found) __rulesyncRetryAt = Date.now() + 300000;",
+    "      return found;",
     "    })().catch(() => {",
     "      if (__rulesyncCanExec === probing) __rulesyncCanExec = undefined;",
     "      return false;",
@@ -424,11 +430,26 @@ const FAIL_CLOSED_TOOL_LABELS = {
 } as const;
 
 /**
- * Warn about each `failClosed: true` the generated plugin ignores: it only
- * decides what a timed-out `preToolUse` command does. Elsewhere a hook that runs
- * before its action always fails on a timeout and any other only logs it. Only a
- * dropped `true` is warned about, like the other targets do: a `false` there
- * already matches what the plugin does, so omitting it changes nothing.
+ * Canonical events other than `preToolUse` whose hook runs before its action in
+ * every OpenCode-style plugin (V1 and V2): a failing or timed-out command always
+ * aborts the action there. A test checks it against `BLOCKING_HOOKS` and the V2
+ * generator's `isBlockingOpencodeV2Target`.
+ */
+export const ALWAYS_BLOCKING_EVENTS: ReadonlySet<string> = new Set([
+  "beforeShellExecution",
+  "beforeSubmitPrompt",
+  "preModelInvocation",
+  "userPromptExpansion",
+  "preCompact",
+]);
+
+/**
+ * Warn about each `failClosed` the generated plugin ignores where it changes
+ * the outcome: the plugin only reads it on `preToolUse`, to decide what a
+ * timed-out command does. Elsewhere a hook that runs before its action always
+ * fails on a timeout, so a `false` there is ignored (a `true` already holds),
+ * and any other hook only logs it, so a `true` there is ignored (a `false`
+ * already holds, like the other targets treat an omitted `false`).
  */
 export function warnIgnoredFailClosed({
   config,
@@ -442,12 +463,16 @@ export function warnIgnoredFailClosed({
   logger?: Logger;
 }): void {
   const configHooks = { ...config.hooks, ...config[toolConfigKey]?.hooks };
+  const plugin = `the generated ${FAIL_CLOSED_TOOL_LABELS[toolConfigKey]} plugin`;
   for (const [event, definitions] of Object.entries(configHooks)) {
     if (event === "preToolUse" || !supportedEvents.includes(event)) continue;
+    const blocking = ALWAYS_BLOCKING_EVENTS.has(event);
     for (const def of definitions) {
-      if (def.failClosed !== true) continue;
+      if (def.failClosed !== !blocking) continue;
       logger?.warn(
-        `failClosed on "${event}" hook will be ignored — the generated ${FAIL_CLOSED_TOOL_LABELS[toolConfigKey]} plugin only supports failClosed on preToolUse`,
+        blocking
+          ? `failClosed: false on "${event}" hook will be ignored — ${plugin} always blocks the action when this hook fails or times out, and only supports failClosed on preToolUse`
+          : `failClosed on "${event}" hook will be ignored — ${plugin} only supports failClosed on preToolUse`,
       );
     }
   }
