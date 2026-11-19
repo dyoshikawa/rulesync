@@ -1,11 +1,14 @@
+import { isDeepStrictEqual } from "node:util";
+
 import type { PermissionAction } from "../../types/permissions.js";
+import type { Logger } from "../../utils/logger.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import {
   ALL_TOOLS_PERMISSION_CATEGORY,
   CATCH_ALL_PATTERN,
   createShadowingRestrictionsTest,
 } from "./shell-command-categories.js";
-import { isStricterAction } from "./single-action-collapse.js";
+import { isStricterAction, sortRulesByActionPriority } from "./single-action-collapse.js";
 
 /**
  * OpenCode (and its forks: Kilo, MiMo Code) applies the last matching rule,
@@ -15,7 +18,13 @@ import { isStricterAction } from "./single-action-collapse.js";
  * restriction is restated at the end of every other key that holds a looser
  * rule it overlaps, where it is matched after that rule. A `*` catch-all
  * (`{"*": {"*": "ask"}}` followed by per-tool allows) is the documented way to
- * set an OpenCode default, so it is left where it is.
+ * set an OpenCode default, so it is not restated in the later keys.
+ *
+ * The `*` key's own patterns are reordered allow, then ask, then deny, so the
+ * strictest matching one wins there too. This disables an allow carve-out
+ * under a broader ask or deny in that key (`{"*": "deny", "src/**": "allow"}`
+ * denies `src/**` as well), so a warning is logged whenever the order changes;
+ * `<target>.permission["*"]` replaces the key and keeps an exact order.
  *
  * A restated rule must never land after an overlapping stricter one, or it
  * would loosen what that rule says. The tail of a key is therefore written
@@ -24,9 +33,15 @@ import { isStricterAction } from "./single-action-collapse.js";
  * then the restated `*` denies. A key whose own catch-all is a deny covers
  * every input of a restated ask already, so such an ask is restated as a deny.
  */
-export function restateAllToolsRestrictionsLast(
-  sharedPermission: Record<string, Record<string, PermissionAction>>,
-): Record<string, Record<string, PermissionAction>> {
+export function restateAllToolsRestrictionsLast({
+  sharedPermission,
+  toolTarget,
+  logger,
+}: {
+  sharedPermission: Record<string, Record<string, PermissionAction>>;
+  toolTarget: string;
+  logger?: Logger;
+}): Record<string, Record<string, PermissionAction>> {
   const allToolsRules = Object.hasOwn(sharedPermission, ALL_TOOLS_PERMISSION_CATEGORY)
     ? sharedPermission[ALL_TOOLS_PERMISSION_CATEGORY]
     : undefined;
@@ -39,23 +54,17 @@ export function restateAllToolsRestrictionsLast(
   }
   const result: Record<string, Record<string, PermissionAction>> = {};
   for (const [key, rules] of Object.entries(sharedPermission)) {
-    result[key] =
-      key === ALL_TOOLS_PERMISSION_CATEGORY
-        ? strictestAllToolsRulesLast(rules)
-        : restateInKey({ rules, restrictions });
-  }
-  return result;
-}
-
-/** Last-match-wins tools must not let a catch-all allow override a narrower deny. */
-function strictestAllToolsRulesLast(
-  rules: Record<string, PermissionAction>,
-): Record<string, PermissionAction> {
-  const result: Record<string, PermissionAction> = {};
-  for (const action of ["allow", "ask", "deny"] as const) {
-    for (const [pattern, value] of Object.entries(rules)) {
-      if (value === action) result[pattern] = value;
+    if (key !== ALL_TOOLS_PERMISSION_CATEGORY) {
+      result[key] = restateInKey({ rules, restrictions });
+      continue;
     }
+    const sorted = sortRulesByActionPriority(rules);
+    if (!isDeepStrictEqual(Object.keys(sorted), Object.keys(rules))) {
+      logger?.warn(
+        `The all-tools "*" permission patterns were reordered allow, ask, deny because ${toolTarget} applies the last matching pattern and the stricter rule must win, which disables an allow carve-out under a broader ask or deny pattern (e.g. "*": "deny", "src/**": "allow"). Set ${toolTarget}.permission["*"] to control the exact order.`,
+      );
+    }
+    result[key] = sorted;
   }
   return result;
 }

@@ -359,7 +359,11 @@ export class KiloPermissions extends ToolPermissions {
     // Kilo is last-match-wins by key order like OpenCode, so a `*` deny/ask
     // is restated after the later keys' looser rules it overlaps.
     const incomingPermission: Record<string, unknown> = {
-      ...restateAllToolsRestrictionsLast(honorAllToolsOnBash(rulesyncJson.permission)),
+      ...restateAllToolsRestrictionsLast({
+        sharedPermission: honorAllToolsOnBash(rulesyncJson.permission),
+        toolTarget: "kilo",
+        logger,
+      }),
       ...kiloOverride?.permission,
     };
     if (!global && Object.hasOwn(incomingPermission, KILO_MARKDOWN_SOURCE_KEY)) {

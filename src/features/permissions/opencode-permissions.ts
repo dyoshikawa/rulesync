@@ -39,7 +39,7 @@ import {
   collapseRulesToSingleAction,
   hasPatternSpecificRules,
   isStricterAction,
-  PERMISSION_ACTION_PRIORITY,
+  sortRulesByActionPriority,
 } from "./single-action-collapse.js";
 import {
   ToolPermissions,
@@ -302,11 +302,7 @@ function mergePatternRules(
       merged[pattern] = action;
     }
   }
-  return Object.fromEntries(
-    Object.entries(merged).toSorted(
-      ([, a], [, b]) => PERMISSION_ACTION_PRIORITY[a] - PERMISSION_ACTION_PRIORITY[b],
-    ),
-  );
+  return sortRulesByActionPriority(merged);
 }
 
 function toCanonicalPermissionKey(opencodeKey: string): string {
@@ -426,7 +422,7 @@ function toOpencodeSharedPermission({
       sharedPermission[key] = value;
     }
   }
-  return restateAllToolsRestrictionsLast(sharedPermission);
+  return restateAllToolsRestrictionsLast({ sharedPermission, toolTarget, logger });
 }
 
 const OpencodePermissionsConfigSchema = z.looseObject({

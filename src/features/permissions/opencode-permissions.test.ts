@@ -377,6 +377,34 @@ describe("OpencodePermissions (OpenCode V2 permissions array)", () => {
     ]);
   });
 
+  it("orders the all-tools rules allow, ask, deny and warns that a carve-out is overridden", async () => {
+    const logger = { warn: vi.fn() };
+    const instance = await generate(
+      { permission: { "*": { "*": "deny", "src/**": "allow", ".env": "ask" } } },
+      logger,
+    );
+
+    expect(instance.getJson().permissions).toEqual([
+      { action: "*", resource: "src/**", effect: "allow" },
+      { action: "*", resource: ".env", effect: "ask" },
+      { action: "*", resource: "*", effect: "deny" },
+    ]);
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+    expect(logger.warn.mock.calls[0]?.[0]).toContain('opencode.permission["*"]');
+  });
+
+  it('keeps the exact order of an opencode.permission["*"] override', async () => {
+    const instance = await generate({
+      permission: { "*": { "*": "deny", "src/**": "allow" } },
+      opencode: { permission: { "*": { "*": "deny", "src/**": "allow" } } },
+    });
+
+    expect(instance.getJson().permissions).toEqual([
+      { action: "*", resource: "*", effect: "deny" },
+      { action: "*", resource: "src/**", effect: "allow" },
+    ]);
+  });
+
   it("writes an opencode.permission.apply_patch key as the V2 edit action", async () => {
     const instance = await generate({ opencode: { permission: { apply_patch: "deny" } } });
 
