@@ -696,14 +696,17 @@ describe("CommandcodePermissions", () => {
       });
 
       it("stays quiet for values that do not widen trust", async () => {
-        for (const fields of [
-          { defaultMode: "plan", disableBypass: true },
-          { defaultMode: "dont-ask", disableBypass: "disable" },
-          { defaultMode: "default", additionalDirectories: [] },
+        for (const { fields, global } of [
+          { fields: { defaultMode: "plan", disableBypass: true }, global: false },
+          { fields: { defaultMode: "dont-ask", disableBypass: "disable" }, global: false },
+          // `default` is only quiet in the user-global file; at project scope
+          // it overrides a stricter user-global mode.
+          { fields: { defaultMode: "default", additionalDirectories: [] }, global: true },
         ]) {
           const logger = createMockLogger();
           const permissions = await CommandcodePermissions.fromRulesyncPermissions({
             outputRoot: testDir,
+            global,
             logger,
             rulesyncPermissions: createRulesyncPermissionsFile({
               permission: {},
@@ -713,6 +716,41 @@ describe("CommandcodePermissions", () => {
           expect(JSON.parse(permissions.getFileContent()).permissions).toEqual(fields);
           expect(logger.warn).not.toHaveBeenCalled();
         }
+      });
+
+      it("says at project scope that the scalars override the user-global settings", async () => {
+        const logger = createMockLogger();
+        await CommandcodePermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          logger,
+          rulesyncPermissions: createRulesyncPermissionsFile({
+            permission: {},
+            commandcode: { permissions: { defaultMode: "default", disableBypass: false } },
+          }),
+        });
+
+        expect(logger.warn).toHaveBeenCalledTimes(1);
+        const message = String(vi.mocked(logger.warn).mock.calls[0]?.[0]);
+        expect(message).toContain(
+          'permissions.defaultMode: "default" (a project value overrides ~/.commandcode/settings.json',
+        );
+        expect(message).toContain(
+          "yolo becomes enterable again even if ~/.commandcode/settings.json disables it",
+        );
+
+        const globalLogger = createMockLogger();
+        await CommandcodePermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          global: true,
+          logger: globalLogger,
+          rulesyncPermissions: createRulesyncPermissionsFile({
+            permission: {},
+            commandcode: { permissions: { defaultMode: "default", disableBypass: false } },
+          }),
+        });
+        const globalMessage = String(vi.mocked(globalLogger.warn).mock.calls[0]?.[0]);
+        expect(globalMessage).not.toContain("defaultMode");
+        expect(globalMessage).toContain("yolo mode then stays enterable from this file");
       });
 
       it("warns when the override replaces a stricter defaultMode already in the file", async () => {

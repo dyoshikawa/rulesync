@@ -724,16 +724,6 @@ const COMMANDCODE_WIDENING_DEFAULT_MODES: Readonly<Record<string, string>> = {
   bypassPermissions: YOLO_REASON,
 };
 
-/** The documented `permissions.defaultMode` values (aliases included) that do not widen. */
-const COMMANDCODE_NON_WIDENING_DEFAULT_MODES: ReadonlySet<string> = new Set([
-  "default",
-  "manual",
-  "standard",
-  "plan",
-  "dont-ask",
-  "dontAsk",
-]);
-
 /**
  * How many prompts each documented `defaultMode` (aliases included) removes:
  * `plan` and `dont-ask` (fail-closed) < `default` < `accept-edits` < `yolo`.
@@ -755,39 +745,90 @@ const COMMANDCODE_DEFAULT_MODE_LOOSENESS: Readonly<Record<string, number>> = {
 };
 
 /**
+ * Command Code resolves settings project-local > project > user-global, and a
+ * scalar from the more specific file overwrites the others (only the rule
+ * lists and `additionalDirectories` union across files). A project-scope
+ * `defaultMode` or `disableBypass` therefore replaces whatever the user set in
+ * `~/.commandcode/settings.json`.
+ *
+ * @see https://commandcode.ai/docs/settings
+ */
+const PROJECT_SCALAR_OVERRIDES_GLOBAL =
+  "a project value overrides ~/.commandcode/settings.json, so it also replaces a stricter user-global mode such as dont-ask or plan";
+
+/**
+ * The widening entry for a `commandcode.permissions.defaultMode`, or `null`
+ * when it does not widen. A mode that removes prompts always widens; at
+ * project scope so does any mode looser than the strictest ones (`plan`,
+ * `dont-ask`), because it overrides the user-global mode; and so does a mode
+ * looser than the one already in the file. An undocumented mode is warned
+ * about on its own.
+ */
+function defaultModeWideningEntry({
+  defaultMode,
+  replaced,
+  global,
+  logger,
+}: {
+  defaultMode: string;
+  replaced: unknown;
+  global: boolean;
+  logger?: Logger;
+}): string | null {
+  const label = `permissions.defaultMode: "${defaultMode}"`;
+  const projectNote = global ? [] : [PROJECT_SCALAR_OVERRIDES_GLOBAL];
+  const reason = lookupOwn({ record: COMMANDCODE_WIDENING_DEFAULT_MODES, key: defaultMode });
+  if (reason !== undefined) {
+    return `${label} (${[reason, ...projectNote].join("; ")})`;
+  }
+  const looseness = lookupOwn({ record: COMMANDCODE_DEFAULT_MODE_LOOSENESS, key: defaultMode });
+  if (looseness === undefined) {
+    logger?.warn(
+      `Command Code permissions: '${label}' is not a mode Command Code documents (default, ` +
+        `accept-edits, plan, yolo, dont-ask and their aliases); it was written as authored.`,
+    );
+    return null;
+  }
+  const replacedLooseness =
+    typeof replaced === "string"
+      ? lookupOwn({ record: COMMANDCODE_DEFAULT_MODE_LOOSENESS, key: replaced })
+      : undefined;
+  const notes =
+    replacedLooseness !== undefined && looseness > replacedLooseness
+      ? [`replaces the stricter "${String(replaced)}" already in the file`]
+      : [];
+  if (looseness > 0) {
+    notes.push(...projectNote);
+  }
+  return notes.length > 0 ? `${label} (${notes.join("; ")})` : null;
+}
+
+/**
  * Name, in one warning, every `commandcode.permissions` value that widens what
- * Command Code trusts, and warn on a `defaultMode` it does not document.
+ * Command Code trusts. At project scope the scalars also override the
+ * user-global file, which the warning says explicitly.
  */
 function warnWideningCommandcodeFields({
   fields,
   existingPermissions,
+  global,
   logger,
 }: {
   fields: Record<string, unknown>;
   existingPermissions: Record<string, unknown>;
+  global: boolean;
   logger?: Logger;
 }): void {
   const widening: string[] = [];
   const { defaultMode, additionalDirectories, disableBypass } = fields;
   if (typeof defaultMode === "string") {
-    const reason = lookupOwn({ record: COMMANDCODE_WIDENING_DEFAULT_MODES, key: defaultMode });
-    const replaced = existingPermissions.defaultMode;
-    const loosens =
-      typeof replaced === "string" &&
-      (lookupOwn({ record: COMMANDCODE_DEFAULT_MODE_LOOSENESS, key: defaultMode }) ?? -1) >
-        (lookupOwn({ record: COMMANDCODE_DEFAULT_MODE_LOOSENESS, key: replaced }) ?? Infinity);
-    if (reason !== undefined) {
-      widening.push(`permissions.defaultMode: "${defaultMode}" (${reason})`);
-    } else if (loosens) {
-      widening.push(
-        `permissions.defaultMode: "${defaultMode}" (replaces the stricter "${String(replaced)}" already in the file)`,
-      );
-    } else if (!COMMANDCODE_NON_WIDENING_DEFAULT_MODES.has(defaultMode)) {
-      logger?.warn(
-        `Command Code permissions: 'permissions.defaultMode: "${defaultMode}"' is not a mode Command ` +
-          `Code documents (default, accept-edits, plan, yolo, dont-ask and their aliases); it was written as authored.`,
-      );
-    }
+    const entry = defaultModeWideningEntry({
+      defaultMode,
+      replaced: existingPermissions.defaultMode,
+      global,
+      logger,
+    });
+    if (entry !== null) widening.push(entry);
   }
   if (Array.isArray(additionalDirectories) && additionalDirectories.length > 0) {
     widening.push(
@@ -796,7 +837,11 @@ function warnWideningCommandcodeFields({
   }
   if (disableBypass !== undefined && disableBypass !== true && disableBypass !== "disable") {
     widening.push(
-      `permissions.disableBypass: ${JSON.stringify(disableBypass)} (yolo mode then stays enterable from this file)`,
+      `permissions.disableBypass: ${JSON.stringify(disableBypass)} (` +
+        (global
+          ? "yolo mode then stays enterable from this file"
+          : "a project value overrides the user-global setting, so yolo becomes enterable again even if ~/.commandcode/settings.json disables it") +
+        ")",
     );
   }
   if (widening.length > 0) {
@@ -813,17 +858,21 @@ function warnWideningCommandcodeFields({
  * lists are rulesync's (built from the shared `permission` block) and any
  * other key is ignored, so the override can never smuggle a grant past the
  * list handling. A value that widens trust — a `defaultMode` that removes
- * prompts (or replaces a stricter one already in the file), a non-empty
- * `additionalDirectories`, a `disableBypass` that does not disable — is still written, but named in one warning: this file is
+ * prompts (or replaces a stricter one already in the file or, at project
+ * scope, in the user-global file), a non-empty `additionalDirectories`, a
+ * `disableBypass` that does not disable — is still written, but named in one
+ * warning: this file is
  * shareable through `rulesync fetch`, and a loosening should not be silent.
  */
 function commandcodePermissionsFields({
   config,
   existingPermissions,
+  global,
   logger,
 }: {
   config: PermissionsConfig;
   existingPermissions: Record<string, unknown>;
+  global: boolean;
   logger?: Logger;
 }): Record<string, unknown> {
   const override = config.commandcode?.permissions;
@@ -844,7 +893,7 @@ function commandcodePermissionsFields({
     fields[key] = value;
   }
 
-  warnWideningCommandcodeFields({ fields, existingPermissions, logger });
+  warnWideningCommandcodeFields({ fields, existingPermissions, global, logger });
   return fields;
 }
 
@@ -985,7 +1034,7 @@ export class CommandcodePermissions extends ToolPermissions {
     // written as `[]`.
     const permissions: Record<string, unknown> = {
       ...existingPermissions,
-      ...commandcodePermissionsFields({ config, existingPermissions, logger }),
+      ...commandcodePermissionsFields({ config, existingPermissions, global, logger }),
     };
     for (const key of ["allow", "ask", "deny"] as const) {
       if (lists[key].length > 0) {

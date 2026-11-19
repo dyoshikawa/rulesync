@@ -448,12 +448,11 @@ const ClaudecodePermissionsOverrideSchema = z.looseObject({
  * { "permissions": { "defaultMode": "plan", "disableBypass": true } }
  * @see https://commandcode.ai/docs/permissions
  */
-export const CommandcodePermissionsFieldsSchema = z.looseObject({
+const CommandcodePermissionsFieldsSchema = z.looseObject({
   defaultMode: z.optional(z.string()),
   additionalDirectories: z.optional(z.array(z.string())),
   disableBypass: z.optional(z.union([z.literal("disable"), z.boolean()])),
 });
-export type CommandcodePermissionsFields = z.infer<typeof CommandcodePermissionsFieldsSchema>;
 
 const CommandcodePermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
