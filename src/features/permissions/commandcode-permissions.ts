@@ -692,6 +692,258 @@ function parseCommandcodeRuleLists(
 }
 
 /**
+ * The non-list `permissions` fields rulesync authors through the
+ * `commandcode.permissions` override and imports back. Every other key of the
+ * file's `permissions` object is kept as it is, never written from the source.
+ */
+const COMMANDCODE_PERMISSIONS_FIELD_KEYS: readonly string[] = [
+  "defaultMode",
+  "additionalDirectories",
+  "disableBypass",
+];
+
+const ACCEPT_EDITS_REASON =
+  "workspace edits and safe filesystem shell commands then run without a prompt";
+const YOLO_REASON =
+  "every session then starts in permission bypass, where only deny and ask rules still stop a tool";
+
+/**
+ * The `permissions.defaultMode` values (aliases included) that start a session
+ * with fewer prompts than `default`. `plan` and `dont-ask` are absent: `plan`
+ * is read-only, and `dont-ask` is a fail-closed allowlist that denies whatever
+ * policy does not already allow, so neither widens anything.
+ *
+ * @see https://commandcode.ai/docs/permissions
+ */
+const COMMANDCODE_WIDENING_DEFAULT_MODES: Readonly<Record<string, string>> = {
+  "accept-edits": ACCEPT_EDITS_REASON,
+  "auto-accept": ACCEPT_EDITS_REASON,
+  acceptEdits: ACCEPT_EDITS_REASON,
+  yolo: YOLO_REASON,
+  bypass: YOLO_REASON,
+  bypassPermissions: YOLO_REASON,
+};
+
+/**
+ * How many prompts each documented `defaultMode` (aliases included) removes:
+ * `plan` and `dont-ask` (fail-closed) < `default` < `accept-edits` < `yolo`.
+ * Used to notice an override that replaces a stricter mode already in the file.
+ */
+const COMMANDCODE_DEFAULT_MODE_LOOSENESS: Readonly<Record<string, number>> = {
+  plan: 0,
+  "dont-ask": 0,
+  dontAsk: 0,
+  default: 1,
+  manual: 1,
+  standard: 1,
+  "accept-edits": 2,
+  "auto-accept": 2,
+  acceptEdits: 2,
+  yolo: 3,
+  bypass: 3,
+  bypassPermissions: 3,
+};
+
+/**
+ * Command Code resolves settings project-local > project > user-global, and a
+ * scalar from the more specific file overwrites the others (only the rule
+ * lists and `additionalDirectories` union across files). A project-scope
+ * `defaultMode` or `disableBypass` therefore replaces whatever the user set in
+ * `~/.commandcode/settings.json`.
+ *
+ * @see https://commandcode.ai/docs/settings
+ */
+const PROJECT_SCALAR_OVERRIDES_GLOBAL =
+  "a project value overrides ~/.commandcode/settings.json, so it also replaces a stricter user-global mode such as dont-ask or plan";
+
+/**
+ * The widening entry for a `commandcode.permissions.defaultMode`, or `null`
+ * when it does not widen. A mode that removes prompts always widens; at
+ * project scope so does any mode looser than the strictest ones (`plan`,
+ * `dont-ask`), because it overrides the user-global mode; and so does a mode
+ * looser than the one already in the file. An undocumented mode is warned
+ * about on its own.
+ */
+function defaultModeWideningEntry({
+  defaultMode,
+  replaced,
+  global,
+  logger,
+}: {
+  defaultMode: string;
+  replaced: unknown;
+  global: boolean;
+  logger?: Logger;
+}): string | null {
+  const label = `permissions.defaultMode: "${defaultMode}"`;
+  const projectNote = global ? [] : [PROJECT_SCALAR_OVERRIDES_GLOBAL];
+  const reason = lookupOwn({ record: COMMANDCODE_WIDENING_DEFAULT_MODES, key: defaultMode });
+  if (reason !== undefined) {
+    return `${label} (${[reason, ...projectNote].join("; ")})`;
+  }
+  const looseness = lookupOwn({ record: COMMANDCODE_DEFAULT_MODE_LOOSENESS, key: defaultMode });
+  if (looseness === undefined) {
+    logger?.warn(
+      `Command Code permissions: '${label}' is not a mode Command Code documents (default, ` +
+        `accept-edits, plan, yolo, dont-ask and their aliases); it was written as authored.`,
+    );
+    return null;
+  }
+  const replacedLooseness =
+    typeof replaced === "string"
+      ? lookupOwn({ record: COMMANDCODE_DEFAULT_MODE_LOOSENESS, key: replaced })
+      : undefined;
+  const notes =
+    replacedLooseness !== undefined && looseness > replacedLooseness
+      ? [`replaces the stricter "${String(replaced)}" already in the file`]
+      : [];
+  if (looseness > 0) {
+    notes.push(...projectNote);
+  }
+  return notes.length > 0 ? `${label} (${notes.join("; ")})` : null;
+}
+
+/**
+ * Name, in one warning, every `commandcode.permissions` value that widens what
+ * Command Code trusts. At project scope the scalars also override the
+ * user-global file, which the warning says explicitly.
+ */
+function warnWideningCommandcodeFields({
+  fields,
+  existingPermissions,
+  global,
+  logger,
+}: {
+  fields: Record<string, unknown>;
+  existingPermissions: Record<string, unknown>;
+  global: boolean;
+  logger?: Logger;
+}): void {
+  const widening: string[] = [];
+  const { defaultMode, additionalDirectories, disableBypass } = fields;
+  if (typeof defaultMode === "string") {
+    const entry = defaultModeWideningEntry({
+      defaultMode,
+      replaced: existingPermissions.defaultMode,
+      global,
+      logger,
+    });
+    if (entry !== null) widening.push(entry);
+  }
+  if (Array.isArray(additionalDirectories) && additionalDirectories.length > 0) {
+    widening.push(
+      "permissions.additionalDirectories (each directory then counts as inside the workspace for reads and writes)",
+    );
+  }
+  if (disableBypass !== undefined && disableBypass !== true && disableBypass !== "disable") {
+    widening.push(
+      `permissions.disableBypass: ${JSON.stringify(disableBypass)} (` +
+        (global
+          ? "yolo mode then stays enterable from this file"
+          : "a project value overrides the user-global setting, so yolo becomes enterable again even if ~/.commandcode/settings.json disables it") +
+        ")",
+    );
+  }
+  if (widening.length > 0) {
+    logger?.warn(
+      `Command Code permissions: the commandcode override widens what Command Code trusts: ${widening.join("; ")}.`,
+    );
+  }
+}
+
+/**
+ * The fields of the `commandcode.permissions` override to merge into the
+ * settings file's `permissions` object. Only the documented
+ * `COMMANDCODE_PERMISSIONS_FIELD_KEYS` are written: the `allow`/`ask`/`deny`
+ * lists are rulesync's (built from the shared `permission` block) and any
+ * other key is ignored, so the override can never smuggle a grant past the
+ * list handling. A value that widens trust — a `defaultMode` that removes
+ * prompts (or replaces a stricter one already in the file or, at project
+ * scope, in the user-global file), a non-empty `additionalDirectories`, a
+ * `disableBypass` that does not disable — is still written, but named in one
+ * warning: this file is
+ * shareable through `rulesync fetch`, and a loosening should not be silent.
+ */
+function commandcodePermissionsFields({
+  config,
+  existingPermissions,
+  global,
+  logger,
+}: {
+  config: PermissionsConfig;
+  existingPermissions: Record<string, unknown>;
+  global: boolean;
+  logger?: Logger;
+}): Record<string, unknown> {
+  const override = config.commandcode?.permissions;
+  if (!isRecord(override)) {
+    return {};
+  }
+  const fields: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(override)) {
+    if (isPrototypePollutionKey(key) || value === undefined) continue;
+    if (!COMMANDCODE_PERMISSIONS_FIELD_KEYS.includes(key)) {
+      logger?.warn(
+        `Command Code permissions: 'commandcode.permissions.${key}' is not written; only ` +
+          `${COMMANDCODE_PERMISSIONS_FIELD_KEYS.join(", ")} are authored there` +
+          `${key === "allow" || key === "ask" || key === "deny" ? " (the shared 'permission' block drives the allow/ask/deny lists)" : ""}.`,
+      );
+      continue;
+    }
+    fields[key] = value;
+  }
+
+  warnWideningCommandcodeFields({ fields, existingPermissions, global, logger });
+  return fields;
+}
+
+/**
+ * Read the documented non-list `permissions` fields back for the
+ * `commandcode.permissions` override, verbatim. A value of a type Command Code
+ * does not document is skipped with a warning rather than imported into a
+ * source that would then fail validation; it stays in the settings file,
+ * which a regenerate leaves untouched. Nothing here reaches the shared
+ * `permission` block, so a mode or directory set for Command Code never turns
+ * into a grant for another target.
+ */
+function importCommandcodePermissionsFields(
+  permissions: Record<string, unknown>,
+): Record<string, unknown> {
+  const fields: Record<string, unknown> = {};
+  const skip = (key: string) =>
+    fallbackLogger.warn(
+      `Command Code permissions: 'permissions.${key}' holds a value of a type Command Code does not ` +
+        `document, so it was not imported; it stays in the Command Code settings.`,
+    );
+  const { defaultMode, additionalDirectories, disableBypass } = permissions;
+  if (typeof defaultMode === "string") {
+    fields.defaultMode = defaultMode;
+  } else if (defaultMode !== undefined) {
+    skip("defaultMode");
+  }
+  if (Array.isArray(additionalDirectories)) {
+    const directories = additionalDirectories.filter(
+      (entry): entry is string => typeof entry === "string",
+    );
+    if (directories.length < additionalDirectories.length) {
+      fallbackLogger.warn(
+        `Command Code permissions: 'permissions.additionalDirectories' holds entries that are not ` +
+          `strings; only the string entries were imported.`,
+      );
+    }
+    fields.additionalDirectories = directories;
+  } else if (additionalDirectories !== undefined) {
+    skip("additionalDirectories");
+  }
+  if (typeof disableBypass === "boolean" || disableBypass === "disable") {
+    fields.disableBypass = disableBypass;
+  } else if (disableBypass !== undefined) {
+    skip("disableBypass");
+  }
+  return fields;
+}
+
+/**
  * Permissions generator for Command Code.
  *
  * Rules live under the `permissions` key of `.commandcode/settings.json`
@@ -699,8 +951,10 @@ function parseCommandcodeRuleLists(
  * Claude-style entries: `deny` (always wins), `ask`, `allow`. The same key
  * also carries `defaultMode`, `additionalDirectories` and `disableBypass`,
  * and the file holds `hooks` and other settings, so writes go through the
- * shared-config gateway: rulesync replaces the three lists, keeps every
- * sibling key, and never deletes the file.
+ * shared-config gateway: rulesync replaces the three lists, merges those
+ * three fields from the `commandcode.permissions` override (warning on values
+ * that widen trust), keeps every other sibling key, and never deletes the
+ * file. Import reads the three fields back into that override.
  *
  * Generate: `permission.<category>.<pattern>` becomes `Tool(pattern)` with
  * the friendly names (`Shell`, `Read`, `Edit`, `Write`, `WebFetch`,
@@ -771,15 +1025,17 @@ export class CommandcodePermissions extends ToolPermissions {
       ? existing[COMMANDCODE_PERMISSIONS_KEY]
       : {};
 
-    const lists = buildCommandcodeRuleLists({
-      config: rulesyncPermissions.getJson(),
-      existingPermissions,
-      logger,
-    });
-    // Sibling keys of `permissions` (`defaultMode`, `additionalDirectories`,
-    // ...) are the user's; only the three lists are regenerated, and an empty
-    // list is omitted rather than written as `[]`.
-    const permissions: Record<string, unknown> = { ...existingPermissions };
+    const config = rulesyncPermissions.getJson();
+    const lists = buildCommandcodeRuleLists({ config, existingPermissions, logger });
+    // Sibling keys of `permissions` are kept, and the documented non-list
+    // fields authored under `commandcode.permissions` are merged over them
+    // (additively: a field removed from the override stays in the file). The
+    // three lists are regenerated, and an empty list is omitted rather than
+    // written as `[]`.
+    const permissions: Record<string, unknown> = {
+      ...existingPermissions,
+      ...commandcodePermissionsFields({ config, existingPermissions, global, logger }),
+    };
     for (const key of ["allow", "ask", "deny"] as const) {
       if (lists[key].length > 0) {
         permissions[key] = lists[key];
@@ -812,8 +1068,15 @@ export class CommandcodePermissions extends ToolPermissions {
     const permissions = isRecord(settings[COMMANDCODE_PERMISSIONS_KEY])
       ? settings[COMMANDCODE_PERMISSIONS_KEY]
       : {};
+    const imported: Record<string, unknown> = {
+      permission: parseCommandcodeRuleLists(permissions),
+    };
+    const fields = importCommandcodePermissionsFields(permissions);
+    if (Object.keys(fields).length > 0) {
+      imported.commandcode = { permissions: fields };
+    }
     return this.toRulesyncPermissionsDefault({
-      fileContent: JSON.stringify({ permission: parseCommandcodeRuleLists(permissions) }, null, 2),
+      fileContent: JSON.stringify(imported, null, 2),
     });
   }
 }

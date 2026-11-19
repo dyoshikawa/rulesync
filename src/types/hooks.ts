@@ -223,6 +223,12 @@ export const HookDefinitionSchema = z.looseObject({
   // continue the turn instead of ending it. Added for `PostToolUse` in 2.1.139.
   // https://code.claude.com/docs/en/hooks
   continueOnBlock: z.optional(z.boolean()),
+  // JetBrains Junie: when true, a hook's non-empty stdout must be a JSON
+  // object; anything else counts as a hook failure (which `blockOnError` /
+  // `failClosed` then turns into a block on synchronous PreToolUse and Stop
+  // hooks). Defaults to false upstream.
+  // https://junie.jetbrains.com/docs/junie-cli-hooks.html
+  strictJsonOutput: z.optional(z.boolean()),
 });
 
 export type HookDefinition = z.infer<typeof HookDefinitionSchema>;
@@ -2199,42 +2205,56 @@ export const JUNIE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertReco
 /**
  * Map canonical camelCase event names to Mistral Vibe snake_case.
  *
- * Vibe documents three hook events. The canonical `stop` and `subagentStop`
- * events both map to Vibe's `post_agent` (fires after every assistant turn
- * ending without pending tool calls); the adapter tells them apart with the
- * hook's `match` on the agent name (`main` for the main agent).
+ * The canonical `stop` and `subagentStop` events both map to Vibe's
+ * `post_agent` (fires after every assistant turn ending without pending tool
+ * calls); the adapter tells them apart with the hook's `match` on the agent
+ * name (`main` for the main agent). v3.1.1 added `pre_agent`, `notification`,
+ * `session_start` and `session_end`, and v3.1.3 added `pre_llm` and
+ * `post_llm`.
  *
- * These are the v2.21.0 names; the pre-2.21.0 spellings (`before_tool`,
+ * These are the v2.21.0+ names; the pre-2.21.0 spellings (`before_tool`,
  * `after_tool`, `post_agent_turn`) are rejected by Vibe's strict `HookType`
  * enum.
- * @see https://github.com/mistralai/mistral-vibe/blob/main/README.md
+ * @see https://github.com/mistralai/mistral-vibe/blob/v3.1.3/vibe/core/hooks/models.py
  */
 export const CANONICAL_TO_VIBE_EVENT_NAMES: Record<string, string> = {
   preToolUse: "pre_tool",
   postToolUse: "post_tool",
   stop: "post_agent",
   subagentStop: "post_agent",
+  beforeSubmitPrompt: "pre_agent",
+  notification: "notification",
+  sessionStart: "session_start",
+  sessionEnd: "session_end",
+  preModelInvocation: "pre_llm",
+  postModelInvocation: "post_llm",
 } satisfies Partial<Record<HookEvent, string>>;
 
 /**
  * Hook events supported by Mistral Vibe (mistral-vibe).
  *
- * Vibe exposes three hook events in `.vibe/hooks.toml`: `pre_tool` ←
- * `preToolUse`, `post_tool` ← `postToolUse`, and `post_agent` ← `stop` /
- * `subagentStop`. `post_agent` fires after every assistant turn that ends
- * without pending tool calls, for the main agent and (since v3.0.2) for every
- * subagent. v3.0.3 lets a `post_agent` hook take a `match` on the agent that
- * finished its turn: the reserved alias `main` selects the main agent, so
- * canonical `stop` becomes `post_agent` with `match = "main"`, and a canonical
- * `subagentStop` with a matcher becomes `post_agent` with that agent name as
- * `match`. Only the tool events (`pre_tool`/`post_tool`) carry the `strict`
- * flag. Only `type: "command"` hooks are relevant.
+ * Vibe reads hooks from `.vibe/hooks.toml`: `pre_tool` ← `preToolUse`,
+ * `post_tool` ← `postToolUse`, `post_agent` ← `stop` / `subagentStop`,
+ * `pre_agent` ← `beforeSubmitPrompt`, `notification` ← `notification`,
+ * `session_start` ← `sessionStart`, `session_end` ← `sessionEnd`, `pre_llm` ←
+ * `preModelInvocation` and `post_llm` ← `postModelInvocation`.
  *
- * v2.21.0 graduated hooks from experimental and renamed all three types
- * (`before_tool` → `pre_tool`, `after_tool` → `post_tool`, `post_agent_turn` →
- * `post_agent`). `HookType` is a strict enum, so an entry using an old name is
- * rejected outright and reported as a `HookConfigIssue`.
- * @see https://github.com/mistralai/mistral-vibe/blob/v3.0.3/README.md
+ * `post_agent`, `pre_agent`, `pre_llm` and `post_llm` take a `match` on the
+ * agent whose turn it is: the reserved alias `main` selects the main agent, so
+ * canonical `stop` and `beforeSubmitPrompt` are written with `match = "main"`.
+ * `session_start` matches the source (`startup` / `resume` / `clear` /
+ * `fork`), `session_end` the reason (`exit` / `clear` / `other`) and
+ * `notification` the notification type (`approval_requested` /
+ * `question_asked` / `turn_completed` / `turn_failed`). The `strict` flag is
+ * valid on `pre_tool`, `post_tool`, `pre_agent`, `pre_llm` and `post_llm`
+ * (`STRICT_HOOK_TYPES`). Only `type: "command"` hooks are relevant.
+ *
+ * v2.21.0 graduated hooks from experimental and renamed all three original
+ * types (`before_tool` → `pre_tool`, `after_tool` → `post_tool`,
+ * `post_agent_turn` → `post_agent`). `HookType` is a strict enum, so an entry
+ * using an old name is rejected outright and reported as a `HookConfigIssue`.
+ * @see https://github.com/mistralai/mistral-vibe/blob/v3.1.3/vibe/core/hooks/models.py
+ * @see https://github.com/mistralai/mistral-vibe/blob/v3.1.3/vibe/plugins/builtins/vibe/skills/vibe/SKILL.md
  */
 export const VIBE_HOOK_EVENTS: readonly HookEvent[] = eventsOf(CANONICAL_TO_VIBE_EVENT_NAMES);
 
