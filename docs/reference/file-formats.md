@@ -1064,7 +1064,7 @@ description: >- # skill description
 targets: ["*"] # * = all, or specific tools
 # (optional) shared default for tools that support the flag — claudecode, codebuddy, copilot,
 # copilotcli, crush, cursor, zed, pi, omp, qwencode, vibe, grokcli, factorydroid, dsh, reasonix,
-# commandcode, lettacode, opencode, mimocode, and xum. Any of those tool sections can override it by setting their own `disable-model-invocation`
+# commandcode, lettacode, opencode, mimocode, xum, and firebender. Any of those tool sections can override it by setting their own `disable-model-invocation`
 # value below. devin also reads this root value (true maps onto a user-only
 # `triggers` list); it has no section key of the same name, but devin.triggers
 # overrides it. codexcli also reads this root value: it is written into SKILL.md
@@ -1352,6 +1352,12 @@ xum: # for Xum-specific parameters (optional; project .xum/skills/, global ~/.xu
   user-invocable: false # (optional) hide from user-facing invocation surfaces
   argument-hint: "[endpoint]" # (optional) hint shown in invocation UIs
   when_to_use: "When documenting an endpoint" # (optional) guidance appended to the skill's index entry (`when-to-use` is also read)
+firebender: # for Firebender-specific parameters (optional; project .firebender/skills/, global ~/.firebender/skills/; keys are written into SKILL.md verbatim)
+  version: "1.0.0" # (optional) version string for documentation and tracking
+  autoTrigger: false # (optional) manual-only via /skill:<name> (default true); wins over disable-model-invocation when both are set
+  disable-model-invocation: true # (optional) inverse of autoTrigger; overrides the root value
+  projectTypes: [android, kotlin] # (optional) project types the skill applies to (a single string is also accepted)
+  icon: icon.svg # (optional) custom icon path, relative to the skill directory
 dsh: # for DeepSeek Harness-specific parameters (optional; project .dsh/skills/, global ~/.dsh/skills/)
   whenToUse: "When the user asks to review a PR" # (optional) extra trigger-timing context
   metadata: # (optional) free-form metadata; overrides the root value outright
@@ -1445,7 +1451,7 @@ When `claudecode.scheduled-task: true` is set, that skill is emitted only as a C
 
 > **Codewhale note:** Codewhale discovers directory-layout skills (`<name>/SKILL.md`) under `.codewhale/skills/` (project) and `~/.codewhale/skills/` (global, via `--global`). `name` and `description` are written from the canonical fields, and any Codewhale-specific frontmatter (for example `invocation`) is carried through the `codewhale` section of the rulesync skill.
 
-> **Firebender note:** Firebender discovers Agent Skills directories (`<name>/SKILL.md`) under `.firebender/skills/` (project) and `~/.firebender/skills/` (global, via `--global`), its recommended locations. It also scans `.claude/skills/`, `.codex/skills/`, `.cursor/skills/`, `.goose/skills/` and `.agents/skills/`, so generating another target into one of those directories makes the same skill visible twice; a team-level skill wins over a user-level one of the same name. See the [Skills reference](https://docs.firebender.com/api-reference/skills).
+> **Firebender note:** Firebender discovers Agent Skills directories (`<name>/SKILL.md`) under `.firebender/skills/` (project) and `~/.firebender/skills/` (global, via `--global`), its recommended locations. Rulesync writes them with the same Agent Skills frontmatter as the `agentsskills` target, plus the `firebender:` block written verbatim on top of it — Firebender reads `version`, `autoTrigger` (default `true`; `false` makes the skill manual-only via `/skill:<name>`), `disable-model-invocation` (the inverse of `autoTrigger`, which wins when both are set), `projectTypes` (a string or a list) and `icon` (a path relative to the skill directory). `disable-model-invocation` falls back to the root-level value. `name`, `description`, `license`, `compatibility`, `metadata` and `allowed-tools` in the `firebender:` block are ignored with a warning; set them at the root or in the `agentsskills:` block. On import, `license`, `compatibility`, `metadata` and `allowed-tools` go back into the `agentsskills:` block and every other key besides `name` / `description` into `firebender:`. It also scans `.claude/skills/`, `.codex/skills/`, `.cursor/skills/`, `.goose/skills/` and `.agents/skills/`, so generating another target into one of those directories makes the same skill visible twice; a team-level skill wins over a user-level one of the same name. See the [Skills reference](https://docs.firebender.com/api-reference/skills).
 
 > **CodeBuddy Code note:** CodeBuddy Code discovers directory-layout skills (`<name>/SKILL.md`) under `.codebuddy/skills/` (project) and `~/.codebuddy/skills/` (global, via `--global`). Rulesync writes `name` and `description` from the canonical skill (same-named keys in the `codebuddy:` block are ignored), plus the shared `disable-model-invocation` / `user-invocable` defaults; the other documented keys (`allowed-tools`, `context`, `agent`, `model`, `hooks`) and any extra ones go in the `codebuddy:` block. CodeBuddy treats every SKILL.md key as optional, so on import a missing `name` falls back to the directory name and a missing `description` to an empty string. See the [CodeBuddy Code skills docs](https://www.codebuddy.ai/docs/cli/skills).
 

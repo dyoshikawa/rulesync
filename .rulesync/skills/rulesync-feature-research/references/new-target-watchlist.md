@@ -37,6 +37,7 @@ latest re-check section.
 | zerostack (`gi-dellav/zerostack`)             | 2026-11-08 | Stars reach ~5k or a release passes ~5k asset downloads; today 1,746 stars, GPL-3.0, v1.8.5 (2026-10-10) at 447 asset downloads (v1.8.4 at 664). It already has a file surface: project `.zerostack/config.toml` (`mcp_servers`, permissions, hooks, merged over the global `~/.config/zerostack/config.toml`), `.zerostack/prompts/`, `.zerostack/settings.json`, and it reads `AGENTS.md` / `CLAUDE.md`                                                                                                    |
 | Octomind (`Muvon/octomind`)                   | 2026-11-08 | Stars reach ~3k or a release passes ~3k asset downloads, and the `.agents/guardrails.toml` schema settles (guards = PreToolUse deny, hooks = PostToolUse, validators = Stop); today 608 stars, Apache-2.0, 0.69.0 (2026-11-03) at 383 asset downloads, with `AGENTS.md`, `SKILL.md` folders and a single TOML config (models, roles, MCP, budgets)                                                                                                                                                           |
 | tau (`huggingface/tau`, Hugging Face)         | 2026-11-08 | PyPI `tau-ai` reaches ~5k downloads/week, or it gains MCP / hooks / extension files a project carries; today 3,029 stars, v0.4.9 (2026-11-03), ~590 downloads/week, and it is a Python port of Pi that reads `AGENTS.md`, `.tau/skills` + `.agents/skills` (covered by `agentsskills`) and `.tau/prompts` + `.agents/prompts`                                                                                                                                                                                |
+| Omnirush CLI (`omnirush`)                     | 2026-11-19 | The CLI documents a project config surface of its own (e.g. a `.omnirush/` tree); today it is an OpenCode distribution (npm `omnirush` 3.0.6, ~5k downloads/week) that reads `.opencode/`, `opencode.json` and `.claude/skills` (covered), with other MCP managed in the app UI and account                                                                                                                                                                                                                  |
 
 ## Zoo Code CLI — `apps/cli` in the Zoo-Code repo
 
@@ -409,7 +410,51 @@ Proposed as a target the same day: Zero (#3807), directly from the discovery pas
 - Octomind: `https://github.com/Muvon/octomind`.
 - tau: `https://github.com/huggingface/tau`.
 
+## Re-check on 2026-11-19
+
+Every row above was re-checked on 2026-11-19 and left as is (none promoted or
+retired):
+
+- Zoo Code CLI: unmet — still `@roo-code/cli` 0.1.17 `private: true`, npm 404; Zoo Code v3.98.0.
+- ForgeCode: unmet but closest — 1,410 downloads/week (up from 214, bar ~2k), npm still 2.13.21, 7,635 stars; `forgecode.dev/docs/*` still 404.
+- Verdent: unmet — docs still list only `~/.verdent/` paths plus `AGENTS.md`.
+- Baidu Comate / Zulu: unmet — 1.7.21, 1,459 downloads/week; no English project-layout docs.
+- Warp Factories: unmet — still Early Access (`schemaVersion: v1alpha1`).
+- fx: unmet — 3,921 stars, v0.0.17 (2026-11-14).
+- Zencoder: unmet, not re-verified — docs.zencoder.ai returned 403 to the fetcher.
+- Nanocoder: unmet — 3,460 downloads/week (down from ~3.9k), 2,581 stars, v1.32.0.
+- Open Interpreter: unmet but close — `rust-v0.0.61` (2026-11-11) passed 10k asset downloads (12,677), but `rust-v0.0.60` had 3,096 and `rust-v0.0.59` 7,441, so not consistently.
+- MiniMax Code: unmet — npm 0.7.8, ~16.9k downloads/week, 2,268 stars; still no project `.minimax/` layout.
+- Prime Agent: unmet — v0.10.5 (2026-11-18), 22,843 stars; `docs/` still only MCP connector guides.
+- Claurst: unmet and stalling — no release since v0.2.1, npm ~80/week, last push 2026-10-26. Retire next time if still idle.
+- Kiro Crew: unmet — v0.13.0 (2026-11-19), 5,004 stars; no surface of its own.
+- Kimchi: unmet — v1.37.1, 2,287 stars.
+- JetBrains ThinkRail: unmet — v0.5.0-nightly.7, 8,357 stars.
+- Databricks Genie Code: unmet — unchanged.
+- Kun: unmet — v0.4.5, 6,385 stars.
+- avante.nvim: unmet — v0.5.0, 18,205 stars.
+- FuXi: unmet and stalling — no release since v0.1.8, last push 2026-10-20. Retire next time if still idle.
+- OpenCursor: unmet and stalling — no release since 0.2.1, last push 2026-10-26. Retire next time if still idle.
+- Docker Agent: unmet — v1.162.0, 4,694 stars; no repo-convention config.
+- zerostack: unmet — 1,760 stars, v1.8.6 at 47 asset downloads.
+- Octomind: unmet — 638 stars, 0.72.0 at 231 asset downloads.
+- tau: unmet — PyPI `tau-ai` ~837/week, 3,064 stars, v0.4.11.
+
+Proposed as a target the same day: OpenClaude (#3881), directly from the
+discovery pass.
+
+## Watchlist candidates recorded on 2026-11-19
+
+- Omnirush CLI:
+  `https://github.com/omnirush-ai/omnirush-gui/blob/main/docs/skills-and-mcp.md`.
+
 ## Promoted entries
+
+- **OpenClaude** (`Twigpine/openclaude`) — `.openclaude/` tree (`CLAUDE.md`,
+  `rules/`, `commands/`, `agents/`, `skills/`, `settings.json` hooks and
+  permissions) plus `~/.openclaude/`, with project MCP in the shared
+  `.mcp.json`. Proposed as #3881 on 2026-11-19 directly from the discovery
+  pass. Do not re-add it — track the proposal on that issue.
 
 - **Zero** (`Twigpine/zero`) — `.zero/config.json` MCP, `.zero/hooks.json`,
   `.zero/specialists/*.md`, `.zero/AGENTS.md` / `ZERO.md` rules plus

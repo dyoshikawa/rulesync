@@ -64,7 +64,7 @@ export const RulesyncSkillFrontmatterSchema = z.looseObject({
   targets: z._default(RulesyncTargetsSchema, ["*"]),
   // Default for tools that support the flag (claudecode, codebuddy, copilot, copilotcli, crush,
   // cursor, zed, pi, omp, qwencode, vibe, grokcli, factorydroid, dsh, reasonix, commandcode,
-  // lettacode, opencode, opencodev1, mimocode, xum).
+  // lettacode, opencode, opencodev1, mimocode, xum, firebender).
   // A target-section value of the same key overrides this default.
   // `devin` also consumes this root value (mapping `true` onto a user-only
   // `triggers` list); it has no section key of the same name, but a
@@ -511,6 +511,21 @@ export const RulesyncSkillFrontmatterSchema = z.looseObject({
       when_to_use: z.optional(z.string()),
       "when-to-use": z.optional(z.string()),
       paths: z.optional(z.union([z.string(), z.array(z.string())])),
+    }),
+  ),
+  // Firebender reads these keys on top of the Agent Skills standard fields;
+  // the section is written into SKILL.md verbatim. `autoTrigger: false` makes
+  // the skill manual-only (and wins over `disable-model-invocation` when both
+  // are set), `projectTypes` is a string or a list, and `icon` is a path
+  // relative to the skill directory.
+  // https://docs.firebender.com/api-reference/skills
+  firebender: z.optional(
+    z.looseObject({
+      version: z.optional(z.unknown()),
+      autoTrigger: z.optional(z.boolean()),
+      "disable-model-invocation": z.optional(z.boolean()),
+      projectTypes: z.optional(z.union([z.string(), z.array(z.string())])),
+      icon: z.optional(z.string()),
     }),
   ),
   // ZCode's "Skill SKILL.md Field Reference" allowlists exactly five keys:
