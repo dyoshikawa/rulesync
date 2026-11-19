@@ -1475,6 +1475,7 @@ describe("E2E: hooks (global mode)", () => {
     },
   );
 
+  // Generation coverage for tool hooks with matchers.
   it("should generate crush hooks in the user config", async () => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();
@@ -1507,7 +1508,8 @@ describe("E2E: hooks (global mode)", () => {
     ]);
   });
 
-  it("should round-trip Crush lifecycle hooks in the user config", async () => {
+  // Import and generation coverage for lifecycle event mappings.
+  it("should round-trip crush lifecycle hooks in the user config", async () => {
     const homeDir = getHomeDir();
     const configPath = join(homeDir, ".config", "crush", "crush.json");
     const hooks = {
@@ -1527,8 +1529,11 @@ describe("E2E: hooks (global mode)", () => {
     const imported = JSON.parse(
       await readFileContent(join(homeDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH)),
     );
-    expect(imported.hooks.sessionStart).toEqual([{ type: "command", command: "echo start" }]);
-    expect(imported.hooks.stop).toEqual([{ type: "command", command: "echo done" }]);
+    expect(imported.hooks).toEqual({
+      sessionStart: [{ type: "command", command: "echo start" }],
+      stop: [{ type: "command", command: "echo done" }],
+    });
+    expect(imported.crush).toBeUndefined();
 
     // Remove the existing native hooks so the assertions prove generation wrote them back.
     await writeFileContent(configPath, JSON.stringify({ options }));
