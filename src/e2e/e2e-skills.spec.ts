@@ -474,6 +474,7 @@ This is the test skill body content.
     { target: "zed", orphanPath: join(".agents", "skills", "orphan-skill", "SKILL.md") },
     { target: "factorydroid", orphanPath: join(".factory", "skills", "orphan-skill", "SKILL.md") },
     { target: "vibe", orphanPath: join(".vibe", "skills", "orphan-skill", "SKILL.md") },
+    { target: "openclaw", orphanPath: join(".agents", "skills", "orphan-skill", "SKILL.md") },
   ])(
     "should fail in check mode when delete would remove an orphan $target skill file",
     async ({ target, orphanPath }) => {
