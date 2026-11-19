@@ -420,6 +420,66 @@ describe("opencode-config", () => {
         await resolveOpencodeFileTemplate({ value: "{file:../secret.txt}", configDir: projectDir }),
       ).toBe("SECRET");
     });
+
+    it("resolves an absolute reference as written", async () => {
+      const promptPath = join(testDir, "prompts", "abs.txt");
+      await writeFileContent(promptPath, "absolute body");
+      expect(
+        await resolveOpencodeFileTemplate({
+          value: `{file:${promptPath}}`,
+          configDir: join(testDir, "elsewhere"),
+        }),
+      ).toBe("absolute body");
+    });
+
+    it("resolves a ~/ reference from the home directory", async () => {
+      const homeDir = join(testDir, "home");
+      await writeFileContent(join(homeDir, "prompts", "home.txt"), "home body");
+      vi.stubEnv("HOME_DIR", homeDir);
+      try {
+        expect(
+          await resolveOpencodeFileTemplate({
+            value: "{file:~/prompts/home.txt}",
+            configDir: join(testDir, "elsewhere"),
+          }),
+        ).toBe("home body");
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    });
+
+    it("keeps an absolute or ~/ reference inside containmentRoot and refuses one outside it", async () => {
+      const projectDir = join(testDir, "project");
+      const homeDir = join(testDir, "home");
+      await writeFileContent(join(projectDir, "inside.txt"), "INSIDE");
+      await writeFileContent(join(homeDir, "secret.txt"), "SECRET");
+      vi.stubEnv("HOME_DIR", homeDir);
+      try {
+        expect(
+          await resolveOpencodeFileTemplate({
+            value: `{file:${join(projectDir, "inside.txt")}}`,
+            configDir: projectDir,
+            containmentRoot: projectDir,
+          }),
+        ).toBe("INSIDE");
+        expect(
+          await resolveOpencodeFileTemplate({
+            value: "{file:~/secret.txt}",
+            configDir: projectDir,
+            containmentRoot: projectDir,
+          }),
+        ).toBe("{file:~/secret.txt}");
+        expect(
+          await resolveOpencodeFileTemplate({
+            value: `{file:${join(homeDir, "secret.txt")}}`,
+            configDir: projectDir,
+            containmentRoot: projectDir,
+          }),
+        ).toBe(`{file:${join(homeDir, "secret.txt")}}`);
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    });
   });
 
   describe("raiseOpencodeServerToV2", () => {
