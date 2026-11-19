@@ -184,6 +184,7 @@ describe("JunieHooks", () => {
               command: ".rulesync/hooks/session-start.sh",
               failClosed: true,
               async: false,
+              strictJsonOutput: true,
             },
           ],
         },
@@ -207,6 +208,7 @@ describe("JunieHooks", () => {
       // Canonical failClosed → Junie blockOnError; async stays async.
       expect(hook.blockOnError).toBe(true);
       expect(hook.async).toBe(false);
+      expect(hook.strictJsonOutput).toBe(true);
       // The canonical field name must not leak into the Junie output.
       expect(hook.failClosed).toBeUndefined();
     });
@@ -303,6 +305,7 @@ describe("JunieHooks", () => {
                     command: "session-start.sh",
                     blockOnError: true,
                     async: false,
+                    strictJsonOutput: true,
                   },
                 ],
               },
@@ -317,6 +320,7 @@ describe("JunieHooks", () => {
       // Junie blockOnError → canonical failClosed; async stays async.
       expect(def?.failClosed).toBe(true);
       expect(def?.async).toBe(false);
+      expect(def?.strictJsonOutput).toBe(true);
       // The Junie field name must not survive into the canonical model.
       expect((def as Record<string, unknown>).blockOnError).toBeUndefined();
     });

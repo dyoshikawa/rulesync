@@ -6,6 +6,7 @@ import { AGENTSMD_SKILLS_DIR_PATH } from "../../constants/agentsmd-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { JUNIE_SKILLS_DIR_PATH } from "../../constants/junie-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
+import { firstNonHeadingParagraph } from "../../utils/markdown-paragraph.js";
 import { isRecord } from "../../utils/type-guards.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import {
@@ -33,51 +34,6 @@ export type JunieSkillParams = {
   validate?: boolean;
   global?: boolean;
 };
-
-/** An ATX markdown heading line (`#` … `######`). */
-const HEADING_LINE = /^#{1,6}(\s|$)/;
-
-/**
- * Junie's own fallback for a `SKILL.md` with no `description`: "If
- * `description` is not provided in the frontmatter, Junie CLI extracts the
- * first paragraph of the body content as the description." Headings do not
- * count as that paragraph — "If the body is also empty or contains only
- * headings, the skill will fail to load."
- *
- * This is import-only. The canonical `RulesyncSkillFrontmatter` requires a
- * description, so without the fallback a skill Junie itself loads fine aborts
- * the whole import; generation keeps emitting an explicit description, which
- * the same docs recommend.
- *
- * Heading lines are therefore skipped rather than taken: a body opening with
- * `# Skill Name` would otherwise import that title as the description and —
- * because the next generate writes it out explicitly — replace Junie's own
- * correct fallback with the wrong value everywhere, canonical config included.
- *
- * A paragraph runs to the first blank line or heading, and is collapsed onto
- * one line because it becomes a YAML frontmatter value. A fenced code block is
- * not treated specially: it is ordinary content, so a body whose first
- * paragraph is a fence yields the fence text. Returns an empty string when the
- * body holds no such paragraph, which the caller turns into a skipped skill.
- *
- * @see https://junie.jetbrains.com/docs/agent-skills.html
- */
-function deriveDescriptionFromBody(body: string): string {
-  const paragraph: string[] = [];
-  for (const rawLine of body.split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (paragraph.length === 0) {
-      // Still looking for the paragraph: blank lines and headings are skipped.
-      if (line === "" || HEADING_LINE.test(line)) continue;
-      paragraph.push(line);
-      continue;
-    }
-    // Inside the paragraph: a blank line or a heading ends it.
-    if (line === "" || HEADING_LINE.test(line)) break;
-    paragraph.push(line);
-  }
-  return paragraph.join(" ").trim();
-}
 
 /**
  * Represents a JetBrains Junie skill directory.
@@ -189,11 +145,17 @@ export class JunieSkill extends ToolSkill {
       getSettablePaths: JunieSkill.getSettablePaths,
     });
 
-    // `description` is optional upstream, so it is filled in from the body
-    // before validation rather than failing a skill Junie loads fine.
+    // `description` is optional upstream: "If `description` is not provided
+    // in the frontmatter, Junie CLI extracts the first paragraph of the body
+    // content as the description." The canonical skill frontmatter requires
+    // one, so it is filled in from the body before validation rather than
+    // failing a skill Junie loads fine; generation keeps emitting an explicit
+    // description, as the same docs recommend. Headings are skipped, since a
+    // body opening with `# Skill Name` would otherwise import the title.
+    // https://junie.jetbrains.com/docs/agent-skills.html
     let frontmatter = loaded.frontmatter;
     if (isRecord(frontmatter) && frontmatter.description === undefined) {
-      const derived = deriveDescriptionFromBody(loaded.body);
+      const derived = firstNonHeadingParagraph(loaded.body);
       if (derived === "") {
         // Junie says such a skill "will fail to load", so there is nothing to
         // import. Throwing here — with `lenientImport` set for this target —
