@@ -21,6 +21,15 @@ function createRulesyncPermissions(permission: Record<string, Record<string, str
   });
 }
 
+function createRulesyncPermissionsFile(content: Record<string, unknown>) {
+  return new RulesyncPermissions({
+    relativeDirPath: ".rulesync",
+    relativeFilePath: "permissions.json",
+    fileContent: JSON.stringify(content),
+    validate: true,
+  });
+}
+
 async function writeSettings({
   testDir,
   settings,
@@ -625,6 +634,171 @@ describe("CommandcodePermissions", () => {
       expect(json.permissions).toEqual({ ask: ["Shell(git push *)"] });
     });
 
+    describe("commandcode.permissions override", () => {
+      it("merges the documented fields and names every widening value in one warning", async () => {
+        const logger = createMockLogger();
+        await writeSettings({
+          testDir,
+          settings: {
+            permissions: { defaultMode: "plan", disableBypass: true, deny: ["Shell(rm *)"] },
+          },
+        });
+
+        const permissions = await CommandcodePermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          logger,
+          rulesyncPermissions: createRulesyncPermissionsFile({
+            permission: { bash: { "rm *": "deny" } },
+            commandcode: {
+              permissions: {
+                defaultMode: "yolo",
+                additionalDirectories: ["~/shared-libs"],
+                disableBypass: false,
+              },
+            },
+          }),
+        });
+
+        expect(JSON.parse(permissions.getFileContent()).permissions).toEqual({
+          defaultMode: "yolo",
+          additionalDirectories: ["~/shared-libs"],
+          disableBypass: false,
+          deny: ["Shell(rm *)"],
+        });
+        expect(logger.warn).toHaveBeenCalledTimes(1);
+        const message = String(vi.mocked(logger.warn).mock.calls[0]?.[0]);
+        expect(message).toContain('permissions.defaultMode: "yolo"');
+        expect(message).toContain("permissions.additionalDirectories");
+        expect(message).toContain("permissions.disableBypass: false");
+      });
+
+      it("warns on every widening defaultMode alias", async () => {
+        for (const mode of [
+          "accept-edits",
+          "auto-accept",
+          "acceptEdits",
+          "bypass",
+          "bypassPermissions",
+        ]) {
+          const logger = createMockLogger();
+          await CommandcodePermissions.fromRulesyncPermissions({
+            outputRoot: testDir,
+            logger,
+            rulesyncPermissions: createRulesyncPermissionsFile({
+              permission: {},
+              commandcode: { permissions: { defaultMode: mode } },
+            }),
+          });
+          expect(logger.warn).toHaveBeenCalledWith(
+            expect.stringContaining(`permissions.defaultMode: "${mode}"`),
+          );
+        }
+      });
+
+      it("stays quiet for values that do not widen trust", async () => {
+        for (const fields of [
+          { defaultMode: "plan", disableBypass: true },
+          { defaultMode: "dont-ask", disableBypass: "disable" },
+          { defaultMode: "default", additionalDirectories: [] },
+        ]) {
+          const logger = createMockLogger();
+          const permissions = await CommandcodePermissions.fromRulesyncPermissions({
+            outputRoot: testDir,
+            logger,
+            rulesyncPermissions: createRulesyncPermissionsFile({
+              permission: {},
+              commandcode: { permissions: fields },
+            }),
+          });
+          expect(JSON.parse(permissions.getFileContent()).permissions).toEqual(fields);
+          expect(logger.warn).not.toHaveBeenCalled();
+        }
+      });
+
+      it("warns when the override replaces a stricter defaultMode already in the file", async () => {
+        const logger = createMockLogger();
+        await writeSettings({ testDir, settings: { permissions: { defaultMode: "dont-ask" } } });
+
+        const permissions = await CommandcodePermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          logger,
+          rulesyncPermissions: createRulesyncPermissionsFile({
+            permission: {},
+            commandcode: { permissions: { defaultMode: "default" } },
+          }),
+        });
+
+        expect(JSON.parse(permissions.getFileContent()).permissions).toEqual({
+          defaultMode: "default",
+        });
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining('replaces the stricter "dont-ask" already in the file'),
+        );
+      });
+
+      it("never writes list keys or unknown keys from the override", async () => {
+        const logger = createMockLogger();
+        await writeSettings({ testDir, settings: { permissions: { deny: ["Shell(rm *)"] } } });
+
+        const permissions = await CommandcodePermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          logger,
+          rulesyncPermissions: createRulesyncPermissionsFile({
+            permission: { bash: { "rm *": "deny" } },
+            commandcode: {
+              permissions: {
+                allow: ["Shell(rm *)", "*"],
+                deny: [],
+                autoApprove: true,
+              },
+            },
+          }),
+        });
+
+        // The deny from the shared block stays a deny; the override's allow
+        // never reaches the file.
+        expect(JSON.parse(permissions.getFileContent()).permissions).toEqual({
+          deny: ["Shell(rm *)"],
+        });
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining("'commandcode.permissions.allow' is not written"),
+        );
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining("'commandcode.permissions.deny' is not written"),
+        );
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining("'commandcode.permissions.autoApprove' is not written"),
+        );
+      });
+
+      it("writes an undocumented defaultMode as authored, with a warning", async () => {
+        const logger = createMockLogger();
+        const permissions = await CommandcodePermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          logger,
+          rulesyncPermissions: createRulesyncPermissionsFile({
+            permission: {},
+            commandcode: { permissions: { defaultMode: "turbo" } },
+          }),
+        });
+        expect(JSON.parse(permissions.getFileContent()).permissions).toEqual({
+          defaultMode: "turbo",
+        });
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining("is not a mode Command Code documents"),
+        );
+      });
+
+      it("rejects a disableBypass value Command Code does not document", () => {
+        expect(() =>
+          createRulesyncPermissionsFile({
+            permission: {},
+            commandcode: { permissions: { disableBypass: "off" } },
+          }),
+        ).toThrow();
+      });
+    });
+
     it("uses the same relative path in global mode", async () => {
       const permissions = await CommandcodePermissions.fromRulesyncPermissions({
         outputRoot: testDir,
@@ -1177,6 +1351,78 @@ describe("CommandcodePermissions", () => {
         mcp: { "*": "ask" },
         mcp__github: { "*": "allow" },
       });
+    });
+
+    it("imports the documented non-list fields into the commandcode override only", async () => {
+      await writeSettings({
+        testDir,
+        settings: {
+          permissions: {
+            defaultMode: "bypassPermissions",
+            additionalDirectories: ["~/shared-libs"],
+            disableBypass: "disable",
+            otherKey: true,
+            deny: ["Shell(rm *)"],
+          },
+        },
+      });
+
+      const permissions = await CommandcodePermissions.fromFile({ outputRoot: testDir });
+      const json = permissions.toRulesyncPermissions().getJson();
+      expect(json.permission).toEqual({ bash: { "rm *": "deny" } });
+      expect(json.commandcode).toEqual({
+        permissions: {
+          defaultMode: "bypassPermissions",
+          additionalDirectories: ["~/shared-libs"],
+          disableBypass: "disable",
+        },
+      });
+    });
+
+    it("skips non-list fields of an undocumented type on import", async () => {
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+      await writeSettings({
+        testDir,
+        settings: {
+          permissions: {
+            defaultMode: 1,
+            additionalDirectories: ["../a", 2],
+            disableBypass: "yes",
+          },
+        },
+      });
+
+      const permissions = await CommandcodePermissions.fromFile({ outputRoot: testDir });
+      const json = permissions.toRulesyncPermissions().getJson();
+      expect(json.commandcode).toEqual({ permissions: { additionalDirectories: ["../a"] } });
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("'permissions.defaultMode'"));
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("'permissions.additionalDirectories'"),
+      );
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("'permissions.disableBypass'"));
+    });
+
+    it("round-trips the commandcode override fields", async () => {
+      const source = createRulesyncPermissionsFile({
+        permission: { bash: { "git *": "allow" } },
+        commandcode: {
+          permissions: {
+            defaultMode: "plan",
+            additionalDirectories: ["../x"],
+            disableBypass: true,
+          },
+        },
+      });
+      const generated = await CommandcodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: source,
+      });
+      await writeSettings({ testDir, settings: JSON.parse(generated.getFileContent()) });
+
+      const imported = await CommandcodePermissions.fromFile({ outputRoot: testDir });
+      const json = imported.toRulesyncPermissions().getJson();
+      expect(json.permission).toEqual(source.getJson().permission);
+      expect(json.commandcode).toEqual(source.getJson().commandcode);
     });
 
     it("round-trips generated rules", async () => {

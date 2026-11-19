@@ -25,7 +25,7 @@ import {
  * (Command Code would send it as prompt text; a rulesync command carries its
  * own frontmatter) and only the body is kept.
  *
- * @see https://commandcode.ai/docs/custom-slash-commands
+ * @see https://commandcode.ai/docs/reference/slash-commands#custom-slash-commands
  */
 export class CommandcodeCommand extends ToolCommand {
   // Both scopes share the same relative path; the home-directory root is

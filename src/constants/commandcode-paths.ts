@@ -38,12 +38,12 @@ export const COMMANDCODE_GLOBAL_MCP_FILE_NAME = "mcp.json";
 // Custom slash commands: Markdown files under `.commandcode/commands/`
 // (project) and `~/.commandcode/commands/` (user); subdirectories are allowed
 // and only group the files — the command name is the file's basename.
-// @see https://commandcode.ai/docs/custom-slash-commands
+// @see https://commandcode.ai/docs/reference/slash-commands#custom-slash-commands
 export const COMMANDCODE_COMMANDS_DIR_PATH = join(COMMANDCODE_DIR, "commands");
 
 // Subagents: Markdown files with YAML frontmatter under
 // `.commandcode/agents/` (project) and `~/.commandcode/agents/` (user).
-// @see https://commandcode.ai/docs/custom-agents
+// @see https://commandcode.ai/docs/agents
 export const COMMANDCODE_AGENTS_DIR_PATH = join(COMMANDCODE_DIR, "agents");
 
 // Skills: Anthropic-style `<name>/SKILL.md` directories under
