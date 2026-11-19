@@ -302,7 +302,7 @@ export class ReasonixHooks extends ToolHooks {
     });
   }
 
-  toRulesyncHooks(): RulesyncHooks {
+  toRulesyncHooks({ logger }: { logger?: Logger } = {}): RulesyncHooks {
     const settings: { hooks?: unknown } = this.parseFileContentOrThrow({
       displayName: "Reasonix",
       parse: (fileContent) => JSON.parse(fileContent),
@@ -310,7 +310,7 @@ export class ReasonixHooks extends ToolHooks {
     const hooks = reasonixHooksToCanonical(settings.hooks);
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify(
-        buildImportedHooksConfig({ hooks, overrideKey: "reasonix" }),
+        buildImportedHooksConfig({ logger, hooks, overrideKey: "reasonix" }),
         null,
         2,
       ),

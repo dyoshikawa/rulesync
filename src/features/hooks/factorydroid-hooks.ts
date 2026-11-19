@@ -201,7 +201,7 @@ export class FactorydroidHooks extends ToolHooks {
     });
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify(
-        buildImportedHooksConfig({ hooks, overrideKey: "factorydroid" }),
+        buildImportedHooksConfig({ logger, hooks, overrideKey: "factorydroid" }),
         null,
         2,
       ),

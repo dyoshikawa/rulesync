@@ -231,7 +231,7 @@ export class LettacodeHooks extends ToolHooks {
     });
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify(
-        buildImportedHooksConfig({ hooks, overrideKey: "lettacode" }),
+        buildImportedHooksConfig({ logger, hooks, overrideKey: "lettacode" }),
         null,
         2,
       ),

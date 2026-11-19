@@ -306,7 +306,7 @@ export class KimiCodeHooks extends ToolHooks {
     });
   }
 
-  toRulesyncHooks(): RulesyncHooks {
+  toRulesyncHooks({ logger }: { logger?: Logger } = {}): RulesyncHooks {
     const config = parseSharedConfig({ format: "toml", fileContent: this.getFileContent() });
     return new RulesyncHooks({
       outputRoot: getKimiCodeRulesyncOutputRoot({
@@ -317,6 +317,7 @@ export class KimiCodeHooks extends ToolHooks {
       relativeFilePath: RULESYNC_HOOKS_FILE_NAME,
       fileContent: JSON.stringify(
         buildImportedHooksConfig({
+          logger,
           hooks: kimiCodeHooksToCanonical(config.hooks),
           overrideKey: "kimi-code",
         }),

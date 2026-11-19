@@ -327,7 +327,7 @@ export class DeepagentsHooks extends ToolHooks {
         global: this.global,
       }),
       fileContent: JSON.stringify(
-        buildImportedHooksConfig({ hooks, overrideKey: "deepagents" }),
+        buildImportedHooksConfig({ logger, hooks, overrideKey: "deepagents" }),
         null,
         2,
       ),

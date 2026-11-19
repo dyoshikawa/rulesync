@@ -160,7 +160,7 @@ export class GrokcliHooks extends ToolHooks {
     });
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify(
-        buildImportedHooksConfig({ hooks, overrideKey: "grokcli" }),
+        buildImportedHooksConfig({ logger, hooks, overrideKey: "grokcli" }),
         null,
         2,
       ),

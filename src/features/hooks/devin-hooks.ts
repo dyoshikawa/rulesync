@@ -183,7 +183,7 @@ export class DevinHooks extends ToolHooks {
     });
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify(
-        buildImportedHooksConfig({ hooks, overrideKey: "devin" }),
+        buildImportedHooksConfig({ logger, hooks, overrideKey: "devin" }),
         null,
         2,
       ),

@@ -108,7 +108,7 @@ export class ZcodePluginHooks extends ToolHooks {
     });
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify(
-        buildImportedHooksConfig({ hooks, overrideKey: "zcode" }),
+        buildImportedHooksConfig({ logger, hooks, overrideKey: "zcode" }),
         null,
         2,
       ),

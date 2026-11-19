@@ -339,7 +339,11 @@ class AntigravityHooks extends ToolHooks {
     });
     const overrideKey = (this.constructor as typeof AntigravityHooks).getOverrideKey();
     return this.toRulesyncHooksDefault({
-      fileContent: JSON.stringify(buildImportedHooksConfig({ hooks, overrideKey }), null, 2),
+      fileContent: JSON.stringify(
+        buildImportedHooksConfig({ logger, hooks, overrideKey }),
+        null,
+        2,
+      ),
     });
   }
 }

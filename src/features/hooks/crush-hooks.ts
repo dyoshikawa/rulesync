@@ -366,11 +366,11 @@ export class CrushHooks extends ToolHooks {
     });
   }
 
-  toRulesyncHooks(): RulesyncHooks {
+  toRulesyncHooks({ logger }: { logger?: Logger } = {}): RulesyncHooks {
     const hooks = crushHooksToCanonical(this.json[CRUSH_HOOKS_KEY]);
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify(
-        buildImportedHooksConfig({ hooks, overrideKey: "crush" }),
+        buildImportedHooksConfig({ logger, hooks, overrideKey: "crush" }),
         null,
         2,
       ),

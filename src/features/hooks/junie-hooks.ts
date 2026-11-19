@@ -116,7 +116,7 @@ export class JunieHooks extends ToolHooks {
     });
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify(
-        buildImportedHooksConfig({ hooks, overrideKey: "junie" }),
+        buildImportedHooksConfig({ logger, hooks, overrideKey: "junie" }),
         null,
         2,
       ),
