@@ -15,6 +15,7 @@ import {
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { lookupOwn } from "../../utils/own-lookup.js";
+import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isRecord } from "../../utils/type-guards.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import {
@@ -37,7 +38,7 @@ type DeepagentsHandler = {
   command: string;
   timeout?: number;
   statusMessage?: string;
-  onError?: string;
+  onError?: "continue" | "deny";
 };
 
 /**
@@ -180,10 +181,28 @@ function deepagentsToCanonicalHooks(
         }
         if (typeof handler.timeout === "number") def.timeout = handler.timeout;
         if (typeof handler.statusMessage === "string") def.statusMessage = handler.statusMessage;
+        // An unknown `onError` keyword is dropped here rather than in the shared
+        // helper, so the warning can say what dropping it means: the imported
+        // hook carries no `failClosed` and fails open once regenerated.
+        let keywordSource: Record<string, unknown> = handler;
+        if (
+          canonicalEvent === "preToolUse" &&
+          handler.onError !== undefined &&
+          handler.onError !== "deny" &&
+          handler.onError !== "continue"
+        ) {
+          warn(
+            `Dropping "onError" from an imported "command" hook on "${canonicalEvent}": ` +
+              `${quoteValueForWarning(handler.onError)} is not "deny" or "continue", so the hook ` +
+              `is imported without "failClosed" and fails open on the next generate.`,
+          );
+          const { onError: _dropped, ...rest } = handler;
+          keywordSource = rest;
+        }
         Object.assign(
           def,
           importKeywordFields({
-            h: handler,
+            h: keywordSource,
             hookType: "command",
             eventName: canonicalEvent,
             fields: DEEPAGENTS_KEYWORD_FIELDS,

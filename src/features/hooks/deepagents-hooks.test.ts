@@ -469,6 +469,28 @@ describe("DeepagentsHooks", () => {
         { type: "command", command: "echo lenient", failClosed: false },
         { type: "command", command: "echo typo" },
       ]);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('is imported without "failClosed" and fails open'),
+      );
+    });
+
+    it("should drop onError with a warning on events other than PreToolUse (#3886)", () => {
+      const hooks = new DeepagentsHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".deepagents",
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          hooks: {
+            PostToolUse: [{ hooks: [{ type: "command", command: "echo after", onError: "deny" }] }],
+          },
+        }),
+      });
+      const logger = createMockLogger();
+      const warnSpy = vi.spyOn(logger, "warn");
+
+      const canonical = hooks.toRulesyncHooks({ logger }).getJson();
+
+      expect(canonical.hooks.postToolUse).toEqual([{ type: "command", command: "echo after" }]);
       expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Dropping "onError"'));
     });
 
