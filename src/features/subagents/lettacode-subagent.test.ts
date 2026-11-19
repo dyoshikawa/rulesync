@@ -166,6 +166,7 @@ describe("LettacodeSubagent", () => {
         logger,
       });
 
+      expect(logger.warn).toHaveBeenCalledTimes(1);
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("reserved by Letta Code"));
     },
   );
