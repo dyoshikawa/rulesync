@@ -95,7 +95,10 @@ function splitUrlPattern(withoutScheme: string): UrlPatternParts {
  * to its original reading, so this only ever adds overlaps. The allow is also
  * compared without its userinfo, query and fragment
  * (`https://user@example.com/x?y=1#z` as `example.com/x`), which name no other
- * host or path, again in addition to its original reading. A pattern holding
+ * host or path, again in addition to its original reading. Only a `?` or `#`
+ * in the path counts as a query or fragment start there, so a `?` glob in the
+ * host is left alone (one in the path is read as a query start for this extra
+ * reading, which can only add overlaps). A pattern holding
  * whitespace names no URL. Callers pass the restriction as `left` and the
  * allow as `right`.
  */
@@ -146,14 +149,16 @@ function withAnyPath(withoutScheme: string): string {
  * A scheme-less allow pattern as written, plus (when they differ) the same
  * pattern without the userinfo before its host and the query and fragment
  * after its path, so `user:pass@example.com/x?y=1` is also read as
- * `example.com/x`. The original reading stays first, so a caller that ORs the
- * readings only ever gains overlaps.
+ * `example.com/x`. A `?` is a single-character glob in Rulesync patterns, so
+ * only a `?` or `#` in the path (after the first `/`) is read as a query or
+ * fragment start; the host keeps it (`git?ub.com` is not cut to `git`). The
+ * original reading stays first, so a caller that ORs the readings only ever
+ * gains overlaps.
  */
 function allowReadings(withoutScheme: string): string[] {
-  const withoutQuery = withoutScheme.replace(/[?#].*$/s, "");
-  const slash = withoutQuery.indexOf("/");
-  const hostPort = slash === -1 ? withoutQuery : withoutQuery.slice(0, slash);
-  const path = slash === -1 ? "" : withoutQuery.slice(slash);
+  const slash = withoutScheme.indexOf("/");
+  const hostPort = slash === -1 ? withoutScheme : withoutScheme.slice(0, slash);
+  const path = slash === -1 ? "" : withoutScheme.slice(slash).replace(/[?#].*$/s, "");
   const stripped = `${hostPort.slice(hostPort.lastIndexOf("@") + 1)}${path}`;
   return stripped === withoutScheme || stripped === ""
     ? [withoutScheme]

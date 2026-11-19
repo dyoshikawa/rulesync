@@ -213,7 +213,8 @@ describe("urlPatternsOverlap", () => {
     ["example.com", ["https://user", "pass@example.com:8443/x"].join(":")],
     ["example.com/x", "https://example.com/x?y=1"],
     ["example.com/x", "example.com/x#top"],
-    ["example.com", "example.com?y=1"],
+    // A `?` in the path is read as a query start for this extra reading.
+    ["example.com/fil", "example.com/fil?.txt"],
     ["*.pdf", "https://example.com/doc.pdf?dl=1"],
     ["example.com/private/*", "https://a@b@example.com/private/x?y=1#z"],
   ])("%s overlaps %s", (left, right) => {
@@ -237,6 +238,9 @@ describe("urlPatternsOverlap", () => {
     // Stripping an allow's userinfo or query keeps its host and path.
     ["example.com", "https://user@good.com/x"],
     ["example.com/a/*", "https://user@example.com/b/x?y=/a/z"],
+    // A `?` in the host is a glob, not a query start.
+    ["git", "git?ub.com"],
+    ["example.com", "example.com?y=1"],
   ])("%s does not overlap %s", (left, right) => {
     expect(urlPatternsOverlap(left, right)).toBe(false);
   });
