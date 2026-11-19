@@ -801,6 +801,29 @@ describe("VibePermissions", () => {
     },
   );
 
+  it("should keep a hand-written web_fetch filter when the webfetch category is not configured", async () => {
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      ['disabled_tools = ["web_fetch"]', "", "[tools.web_fetch]", 'permission = "never"', ""].join(
+        "\n",
+      ),
+    );
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({ permission: { bash: { "*": "allow" } } }),
+      }),
+    });
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+    expect(parsed.disabled_tools).toEqual(["web_fetch"]);
+    expect(parsed.tools.web_fetch.permission).toBe("never");
+  });
+
   it("should still import a Vibe 2.x [tools.web_fetch] table", async () => {
     await ensureDir(join(testDir, ".vibe"));
     await writeFileContent(

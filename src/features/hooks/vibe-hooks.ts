@@ -61,6 +61,9 @@ const VIBE_STRICT_EVENTS: ReadonlySet<string> = new Set([
   "post_llm",
 ]);
 
+/** The canonical matcher for a `pre_agent` hook that runs for every agent. */
+const VIBE_ANY_AGENT_MATCHER = "*";
+
 /** The Vibe event canonical `beforeSubmitPrompt` becomes. */
 const VIBE_PRE_AGENT_EVENT = "pre_agent";
 
@@ -173,9 +176,13 @@ function toVibeEntryMatch({
   if (vibeEvent === VIBE_PRE_AGENT_EVENT) {
     // `pre_agent` runs before every agent's turn, subagents included, while
     // canonical `beforeSubmitPrompt` is about the user's prompt to the main
-    // agent. An explicit agent matcher is kept so an imported hook scoped to
-    // another agent round-trips.
-    return toVibeOptionalMatch(matcher) ?? VIBE_MAIN_AGENT_MATCH;
+    // agent, so a hook without a matcher is scoped to `main`. An explicit
+    // matcher is kept so an imported hook round-trips: `*` leaves `match` out
+    // (every agent), and any other value names the agent.
+    if (typeof matcher !== "string" || matcher === "") {
+      return VIBE_MAIN_AGENT_MATCH;
+    }
+    return toVibeOptionalMatch(matcher);
   }
   // `pre_llm` / `post_llm` match the agent, `session_start` the source,
   // `session_end` the reason and `notification` the notification type.
@@ -210,8 +217,13 @@ function fromVibeEntryMatch({
       : { canonicalEvent: "subagentStop", matcher: optionalMatch };
   }
   if (vibeEvent === VIBE_PRE_AGENT_EVENT) {
-    // `main` (or no match) is the default `beforeSubmitPrompt` writes; any
-    // other agent is kept as the matcher.
+    // `main` is the default `beforeSubmitPrompt` writes. No match (or `*`)
+    // gates every agent, subagents included, so it is kept as `*`: dropping it
+    // would regenerate as `main` and leave subagent turns ungated. Any other
+    // agent is kept as the matcher.
+    if (optionalMatch === undefined) {
+      return { canonicalEvent, matcher: VIBE_ANY_AGENT_MATCHER };
+    }
     return { canonicalEvent, matcher: isMainAgent ? undefined : optionalMatch };
   }
   // Not a tool name, so the `Bash` widening is not reversed here.
@@ -381,33 +393,59 @@ function vibeHooksToCanonical(parsed: unknown): HooksConfig["hooks"] {
 const VIBE_PATTERN_MATCH = /^re:|[*?[]/;
 
 /**
- * Move the imported `subagentStop` hooks into the `vibe` override when any of
- * them matches agents by a regex or glob rather than by a literal name. Such a
- * pattern can also select the main agent (a main session answers to its mode
- * name, e.g. `accept-edits`), and other tools would read it as their own
- * matcher syntax, so it is kept Vibe-only. The override replaces the shared
+ * The canonical events whose imported hooks are kept Vibe-only once any of
+ * them carries a matcher, with the reason for the warning. Their matcher
+ * selects Vibe agents, which other tools either drop (Claude Code, with a
+ * warning) or read as their own matcher syntax, so a hook scoped to one agent
+ * — or, for `pre_agent`, to every agent including subagents — would fire
+ * everywhere there. A `subagentStop` hook needs a matcher anyway, so only a
+ * pattern (which may also select the main agent) moves it.
+ */
+const VIBE_ONLY_AGENT_SCOPED_EVENTS: ReadonlyArray<{
+  event: string;
+  vibeEvent: string;
+  isVibeOnly: (matcher: string) => boolean;
+}> = [
+  {
+    event: "subagentStop",
+    vibeEvent: "post_agent",
+    isVibeOnly: (matcher) => VIBE_PATTERN_MATCH.test(matcher),
+  },
+  { event: "beforeSubmitPrompt", vibeEvent: "pre_agent", isVibeOnly: () => true },
+  { event: "preModelInvocation", vibeEvent: "pre_llm", isVibeOnly: () => true },
+  { event: "postModelInvocation", vibeEvent: "post_llm", isVibeOnly: () => true },
+];
+
+/**
+ * Move the imported hooks of an agent-matched event into the `vibe` override
+ * when any of them is scoped in a way other tools cannot express (see
+ * {@link VIBE_ONLY_AGENT_SCOPED_EVENTS}). The override replaces the shared
  * list for its event, so the whole list moves to keep every entry on Vibe.
  */
-function takeVibeOnlySubagentStop({
+function takeVibeOnlyAgentScopedHooks({
   hooks,
   logger,
 }: {
   hooks: HooksConfig["hooks"];
   logger?: Logger;
-}): HookDefinition[] | undefined {
-  const defs = lookupOwn({ record: hooks, key: "subagentStop" });
-  if (
-    defs === undefined ||
-    !defs.some((def) => typeof def.matcher === "string" && VIBE_PATTERN_MATCH.test(def.matcher))
-  ) {
-    return undefined;
+}): HooksConfig["hooks"] {
+  const taken: HooksConfig["hooks"] = {};
+  for (const { event, vibeEvent, isVibeOnly } of VIBE_ONLY_AGENT_SCOPED_EVENTS) {
+    const defs = lookupOwn({ record: hooks, key: event });
+    if (
+      defs === undefined ||
+      !defs.some((def) => typeof def.matcher === "string" && isVibeOnly(def.matcher))
+    ) {
+      continue;
+    }
+    delete hooks[event];
+    taken[event] = defs;
+    logger?.warn(
+      `Vibe hooks: a ${vibeEvent} hook is scoped by agent in a way other tools cannot express, ` +
+        `so its ${event} hooks are imported into the vibe override instead of the shared hooks.`,
+    );
   }
-  delete hooks.subagentStop;
-  logger?.warn(
-    "Vibe hooks: a post_agent hook matches agents by a pattern, so its subagentStop hooks are " +
-      "imported into the vibe override instead of the shared hooks.",
-  );
-  return defs;
+  return taken;
 }
 
 function parseVibeToml(fileContent: string): Record<string, unknown> {
@@ -472,14 +510,11 @@ export class VibeHooks extends ToolHooks {
       parse: (fileContent) => parseVibeToml(fileContent),
     });
     const hooks = vibeHooksToCanonical(parsed);
-    const vibeOnlySubagentStop = takeVibeOnlySubagentStop({ hooks, logger: options.logger });
+    const vibeOnly = takeVibeOnlyAgentScopedHooks({ hooks, logger: options.logger });
     const config = buildImportedHooksConfig({ hooks, overrideKey: "vibe" });
-    if (vibeOnlySubagentStop !== undefined) {
+    if (Object.keys(vibeOnly).length > 0) {
       const override = (config.vibe ?? {}) as { hooks?: HooksConfig["hooks"] };
-      config.vibe = {
-        ...override,
-        hooks: { ...override.hooks, subagentStop: vibeOnlySubagentStop },
-      };
+      config.vibe = { ...override, hooks: { ...override.hooks, ...vibeOnly } };
     }
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify(config, null, 2),
