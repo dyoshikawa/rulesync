@@ -415,6 +415,24 @@ describe("JunieSubagent", () => {
       expect(subagent.getFrontmatter().description).toBe("Reviews pull requests for style.");
     });
 
+    it.each([
+      ["a YAML null", "---\nname: nullish\ndescription:\n---\n"],
+      ["a blank string", '---\nname: nullish\ndescription: "  "\n---\n'],
+    ])("should treat %s description as missing and derive it", async (_label, header) => {
+      await writeFileContent(
+        join(testDir, ".junie", "agents", "nullish.md"),
+        `${header}Derived from the body.\n`,
+      );
+
+      const subagent = await JunieSubagent.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "nullish.md",
+        validate: true,
+      });
+
+      expect(subagent.getFrontmatter().description).toBe("Derived from the body.");
+    });
+
     it("should truncate a derived description to 1,024 characters", async () => {
       const longParagraph = "a".repeat(1500);
       await writeFileContent(join(testDir, ".junie", "agents", "long.md"), longParagraph);

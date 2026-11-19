@@ -80,6 +80,12 @@ function deriveDescriptionFromBody(body: string): string | undefined {
   });
 }
 
+function isMissingDescription(value: unknown): boolean {
+  return (
+    value === undefined || value === null || (typeof value === "string" && value.trim() === "")
+  );
+}
+
 /**
  * Junie's fallback subagent name: the file name without its `.agent.md` or
  * `.md` extension.
@@ -244,11 +250,11 @@ export class JunieSubagent extends ToolSubagent {
     // `description` is optional upstream, so Junie's own body fallback is
     // applied before validation rather than failing a subagent Junie loads fine.
     let frontmatter = parsedFrontmatter;
-    if (isRecord(frontmatter) && frontmatter.description === undefined) {
+    // A YAML null (`description:`) or a blank string counts as missing too.
+    if (isRecord(frontmatter) && isMissingDescription(frontmatter.description)) {
+      const { description: _missing, ...rest } = frontmatter;
       const derived = deriveDescriptionFromBody(content);
-      if (derived !== undefined) {
-        frontmatter = { ...frontmatter, description: derived };
-      }
+      frontmatter = derived === undefined ? rest : { ...rest, description: derived };
     }
 
     const result = JunieSubagentFrontmatterSchema.safeParse(frontmatter);
