@@ -63,7 +63,8 @@ export type ToolHooksConverterConfig = {
       | "once"
       | "asyncRewake"
       | "continueOnBlock"
-      | "enabled";
+      | "enabled"
+      | "strictJsonOutput";
     readonly tool: string;
     /** Emit only on `command` hooks, for a field the tool documents there only. */
     readonly commandOnly?: boolean;
@@ -1053,7 +1054,7 @@ function isSupportedHookType({
   return converterConfig.supportedHookTypes?.has(type ?? "command") ?? true;
 }
 
-type KeywordPassthroughFieldSpec = NonNullable<
+export type KeywordPassthroughFieldSpec = NonNullable<
   ToolHooksConverterConfig["keywordPassthroughFields"]
 >[number];
 
@@ -1127,7 +1128,7 @@ function isKeywordFieldApplicable({
  * tool would not honour on this hook is warned about, like the other kinds;
  * a `false` there is dropped silently, since omitting it changes nothing.
  */
-function emitKeywordFields({
+export function emitKeywordFields({
   def,
   hookType,
   eventName,
@@ -1168,7 +1169,7 @@ function emitKeywordFields({
  * read; anything else is warned about and dropped, so a typo in a hand-written
  * tool file never lands in `.rulesync/hooks.*` as a boolean it did not mean.
  */
-function importKeywordFields({
+export function importKeywordFields({
   h,
   hookType,
   eventName,
@@ -1392,7 +1393,7 @@ function buildToolHooks({
 /**
  * A `warn` that says each distinct thing once per conversion.
  */
-function warnOnce(logger: Logger | undefined): (message: string) => void {
+export function warnOnce(logger: Logger | undefined): (message: string) => void {
   const seen = new Set<string>();
   return (message) => {
     if (seen.has(message)) {
