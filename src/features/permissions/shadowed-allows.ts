@@ -92,7 +92,10 @@ function splitUrlPattern(withoutScheme: string): UrlPatternParts {
  * (so an allowed `example.com` overlaps a restricted `*.pdf`), and an overlap
  * from any of them counts. A host ending in a DNS root dot (`example.com.`)
  * is also compared with one and with all trailing dots removed, in addition
- * to its original reading, so this only ever adds overlaps. A pattern holding
+ * to its original reading, so this only ever adds overlaps. The allow is also
+ * compared without its userinfo, query and fragment
+ * (`https://user@example.com/x?y=1#z` as `example.com/x`), which name no other
+ * host or path, again in addition to its original reading. A pattern holding
  * whitespace names no URL. Callers pass the restriction as `left` and the
  * allow as `right`.
  */
@@ -118,11 +121,12 @@ export function urlPatternsOverlap(left: string, right: string): boolean {
  */
 function wholeStringsOverlap(left: string, right: string): boolean {
   const normalizedLeft = normalizeUrlPattern(left);
-  const normalizedRight = normalizeUrlPattern(right);
   return [
     [left, right],
-    [normalizedLeft, normalizedRight],
-    ...(normalizedLeft.includes("/") ? [] : [[normalizedLeft, withAnyPath(normalizedRight)]]),
+    ...allowReadings(normalizeUrlPattern(right)).flatMap((normalizedRight) => [
+      [normalizedLeft, normalizedRight],
+      ...(normalizedLeft.includes("/") ? [] : [[normalizedLeft, withAnyPath(normalizedRight)]]),
+    ]),
   ].some(
     ([restriction = "", allow = ""]) =>
       createShadowingRestrictionsTest([{ pattern: restriction, fromAllToolsCategory: false }])(
@@ -138,9 +142,28 @@ function withAnyPath(withoutScheme: string): string {
     : `${withoutScheme}/*`;
 }
 
+/**
+ * A scheme-less allow pattern as written, plus (when they differ) the same
+ * pattern without the userinfo before its host and the query and fragment
+ * after its path, so `user:pass@example.com/x?y=1` is also read as
+ * `example.com/x`. The original reading stays first, so a caller that ORs the
+ * readings only ever gains overlaps.
+ */
+function allowReadings(withoutScheme: string): string[] {
+  const withoutQuery = withoutScheme.replace(/[?#].*$/s, "");
+  const slash = withoutQuery.indexOf("/");
+  const hostPort = slash === -1 ? withoutQuery : withoutQuery.slice(0, slash);
+  const path = slash === -1 ? "" : withoutQuery.slice(slash);
+  const stripped = `${hostPort.slice(hostPort.lastIndexOf("@") + 1)}${path}`;
+  return stripped === withoutScheme || stripped === ""
+    ? [withoutScheme]
+    : [withoutScheme, stripped];
+}
+
 function urlPartsOverlap(left: string, right: string): boolean {
-  const readings = (pattern: string): UrlPatternParts[] =>
+  const readings = (pattern: string, { asAllow = false } = {}): UrlPatternParts[] =>
     [...new Set([stripUrlSchemeKeepingPathCase(pattern), stripUrlSchemeLoosely(pattern)])]
+      .flatMap((withoutScheme) => (asAllow ? allowReadings(withoutScheme) : [withoutScheme]))
       .map(splitUrlPattern)
       .flatMap((parts) =>
         // Preserve the original reading so this can only add overlaps, never remove them.
@@ -152,7 +175,8 @@ function urlPartsOverlap(left: string, right: string): boolean {
             ]
           : [parts],
       );
-  return readings(left).some((a) => readings(right).some((b) => urlPartsPairOverlap(a, b)));
+  const allowParts = readings(right, { asAllow: true });
+  return readings(left).some((a) => allowParts.some((b) => urlPartsPairOverlap(a, b)));
 }
 
 function urlPartsPairOverlap(a: UrlPatternParts, b: UrlPatternParts): boolean {
