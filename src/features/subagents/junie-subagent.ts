@@ -12,6 +12,9 @@ import {
   stringifyFrontmatter,
   validateFrontmatterSchema,
 } from "../../utils/frontmatter.js";
+import { firstNonHeadingParagraph } from "../../utils/markdown-paragraph.js";
+import { truncateText } from "../../utils/truncate.js";
+import { isRecord } from "../../utils/type-guards.js";
 import { RulesyncSubagent, RulesyncSubagentFrontmatter } from "./rulesync-subagent.js";
 import {
   parseGeneratedSubagentFrontmatter,
@@ -31,7 +34,10 @@ import {
  */
 export const JunieSubagentFrontmatterSchema = z.looseObject({
   name: z.optional(z.string()),
-  description: z.string(),
+  // Optional upstream: when it is missing (or the file has no frontmatter),
+  // Junie uses the first non-heading paragraph of the body, truncated to
+  // 1,024 characters. Import applies the same fallback (see `fromFile`).
+  description: z.optional(z.string()),
   // Tool access controls.
   tools: z.optional(z.union([z.string(), z.array(z.string())])),
   disallowedTools: z.optional(z.union([z.string(), z.array(z.string())])),
@@ -53,6 +59,34 @@ export const JunieSubagentFrontmatterSchema = z.looseObject({
 });
 
 export type JunieSubagentFrontmatter = z.infer<typeof JunieSubagentFrontmatterSchema>;
+
+/** Junie truncates a body-derived subagent description to this many characters. */
+const JUNIE_DERIVED_DESCRIPTION_MAX_LENGTH = 1024;
+
+/**
+ * Junie's fallback when a subagent's frontmatter has no `description`: the
+ * first non-heading paragraph of the body, truncated to 1,024 characters.
+ * Returns `undefined` when the body has no such paragraph.
+ *
+ * @see https://junie.jetbrains.com/docs/junie-cli-subagents.html
+ */
+function deriveDescriptionFromBody(body: string): string | undefined {
+  const paragraph = firstNonHeadingParagraph(body);
+  if (paragraph === "") return undefined;
+  return truncateText({
+    text: paragraph,
+    maxLength: JUNIE_DERIVED_DESCRIPTION_MAX_LENGTH,
+    suffix: "",
+  });
+}
+
+/**
+ * Junie's fallback subagent name: the file name without its `.agent.md` or
+ * `.md` extension.
+ */
+function nameFromFileName(relativeFilePath: string): string {
+  return relativeFilePath.replace(/(\.agent)?\.md$/, "");
+}
 
 export type JunieSubagentParams = {
   frontmatter: JunieSubagentFrontmatter;
@@ -113,8 +147,8 @@ export class JunieSubagent extends ToolSubagent {
 
     const rulesyncFrontmatter: RulesyncSubagentFrontmatter = {
       targets: ["*"] as const,
-      name: name ?? this.getRelativeFilePath().replace(/\.md$/, ""),
-      description,
+      name: name ?? nameFromFileName(this.getRelativeFilePath()),
+      ...(description !== undefined && { description }),
       ...(Object.keys(junieSection).length > 0 && { junie: junieSection }),
     };
 
@@ -202,7 +236,20 @@ export class JunieSubagent extends ToolSubagent {
     const dirPath = relativeDirPath ?? this.getSettablePaths({ global }).relativeDirPath;
     const filePath = join(outputRoot, dirPath, relativeFilePath);
     const fileContent = await readFileContent(filePath);
-    const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
+    const { frontmatter: parsedFrontmatter, body: content } = parseFrontmatter(
+      fileContent,
+      filePath,
+    );
+
+    // `description` is optional upstream, so Junie's own body fallback is
+    // applied before validation rather than failing a subagent Junie loads fine.
+    let frontmatter = parsedFrontmatter;
+    if (isRecord(frontmatter) && frontmatter.description === undefined) {
+      const derived = deriveDescriptionFromBody(content);
+      if (derived !== undefined) {
+        frontmatter = { ...frontmatter, description: derived };
+      }
+    }
 
     const result = JunieSubagentFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {

@@ -32,11 +32,11 @@ describe("JunieSubagentFrontmatterSchema", () => {
     expect(result.name).toBeUndefined();
   });
 
-  it("should reject frontmatter missing description", () => {
+  it("should accept frontmatter missing description (optional upstream)", () => {
     const missingDescription = {
       name: "A test agent",
     };
-    expect(() => JunieSubagentFrontmatterSchema.parse(missingDescription)).toThrow();
+    expect(() => JunieSubagentFrontmatterSchema.parse(missingDescription)).not.toThrow();
   });
 
   it("should reject non-string name", () => {
@@ -399,22 +399,52 @@ describe("JunieSubagent", () => {
       expect(subagent.getOutputRoot()).toBe(testDir);
     });
 
-    it("should throw error for file with missing description", async () => {
-      const invalidFrontmatter = { name: "no description" };
-      const fileContent = stringifyFrontmatter("body", invalidFrontmatter);
+    it("should derive a missing description from the first non-heading paragraph", async () => {
+      const fileContent = stringifyFrontmatter(
+        "# Reviewer\n\nReviews pull requests\nfor style.\n\nMore text.",
+        { name: "no-description" },
+      );
+      await writeFileContent(join(testDir, ".junie", "agents", "no-description.md"), fileContent);
 
-      const agentsDir = join(testDir, ".junie", "agents");
-      const filePath = join(agentsDir, "invalid.md");
+      const subagent = await JunieSubagent.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "no-description.md",
+        validate: true,
+      });
 
-      await writeFileContent(filePath, fileContent);
+      expect(subagent.getFrontmatter().description).toBe("Reviews pull requests for style.");
+    });
 
-      await expect(
-        JunieSubagent.fromFile({
-          outputRoot: testDir,
-          relativeFilePath: "invalid.md",
-          validate: true,
-        }),
-      ).rejects.toThrow("Invalid frontmatter");
+    it("should truncate a derived description to 1,024 characters", async () => {
+      const longParagraph = "a".repeat(1500);
+      await writeFileContent(join(testDir, ".junie", "agents", "long.md"), longParagraph);
+
+      const subagent = await JunieSubagent.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "long.md",
+        validate: true,
+      });
+
+      expect(subagent.getFrontmatter().description).toBe("a".repeat(1024));
+    });
+
+    it("should import a file without frontmatter or paragraph and no description", async () => {
+      await writeFileContent(
+        join(testDir, ".junie", "agents", "bare.agent.md"),
+        "# Only a title\n",
+      );
+
+      const subagent = await JunieSubagent.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "bare.agent.md",
+        validate: true,
+      });
+
+      expect(subagent.getFrontmatter().description).toBeUndefined();
+      const rulesyncFrontmatter = subagent.toRulesyncSubagent().getFrontmatter();
+      // Junie strips `.agent.md` as well as `.md` when deriving the name.
+      expect(rulesyncFrontmatter.name).toBe("bare");
+      expect(rulesyncFrontmatter.description).toBeUndefined();
     });
 
     it("should trim body content", async () => {

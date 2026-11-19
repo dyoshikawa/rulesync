@@ -6,6 +6,7 @@ import { AGENTSMD_SKILLS_DIR_PATH } from "../../constants/agentsmd-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { JUNIE_SKILLS_DIR_PATH } from "../../constants/junie-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
+import { firstNonHeadingParagraph } from "../../utils/markdown-paragraph.js";
 import { isRecord } from "../../utils/type-guards.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import {
@@ -34,9 +35,6 @@ export type JunieSkillParams = {
   global?: boolean;
 };
 
-/** An ATX markdown heading line (`#` … `######`). */
-const HEADING_LINE = /^#{1,6}(\s|$)/;
-
 /**
  * Junie's own fallback for a `SKILL.md` with no `description`: "If
  * `description` is not provided in the frontmatter, Junie CLI extracts the
@@ -63,20 +61,7 @@ const HEADING_LINE = /^#{1,6}(\s|$)/;
  * @see https://junie.jetbrains.com/docs/agent-skills.html
  */
 function deriveDescriptionFromBody(body: string): string {
-  const paragraph: string[] = [];
-  for (const rawLine of body.split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (paragraph.length === 0) {
-      // Still looking for the paragraph: blank lines and headings are skipped.
-      if (line === "" || HEADING_LINE.test(line)) continue;
-      paragraph.push(line);
-      continue;
-    }
-    // Inside the paragraph: a blank line or a heading ends it.
-    if (line === "" || HEADING_LINE.test(line)) break;
-    paragraph.push(line);
-  }
-  return paragraph.join(" ").trim();
+  return firstNonHeadingParagraph(body);
 }
 
 /**

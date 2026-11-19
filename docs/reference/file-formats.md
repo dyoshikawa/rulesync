@@ -387,6 +387,7 @@ Preservation keeps third-party handlers in their positions, because Codex CLI ke
 - `rewakeMessage` / `rewakeSummary` (optional, `command` hooks): strings used with `asyncRewake`. `rewakeMessage` overrides the prefix of the system message injected when the hook exits with code 2, and `rewakeSummary` overrides the one-line summary. Qoder collapses whitespace and trims `rewakeSummary` before applying its 300-character cap. Generate warns only when that normalized length exceeds the cap; the original value is still written unchanged. Qoder reads both fields only on `asyncRewake` hooks, so generate also warns when either is set without `asyncRewake: true` (the value is still written). Forwarded to Qoder command hooks.
 - `once` (optional): boolean. Run the hook once per session, then remove it. Forwarded to Claude Code (honored in skill frontmatter; accepted but ignored in settings files) and Qwen Code http hooks.
 - `continueOnBlock` (optional): boolean. Feed a blocking hook's rejection reason back to the model and continue the turn instead of ending it. Forwarded to Claude Code.
+- `strictJsonOutput` (optional): boolean, default `false`. When `true`, the hook's non-empty stdout must be a JSON object; any other output counts as a hook failure (combined with `failClosed`, that blocks synchronous `preToolUse` and `stop` hooks). Forwarded to JetBrains Junie (`~/.junie/config.json`), which is the only tool that documents it.
 - `commandWindows` (optional): a Windows-only override for `command`, so one hook set can be cross-platform. Forwarded to Codex CLI command hooks (`.codex/hooks.json`), which is the only tool that accepts it.
 - `additionalContextLimit` (optional): a non-negative integer. The token threshold above which the tool writes the hook's additional context to a file and passes that path instead of the text itself (upstream default 2500). Forwarded to Codex CLI command hooks (`.codex/hooks.json`), which is the only tool that accepts it.
 - `statusMessage` (optional): the progress text shown while the hook runs. Forwarded to Claude Code, Continue, Deep Agents, Qoder and ZCode (every handler type they emit), to Qwen Code (command and http hooks), and to Codex CLI and Snowflake Cortex Code command hooks.
@@ -801,6 +802,7 @@ junie: # for JetBrains Junie CLI specific parameters (generated to .junie/agents
   maxTurns: 20 # max agentic turns
   skills: ["kotlin", "writerside"] # Agent Skills to utilize
   allowPromptArgument: true # whether the subagent accepts a prompt argument
+  # On import, a Junie agent without `description` (optional upstream, frontmatter included) takes Junie's own fallback: the first non-heading body paragraph, truncated to 1,024 characters. Without `name`, the file name minus `.agent.md` / `.md` is used.
 takt: # takt specific parameters (optional; emitted under .takt/facets/personas/)
   name: "renamed-stem" # (optional) override the emitted filename stem (no path separators or "..")
 roo: # for Roo Code specific parameters (optional; aggregated into the root .roomodes file)
