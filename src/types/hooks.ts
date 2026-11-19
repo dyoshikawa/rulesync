@@ -223,6 +223,12 @@ export const HookDefinitionSchema = z.looseObject({
   // continue the turn instead of ending it. Added for `PostToolUse` in 2.1.139.
   // https://code.claude.com/docs/en/hooks
   continueOnBlock: z.optional(z.boolean()),
+  // JetBrains Junie: when true, a hook's non-empty stdout must be a JSON
+  // object; anything else counts as a hook failure (which `blockOnError` /
+  // `failClosed` then turns into a block on synchronous PreToolUse and Stop
+  // hooks). Defaults to false upstream.
+  // https://junie.jetbrains.com/docs/junie-cli-hooks.html
+  strictJsonOutput: z.optional(z.boolean()),
 });
 
 export type HookDefinition = z.infer<typeof HookDefinitionSchema>;

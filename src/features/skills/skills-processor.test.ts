@@ -3075,6 +3075,7 @@ Content that would fail parsing`;
           "zcode",
           "zcode-plugin",
           "dsh",
+          "openclaw",
         ]),
       );
     });
@@ -3149,6 +3150,7 @@ Content that would fail parsing`;
           "zcode",
           "zcode-plugin",
           "dsh",
+          "openclaw",
         ]),
       );
     });
@@ -3222,6 +3224,7 @@ Content that would fail parsing`;
           "zcode",
           "zcode-plugin",
           "dsh",
+          "openclaw",
         ]),
       );
     });
@@ -3299,6 +3302,7 @@ Content that would fail parsing`;
         "zcode",
         "zed",
         "dsh",
+        "openclaw",
       ]);
     });
 
