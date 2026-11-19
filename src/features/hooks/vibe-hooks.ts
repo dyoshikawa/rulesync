@@ -219,7 +219,7 @@ function fromVibeEntryMatch({
   if (vibeEvent === VIBE_PRE_AGENT_EVENT) {
     // `main` is the default `beforeSubmitPrompt` writes. No match (or `*`)
     // gates every agent, subagents included, so it is kept as `*`: dropping it
-    // would regenerate as `main` and leave subagent turns ungated. Any other
+    // would regenerate as `main` and stop gating subagent turns. Any other
     // agent is kept as the matcher.
     if (optionalMatch === undefined) {
       return { canonicalEvent, matcher: VIBE_ANY_AGENT_MATCHER };

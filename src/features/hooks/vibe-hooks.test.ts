@@ -599,7 +599,7 @@ describe("VibeHooks", () => {
         const parsed = smolToml.parse(regenerated.getFileContent()) as {
           hooks: Array<Record<string, unknown>>;
         };
-        // Narrowing to `match = "main"` would leave subagent turns ungated.
+        // Narrowing to `match = "main"` would stop gating subagent turns.
         expect(parsed.hooks).toEqual([
           { name: "gate", type: "pre_agent", command: "echo gate", strict: true },
         ]);
