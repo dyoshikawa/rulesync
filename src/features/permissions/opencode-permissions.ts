@@ -39,7 +39,7 @@ import {
   collapseRulesToSingleAction,
   hasPatternSpecificRules,
   isStricterAction,
-  PERMISSION_ACTION_PRIORITY,
+  sortRulesByActionPriority,
 } from "./single-action-collapse.js";
 import {
   ToolPermissions,
@@ -302,11 +302,7 @@ function mergePatternRules(
       merged[pattern] = action;
     }
   }
-  return Object.fromEntries(
-    Object.entries(merged).toSorted(
-      ([, a], [, b]) => PERMISSION_ACTION_PRIORITY[a] - PERMISSION_ACTION_PRIORITY[b],
-    ),
-  );
+  return sortRulesByActionPriority(merged);
 }
 
 function toCanonicalPermissionKey(opencodeKey: string): string {
@@ -381,10 +377,12 @@ function fromOpencodeV2PermissionRules(
 function toOpencodeSharedPermission({
   permission,
   toolTarget,
+  allToolsOverridden,
   logger,
 }: {
   permission: PermissionsConfig["permission"];
   toolTarget: string;
+  allToolsOverridden: boolean;
   logger?: Logger;
 }): Record<string, Record<string, PermissionAction>> {
   const sharedPermission: Record<string, Record<string, PermissionAction>> = {};
@@ -426,7 +424,12 @@ function toOpencodeSharedPermission({
       sharedPermission[key] = value;
     }
   }
-  return restateAllToolsRestrictionsLast(sharedPermission);
+  return restateAllToolsRestrictionsLast({
+    sharedPermission,
+    toolTarget,
+    allToolsOverridden,
+    logger,
+  });
 }
 
 const OpencodePermissionsConfigSchema = z.looseObject({
@@ -595,6 +598,7 @@ export class OpencodePermissions extends ToolPermissions {
     const sharedPermission = toOpencodeSharedPermission({
       permission: rulesyncJson.permission ?? {},
       toolTarget: this.layout.toolTarget,
+      allToolsOverridden: Object.hasOwn(overridePermission, "*"),
       logger,
     });
 
