@@ -233,7 +233,7 @@ describe("VibeHooks", () => {
         createMockAiFileParams({
           fileContent: JSON.stringify({
             hooks: {
-              sessionStart: [{ command: "echo start" }],
+              permissionRequest: [{ command: "echo approve" }],
               preToolUse: [
                 { type: "command", command: "echo keep" },
                 { type: "prompt", command: "summarize" },
@@ -278,6 +278,82 @@ describe("VibeHooks", () => {
         hooks: Array<Record<string, unknown>>;
       };
       expect(parsed.hooks[0]?.strict).toBe(true);
+    });
+
+    it("should map the v3.1 hook types and pass their matchers through", async () => {
+      const rulesyncHooks = new RulesyncHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {
+              beforeSubmitPrompt: [{ command: "echo prompt", strict: true }],
+              sessionStart: [{ command: "echo start", matcher: "resume" }],
+              sessionEnd: [{ command: "echo end" }],
+              notification: [{ command: "echo notify", matcher: "approval_requested" }],
+              preModelInvocation: [{ command: "echo pre-llm", strict: true }],
+              postModelInvocation: [{ command: "echo post-llm", matcher: "reviewer" }],
+            },
+          }),
+        }),
+      );
+
+      const vibeHooks = await VibeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: true,
+      });
+
+      const parsed = smolToml.parse(vibeHooks.getFileContent()) as {
+        hooks: Array<Record<string, unknown>>;
+      };
+      expect(parsed.hooks).toEqual([
+        // `pre_agent` also runs before subagent turns, so the prompt hook is
+        // scoped to the main agent.
+        {
+          name: "pre_agent-0",
+          type: "pre_agent",
+          match: "main",
+          command: "echo prompt",
+          strict: true,
+        },
+        { name: "session_start-0", type: "session_start", match: "resume", command: "echo start" },
+        { name: "session_end-0", type: "session_end", command: "echo end" },
+        {
+          name: "notification-0",
+          type: "notification",
+          match: "approval_requested",
+          command: "echo notify",
+        },
+        { name: "pre_llm-0", type: "pre_llm", command: "echo pre-llm", strict: true },
+        { name: "post_llm-0", type: "post_llm", match: "reviewer", command: "echo post-llm" },
+      ]);
+    });
+
+    it("should drop strict on hook types Vibe rejects it for", async () => {
+      const rulesyncHooks = new RulesyncHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {
+              stop: [{ command: "echo stop", strict: true }],
+              sessionStart: [{ command: "echo start", strict: true }],
+              notification: [{ command: "echo notify", strict: false }],
+            },
+          }),
+        }),
+      );
+
+      const vibeHooks = await VibeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: true,
+      });
+
+      const parsed = smolToml.parse(vibeHooks.getFileContent()) as {
+        hooks: Array<Record<string, unknown>>;
+      };
+      expect(parsed.hooks).toHaveLength(3);
+      for (const hook of parsed.hooks) {
+        expect(hook).not.toHaveProperty("strict");
+      }
     });
 
     it("should apply tool-specific vibe overrides", async () => {
@@ -403,6 +479,56 @@ describe("VibeHooks", () => {
         command: "echo done",
       });
       expect(parsed.hooks.stop?.[0]?.matcher).toBeUndefined();
+    });
+
+    it("should import the v3.1 hook types with their matchers", () => {
+      const fileContent = smolToml.stringify({
+        hooks: [
+          {
+            name: "prompt",
+            type: "pre_agent",
+            match: "main",
+            command: "echo prompt",
+            strict: true,
+          },
+          { name: "review-prompt", type: "pre_agent", match: "reviewer", command: "echo review" },
+          { name: "start", type: "session_start", match: "startup", command: "echo start" },
+          { name: "end", type: "session_end", command: "echo end" },
+          { name: "notify", type: "notification", match: "*", command: "echo notify" },
+          { name: "pre", type: "pre_llm", command: "echo pre-llm" },
+          { name: "post", type: "post_llm", match: "bash", command: "echo post-llm" },
+        ],
+      });
+
+      const vibeHooks = new VibeHooks(
+        createMockAiFileParams({
+          relativeDirPath: ".vibe",
+          relativeFilePath: "hooks.toml",
+          fileContent,
+        }),
+      );
+
+      const parsed = vibeHooks.toRulesyncHooks().getJson();
+      expect(parsed.hooks.beforeSubmitPrompt).toEqual([
+        { type: "command", command: "echo prompt", name: "prompt", strict: true },
+        { type: "command", command: "echo review", name: "review-prompt", matcher: "reviewer" },
+      ]);
+      expect(parsed.hooks.sessionStart).toEqual([
+        { type: "command", command: "echo start", name: "start", matcher: "startup" },
+      ]);
+      expect(parsed.hooks.sessionEnd).toEqual([
+        { type: "command", command: "echo end", name: "end" },
+      ]);
+      expect(parsed.hooks.notification).toEqual([
+        { type: "command", command: "echo notify", name: "notify" },
+      ]);
+      expect(parsed.hooks.preModelInvocation).toEqual([
+        { type: "command", command: "echo pre-llm", name: "pre" },
+      ]);
+      // An agent match is not a tool name, so `bash` is not lifted to `Bash`.
+      expect(parsed.hooks.postModelInvocation).toEqual([
+        { type: "command", command: "echo post-llm", name: "post", matcher: "bash" },
+      ]);
     });
 
     it("should import post_agent by its agent match: main or none as stop, others as subagentStop", () => {

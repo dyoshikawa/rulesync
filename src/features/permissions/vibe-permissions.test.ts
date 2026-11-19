@@ -750,6 +750,69 @@ describe("VibePermissions", () => {
     ).toBe(true);
   });
 
+  it.each([
+    ["webfetch", "web_fetch", "connector_web_search_open_url"],
+    ["websearch", "web_search", "connector_web_search_web_search"],
+  ])(
+    "should skip the %s category with a warning, since Vibe 3.x retired %s",
+    async (category, retired, connector) => {
+      await ensureDir(join(testDir, ".vibe"));
+      await writeFileContent(
+        join(testDir, ".vibe", "config.toml"),
+        [
+          `disabled_tools = ["${retired}"]`,
+          "",
+          `[tools.${retired}]`,
+          'permission = "never"',
+          'denylist = ["evil.com"]',
+          "",
+        ].join("\n"),
+      );
+      const logger = createMockLogger();
+      const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          outputRoot: testDir,
+          relativeDirPath: ".rulesync",
+          relativeFilePath: "permissions.json",
+          fileContent: JSON.stringify({
+            permission: { [category]: { "*": "deny", "evil.com": "deny" } },
+          }),
+        }),
+        logger,
+      });
+      const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+      // The retired table and filter entry restrict nothing on Vibe 3.x, so
+      // they are removed rather than rewritten, and the deny is not silently
+      // dropped: the warning names the connector tool to restrict instead.
+      expect(parsed.tools).toBeUndefined();
+      expect(parsed.disabled_tools).toBeUndefined();
+      const messages = logger.warn.mock.calls.map(([message]) => String(message));
+      expect(
+        messages.some(
+          (message) =>
+            message.includes(`retired its '${retired}' tool`) &&
+            message.includes(`'${connector}' rule`) &&
+            message.includes(`skipping 2 '${category}' rule(s)`),
+        ),
+      ).toBe(true);
+      expect(messages.some((message) => message.includes(`[tools.${retired}]`))).toBe(true);
+    },
+  );
+
+  it("should still import a Vibe 2.x [tools.web_fetch] table", async () => {
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      ["[tools.web_fetch]", 'permission = "never"', ""].join("\n"),
+    );
+    const vibePermissions = await VibePermissions.fromFile({ outputRoot: testDir });
+    const imported = JSON.parse(vibePermissions.toRulesyncPermissions().getFileContent());
+
+    expect(imported.permission.webfetch).toEqual({ "*": "deny" });
+  });
+
   it("should leave a [tools.grep] table alone when the grep category is not configured", async () => {
     await ensureDir(join(testDir, ".vibe"));
     await writeFileContent(
@@ -2708,7 +2771,7 @@ describe("VibePermissions", () => {
       outputRoot: testDir,
       relativeDirPath: ".rulesync",
       relativeFilePath: "permissions.json",
-      fileContent: JSON.stringify({ permission: { websearch: { "*": "deny" } } }),
+      fileContent: JSON.stringify({ permission: { edit: { "*": "deny" } } }),
     });
 
     const vibePermissions = await VibePermissions.fromRulesyncPermissions({
@@ -2717,11 +2780,11 @@ describe("VibePermissions", () => {
     });
     const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
 
-    expect(parsed.tools.web_search.permission).toBe("never");
-    expect(parsed.disabled_tools).toEqual(["web_search"]);
+    expect(parsed.tools.edit.permission).toBe("never");
+    expect(parsed.disabled_tools).toEqual(["edit"]);
 
     const imported = JSON.parse(vibePermissions.toRulesyncPermissions().getFileContent());
-    expect(imported.permission.websearch["*"]).toBe("deny");
+    expect(imported.permission.edit["*"]).toBe("deny");
   });
 
   it("should let the vibe override own the exclusive enabled_tools list", async () => {
@@ -3298,7 +3361,7 @@ describe("VibePermissions", () => {
     await ensureDir(join(testDir, ".vibe"));
     await writeFileContent(
       join(testDir, ".vibe", "config.toml"),
-      ['disabled_tools = ["re:^web_.*$"]', ""].join("\n"),
+      ['disabled_tools = ["re:^read_.*$"]', ""].join("\n"),
     );
 
     await VibePermissions.fromRulesyncPermissions({
@@ -3308,7 +3371,7 @@ describe("VibePermissions", () => {
         outputRoot: testDir,
         relativeDirPath: ".rulesync",
         relativeFilePath: "permissions.json",
-        fileContent: JSON.stringify({ permission: { webfetch: { "*": "allow" } } }),
+        fileContent: JSON.stringify({ permission: { read: { "*": "allow" } } }),
       }),
     });
 
@@ -3316,7 +3379,7 @@ describe("VibePermissions", () => {
       .map((call) => String(call[0]))
       .filter((message) => message.includes("which rulesync does not evaluate"));
     expect(reported).toHaveLength(1);
-    expect(reported[0]).toContain("re:^web_.*$");
+    expect(reported[0]).toContain("re:^read_.*$");
   });
 
   it.each([

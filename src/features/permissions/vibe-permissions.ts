@@ -20,7 +20,6 @@ import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   honorAllToolsRestrictions,
   restatesAsCategoryRule,
-  urlPatternsOverlap,
   withholdAllowsShadowedByAsks,
 } from "./shadowed-allows.js";
 import {
@@ -61,28 +60,31 @@ const moduleLogger: Logger = fallbackLogger;
 
 /**
  * Vibe's builtin tool names are the snake_case of each tool class
- * (`BaseTool.get_name()`): `Edit` → `edit`, `WebFetch` → `web_fetch`,
- * `WebSearch` → `web_search`, alongside `read_file`, `write_file` and `bash`.
+ * (`BaseTool.get_name()`): `Edit` → `edit`, alongside `read_file`,
+ * `write_file` and `bash`.
  * `edit` and `write_file` are distinct tools — `write_file` has been
  * create-only since v2.14.0 — so the canonical `edit` and `write` categories
  * must not collapse onto one name.
  *
- * `grep` and `agent` have no table here: since v3.0.0 every session runs on
- * the Unified Harness, which reads `[tools.*]` only for its Rust builtins
- * (`RUST_BUILTIN_TOOL_SOURCES`). There is no grep tool any more — searching
- * goes through the shell — and subagents are spawned by the built-in
- * `agents.spawn` tool, which the `enable_subagents` switch governs instead of
- * a `[tools.task]` table. See {@link VIBE_RETIRED_TOOL_TABLES}.
+ * `grep`, `agent`, `webfetch` and `websearch` have no table here: since
+ * v3.0.0 every session runs on the Unified Harness, which reads `[tools.*]`
+ * only for its Rust builtins (`RUST_BUILTIN_TOOL_SOURCES`). There is no grep
+ * tool any more — searching goes through the shell — and subagents are
+ * spawned by the built-in `agents.spawn` tool, which the `enable_subagents`
+ * switch governs instead of a `[tools.task]` table. `web_fetch` and
+ * `web_search` are in Vibe's `RETIRED_TOOL_NAMES`: pages are fetched and the
+ * web searched by the `connector_web_search_open_url` /
+ * `connector_web_search_web_search` connector tools. See
+ * {@link VIBE_RETIRED_TOOL_TABLES}.
  * @see https://github.com/mistralai/mistral-vibe/blob/v3.0.2/vibe/app_server/_unified_permissions.py
  * @see https://github.com/mistralai/mistral-vibe/blob/v3.0.2/vibe/app_server/_ignored_tool_settings.py
+ * @see https://github.com/mistralai/mistral-vibe/blob/v3.1.3/vibe/core/config/_setting_keys.py
  */
 const CANONICAL_TO_VIBE_TOOL_NAMES: Record<string, string> = {
   bash: "bash",
   read: "read_file",
   edit: "edit",
   write: "write_file",
-  webfetch: "web_fetch",
-  websearch: "web_search",
 };
 
 /**
@@ -91,8 +93,11 @@ const CANONICAL_TO_VIBE_TOOL_NAMES: Record<string, string> = {
  * effect"), `[tools.task]` for the subagent tool v3.0.0 renamed to
  * `agents.*`, and `[tools.external_directory]` — Vibe has no such tool, and
  * its unused-settings check skips unknown tool names as custom/MCP tools, so
- * that deny was silently inert. A regenerate that configures the category removes them — and
- * the matching `disabled_tools` entry — instead of leaving an inert table.
+ * that deny was silently inert. `[tools.web_fetch]` / `[tools.web_search]`
+ * are inert for the same reason: Vibe 3.x retired both tools, and v3.1.3 warns
+ * about a tool filter naming them. A regenerate that configures the category
+ * removes them — and the matching `disabled_tools` entry — instead of leaving
+ * an inert table.
  * Import still reads them (see {@link VIBE_TO_CANONICAL_TOOL_NAMES}), so a
  * Vibe 2.x config is lifted into the canonical categories rather than lost.
  */
@@ -100,6 +105,21 @@ const VIBE_RETIRED_TOOL_TABLES: Readonly<Record<string, string>> = {
   grep: "grep",
   agent: "task",
   external_directory: "external_directory",
+  webfetch: "web_fetch",
+  websearch: "web_search",
+};
+
+/**
+ * The connector tools that replaced Vibe's retired web builtins, by canonical
+ * category, so the skip warning can say where to write the rule instead.
+ * rulesync does not write them itself: whether their `allowlist` / `denylist`
+ * keys carry the old tools' semantics is not documented upstream.
+ * @see https://github.com/mistralai/mistral-vibe/blob/v3.1.3/vibe/core/config/_setting_keys.py
+ * @see https://github.com/mistralai/mistral-vibe/blob/v3.1.3/vibe/plugins/builtins/vibe/skills/vibe/SKILL.md
+ */
+const VIBE_WEB_CONNECTOR_TOOLS: Readonly<Record<string, { retired: string; connector: string }>> = {
+  webfetch: { retired: "web_fetch", connector: "connector_web_search_open_url" },
+  websearch: { retired: "web_search", connector: "connector_web_search_web_search" },
 };
 
 /** The canonical category Vibe's `enable_subagents` switch expresses. */
@@ -650,9 +670,9 @@ function retireLegacyToolTables({
   if (removed.length > 0) {
     logger?.warn(
       `Removed ${removed.join(", ")} from the Vibe config: Vibe 3.x does not read ` +
-        `[tools.grep], the former 'task' subagent tool or an 'external_directory' tool ` +
-        `(the 'external_directory' category is written to outside_workdir instead), so those ` +
-        `entries had no effect.`,
+        `[tools.grep], the former 'task' subagent tool, an 'external_directory' tool ` +
+        `(the 'external_directory' category is written to outside_workdir instead) or the ` +
+        `retired 'web_fetch' / 'web_search' tools, so those entries had no effect.`,
     );
   }
 }
@@ -682,6 +702,16 @@ function warnOnUnmappedCategory({
       `Vibe has no grep tool (searching goes through the shell, so 'rg' and 'grep' follow ` +
         `[tools.bash]); skipping ${ruleCount} 'grep' rule(s). Author a 'bash' rule such as ` +
         `"grep *" or "rg *" to restrict searching on Vibe.`,
+    );
+    return;
+  }
+  const webTool = lookupOwn({ record: VIBE_WEB_CONNECTOR_TOOLS, key: category });
+  if (webTool !== undefined) {
+    logger?.warn(
+      `Vibe 3.x retired its '${webTool.retired}' tool (web access goes through the ` +
+        `'${webTool.connector}' connector tool); skipping ${ruleCount} '${category}' rule(s) ` +
+        `instead of emitting an inert [tools.${webTool.retired}] table. Author a ` +
+        `'${webTool.connector}' rule (a '*' deny adds it to disabled_tools) to restrict it on Vibe.`,
     );
     return;
   }
@@ -1132,13 +1162,8 @@ function retireWithheldAllows({
       ),
       ...allToolsRestrictions,
     ].map(([pattern]) => ({ pattern, fromAllToolsCategory: false }));
-    // `web_fetch` entries are URLs, compared as such (`evil.com` covers
-    // `https://evil.com/x`).
     const globShadowed = createShadowingRestrictionsTest(restrictions);
-    const shadowed = (pattern: string): boolean =>
-      category === "webfetch"
-        ? restrictions.some((restriction) => urlPatternsOverlap(restriction.pattern, pattern))
-        : globShadowed(pattern).length > 0;
+    const shadowed = (pattern: string): boolean => globShadowed(pattern).length > 0;
     const retires = (pattern: string): boolean =>
       withheld.has(pattern) ||
       (restrictions.length > 0 && honored[pattern] !== "allow" && shadowed(pattern));

@@ -38,13 +38,31 @@ type VibeHookEntry = {
 };
 
 /**
- * Vibe scopes the tool-name `match` glob and the `strict` flag to tool hooks
- * (`pre_tool` / `post_tool`). `post_agent` takes a `match` too since v3.0.3,
- * but on the name of the agent that finished its turn, not a tool name (see
- * {@link VIBE_MAIN_AGENT_MATCH}).
- * @see https://github.com/mistralai/mistral-vibe/blob/v3.0.3/README.md
+ * Vibe scopes the tool-name `match` glob to tool hooks (`pre_tool` /
+ * `post_tool`). The other events take a `match` too, on something other than a
+ * tool name: the agent whose turn it is on `post_agent` / `pre_agent` /
+ * `pre_llm` / `post_llm`, and the source, reason or notification type on
+ * `session_start` / `session_end` / `notification`.
+ * @see https://github.com/mistralai/mistral-vibe/blob/v3.1.3/vibe/plugins/builtins/vibe/skills/vibe/SKILL.md
  */
 const VIBE_TOOL_EVENTS: ReadonlySet<string> = new Set(["pre_tool", "post_tool"]);
+
+/**
+ * The events where a failing hook may block, and so the only ones that accept
+ * `strict`. Vibe's `HookConfig` validator rejects a `strict` entry of any
+ * other type.
+ * @see https://github.com/mistralai/mistral-vibe/blob/v3.1.3/vibe/core/hooks/models.py
+ */
+const VIBE_STRICT_EVENTS: ReadonlySet<string> = new Set([
+  "pre_tool",
+  "post_tool",
+  "pre_agent",
+  "pre_llm",
+  "post_llm",
+]);
+
+/** The Vibe event canonical `beforeSubmitPrompt` becomes. */
+const VIBE_PRE_AGENT_EVENT = "pre_agent";
 
 /** The Vibe event both canonical `stop` and `subagentStop` become. */
 const VIBE_POST_AGENT_EVENT = "post_agent";
@@ -114,11 +132,99 @@ function fromVibeHookMatch(match: unknown): string | undefined {
 }
 
 /**
+ * The `match` for an event whose matcher is not a tool name, or `undefined`
+ * when the canonical matcher selects everything.
+ */
+function toVibeOptionalMatch(matcher: unknown): string | undefined {
+  if (typeof matcher !== "string" || matcher === "" || matcher === "*") {
+    return undefined;
+  }
+  return matcher;
+}
+
+/**
+ * The `match` of the Vibe entry a canonical hook becomes: a string, `undefined`
+ * to leave the key out, or null to skip the hook.
+ */
+function toVibeEntryMatch({
+  event,
+  vibeEvent,
+  matcher,
+  logger,
+}: {
+  event: string;
+  vibeEvent: string;
+  matcher: unknown;
+  logger: Logger | undefined;
+}): string | undefined | null {
+  if (VIBE_TOOL_EVENTS.has(vibeEvent)) {
+    // A canonical `Bash` matcher is widened to also catch background
+    // commands (`process_start`).
+    return toVibeHookMatch(matcher);
+  }
+  if (event === "subagentStop") {
+    return toVibeSubagentMatch({ matcher, logger });
+  }
+  if (vibeEvent === VIBE_POST_AGENT_EVENT) {
+    // Canonical `stop` is main-agent-only; a bare `post_agent` would also run
+    // after every subagent.
+    return VIBE_MAIN_AGENT_MATCH;
+  }
+  if (vibeEvent === VIBE_PRE_AGENT_EVENT) {
+    // `pre_agent` runs before every agent's turn, subagents included, while
+    // canonical `beforeSubmitPrompt` is about the user's prompt to the main
+    // agent. An explicit agent matcher is kept so an imported hook scoped to
+    // another agent round-trips.
+    return toVibeOptionalMatch(matcher) ?? VIBE_MAIN_AGENT_MATCH;
+  }
+  // `pre_llm` / `post_llm` match the agent, `session_start` the source,
+  // `session_end` the reason and `notification` the notification type.
+  // Without a matcher the key is left out, so the hook runs for all.
+  return toVibeOptionalMatch(matcher);
+}
+
+/**
+ * The canonical event and matcher a Vibe entry's `type` and `match` become.
+ */
+function fromVibeEntryMatch({
+  vibeEvent,
+  canonicalEvent,
+  match,
+}: {
+  vibeEvent: string;
+  canonicalEvent: string;
+  match: unknown;
+}): { canonicalEvent: string; matcher: string | undefined } {
+  if (VIBE_TOOL_EVENTS.has(vibeEvent)) {
+    return { canonicalEvent, matcher: fromVibeHookMatch(match) };
+  }
+  const optionalMatch = toVibeOptionalMatch(match);
+  const isMainAgent =
+    optionalMatch === undefined || optionalMatch.toLowerCase() === VIBE_MAIN_AGENT_MATCH;
+  if (vibeEvent === VIBE_POST_AGENT_EVENT) {
+    // `match` names an agent here. `main` (or no match) is the main agent,
+    // i.e. canonical `stop`; any other agent name is a `subagentStop` hook
+    // scoped to that subagent.
+    return isMainAgent
+      ? { canonicalEvent, matcher: undefined }
+      : { canonicalEvent: "subagentStop", matcher: optionalMatch };
+  }
+  if (vibeEvent === VIBE_PRE_AGENT_EVENT) {
+    // `main` (or no match) is the default `beforeSubmitPrompt` writes; any
+    // other agent is kept as the matcher.
+    return { canonicalEvent, matcher: isMainAgent ? undefined : optionalMatch };
+  }
+  // Not a tool name, so the `Bash` widening is not reversed here.
+  return { canonicalEvent, matcher: optionalMatch };
+}
+
+/**
  * Build the flat `[[hooks]]` array for `.vibe/hooks.toml` from a canonical
  * hooks config. Vibe uses a flat array where each entry carries its own event
- * `type`, `match` glob/regex (a tool name for tool hooks, an agent name
- * for `post_agent`), and `command`. Only `type: "command"`
- * canonical hooks are emitted: a Vibe hook is a shell command line. (v2.25.1
+ * `type`, `match` glob/regex (a tool name for tool hooks, an agent name for
+ * `post_agent` / `pre_agent` / `pre_llm` / `post_llm`, a source, reason or
+ * notification type for the session and notification hooks), and `command`.
+ * Only `type: "command"` canonical hooks are emitted: a Vibe hook is a shell command line. (v2.25.1
  * to v2.25.4 briefly exec'd it without a shell under the unified harness and
  * skipped any command containing a backslash; v2.25.5 restored shell
  * execution — "Hook commands using pipes, `&&`, redirects, globs or `$VAR`
@@ -161,38 +267,26 @@ function canonicalToVibeHooks({
       if (typeof def.command !== "string") {
         continue;
       }
-      const isToolEvent = VIBE_TOOL_EVENTS.has(vibeEvent);
-      let match: string;
-      if (isToolEvent) {
-        // A canonical `Bash` matcher is widened to also catch background
-        // commands (`process_start`).
-        match = toVibeHookMatch(def.matcher);
-      } else if (event === "subagentStop") {
-        const subagentMatch = toVibeSubagentMatch({ matcher: def.matcher, logger });
-        if (subagentMatch === null) {
-          continue;
-        }
-        match = subagentMatch;
-      } else {
-        // Canonical `stop` is main-agent-only; a bare `post_agent` would also
-        // run after every subagent.
-        match = VIBE_MAIN_AGENT_MATCH;
+      const match = toVibeEntryMatch({ event, vibeEvent, matcher: def.matcher, logger });
+      if (match === null) {
+        continue;
       }
       const index = nextIndexByVibeEvent.get(vibeEvent) ?? 0;
       const name = typeof def.name === "string" ? def.name : `${vibeEvent}-${index}`;
       const entry: VibeHookEntry = {
         name,
         type: vibeEvent,
-        match,
+        ...(match !== undefined && { match }),
         command: def.command,
       };
       if (typeof def.timeout === "number") {
         entry.timeout = def.timeout;
       }
-      // Vibe's `strict` flag applies to tool hooks only. We carry it through when
-      // present on the canonical definition (passed via the loose `strict` key).
+      // Vibe accepts `strict` only on the events where a hook may block. We
+      // carry it through when present on the canonical definition (passed via
+      // the loose `strict` key).
       const strict = (def as Record<string, unknown>).strict;
-      if (isToolEvent && typeof strict === "boolean") {
+      if (VIBE_STRICT_EVENTS.has(vibeEvent) && typeof strict === "boolean") {
         entry.strict = strict;
       }
       if (typeof def.description === "string") {
@@ -226,30 +320,22 @@ function vibeEntryToCanonicalDef(
   if (isPrototypePollutionKey(vibeEvent)) {
     return null;
   }
-  let canonicalEvent =
+  const mappedEvent =
     lookupOwn({ record: VIBE_TO_CANONICAL_EVENT_NAMES, key: vibeEvent }) ?? vibeEvent;
   const def: HookDefinition = { type: "command" };
   if (typeof entry.command === "string") {
     def.command = entry.command;
   }
-  if (vibeEvent === VIBE_POST_AGENT_EVENT) {
-    // `match` names an agent here. `main` (or no match) is the main agent,
-    // i.e. canonical `stop`; any other agent name is a `subagentStop` hook
-    // scoped to that subagent.
-    const agentMatch = typeof entry.match === "string" ? entry.match : "";
-    if (
-      agentMatch !== "" &&
-      agentMatch !== "*" &&
-      agentMatch.toLowerCase() !== VIBE_MAIN_AGENT_MATCH
-    ) {
-      canonicalEvent = "subagentStop";
-      def.matcher = agentMatch;
-    }
-  } else {
-    const matcher = fromVibeHookMatch(entry.match);
-    if (matcher !== undefined) {
-      def.matcher = matcher;
-    }
+  const resolved = fromVibeEntryMatch({
+    // A pre-2.21.0 spelling (`before_tool`, ...) reads its `match` as the
+    // current type does.
+    vibeEvent: lookupOwn({ record: CANONICAL_TO_VIBE_EVENT_NAMES, key: mappedEvent }) ?? vibeEvent,
+    canonicalEvent: mappedEvent,
+    match: entry.match,
+  });
+  const canonicalEvent = resolved.canonicalEvent;
+  if (resolved.matcher !== undefined) {
+    def.matcher = resolved.matcher;
   }
   if (typeof entry.timeout === "number") {
     def.timeout = entry.timeout;
