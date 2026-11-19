@@ -382,7 +382,7 @@ export class QwencodeHooks extends ToolHooks {
     return true;
   }
 
-  toRulesyncHooks(): RulesyncHooks {
+  toRulesyncHooks({ logger }: { logger?: Logger } = {}): RulesyncHooks {
     const settings: { hooks?: unknown; disableAllHooks?: unknown } = this.parseFileContentOrThrow({
       displayName: "Qwen Code",
       parse: (fileContent) => JSON.parse(fileContent),
@@ -390,6 +390,7 @@ export class QwencodeHooks extends ToolHooks {
     const hooks = qwencodeHooksToCanonical(settings.hooks);
     // Preserve the top-level `disableAllHooks` switch under the qwencode namespace.
     const canonical: HooksConfig = buildImportedHooksConfig({
+      logger,
       hooks,
       overrideKey: "qwencode",
       ...(typeof settings.disableAllHooks === "boolean" && {

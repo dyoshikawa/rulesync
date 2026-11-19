@@ -342,6 +342,31 @@ describe("GooseHooks", () => {
       );
     });
 
+    it("should drop a reserved native event key on import so the result still validates", () => {
+      const logger = createMockLogger();
+      const gooseHooks = new GooseHooks(
+        createMockAiFileParams({
+          relativeDirPath: GOOSE_HOOKS_DIR,
+          relativeFilePath: "hooks.json",
+          fileContent: JSON.stringify({
+            hooks: {
+              PreToolUse: [{ hooks: [{ type: "command", command: "echo pre" }] }],
+              constructor: [{ hooks: [{ type: "command", command: "echo c" }] }],
+            },
+          }),
+        }),
+      );
+
+      const rulesyncHooks = gooseHooks.toRulesyncHooks({ logger });
+      expect(rulesyncHooks.validate().success).toBe(true);
+      const parsed = rulesyncHooks.getJson();
+      expect(parsed.hooks.preToolUse).toEqual([{ type: "command", command: "echo pre" }]);
+      expect(Object.hasOwn(parsed, "goose")).toBe(false);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Skipping imported goose hooks event "constructor"'),
+      );
+    });
+
     it("should keep non-canonical SubagentStart/SubagentStop keys in the goose override block on import", () => {
       // Goose never emits these (its HookEvent enum has no such arms), but an
       // old rulesync-generated hooks.json might carry them. They have no

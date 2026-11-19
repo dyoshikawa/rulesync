@@ -13,6 +13,7 @@ import {
   getDeepagentsRulesyncOutputRoot,
 } from "../../utils/deepagents.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import type { Logger } from "../../utils/logger.js";
 import { lookupOwn } from "../../utils/own-lookup.js";
 import { isRecord } from "../../utils/type-guards.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
@@ -231,7 +232,7 @@ export class DeepagentsHooks extends ToolHooks {
     });
   }
 
-  toRulesyncHooks(): RulesyncHooks {
+  toRulesyncHooks({ logger }: { logger?: Logger } = {}): RulesyncHooks {
     const parsed: unknown = this.parseFileContentOrThrow({
       displayName: "deepagents",
       parse: (fileContent) => JSON.parse(fileContent),
@@ -252,7 +253,7 @@ export class DeepagentsHooks extends ToolHooks {
         global: this.global,
       }),
       fileContent: JSON.stringify(
-        buildImportedHooksConfig({ hooks, overrideKey: "deepagents" }),
+        buildImportedHooksConfig({ logger, hooks, overrideKey: "deepagents" }),
         null,
         2,
       ),

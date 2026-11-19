@@ -632,6 +632,7 @@ export class CopilotcliHooks extends ToolHooks {
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify(
         buildImportedHooksConfig({
+          logger: options?.logger,
           hooks,
           overrideKey: "copilotcli",
           ...(this.disableAllHooks !== undefined && {

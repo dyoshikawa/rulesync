@@ -322,7 +322,7 @@ export class TabnineHooks extends ToolHooks {
     });
   }
 
-  toRulesyncHooks(): RulesyncHooks {
+  toRulesyncHooks({ logger }: { logger?: Logger } = {}): RulesyncHooks {
     const configPath = join(this.getRelativeDirPath(), this.getRelativeFilePath());
     const settings: Record<string, unknown> = this.parseFileContentOrThrow({
       displayName: "Tabnine CLI",
@@ -331,7 +331,7 @@ export class TabnineHooks extends ToolHooks {
     const hooks = tabnineHooksToCanonical(settings.hooks);
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify(
-        buildImportedHooksConfig({ hooks, overrideKey: "tabnine" }),
+        buildImportedHooksConfig({ logger, hooks, overrideKey: "tabnine" }),
         null,
         2,
       ),

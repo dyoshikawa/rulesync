@@ -4,6 +4,7 @@ import { createMockLogger } from "../../test-utils/mock-logger.js";
 import type { HooksConfig } from "../../types/hooks.js";
 import { ClaudecodeHooks } from "./claudecode-hooks.js";
 import {
+  buildImportedHooksConfig,
   canonicalToToolHooks,
   type ToolHooksConverterConfig,
   toolHooksToCanonical,
@@ -945,6 +946,51 @@ describe("booleanPassthroughFields events restriction", () => {
         expect(emitted.logger.warn).not.toHaveBeenCalled();
         expect(imported.logger.warn).not.toHaveBeenCalled();
       }
+    }
+  });
+});
+
+describe("buildImportedHooksConfig", () => {
+  it("should move non-canonical event keys under the override block", () => {
+    const config = buildImportedHooksConfig({
+      hooks: {
+        preToolUse: [{ type: "command", command: "echo pre" }],
+        PostFileSave: [{ type: "command", command: "echo save" }],
+      },
+      overrideKey: "kiro",
+    });
+
+    expect(config).toEqual({
+      version: 1,
+      hooks: { preToolUse: [{ type: "command", command: "echo pre" }] },
+      kiro: { hooks: { PostFileSave: [{ type: "command", command: "echo save" }] } },
+    });
+  });
+
+  it("should drop reserved event keys with a warning instead of carrying them into the config", () => {
+    const logger = createMockLogger();
+    // JSON.parse keeps `__proto__` as an own property, as a tool's hooks file
+    // would deliver it.
+    const hooks = JSON.parse(
+      JSON.stringify({
+        preToolUse: [{ type: "command", command: "echo pre" }],
+        constructor: [{ type: "command", command: "echo c" }],
+        prototype: [{ type: "command", command: "echo p" }],
+      }).replace("{", '{"__proto__":[{"type":"command","command":"echo x"}],'),
+    ) as HooksConfig["hooks"];
+
+    const config = buildImportedHooksConfig({ hooks, overrideKey: "goose", logger });
+
+    expect(config).toEqual({
+      version: 1,
+      hooks: { preToolUse: [{ type: "command", command: "echo pre" }] },
+    });
+    expect(Object.hasOwn(config, "goose")).toBe(false);
+    expect(logger.warn).toHaveBeenCalledTimes(3);
+    for (const key of ["__proto__", "constructor", "prototype"]) {
+      expect(logger.warn).toHaveBeenCalledWith(
+        `Skipping imported goose hooks event "${key}": reserved key names cannot be used as hook events.`,
+      );
     }
   });
 });

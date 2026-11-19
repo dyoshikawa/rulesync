@@ -387,7 +387,7 @@ export class VibeHooks extends ToolHooks {
     });
     const hooks = vibeHooksToCanonical(parsed);
     const vibeOnlySubagentStop = takeVibeOnlySubagentStop({ hooks, logger: options.logger });
-    const config = buildImportedHooksConfig({ hooks, overrideKey: "vibe" });
+    const config = buildImportedHooksConfig({ logger: options.logger, hooks, overrideKey: "vibe" });
     if (vibeOnlySubagentStop !== undefined) {
       const override = (config.vibe ?? {}) as { hooks?: HooksConfig["hooks"] };
       config.vibe = {

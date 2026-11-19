@@ -233,7 +233,7 @@ export class KiroHooks extends ToolHooks {
     });
   }
 
-  toRulesyncHooks(): RulesyncHooks {
+  toRulesyncHooks({ logger }: { logger?: Logger } = {}): RulesyncHooks {
     const agentConfig: { hooks?: unknown } = this.parseFileContentOrThrow({
       displayName: "Kiro",
       parse: (fileContent) => JSON.parse(fileContent),
@@ -242,7 +242,7 @@ export class KiroHooks extends ToolHooks {
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify(
         // The embedded format has one writer left, so the override key is fixed.
-        buildImportedHooksConfig({ hooks, overrideKey: "kiro" }),
+        buildImportedHooksConfig({ logger, hooks, overrideKey: "kiro" }),
         null,
         2,
       ),

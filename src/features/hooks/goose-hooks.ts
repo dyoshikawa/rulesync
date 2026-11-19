@@ -115,7 +115,7 @@ export class GooseHooks extends ToolHooks {
     });
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify(
-        buildImportedHooksConfig({ hooks, overrideKey: "goose" }),
+        buildImportedHooksConfig({ logger, hooks, overrideKey: "goose" }),
         null,
         2,
       ),

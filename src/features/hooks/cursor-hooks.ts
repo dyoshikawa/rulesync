@@ -8,6 +8,7 @@ import {
   CANONICAL_TO_CURSOR_EVENT_NAMES,
 } from "../../types/hooks.js";
 import { readFileContent, readFileContentOrNull } from "../../utils/file.js";
+import type { Logger } from "../../utils/logger.js";
 import { lookupOwn } from "../../utils/own-lookup.js";
 import { readPreviouslyOwnedHooks } from "./hooks-ownership-lock.js";
 import { mergeGeneratedHookLists } from "./preserve-unowned-hook-commands.js";
@@ -150,7 +151,7 @@ export class CursorHooks extends ToolHooks {
     return true;
   }
 
-  toRulesyncHooks(): RulesyncHooks {
+  toRulesyncHooks({ logger }: { logger?: Logger } = {}): RulesyncHooks {
     const content = this.getFileContent();
     const parsed: { version?: number; hooks?: HooksConfig["hooks"] } = JSON.parse(content);
     const cursorHooks = parsed.hooks ?? {};
@@ -167,7 +168,7 @@ export class CursorHooks extends ToolHooks {
     const version = parsed.version ?? 1;
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify(
-        buildImportedHooksConfig({ hooks: canonicalHooks, overrideKey: "cursor", version }),
+        buildImportedHooksConfig({ logger, hooks: canonicalHooks, overrideKey: "cursor", version }),
         null,
         2,
       ),

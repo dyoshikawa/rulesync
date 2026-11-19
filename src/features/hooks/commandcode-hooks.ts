@@ -149,7 +149,7 @@ export class CommandcodeHooks extends ToolHooks {
     });
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify(
-        buildImportedHooksConfig({ hooks, overrideKey: "commandcode" }),
+        buildImportedHooksConfig({ logger, hooks, overrideKey: "commandcode" }),
         null,
         2,
       ),

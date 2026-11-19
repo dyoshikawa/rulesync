@@ -388,7 +388,7 @@ export class CodewhaleHooks extends ToolHooks {
     });
   }
 
-  toRulesyncHooks(): RulesyncHooks {
+  toRulesyncHooks({ logger }: { logger?: Logger } = {}): RulesyncHooks {
     const parsed: Record<string, unknown> = this.parseFileContentOrThrow({
       displayName: "Codewhale",
       parse: (fileContent) => parseCodewhaleToml(fileContent),
@@ -401,6 +401,7 @@ export class CodewhaleHooks extends ToolHooks {
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify(
         buildImportedHooksConfig({
+          logger,
           hooks: codewhaleHooksToCanonical(rawHooks),
           overrideKey: "codewhale",
         }),

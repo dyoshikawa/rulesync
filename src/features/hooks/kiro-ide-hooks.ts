@@ -12,6 +12,7 @@ import {
   KIRO_LEGACY_TO_KIRO_IDE_TRIGGER_NAMES,
   safeString,
 } from "../../types/hooks.js";
+import type { Logger } from "../../utils/logger.js";
 import { lookupOwn } from "../../utils/own-lookup.js";
 import {
   isPrototypePollutionKey,
@@ -287,7 +288,7 @@ export class KiroIdeHooks extends ToolHooks {
     });
   }
 
-  toRulesyncHooks(): RulesyncHooks {
+  toRulesyncHooks({ logger }: { logger?: Logger } = {}): RulesyncHooks {
     const parsed: z.infer<typeof KiroIdeHooksFileSchema> = this.parseFileContentOrThrow({
       displayName: "Kiro IDE",
       parse: (fileContent) => KiroIdeHooksFileSchema.parse(JSON.parse(fileContent)),
@@ -295,7 +296,7 @@ export class KiroIdeHooks extends ToolHooks {
     const hooks = kiroIdeHooksToCanonical(parsed.hooks ?? []);
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify(
-        buildImportedHooksConfig({ hooks, overrideKey: KIRO_HOOKS_OVERRIDE_KEY }),
+        buildImportedHooksConfig({ logger, hooks, overrideKey: KIRO_HOOKS_OVERRIDE_KEY }),
         null,
         2,
       ),

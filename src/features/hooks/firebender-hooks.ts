@@ -4,6 +4,7 @@ import { FIREBENDER_DIR, FIREBENDER_HOOKS_FILE_NAME } from "../../constants/fire
 import type { HooksConfig } from "../../types/hooks.js";
 import { FIREBENDER_HOOK_EVENTS } from "../../types/hooks.js";
 import { readFileContent, readFileContentOrNull } from "../../utils/file.js";
+import type { Logger } from "../../utils/logger.js";
 import { readPreviouslyOwnedHooks } from "./hooks-ownership-lock.js";
 import { mergeGeneratedHookLists } from "./preserve-unowned-hook-commands.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
@@ -127,13 +128,14 @@ export class FirebenderHooks extends ToolHooks {
     return true;
   }
 
-  toRulesyncHooks(): RulesyncHooks {
+  toRulesyncHooks({ logger }: { logger?: Logger } = {}): RulesyncHooks {
     const parsed: { version?: number; hooks?: HooksConfig["hooks"] } = JSON.parse(
       this.getFileContent(),
     );
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify(
         buildImportedHooksConfig({
+          logger,
           hooks: parsed.hooks ?? {},
           overrideKey: "firebender",
           version: parsed.version ?? 1,

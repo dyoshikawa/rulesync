@@ -106,7 +106,7 @@ export class AugmentcodePluginHooks extends ToolHooks {
     });
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify(
-        buildImportedHooksConfig({ hooks, overrideKey: "augmentcode" }),
+        buildImportedHooksConfig({ logger, hooks, overrideKey: "augmentcode" }),
         null,
         2,
       ),

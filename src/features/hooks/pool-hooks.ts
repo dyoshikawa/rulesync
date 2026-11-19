@@ -348,11 +348,11 @@ export class PoolHooks extends ToolHooks {
     });
   }
 
-  toRulesyncHooks(): RulesyncHooks {
+  toRulesyncHooks({ logger }: { logger?: Logger } = {}): RulesyncHooks {
     const hooks = poolHooksToCanonical(this.settings[POOL_HOOKS_KEY]);
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify(
-        buildImportedHooksConfig({ hooks, overrideKey: "pool" }),
+        buildImportedHooksConfig({ logger, hooks, overrideKey: "pool" }),
         null,
         2,
       ),

@@ -175,7 +175,7 @@ export abstract class SettingsJsonHooks extends ToolHooks {
     });
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify(
-        buildImportedHooksConfig({ hooks, overrideKey: spec.overrideKey }),
+        buildImportedHooksConfig({ logger, hooks, overrideKey: spec.overrideKey }),
         null,
         2,
       ),
