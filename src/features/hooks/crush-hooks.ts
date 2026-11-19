@@ -117,8 +117,9 @@ function resolveOverrideCanonicalEvent(key: string): string | null {
  * is written verbatim so it round-trips; keys of that kind that Crush reads as
  * the same event are concatenated under the first spelling. A key that names
  * no Crush event at all (such as the Claude Code spelling `Stop`) is skipped
- * with a warning, since Crush would refuse to load the whole config. A `matcher` is only written on a tool event: Crush rejects the
- * whole config when one appears anywhere else.
+ * with a warning, since Crush would refuse to load the whole config. A
+ * `matcher` is only written on a tool event: Crush rejects the whole config
+ * when one appears anywhere else.
  */
 function canonicalToCrushHooks({
   config,

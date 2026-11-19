@@ -1289,8 +1289,9 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportedEvents: CRUSH_HOOK_EVENTS,
       supportedHookTypes: ["command"],
       supportsMatcher: true,
-      // Event names under the `crush.hooks` override (e.g. ones an import
-      // filed there) are emitted verbatim by the adapter.
+      // A `crush.hooks` override key that names a Crush event (e.g. one an
+      // import filed there) is emitted verbatim by the adapter; any other key
+      // is skipped with a warning, since Crush rejects unknown events.
     },
   ],
   [
