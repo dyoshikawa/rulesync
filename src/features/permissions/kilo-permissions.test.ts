@@ -84,6 +84,32 @@ describe("KiloPermissions", () => {
     expect(json.permission.bash["git *"]).toBe("allow");
   });
 
+  it("should order the all-tools rules allow, ask, deny with a warning", async () => {
+    const logger = createMockLogger();
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        permission: { "*": { "*": "deny", "src/**": "allow", ".env": "ask" } },
+      }),
+    });
+
+    const instance = await KiloPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+    const json = JSON.parse(instance.getFileContent());
+
+    expect(Object.entries(json.permission["*"])).toEqual([
+      ["src/**", "allow"],
+      [".env", "ask"],
+      ["*", "deny"],
+    ]);
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('kilo.permission["*"]'));
+  });
+
   it("should preserve existing tool keys not present in rulesync output (per-key merge)", async () => {
     await writeFileContent(
       join(testDir, "kilo.jsonc"),

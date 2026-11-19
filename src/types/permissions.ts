@@ -433,6 +433,33 @@ const ClaudecodePermissionsOverrideSchema = z.looseObject({
 });
 
 /**
+ * Tool-scoped override block for Command Code. The `permissions` object of
+ * `.commandcode/settings.json` carries three documented non-list fields with
+ * no canonical permission category: `defaultMode` (the session-start mode:
+ * `default`, `accept-edits`, `plan`, `yolo` or `dont-ask`, plus the aliases
+ * Command Code accepts such as `bypassPermissions` or `acceptEdits`),
+ * `additionalDirectories` (extra directories treated as inside the workspace)
+ * and `disableBypass` (`"disable"` or `true` makes `yolo` impossible to enter). Only
+ * these three are written; the managed `allow`/`ask`/`deny` lists stay driven
+ * by the shared `permission` block, and any other key placed here is ignored
+ * with a warning. Values that widen trust are written with a warning.
+ *
+ * @example
+ * { "permissions": { "defaultMode": "plan", "disableBypass": true } }
+ * @see https://commandcode.ai/docs/permissions
+ */
+const CommandcodePermissionsFieldsSchema = z.looseObject({
+  defaultMode: z.optional(z.string()),
+  additionalDirectories: z.optional(z.array(z.string())),
+  disableBypass: z.optional(z.union([z.literal("disable"), z.boolean()])),
+});
+
+const CommandcodePermissionsOverrideSchema = z.looseObject({
+  permission: z.optional(ToolScopedPermissionSchema),
+  permissions: z.optional(CommandcodePermissionsFieldsSchema),
+});
+
+/**
  * Tool-scoped override block for Mistral Vibe. Vibe's per-tool `BaseToolConfig`
  * carries a `sensitive_patterns` list — patterns that escalate to ASK even when
  * the tool's base permission is ALWAYS (allow). The canonical model can only set
@@ -1826,7 +1853,7 @@ export const PermissionsConfigSchema = z.looseObject({
   continue: z.optional(CanonicalPermissionsOverrideSchema),
   copilot: z.optional(CopilotPermissionsOverrideSchema),
   codebuddy: z.optional(CodebuddyPermissionsOverrideSchema),
-  commandcode: z.optional(CanonicalPermissionsOverrideSchema),
+  commandcode: z.optional(CommandcodePermissionsOverrideSchema),
   lettacode: z.optional(CanonicalPermissionsOverrideSchema),
   crush: z.optional(CanonicalPermissionsOverrideSchema),
   goose: z.optional(CanonicalPermissionsOverrideSchema),

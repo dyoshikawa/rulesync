@@ -12,6 +12,22 @@ export const PERMISSION_ACTION_PRIORITY: Record<PermissionAction, number> = {
 };
 
 /**
+ * A pattern map reordered allow, then ask, then deny, keeping the authored
+ * order within each action. A tool that applies the last matching pattern
+ * then lets the strictest matching rule win. `Object.fromEntries` defines own
+ * properties, so even a `__proto__` pattern survives.
+ */
+export function sortRulesByActionPriority(
+  rules: Record<string, PermissionAction>,
+): Record<string, PermissionAction> {
+  return Object.fromEntries(
+    Object.entries(rules).toSorted(
+      ([, a], [, b]) => PERMISSION_ACTION_PRIORITY[a] - PERMISSION_ACTION_PRIORITY[b],
+    ),
+  );
+}
+
+/**
  * Whether `action` should replace `existing` when two canonical rules collapse
  * onto one entry: an empty slot always takes it, otherwise only a strictly
  * stricter action (deny > ask > allow) does.

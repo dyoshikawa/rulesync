@@ -57,7 +57,7 @@ Body content`;
     });
 
     it("should return the same .commandcode/agents for global scope (resolved against the home dir)", () => {
-      // Per https://commandcode.ai/docs/custom-agents user-level agents live at
+      // Per https://commandcode.ai/docs/agents user-level agents live at
       // ~/.commandcode/agents/*.md.
       expect(CommandcodeSubagent.getSettablePaths({ global: true })).toEqual({
         relativeDirPath: agentsDir,

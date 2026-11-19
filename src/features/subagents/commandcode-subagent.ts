@@ -15,7 +15,7 @@ import type {
 // accept either a comma/space-separated string or a YAML array (`"*"` grants
 // every tool). Unknown keys pass through so newer Command Code releases keep
 // round-tripping.
-// @see https://commandcode.ai/docs/custom-agents
+// @see https://commandcode.ai/docs/agents
 const CommandcodeSubagentFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.optional(z.string()),
@@ -83,7 +83,7 @@ function warnAboutReservedAgentName({
  * `.commandcode/agents/` (project) or `~/.commandcode/agents/` (user); the
  * body is the agent's system prompt.
  *
- * @see https://commandcode.ai/docs/custom-agents
+ * @see https://commandcode.ai/docs/agents
  */
 export class CommandcodeSubagent extends FrontmatterMarkdownToolSubagent<CommandcodeSubagentFrontmatter> {
   static getSettablePaths(_options: { global?: boolean } = {}): ToolSubagentSettablePaths {

@@ -5,9 +5,19 @@ import { pathToFileURL } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { CANONICAL_TO_OPENCODE_EVENT_NAMES, type HooksConfig } from "../../types/hooks.js";
+import {
+  CANONICAL_TO_OPENCODE_EVENT_NAMES,
+  CANONICAL_TO_OPENCODE_V2_EVENT_NAMES,
+  type HooksConfig,
+} from "../../types/hooks.js";
 import { writeFileContent } from "../../utils/file.js";
-import { generateOpencodeStylePluginCode } from "./opencode-style-generator.js";
+import {
+  ALWAYS_BLOCKING_EVENTS,
+  BLOCKING_HOOKS,
+  generateOpencodeStylePluginCode,
+  SHELL_EVENT_TOOL_GATES,
+} from "./opencode-style-generator.js";
+import { isBlockingOpencodeV2Target } from "./opencode-v2-plugin-generator.js";
 
 const SUPPORTED_EVENTS = [
   "sessionStart",
@@ -380,6 +390,36 @@ describe("generateOpencodeStylePluginCode", () => {
       expect(calls.map((call) => call.command)).toEqual(["guard.sh"]);
     });
 
+    it("should probe the Bun CLI again when the last probe exited 0 without printing rulesync", async () => {
+      vi.useFakeTimers();
+      let probes = 0;
+      const { calls } = createFakeShell(
+        () => ok(),
+        () => {
+          probes += 1;
+          if (probes > 1) return undefined;
+          return { exited: Promise.resolve(0), stdout: new Response("not bun").body };
+        },
+      );
+      const before = await loadBeforeHook({
+        code: generate({ preToolUse: [{ type: "command", command: "guard.sh" }] }),
+        exportStyle: "named",
+        $: undefined,
+      });
+
+      // The probe exits 0 with other output; this call falls back (to a Bun Shell the fake lacks).
+      await expect(
+        before({ tool: "bash", sessionID: "s", callID: "c" }, { args: {} }),
+      ).rejects.toThrow();
+      // It counts as no Bun CLI for 5 minutes, not for the life of the process.
+      await vi.advanceTimersByTimeAsync(300_000);
+      await before({ tool: "bash", sessionID: "s", callID: "c" }, { args: {} });
+      vi.useRealTimers();
+
+      expect(probes).toBe(2);
+      expect(calls.map((call) => call.command)).toEqual(["guard.sh"]);
+    });
+
     it("should not run a command whose matcher does not match the raw tool name", async () => {
       const { $, calls } = createFakeShell(() => ({ exitCode: 2, stdout: "", stderr: "denied" }));
       const before = await loadBeforeHook({
@@ -476,5 +516,34 @@ describe("generateOpencodeStylePluginCode", () => {
         tool_input: { command: "ls" },
       });
     });
+  });
+});
+
+describe("ALWAYS_BLOCKING_EVENTS", () => {
+  // The failClosed warnings rely on this set; it must match what the plugins actually block on.
+  const expected = [...ALWAYS_BLOCKING_EVENTS, "preToolUse"].toSorted();
+
+  it("matches the V1 plugin's blocking hooks", () => {
+    const blocking = Object.keys({
+      ...CANONICAL_TO_OPENCODE_EVENT_NAMES,
+      ...SHELL_EVENT_TOOL_GATES,
+    })
+      .filter((event) => {
+        const toolEvent =
+          SHELL_EVENT_TOOL_GATES[event]?.toolEvent ?? CANONICAL_TO_OPENCODE_EVENT_NAMES[event];
+        return toolEvent !== undefined && BLOCKING_HOOKS.has(toolEvent);
+      })
+      .toSorted();
+
+    expect(blocking).toEqual(expected);
+  });
+
+  it("matches the V2 plugin's blocking hook points, minus the V1-only userPromptExpansion", () => {
+    const blocking = Object.entries(CANONICAL_TO_OPENCODE_V2_EVENT_NAMES)
+      .filter(([, target]) => isBlockingOpencodeV2Target(target))
+      .map(([event]) => event)
+      .toSorted();
+
+    expect(blocking).toEqual(expected.filter((event) => event !== "userPromptExpansion"));
   });
 });
