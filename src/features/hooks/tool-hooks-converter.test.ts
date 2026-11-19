@@ -972,11 +972,10 @@ describe("buildImportedHooksConfig", () => {
     // JSON.parse keeps `__proto__` as an own property, as a tool's hooks file
     // would deliver it.
     const hooks = JSON.parse(
-      JSON.stringify({
-        preToolUse: [{ type: "command", command: "echo pre" }],
-        constructor: [{ type: "command", command: "echo c" }],
-        prototype: [{ type: "command", command: "echo p" }],
-      }).replace("{", '{"__proto__":[{"type":"command","command":"echo x"}],'),
+      '{"__proto__":[{"type":"command","command":"echo x"}],' +
+        '"preToolUse":[{"type":"command","command":"echo pre"}],' +
+        '"constructor":[{"type":"command","command":"echo c"}],' +
+        '"prototype":[{"type":"command","command":"echo p"}]}',
     ) as HooksConfig["hooks"];
 
     const config = buildImportedHooksConfig({ hooks, overrideKey: "goose", logger });
