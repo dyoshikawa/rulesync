@@ -26,3 +26,14 @@ export const OPENCLAW_CONFIG_DIR_PATH = ".openclaw";
 export const OPENCLAW_CONFIG_FILE_NAME = "openclaw.json";
 export const OPENCLAW_MCP_CONFIG_KEY = "mcp";
 export const OPENCLAW_MCP_SERVERS_KEY = "servers";
+
+// Skills. OpenClaw loads `<name>/SKILL.md` bundles from several roots. Rulesync
+// writes the execution folder's `.agents/skills/` (project; OpenClaw also loads
+// an execution folder's `skills/`, which rulesync leaves alone because that
+// directory name routinely holds unrelated content) and the managed/local
+// `<state-dir>/skills` root (global, `~/.openclaw/skills` by default), which
+// every agent sharing that state sees. The personal `~/.agents/skills` root
+// OpenClaw also reads belongs to the `agentsskills` target.
+// @see https://docs.openclaw.ai/tools/skills
+export const OPENCLAW_PROJECT_SKILLS_DIR_PATH = join(".agents", "skills");
+export const OPENCLAW_GLOBAL_SKILLS_DIR_PATH = join(OPENCLAW_CONFIG_DIR_PATH, "skills");

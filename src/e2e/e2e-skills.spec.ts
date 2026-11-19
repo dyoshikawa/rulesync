@@ -280,6 +280,10 @@ const skillsGenerateTargets = [
     target: "pool",
     outputPath: join(".poolside", "skills", "test-skill", "SKILL.md"),
   },
+  {
+    target: "openclaw",
+    outputPath: join(".agents", "skills", "test-skill", "SKILL.md"),
+  },
 ] as const;
 
 describe("E2E: skills", () => {
@@ -586,6 +590,7 @@ describe("E2E: skills (import)", () => {
     { target: "vibe", sourcePath: join(".vibe", "skills", "test-skill", "SKILL.md") },
     { target: "dsh", sourcePath: join(".dsh", "skills", "test-skill", "SKILL.md") },
     { target: "pool", sourcePath: join(".poolside", "skills", "test-skill", "SKILL.md") },
+    { target: "openclaw", sourcePath: join(".agents", "skills", "test-skill", "SKILL.md") },
   ])("should import $target skills", async ({ target, sourcePath }) => {
     const testDir = getTestDir();
 
@@ -1372,6 +1377,11 @@ const skillsGlobalTargets = [
     // Pool reads global skills from ~/.config/poolside/skills/ (XDG default).
     target: "pool",
     outputPath: join(".config", "poolside", "skills", "test-skill", "SKILL.md"),
+  },
+  {
+    // OpenClaw reads managed/local skills from ~/.openclaw/skills/ (default state dir).
+    target: "openclaw",
+    outputPath: join(".openclaw", "skills", "test-skill", "SKILL.md"),
   },
   {
     // Goose reads global skills from ~/.config/goose/skills/ (and ~/.agents/skills/,

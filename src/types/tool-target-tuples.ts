@@ -351,6 +351,7 @@ export const skillsProcessorToolTargetTuple = [
   "zoocode",
   "dsh",
   "lettacode",
+  "openclaw",
 ] as const;
 
 export const hooksProcessorToolTargetTuple = [
