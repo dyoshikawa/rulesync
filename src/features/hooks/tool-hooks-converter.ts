@@ -63,7 +63,8 @@ export type ToolHooksConverterConfig = {
       | "once"
       | "asyncRewake"
       | "continueOnBlock"
-      | "enabled";
+      | "enabled"
+      | "strictJsonOutput";
     readonly tool: string;
     /** Emit only on `command` hooks, for a field the tool documents there only. */
     readonly commandOnly?: boolean;
