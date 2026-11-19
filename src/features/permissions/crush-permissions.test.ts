@@ -273,6 +273,41 @@ describe("CrushPermissions", () => {
       );
     });
 
+    it("should remove an existing safe command when a path-qualified deny covers it", async () => {
+      const logger = createMockLogger();
+      await writeFileContent(
+        projectConfigPath(),
+        JSON.stringify({ permissions: { safe_commands: ["go build", "cargo test"] } }),
+      );
+
+      const permissions = await CrushPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({ bash: { "/usr/bin/go build": "deny" } }),
+        logger,
+      });
+
+      expect(permissions.getJson()).toEqual({ permissions: { safe_commands: ["cargo test"] } });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"go build" was removed'));
+    });
+
+    it.each([
+      ["a path-qualified ask", "/usr/bin/go build", "ask"],
+      ["a Windows executable with mixed case", "bin\\GO.EXE build", "deny"],
+      ["a path-qualified -- form", "/usr/bin/go build --*", "deny"],
+    ] as const)(
+      "should withhold a safe command shadowed by %s",
+      async (_case, restricted, action) => {
+        const permissions = await CrushPermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          rulesyncPermissions: rulesyncPermissions({
+            bash: { "go build": "allow", [restricted]: action },
+          }),
+        });
+
+        expect(permissions.getJson()).toEqual({});
+      },
+    );
+
     it.each([
       ["a relative path", { "go build": "allow", "./nice *": "deny" }],
       ["a Windows path with a suffix", { "go build": "allow", "bin\\Env.EXE *": "ask" }],
