@@ -380,6 +380,36 @@ describe("generateOpencodeStylePluginCode", () => {
       expect(calls.map((call) => call.command)).toEqual(["guard.sh"]);
     });
 
+    it("should probe the Bun CLI again when the last probe exited 0 without printing rulesync", async () => {
+      vi.useFakeTimers();
+      let probes = 0;
+      const { calls } = createFakeShell(
+        () => ok(),
+        () => {
+          probes += 1;
+          if (probes > 1) return undefined;
+          return { exited: Promise.resolve(0), stdout: new Response("not bun").body };
+        },
+      );
+      const before = await loadBeforeHook({
+        code: generate({ preToolUse: [{ type: "command", command: "guard.sh" }] }),
+        exportStyle: "named",
+        $: undefined,
+      });
+
+      // The probe exits 0 with other output; this call falls back (to a Bun Shell the fake lacks).
+      await expect(
+        before({ tool: "bash", sessionID: "s", callID: "c" }, { args: {} }),
+      ).rejects.toThrow();
+      // It counts as no Bun CLI for 5 minutes, not for the life of the process.
+      await vi.advanceTimersByTimeAsync(300_000);
+      await before({ tool: "bash", sessionID: "s", callID: "c" }, { args: {} });
+      vi.useRealTimers();
+
+      expect(probes).toBe(2);
+      expect(calls.map((call) => call.command)).toEqual(["guard.sh"]);
+    });
+
     it("should not run a command whose matcher does not match the raw tool name", async () => {
       const { $, calls } = createFakeShell(() => ({ exitCode: 2, stdout: "", stderr: "denied" }));
       const before = await loadBeforeHook({

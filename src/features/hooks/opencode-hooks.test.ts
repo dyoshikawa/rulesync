@@ -61,7 +61,7 @@ describe("OpencodeHooks (OpenCode V2)", () => {
   });
 
   describe("fromRulesyncHooks", () => {
-    it("warns that a failClosed: true is ignored on every event but preToolUse", () => {
+    it("warns about a failClosed the plugin ignores where it changes the outcome", () => {
       const logger = createMockLogger();
       const warnSpy = vi.spyOn(logger, "warn");
       const rulesyncHooks = new RulesyncHooks({
@@ -73,8 +73,9 @@ describe("OpencodeHooks (OpenCode V2)", () => {
           hooks: {
             preToolUse: [{ command: "guard.sh", failClosed: true }],
             beforeShellExecution: [{ command: "shell-guard.sh", failClosed: false }],
+            preCompact: [{ command: "compact-guard.sh", failClosed: true }],
             postToolUse: [{ command: "format.sh", failClosed: true }],
-            stop: [{ command: "audit.sh" }],
+            stop: [{ command: "audit.sh", failClosed: false }],
           },
         }),
         validate: false,
@@ -82,13 +83,16 @@ describe("OpencodeHooks (OpenCode V2)", () => {
 
       OpencodeHooks.fromRulesyncHooks({ outputRoot: testDir, rulesyncHooks, logger });
 
+      // A hook that runs before its action always blocks on a failure, so there only a `false`
+      // is ignored; elsewhere a failure is only logged, so only a `true` is.
       expect(warnSpy.mock.calls).toEqual([
+        [
+          'failClosed: false on "beforeShellExecution" hook will be ignored — the generated OpenCode plugin always blocks the action when this hook fails or times out, and only supports failClosed on preToolUse',
+        ],
         [
           'failClosed on "postToolUse" hook will be ignored — the generated OpenCode plugin only supports failClosed on preToolUse',
         ],
       ]);
-      // A dropped `false` is the plugin's own behavior there, so it is not warned about.
-      expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining('"beforeShellExecution"'));
     });
 
     it("emits a V2 `{ id, setup }` plugin instead of the V1 module", () => {
@@ -316,7 +320,7 @@ describe("OpencodeHooks (OpenCode V2)", () => {
       'let stdin = "";',
       'process.stdin.on("data", (c) => (stdin += c)).on("end", () => {',
       "  const [name, code, ...rest] = process.argv.slice(2);",
-      "  const BUN_BE_BUN = process.env.BUN_BE_BUN || null, RS_DOTENV = process.env.RS_DOTENV || null;",
+      "  const BUN_BE_BUN = process.env.BUN_BE_BUN ?? null, RS_DOTENV = process.env.RS_DOTENV || null;",
       '  fs.appendFileSync("rec.jsonl", JSON.stringify({ name, rest, stdin, BUN_BE_BUN, RS_DOTENV }) + "\\n");',
       '  process.stdout.write("visible-" + name + "\\n");',
       "  process.exit(Number(code));",
@@ -440,10 +444,33 @@ describe("OpencodeHooks (OpenCode V2)", () => {
       expect(byName["post-b"]?.rest).toEqual(["visible-sub", "quote\\inner"]);
       expect(byName["post-fail"]?.rest).toEqual([]);
       expect(payloadOf(byName.stop)).toMatchObject({ hook_event_name: "Stop", session_id: "s1" });
-      expect(
-        records.every((record) => record.BUN_BE_BUN === null && record.RS_DOTENV === null),
-      ).toBe(true);
+      // Bun Shell has no `unset`: the command sees an empty `BUN_BE_BUN`, which Bun treats as unset.
+      expect(records.every((record) => record.BUN_BE_BUN === "" && record.RS_DOTENV === null)).toBe(
+        true,
+      );
       expect(printed).toContain("visible-post-b");
+    }, 60_000);
+
+    it("keeps the event subscription going when building a handler's payload throws", async () => {
+      const content = generate({
+        hooks: {
+          stop: [{ command: "node hook.cjs stop 0" }],
+          permissionDenied: [{ command: "node hook.cjs denied 0" }],
+        },
+      });
+      const { records } = await runUnderBun({
+        content,
+        prelude: "await mod.default.setup(ctx);",
+        body: [
+          // A BigInt session ID makes the Stop payload's JSON.stringify throw.
+          "push({ type: 'session.execution.succeeded', data: { sessionID: 1n } });",
+          "await Bun.sleep(500);",
+          "push({ type: 'permission.replied', data: { reply: 'reject' } });",
+          "await Bun.sleep(3000);",
+        ].join("\n"),
+      });
+
+      expect(records.map((record) => record.name)).toEqual(["denied"]);
     }, 60_000);
 
     it("runs the V1 plugin the same way, and falls back to Bun Shell without the Bun CLI", async () => {

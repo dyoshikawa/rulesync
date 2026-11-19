@@ -43,7 +43,7 @@ describe("Opencodev1Hooks", () => {
   });
 
   describe("fromRulesyncHooks", () => {
-    it("warns that a failClosed: true is ignored on every V1 event but preToolUse", () => {
+    it("warns about a failClosed the V1 plugin ignores where it changes the outcome", () => {
       const logger = createMockLogger();
       const warnSpy = vi.spyOn(logger, "warn");
       const rulesyncHooks = new RulesyncHooks({
@@ -59,6 +59,12 @@ describe("Opencodev1Hooks", () => {
             // A V2-only event the V1 plugin never emits, so nothing is ignored.
             postToolUseFailure: [{ command: "report.sh", failClosed: true }],
             sessionStart: [{ command: "init.sh", failClosed: false }],
+            // Hooks that run before their action always block on a failure, so only `false` is ignored.
+            beforeShellExecution: [
+              { command: "shell-guard.sh", failClosed: true },
+              { command: "shell-audit.sh", failClosed: false },
+            ],
+            beforeSubmitPrompt: [{ command: "prompt-guard.sh", failClosed: false }],
           },
           opencodev1: { hooks: { stop: [{ command: "audit.sh", failClosed: true }] } },
         }),
@@ -70,6 +76,12 @@ describe("Opencodev1Hooks", () => {
       expect(warnSpy.mock.calls).toEqual([
         [
           'failClosed on "afterFileEdit" hook will be ignored — the generated OpenCode V1 plugin only supports failClosed on preToolUse',
+        ],
+        [
+          'failClosed: false on "beforeShellExecution" hook will be ignored — the generated OpenCode V1 plugin always blocks the action when this hook fails or times out, and only supports failClosed on preToolUse',
+        ],
+        [
+          'failClosed: false on "beforeSubmitPrompt" hook will be ignored — the generated OpenCode V1 plugin always blocks the action when this hook fails or times out, and only supports failClosed on preToolUse',
         ],
         [
           'failClosed on "stop" hook will be ignored — the generated OpenCode V1 plugin only supports failClosed on preToolUse',
