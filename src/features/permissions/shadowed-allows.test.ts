@@ -207,6 +207,16 @@ describe("urlPatternsOverlap", () => {
     // for a scheme is still compared, so neither drops an overlap.
     ["evil.com//x", "evil.com"],
     ["evil.com//x", "x"],
+    // An allow's userinfo, query and fragment name no other host or path.
+    ["example.com", "https://user@example.com/x"],
+    // Built from parts so secret scanners do not flag the placeholder credential.
+    ["example.com", ["https://user", "pass@example.com:8443/x"].join(":")],
+    ["example.com/x", "https://example.com/x?y=1"],
+    ["example.com/x", "example.com/x#top"],
+    // A `?` in the path is read as a query start for this extra reading.
+    ["example.com/fil", "example.com/fil?.txt"],
+    ["*.pdf", "https://example.com/doc.pdf?dl=1"],
+    ["example.com/private/*", "https://a@b@example.com/private/x?y=1#z"],
   ])("%s overlaps %s", (left, right) => {
     expect(urlPatternsOverlap(left, right)).toBe(true);
   });
@@ -225,6 +235,12 @@ describe("urlPatternsOverlap", () => {
     ["example.com.", "different.example.org"],
     ["evil.*.:443", "https://evil.com.:80/x"],
     ["[::1]:80", "http://[::1]:8080/x"],
+    // Stripping an allow's userinfo or query keeps its host and path.
+    ["example.com", "https://user@good.com/x"],
+    ["example.com/a/*", "https://user@example.com/b/x?y=/a/z"],
+    // A `?` in the host is a glob, not a query start.
+    ["git", "git?ub.com"],
+    ["example.com", "example.com?y=1"],
   ])("%s does not overlap %s", (left, right) => {
     expect(urlPatternsOverlap(left, right)).toBe(false);
   });
@@ -280,6 +296,22 @@ describe("webfetch overlap through the adapters' helpers", () => {
       toolLabel: "Tool",
     });
     expect(pdf.webfetch).toEqual({});
+  });
+
+  it("withholds userinfo and query allows of a restricted host but preserves unrelated hosts", () => {
+    const result = honorAllToolsRestrictions({
+      permission: {
+        "*": { "example.com": "deny", "github.com/private/*": "ask" },
+        webfetch: {
+          "https://user@example.com/x": "allow",
+          "https://example.com/x?y=1": "allow",
+          "https://github.com/private/repo?tab=readme": "allow",
+          "https://user@safe.example.org/x?y=1": "allow",
+        },
+      },
+      toolLabel: "Tool",
+    });
+    expect(result.webfetch).toEqual({ "https://user@safe.example.org/x?y=1": "allow" });
   });
 
   it("withholds a trailing-root-dot host allow but preserves unrelated hosts", () => {
