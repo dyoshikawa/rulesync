@@ -191,9 +191,11 @@ function effectiveSafeCommandLine(entry: string): string | undefined {
  * and without a Windows executable suffix. A `*` in the command word may
  * stand for a directory and part of a name, so when what follows it is the
  * tail of a wrapper name, everything before it collapses into `*`
- * (`b*nice` -> `*nice`, `/u*v` -> `*v`; `rm*` is left alone). The rest of the pattern is lower-cased as well, for a
- * nested wrapper spelled in another case. Used only to compare against the
- * wrapper spellings of a safe line, where it can only withhold more.
+ * (`b*nice` -> `*nice`, `/u*v` -> `*v`; `rm*` is left alone). The rest of
+ * the pattern is lower-cased as well, for a nested wrapper spelled in another
+ * case. Used only to compare against a lower-cased safe line, its `--` form
+ * and its wrapper spellings. Lower-casing the arguments too can only withhold
+ * more: a `go BUILD` deny also withholds `go build` (fail-closed).
  */
 function normalizeRestrictionCommandWord(pattern: string): string {
   const space = pattern.indexOf(" ");
