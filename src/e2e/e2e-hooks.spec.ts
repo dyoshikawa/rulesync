@@ -530,13 +530,15 @@ describe("E2E: hooks", () => {
     const testDir = getTestDir();
 
     // Vibe supports pre_tool/post_tool/post_agent (← preToolUse/
-    // postToolUse/stop). It emits a flat `[[hooks]]` TOML array, not JSON.
+    // postToolUse/stop) and, since v3.1, session_start and the other lifecycle
+    // types. It emits a flat `[[hooks]]` TOML array, not JSON.
     const hooksContent = JSON.stringify(
       {
         version: 1,
         hooks: {
           preToolUse: [{ command: ".rulesync/hooks/audit.sh", matcher: "bash" }],
           stop: [{ command: ".rulesync/hooks/session-start.sh" }],
+          sessionStart: [{ command: ".rulesync/hooks/on-start.sh", matcher: "startup" }],
         },
       },
       null,
@@ -550,6 +552,8 @@ describe("E2E: hooks", () => {
     // Snake_case event types and the matcher mapped to `match`.
     expect(generatedContent).toContain('type = "pre_tool"');
     expect(generatedContent).toContain('type = "post_agent"');
+    expect(generatedContent).toContain('type = "session_start"');
+    expect(generatedContent).toContain('match = "startup"');
     // A canonical shell matcher also catches background commands.
     expect(generatedContent).toContain('match = "re:bash|process_start"');
     expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
