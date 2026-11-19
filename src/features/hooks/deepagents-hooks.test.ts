@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { DeepagentsHooks } from "./deepagents-hooks.js";
@@ -176,6 +177,70 @@ describe("DeepagentsHooks", () => {
           ],
         },
       ]);
+    });
+
+    it("should emit failClosed as onError deny on preToolUse and omit false (#3886)", () => {
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            preToolUse: [
+              { type: "command", command: "echo strict", failClosed: true },
+              { type: "command", command: "echo lenient", failClosed: false },
+            ],
+          },
+        }),
+      });
+      const logger = createMockLogger();
+      const warnSpy = vi.spyOn(logger, "warn");
+
+      const hooks = DeepagentsHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        logger,
+      });
+      const parsed = JSON.parse(hooks.getFileContent());
+
+      expect(parsed.hooks.PreToolUse).toEqual([
+        {
+          hooks: [
+            { type: "command", command: "echo strict", onError: "deny" },
+            { type: "command", command: "echo lenient" },
+          ],
+        },
+      ]);
+      expect(warnSpy).not.toHaveBeenCalled();
+    });
+
+    it("should drop failClosed with a warning on events other than preToolUse (#3886)", () => {
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            postToolUse: [{ type: "command", command: "echo after", failClosed: true }],
+          },
+        }),
+      });
+      const logger = createMockLogger();
+      const warnSpy = vi.spyOn(logger, "warn");
+
+      const hooks = DeepagentsHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        logger,
+      });
+      const parsed = JSON.parse(hooks.getFileContent());
+
+      expect(parsed.hooks.PostToolUse).toEqual([
+        { hooks: [{ type: "command", command: "echo after" }] },
+      ]);
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Dropping "failClosed"'));
     });
 
     it("should omit a non-positive timeout upstream would reject", () => {
@@ -373,6 +438,38 @@ describe("DeepagentsHooks", () => {
           statusMessage: "Guard",
         },
       ]);
+    });
+
+    it("should import onError deny and continue as failClosed true and false (#3886)", () => {
+      const hooks = new DeepagentsHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".deepagents",
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          hooks: {
+            PreToolUse: [
+              {
+                hooks: [
+                  { type: "command", command: "echo strict", onError: "deny" },
+                  { type: "command", command: "echo lenient", onError: "continue" },
+                  { type: "command", command: "echo typo", onError: "block" },
+                ],
+              },
+            ],
+          },
+        }),
+      });
+      const logger = createMockLogger();
+      const warnSpy = vi.spyOn(logger, "warn");
+
+      const canonical = hooks.toRulesyncHooks({ logger }).getJson();
+
+      expect(canonical.hooks.preToolUse).toEqual([
+        { type: "command", command: "echo strict", failClosed: true },
+        { type: "command", command: "echo lenient", failClosed: false },
+        { type: "command", command: "echo typo" },
+      ]);
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Dropping "onError"'));
     });
 
     it("should skip malformed groups and handlers", () => {
