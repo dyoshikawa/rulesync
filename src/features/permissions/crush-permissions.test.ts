@@ -294,17 +294,26 @@ describe("CrushPermissions", () => {
       ["a path-qualified ask", "/usr/bin/go build", "ask"],
       ["a Windows executable with mixed case", "bin\\GO.EXE build", "deny"],
       ["a path-qualified -- form", "/usr/bin/go build --*", "deny"],
+      ["a restriction differing only in argument case", "go BUILD", "deny"],
     ] as const)(
       "should withhold a safe command shadowed by %s",
       async (_case, restricted, action) => {
+        const logger = createMockLogger();
         const permissions = await CrushPermissions.fromRulesyncPermissions({
           outputRoot: testDir,
           rulesyncPermissions: rulesyncPermissions({
             bash: { "go build": "allow", [restricted]: action },
           }),
+          logger,
         });
 
         expect(permissions.getJson()).toEqual({});
+        // Rule names are JSON-quoted in the warning, so a backslash appears doubled.
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining(
+            `(pattern "go build") is not added to permissions.safe_commands because the deny/ask rule(s) ${JSON.stringify(restricted)} `,
+          ),
+        );
       },
     );
 
