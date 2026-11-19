@@ -36,6 +36,29 @@ describe("Opencodev1Permissions", () => {
     });
   });
 
+  it("orders all-tools allow carve-outs before asks and warns", async () => {
+    const logger = { warn: vi.fn() } as any;
+    const rulesyncPermissions = new RulesyncPermissions({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        permission: { "*": { "*": "ask", "src/**": "allow", ".env": "deny" } },
+      }),
+    });
+    const instance = await Opencodev1Permissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+    const permission = instance.getJson().permission as Record<string, Record<string, string>>;
+    expect(Object.entries(permission["*"] ?? {})).toEqual([
+      ["src/**", "allow"],
+      ["*", "ask"],
+      [".env", "deny"],
+    ]);
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('opencodev1.permission["*"]'));
+  });
+
   it("should load opencode.jsonc and initialize permission", async () => {
     await writeFileContent(join(testDir, "opencode.jsonc"), JSON.stringify({ model: "x" }));
 

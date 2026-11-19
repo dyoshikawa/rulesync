@@ -357,6 +357,20 @@ describe("OpencodePermissions (OpenCode V2 permissions array)", () => {
     });
   };
 
+  it("reorders the all-tools category for OpenCode V2 and warns about lost carve-outs", async () => {
+    const logger = { warn: vi.fn() };
+    const instance = await generate(
+      { permission: { "*": { "*": "ask", "src/**": "allow", ".env": "deny" } } },
+      logger,
+    );
+    expect(instance.getJson().permissions).toEqual([
+      { action: "*", resource: "src/**", effect: "allow" },
+      { action: "*", resource: "*", effect: "ask" },
+      { action: "*", resource: ".env", effect: "deny" },
+    ]);
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('opencode.permission["*"]'));
+  });
+
   it("renames V1 keys to V2 actions in category and pattern order", async () => {
     const instance = await generate({
       permission: {

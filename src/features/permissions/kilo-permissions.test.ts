@@ -51,6 +51,28 @@ describe("KiloPermissions", () => {
     });
   });
 
+  it("reorders all-tools patterns and warns when a carve-out is shadowed", async () => {
+    const logger = createMockLogger();
+    const rulesyncPermissions = new RulesyncPermissions({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        permission: { "*": { "*": "deny", "src/**": "allow" } },
+      }),
+    });
+    const instance = await KiloPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+    const permission = instance.getJson().permission as Record<string, Record<string, string>>;
+    expect(Object.entries(permission["*"] ?? {})).toEqual([
+      ["src/**", "allow"],
+      ["*", "deny"],
+    ]);
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('kilo.permission["*"]'));
+  });
+
   it("should load kilo.jsonc and initialize permission", async () => {
     await writeFileContent(join(testDir, "kilo.jsonc"), JSON.stringify({ model: "x" }));
 

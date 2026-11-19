@@ -11,6 +11,17 @@ export const PERMISSION_ACTION_PRIORITY: Record<PermissionAction, number> = {
   deny: 2,
 };
 
+/** Stable last-match-wins order; Object.fromEntries preserves "__proto__" patterns. */
+export function sortRulesByActionPriority(
+  rules: Record<string, PermissionAction>,
+): Record<string, PermissionAction> {
+  return Object.fromEntries(
+    Object.entries(rules).toSorted(
+      ([, a], [, b]) => PERMISSION_ACTION_PRIORITY[a] - PERMISSION_ACTION_PRIORITY[b],
+    ),
+  );
+}
+
 /**
  * Whether `action` should replace `existing` when two canonical rules collapse
  * onto one entry: an empty slot always takes it, otherwise only a strictly
