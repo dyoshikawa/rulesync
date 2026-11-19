@@ -394,15 +394,20 @@ describe("OpencodePermissions (OpenCode V2 permissions array)", () => {
   });
 
   it('keeps the exact order of an opencode.permission["*"] override', async () => {
-    const instance = await generate({
-      permission: { "*": { "*": "deny", "src/**": "allow" } },
-      opencode: { permission: { "*": { "*": "deny", "src/**": "allow" } } },
-    });
+    const logger = { warn: vi.fn() };
+    const instance = await generate(
+      {
+        permission: { "*": { "*": "deny", "src/**": "allow" } },
+        opencode: { permission: { "*": { "*": "deny", "src/**": "allow" } } },
+      },
+      logger,
+    );
 
     expect(instance.getJson().permissions).toEqual([
       { action: "*", resource: "*", effect: "deny" },
       { action: "*", resource: "src/**", effect: "allow" },
     ]);
+    expect(logger.warn).not.toHaveBeenCalled();
   });
 
   it("writes an opencode.permission.apply_patch key as the V2 edit action", async () => {

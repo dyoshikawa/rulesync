@@ -362,6 +362,7 @@ export class KiloPermissions extends ToolPermissions {
       ...restateAllToolsRestrictionsLast({
         sharedPermission: honorAllToolsOnBash(rulesyncJson.permission),
         toolTarget: "kilo",
+        allToolsOverridden: Object.hasOwn(kiloOverride?.permission ?? {}, "*"),
         logger,
       }),
       ...kiloOverride?.permission,

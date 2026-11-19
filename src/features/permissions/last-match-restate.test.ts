@@ -76,6 +76,18 @@ describe("restateAllToolsRestrictionsLast", () => {
     expect(logger.warn).not.toHaveBeenCalled();
   });
 
+  it("does not warn when the all-tools key is overridden for the target", () => {
+    const logger = { warn: vi.fn() };
+    restateAllToolsRestrictionsLast({
+      sharedPermission: { "*": { "*": "ask", "src/**": "allow" } },
+      toolTarget: "opencode",
+      allToolsOverridden: true,
+      logger: logger as any,
+    });
+
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
   it("keeps a __proto__ pattern in the all-tools key", () => {
     const allTools = JSON.parse('{"__proto__": "deny", "*": "allow"}');
     const result = restateAllToolsRestrictionsLast({

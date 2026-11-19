@@ -23,8 +23,9 @@ import { isStricterAction, sortRulesByActionPriority } from "./single-action-col
  * The `*` key's own patterns are reordered allow, then ask, then deny, so the
  * strictest matching one wins there too. This disables an allow carve-out
  * under a broader ask or deny in that key (`{"*": "deny", "src/**": "allow"}`
- * denies `src/**` as well), so a warning is logged whenever the order changes;
- * `<target>.permission["*"]` replaces the key and keeps an exact order.
+ * denies `src/**` as well), so a warning is logged whenever the order changes,
+ * unless `<target>.permission["*"]` (`allToolsOverridden`) replaces the key
+ * with an exact order anyway.
  *
  * A restated rule must never land after an overlapping stricter one, or it
  * would loosen what that rule says. The tail of a key is therefore written
@@ -36,10 +37,13 @@ import { isStricterAction, sortRulesByActionPriority } from "./single-action-col
 export function restateAllToolsRestrictionsLast({
   sharedPermission,
   toolTarget,
+  allToolsOverridden = false,
   logger,
 }: {
   sharedPermission: Record<string, Record<string, PermissionAction>>;
   toolTarget: string;
+  /** Whether `<target>.permission["*"]` replaces the `*` key after this step. */
+  allToolsOverridden?: boolean;
   logger?: Logger;
 }): Record<string, Record<string, PermissionAction>> {
   const allToolsRules = Object.hasOwn(sharedPermission, ALL_TOOLS_PERMISSION_CATEGORY)
@@ -59,9 +63,9 @@ export function restateAllToolsRestrictionsLast({
       continue;
     }
     const sorted = sortRulesByActionPriority(rules);
-    if (!isDeepStrictEqual(Object.keys(sorted), Object.keys(rules))) {
+    if (!allToolsOverridden && !isDeepStrictEqual(Object.keys(sorted), Object.keys(rules))) {
       logger?.warn(
-        `The all-tools "*" permission patterns were reordered allow, ask, deny because ${toolTarget} applies the last matching pattern and the stricter rule must win, which disables an allow carve-out under a broader ask or deny pattern (e.g. "*": "deny", "src/**": "allow"). Set ${toolTarget}.permission["*"] to control the exact order.`,
+        `The all-tools "*" permission patterns were reordered allow, ask, deny because ${toolTarget} applies the last matching pattern and the stricter rule must win, which may disable a looser carve-out under a broader ask or deny pattern (e.g. "*": "deny", "src/**": "allow"). Set ${toolTarget}.permission["*"] to control the exact order.`,
       );
     }
     result[key] = sorted;
