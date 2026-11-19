@@ -1408,9 +1408,12 @@ describe("AugmentcodePermissions", () => {
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining('("acme/team-plugins", "acme/security-tools")'),
       );
-      // Auggie 1.x dropped the key, so the write warning says it is 0.x-only.
+      // Auggie 1.x (stable since 1.2.0) dropped the key, so the write warning
+      // says only users pinned to 0.x see the prompt.
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining("Auggie 1.x no longer reads this key"),
+        expect.stringContaining(
+          "Auggie 1.x no longer reads this key, so only users pinned to Auggie 0.x see the prompt",
+        ),
       );
     });
 
