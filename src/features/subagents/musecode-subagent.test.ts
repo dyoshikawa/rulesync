@@ -156,6 +156,74 @@ describe("MusecodeSubagent", () => {
     expect(quiet.warn).not.toHaveBeenCalled();
   });
 
+  describe("shared project file warnings", () => {
+    it("warns about keys Muse Code does not document without changing the file", () => {
+      const logger = createLogger();
+      const rulesyncSubagent = buildRulesyncSubagent({
+        musecode: { effort: "high" },
+        "antigravity-cli": { mainAgent: false, commandExecutionPolicy: "off" },
+      });
+      const subagent = MusecodeSubagent.fromRulesyncSubagent({
+        relativeDirPath: PROJECT_DIR,
+        rulesyncSubagent,
+        logger,
+      });
+
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn.mock.calls[0]?.[0]).toContain("mainAgent, commandExecutionPolicy");
+      expect(subagent.getFileContent()).toBe(
+        AntigravityCliSubagent.fromRulesyncSubagent({
+          relativeDirPath: PROJECT_DIR,
+          rulesyncSubagent,
+        }).getFileContent(),
+      );
+    });
+
+    it("warns when an antigravity block overrides a musecode block value", () => {
+      const logger = createLogger();
+      MusecodeSubagent.fromRulesyncSubagent({
+        relativeDirPath: PROJECT_DIR,
+        rulesyncSubagent: buildRulesyncSubagent({
+          musecode: { model: "muse-ember-1.0", effort: "low" },
+          "antigravity-ide": { model: "flash" },
+          "antigravity-cli": { model: "pro" },
+        }),
+        logger,
+      });
+
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      const message = logger.warn.mock.calls[0]?.[0] as string;
+      expect(message).toContain("'model'");
+      // The block that actually wins in the merge is named.
+      expect(message).toContain("antigravity-cli");
+    });
+
+    it("stays quiet for equal values, documented keys and the global file", () => {
+      const quiet = createLogger();
+      MusecodeSubagent.fromRulesyncSubagent({
+        relativeDirPath: PROJECT_DIR,
+        rulesyncSubagent: buildRulesyncSubagent({
+          musecode: { model: "shared-model", tools: ["read"] },
+          "antigravity-cli": { model: "shared-model" },
+        }),
+        logger: quiet,
+      });
+      expect(quiet.warn).not.toHaveBeenCalled();
+
+      const global = createLogger();
+      MusecodeSubagent.fromRulesyncSubagent({
+        relativeDirPath: GLOBAL_DIR,
+        rulesyncSubagent: buildRulesyncSubagent({
+          musecode: { model: "muse-ember-1.0" },
+          "antigravity-cli": { model: "pro", mainAgent: false },
+        }),
+        logger: global,
+        global: true,
+      });
+      expect(global.warn).not.toHaveBeenCalled();
+    });
+  });
+
   it("imports a user agent file into the musecode section", async () => {
     await writeFileContent(
       join(testDir, GLOBAL_DIR, "test-writer.md"),
