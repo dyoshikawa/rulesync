@@ -125,12 +125,12 @@ export class MusecodeSubagent extends AntigravitySharedSubagent {
       if (key === "name" || key === "description") {
         continue;
       }
-      const overridingSection = [...ANTIGRAVITY_SHARED_SUBAGENT_SECTION_KEYS]
-        .reverse()
-        .find((sectionKey) => {
+      const overridingSection = ANTIGRAVITY_SHARED_SUBAGENT_SECTION_KEYS.toReversed().find(
+        (sectionKey) => {
           const section = rulesyncFrontmatter[sectionKey];
           return isPlainObject(section) && section[key] !== undefined;
-        });
+        },
+      );
       if (overridingSection === undefined) {
         continue;
       }
