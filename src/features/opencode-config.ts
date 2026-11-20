@@ -1,10 +1,11 @@
 import { realpath } from "node:fs/promises";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 
 import { OPENCODE_LAYOUT, type OpencodeLayout } from "../constants/opencode-paths.js";
 import {
   fileExists,
+  getHomeDirectory,
   posixRelativePathEscapesRoot,
   readFileContentOrNull,
   resolvedRelativePath,
@@ -970,12 +971,36 @@ export function raiseOpencodeAgentToV2(fields: Record<string, unknown>): Record<
 const OPENCODE_FILE_TEMPLATE_PATTERN = /^\s*\{file:(.+?)\}\s*$/;
 
 /**
+ * Resolves the path of a `{file:...}` reference the way OpenCode does: relative
+ * to the config file's directory, absolute as written, or from the home
+ * directory when it starts with `~/`.
+ *
+ * @see https://opencode.ai/docs/config/#files
+ */
+function resolveOpencodeFileTemplatePath({
+  referencedPath,
+  configDir,
+}: {
+  referencedPath: string;
+  configDir: string;
+}): string {
+  if (referencedPath.startsWith("~/")) {
+    return join(getHomeDirectory(), referencedPath.slice(2));
+  }
+  if (isAbsolute(referencedPath)) {
+    return referencedPath;
+  }
+  return join(configDir, referencedPath);
+}
+
+/**
  * Resolves an OpenCode `{file:./path}` string reference into the referenced
  * file's contents. OpenCode resolves these paths relative to the config file's
  * location, so `configDir` must be the directory holding `opencode.json`. When
  * the value is not a whole-value file reference it is returned unchanged; when
  * the referenced file cannot be read the literal value is preserved (so the
- * reference is not silently lost).
+ * reference is not silently lost). As in OpenCode, an absolute path is used as
+ * written and a path starting with `~/` is taken from the home directory.
  *
  * When `containmentRoot` is given (project scope), a reference whose real
  * location — every `..` segment and symbolic link resolved — lies outside it is
@@ -1011,7 +1036,7 @@ export async function resolveOpencodeFileTemplate({
     return value;
   }
 
-  const targetPath = join(configDir, referencedPath);
+  const targetPath = resolveOpencodeFileTemplatePath({ referencedPath, configDir });
   if (containmentRoot === undefined) {
     return (await readFileContentOrNull(targetPath)) ?? value;
   }

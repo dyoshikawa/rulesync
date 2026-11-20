@@ -1,3 +1,4 @@
+import { symlink } from "node:fs/promises";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
@@ -24,6 +25,19 @@ import {
   resolveOpencodeFileTemplate,
   warnOpencodeDotDirOverrides,
 } from "./opencode-config.js";
+
+const { getHomeDirectoryMock } = vi.hoisted(() => {
+  return {
+    getHomeDirectoryMock: vi.fn(),
+  };
+});
+vi.mock("../utils/file.js", async () => {
+  const actual = await vi.importActual<typeof import("../utils/file.js")>("../utils/file.js");
+  return {
+    ...actual,
+    getHomeDirectory: getHomeDirectoryMock,
+  };
+});
 
 describe("opencode-config", () => {
   let testDir: string;
@@ -419,6 +433,74 @@ describe("opencode-config", () => {
       expect(
         await resolveOpencodeFileTemplate({ value: "{file:../secret.txt}", configDir: projectDir }),
       ).toBe("SECRET");
+    });
+
+    it("resolves an absolute reference as written", async () => {
+      const promptPath = join(testDir, "prompts", "abs.txt");
+      await writeFileContent(promptPath, "absolute body");
+      expect(
+        await resolveOpencodeFileTemplate({
+          value: `{file:${promptPath}}`,
+          configDir: join(testDir, "elsewhere"),
+        }),
+      ).toBe("absolute body");
+    });
+
+    it("resolves a ~/ reference from the home directory", async () => {
+      const homeDir = join(testDir, "home");
+      await writeFileContent(join(homeDir, "prompts", "home.txt"), "home body");
+      getHomeDirectoryMock.mockReturnValue(homeDir);
+      expect(
+        await resolveOpencodeFileTemplate({
+          value: "{file:~/prompts/home.txt}",
+          configDir: join(testDir, "elsewhere"),
+        }),
+      ).toBe("home body");
+    });
+
+    it("keeps an absolute or ~/ reference inside containmentRoot and refuses one outside it", async () => {
+      const projectDir = join(testDir, "project");
+      const homeDir = join(testDir, "home");
+      await writeFileContent(join(projectDir, "inside.txt"), "INSIDE");
+      await writeFileContent(join(homeDir, "secret.txt"), "SECRET");
+      getHomeDirectoryMock.mockReturnValue(homeDir);
+      expect(
+        await resolveOpencodeFileTemplate({
+          value: `{file:${join(projectDir, "inside.txt")}}`,
+          configDir: projectDir,
+          containmentRoot: projectDir,
+        }),
+      ).toBe("INSIDE");
+      expect(
+        await resolveOpencodeFileTemplate({
+          value: "{file:~/secret.txt}",
+          configDir: projectDir,
+          containmentRoot: projectDir,
+        }),
+      ).toBe("{file:~/secret.txt}");
+      expect(
+        await resolveOpencodeFileTemplate({
+          value: `{file:${join(homeDir, "secret.txt")}}`,
+          configDir: projectDir,
+          containmentRoot: projectDir,
+        }),
+      ).toBe(`{file:${join(homeDir, "secret.txt")}}`);
+    });
+
+    it("keeps an absolute reference to a link inside containmentRoot that points outside it literal", async () => {
+      const projectDir = join(testDir, "project");
+      const outsidePath = join(testDir, "outside", "secret.txt");
+      const linkPath = join(projectDir, "link.txt");
+      await writeFileContent(outsidePath, "SECRET");
+      await writeFileContent(join(projectDir, "keep.txt"), "");
+      await symlink(outsidePath, linkPath);
+      expect(
+        await resolveOpencodeFileTemplate({
+          value: `{file:${linkPath}}`,
+          configDir: projectDir,
+          containmentRoot: projectDir,
+        }),
+      ).toBe(`{file:${linkPath}}`);
     });
   });
 
