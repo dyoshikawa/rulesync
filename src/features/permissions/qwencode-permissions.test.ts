@@ -1140,6 +1140,30 @@ describe("QwencodePermissions", () => {
       );
     });
 
+    it("warns about a project-file tools.lspEnabled on import only for a literal true (issue #2668)", () => {
+      const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+      // Qwen Code opts into LSP only on `=== true`, so `1` and `"true"` grant
+      // nothing and are not announced.
+      for (const lspEnabled of [1, "true"]) {
+        new QwencodePermissions({
+          relativeDirPath: ".qwen",
+          relativeFilePath: "settings.json",
+          fileContent: JSON.stringify({ tools: { lspEnabled } }),
+        }).toRulesyncPermissions();
+      }
+      expect(warn).not.toHaveBeenCalled();
+
+      new QwencodePermissions({
+        relativeDirPath: ".qwen",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({ tools: { lspEnabled: true } }),
+      }).toRulesyncPermissions();
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('imported "tools.lspEnabled" = true'),
+      );
+    });
+
     it("preserves unrelated tools keys while the override sets its own", async () => {
       const settingsDir = join(testDir, ".qwen");
       await ensureDir(settingsDir);
