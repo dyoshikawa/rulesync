@@ -14,6 +14,7 @@ import {
   writeFileContent,
 } from "../utils/file.js";
 import { getHermesagentGlobalDir } from "../utils/hermesagent.js";
+import { loadYaml } from "../utils/yaml.js";
 import {
   assertGenerateMatrixCoversTargets,
   runGenerate,
@@ -155,6 +156,10 @@ const subagentsGenerateTargets = [
     target: "mimocode",
     outputPath: join(".mimocode", "agents", "planner.md"),
   },
+  {
+    target: "musecode",
+    outputPath: join(".agents", "agents", "planner.md"),
+  },
   { target: "omp", outputPath: join(".omp", "agents", "planner.md") },
   {
     target: "opencode",
@@ -230,6 +235,7 @@ const subagentsGlobalTargets = [
   { target: "antigravity-cli", outputPath: join(".gemini", "config", "agents", "planner.md") },
   { target: "antigravity-ide", outputPath: join(".gemini", "config", "agents", "planner.md") },
   { target: "augmentcode", outputPath: join(".augment", "agents", "planner.md") },
+  { target: "bob", outputPath: join(".bob", "settings", "custom_modes.yaml") },
   { target: "claudecode", outputPath: join(".claude", "agents", "planner.md") },
   { target: "codexcli", outputPath: join(".codex", "agents", "planner.toml") },
   { target: "commandcode", outputPath: join(".commandcode", "agents", "planner.md") },
@@ -250,6 +256,7 @@ const subagentsGlobalTargets = [
   { target: "kilo", outputPath: join(".config", "kilo", "agents", "planner.md") },
   { target: "kimi-code", outputPath: join(".kimi-code", "agents", "planner.md") },
   { target: "mimocode", outputPath: join(".config", "mimocode", "agents", "planner.md") },
+  { target: "musecode", outputPath: join(".config", "muse", "agents", "planner.md") },
   { target: "omp", outputPath: join(".omp", "agent", "agents", "planner.md") },
   { target: "opencode", outputPath: join(".config", "opencode", "agents", "planner.md") },
   { target: "opencodev1", outputPath: join(".config", "opencode", "agents", "planner.md") },
@@ -821,6 +828,7 @@ describe("E2E: subagents (import)", () => {
     { target: "copilot", sourcePath: join(".github", "agents", "planner.md") },
     { target: "kimi-code", sourcePath: join(".kimi-code", "agents", "planner.md") },
     { target: "mimocode", sourcePath: join(".mimocode", "agents", "planner.md") },
+    { target: "musecode", sourcePath: join(".agents", "agents", "planner.md") },
     { target: "omp", sourcePath: join(".omp", "agents", "planner.md") },
     { target: "opencode", sourcePath: join(".opencode", "agents", "planner.md") },
     { target: "opencodev1", sourcePath: join(".opencode", "agents", "planner.md") },
@@ -1434,6 +1442,93 @@ You are the planner. Analyze files and create a plan.
       }
     },
   );
+
+  it("should keep hand-written Bob global modes when generating", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+    const globalModesPath = join(homeDir, ".bob", "settings", "custom_modes.yaml");
+
+    await writeFileContent(
+      globalModesPath,
+      [
+        "customModes:",
+        "  - slug: my-own",
+        "    name: My Own",
+        "    roleDefinition: Hand-written in Bob IDE.",
+        "    groups:",
+        "      - read",
+        "  - slug: planner",
+        "    name: Old Planner",
+        "    roleDefinition: Stale copy.",
+        "    groups:",
+        "      - read",
+        "",
+      ].join("\n"),
+    );
+    await writeFileContent(
+      join(projectDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
+      `---
+root: true
+name: planner
+targets: ["bob"]
+description: "Plans implementation tasks"
+---
+You are the planner.
+`,
+    );
+
+    await runGenerate({
+      target: "bob",
+      features: "subagents",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const modes = (loadYaml(await readFileContent(globalModesPath)) as { customModes: unknown[] })
+      .customModes;
+    expect(modes).toEqual([
+      expect.objectContaining({ slug: "my-own", roleDefinition: "Hand-written in Bob IDE." }),
+      expect.objectContaining({ slug: "planner", roleDefinition: "You are the planner." }),
+    ]);
+  });
+
+  it("should not delete the Bob global modes file with --delete and no bob subagent", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+    const globalModesPath = join(homeDir, ".bob", "settings", "custom_modes.yaml");
+    const original = [
+      "customModes:",
+      "  - slug: my-own",
+      "    name: My Own",
+      "    roleDefinition: Hand-written in Bob IDE.",
+      "    groups:",
+      "      - read",
+      "",
+    ].join("\n");
+
+    await writeFileContent(globalModesPath, original);
+    await writeFileContent(
+      join(projectDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
+      `---
+root: true
+name: planner
+targets: ["claudecode"]
+description: "Plans implementation tasks"
+---
+You are the planner.
+`,
+    );
+
+    await runGenerate({
+      target: "bob",
+      features: "subagents",
+      global: true,
+      deleteFiles: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    expect(await readFileContent(globalModesPath)).toBe(original);
+  });
 
   it("should ignore non-root subagents in global mode", async () => {
     const projectDir = getProjectDir();

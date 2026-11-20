@@ -1365,7 +1365,7 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
   // re-spreads the sibling keys of that object: `additionalDirectories`,
   // `trustDirectories`, ...) plus the top-level keys the `qoder` override
   // authors (`outputStyle`, `autoMode`, `agentsMdExcludes`, and the `general`,
-  // `tools`, `mcp` and `agents` groups, re-spread by the adapter so their other
+  // `tools`, `mcp`, `agents` and `security` groups, re-spread by the adapter so their other
   // keys are kept). Each is only in the patch when authored, so a value the
   // user set by hand survives an unrelated regeneration.
   ".qoder/settings.json": {
@@ -1383,6 +1383,7 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
           "tools",
           "mcp",
           "agents",
+          "security",
           "autoMode",
           "agentsMdExcludes",
         ],

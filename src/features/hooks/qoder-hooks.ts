@@ -2,6 +2,7 @@ import { QODER_DIR, QODER_SETTINGS_FILE_NAME } from "../../constants/qoder-paths
 import {
   CANONICAL_TO_QODER_EVENT_NAMES,
   QODER_HOOK_EVENTS,
+  type HookType,
   QODER_TO_CANONICAL_EVENT_NAMES,
 } from "../../types/hooks.js";
 import { SettingsJsonHooks, type SettingsJsonHooksSpec } from "./settings-json-hooks.js";
@@ -22,6 +23,11 @@ const QODER_NO_MATCHER_EVENTS: ReadonlySet<string> = new Set([
   "taskCompleted",
   "teammateIdle",
 ]);
+
+// Qoder documents `tools` and `maxTurns` on `agent` hooks only: a `prompt`
+// hook is a single LLM call with no tools or turns.
+// https://docs.qoder.com/cli/hooks
+const QODER_AGENT_HOOK_TYPES: ReadonlySet<HookType> = new Set(["agent"]);
 
 const QODER_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   supportedEvents: QODER_HOOK_EVENTS,
@@ -66,7 +72,15 @@ const QODER_CONVERTER_CONFIG: ToolHooksConverterConfig = {
     { canonical: "asyncRewake", tool: "asyncRewake", commandOnly: true },
   ],
   // Command hooks: the exec form (an argv array; no shell is involved).
-  arrayPassthroughFields: [{ canonical: "args", tool: "args", commandOnly: true }],
+  // Agent hooks: the verifier sub-agent's tool allow-list.
+  arrayPassthroughFields: [
+    { canonical: "args", tool: "args", commandOnly: true },
+    { canonical: "tools", tool: "tools", hookTypes: QODER_AGENT_HOOK_TYPES },
+  ],
+  // Agent hooks: the verifier sub-agent's turn limit (50 upstream).
+  numberPassthroughFields: [
+    { canonical: "maxTurns", tool: "maxTurns", hookTypes: QODER_AGENT_HOOK_TYPES },
+  ],
   // Command hooks: extra environment variables merged into the subprocess.
   recordPassthroughFields: [{ canonical: "env", tool: "env", commandOnly: true }],
 };
