@@ -171,12 +171,27 @@ describe("MusecodeSubagent", () => {
 
       expect(logger.warn).toHaveBeenCalledTimes(1);
       expect(logger.warn.mock.calls[0]?.[0]).toContain("mainAgent, commandExecutionPolicy");
+      expect(logger.warn.mock.calls[0]?.[0]).toContain("set in a musecode or antigravity-* block");
       expect(subagent.getFileContent()).toBe(
         AntigravityCliSubagent.fromRulesyncSubagent({
           relativeDirPath: PROJECT_DIR,
           rulesyncSubagent,
         }).getFileContent(),
       );
+    });
+
+    it("warns about an undocumented key set in the musecode block itself", () => {
+      const logger = createLogger();
+      MusecodeSubagent.fromRulesyncSubagent({
+        relativeDirPath: PROJECT_DIR,
+        rulesyncSubagent: buildRulesyncSubagent({ musecode: { temperature: 0.2 } }),
+        logger,
+      });
+
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      const message = logger.warn.mock.calls[0]?.[0] as string;
+      expect(message).toContain("temperature");
+      expect(message).toContain("set in a musecode or antigravity-* block");
     });
 
     it("warns when an antigravity block overrides a musecode block value", () => {

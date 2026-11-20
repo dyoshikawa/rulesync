@@ -111,8 +111,8 @@ export class MusecodeSubagent extends AntigravitySharedSubagent {
     if (undocumentedKeys.length > 0) {
       logger?.warn(
         `Muse Code subagent ${relativeFilePath}: the shared .agents/agents/ file carries ` +
-          `keys Muse Code does not document (${undocumentedKeys.join(", ")}), set in an ` +
-          "antigravity-* block; Muse Code may refuse to load the agent.",
+          `keys Muse Code does not document (${undocumentedKeys.join(", ")}), set in a ` +
+          "musecode or antigravity-* block; Muse Code may refuse to load the agent.",
       );
     }
 
