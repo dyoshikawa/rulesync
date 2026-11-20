@@ -155,6 +155,22 @@ describe("LettacodeSubagent", () => {
     ]);
   });
 
+  it.each(["letta", "claude-code", "codex", "opencode", "cursor", "memory"])(
+    "warns that the reserved name %s is skipped by Letta Code",
+    (name) => {
+      const logger = createMockLogger();
+      LettacodeSubagent.fromRulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: agentsDir,
+        rulesyncSubagent: buildRulesyncSubagent({ name, description: "Reserved" }),
+        logger,
+      });
+
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("reserved by Letta Code"));
+    },
+  );
+
   it("imports a subagent file, keeping extra keys under lettacode", async () => {
     await ensureDir(join(testDir, agentsDir));
     await writeFileContent(

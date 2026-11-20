@@ -12,6 +12,7 @@ import { buildTarball } from "../test-utils/tar-fixture.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
 import { installCommand } from "./install.js";
+import { ALLOWED_NPM_TOKEN_ENV_NAMES_HINT } from "./npm-client.js";
 
 // Obviously-fake placeholder token for tests (never a real credential).
 const FAKE_TOKEN = "artifactory-test-token-placeholder";
@@ -339,7 +340,11 @@ describe("installCommand with npm-transport sources (happy path)", () => {
     );
 
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(logger.error).toHaveBeenCalledWith(expect.stringContaining("is not allowed"));
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining(
+        `tokenEnv "GITHUB_TOKEN" is not allowed. ${ALLOWED_NPM_TOKEN_ENV_NAMES_HINT}`,
+      ),
+    );
   });
 
   it("logs an auth hint when the registry rejects the request", async () => {

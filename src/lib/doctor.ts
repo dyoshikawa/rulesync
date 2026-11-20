@@ -31,8 +31,8 @@ import { directoryExists, fileExists, readFileContent, resolvePath } from "../ut
 import { ConsoleLogger, type Logger } from "../utils/logger.js";
 import { isRecord } from "../utils/type-guards.js";
 import {
+  ALLOWED_NPM_TOKEN_ENV_NAMES_HINT,
   DEFAULT_NPM_REGISTRY_URL,
-  DEFAULT_NPM_TOKEN_ENV,
   isAllowedNpmTokenEnvName,
   isTrustedNpmRegistry,
   NPM_TRUSTED_REGISTRIES_ENV,
@@ -473,7 +473,7 @@ function checkTokenEnvVars({
         code: "config/token-env-not-allowed",
         file,
         message: `Source '${String(source.source ?? "<unnamed>")}' sets tokenEnv '${tokenEnv}', which is not an npm token variable.`,
-        hint: `Use ${DEFAULT_NPM_TOKEN_ENV}, NODE_AUTH_TOKEN, or a name ending with _${DEFAULT_NPM_TOKEN_ENV} (e.g. ACME_${DEFAULT_NPM_TOKEN_ENV}).`,
+        hint: ALLOWED_NPM_TOKEN_ENV_NAMES_HINT,
       });
       continue;
     }

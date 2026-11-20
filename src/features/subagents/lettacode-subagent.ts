@@ -39,11 +39,19 @@ type LettacodeSubagentFrontmatter = z.infer<typeof LettacodeSubagentFrontmatterS
 const LETTACODE_AGENT_NAME_PATTERN = /^[a-z][a-z0-9-]*$/;
 
 /**
- * Names Letta Code keeps for its external-agent launchers: a custom subagent
- * by one of these names is skipped when agents are loaded
- * (`RESERVED_EXTERNAL_SUBAGENT_NAMES` in `src/agent/subagents/index.ts`).
+ * Names a custom subagent cannot take: Letta Code skips it when agents are
+ * loaded. These are the external-agent launcher names
+ * (`RESERVED_EXTERNAL_SUBAGENT_NAMES` in `src/agent/subagents/index.ts`)
+ * plus `memory`, which the same loader also skips (as of letta-code v0.34.66).
  */
-const LETTACODE_RESERVED_AGENT_NAMES: ReadonlySet<string> = new Set(["claude-code", "codex"]);
+const LETTACODE_RESERVED_AGENT_NAMES: ReadonlySet<string> = new Set([
+  "letta",
+  "claude-code",
+  "codex",
+  "opencode",
+  "cursor",
+  "memory",
+]);
 
 /**
  * The subagent is still generated as authored — the name is the user's to
