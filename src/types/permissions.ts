@@ -529,15 +529,15 @@ const CursorPermissionsOverrideSchema = z.looseObject({
  * `tools` (`approvalMode` = plan/default/auto-edit/auto/yolo, `autoAccept`,
  * `sandbox`, `sandboxImage`, `disabled`, `visible`, `eager`, `listDirectory`,
  * `todoWrite`, `codeModeOnly`, `freeform`, `workflowsEnabled`, `workflowNameOnly`,
- * `executionSandbox`) and
+ * `executionSandbox`, `lspEnabled`) and
  * `security` (`folderTrust`, `allowedHttpHookUrls`, `allowPrivateNetworkHooks`,
  * `allowedInsecureVoiceBaseUrls`) and `skills` (the skill kill-switches
  * `disabled`, `defaultDisabled`, `enabled`, `disabledLevels`, each a list Qwen
  * Code unions across scopes) and `general` (`outputStyle`, the output style
  * that reshapes how responses are written). Qwen Code strips `tools.workflowsEnabled`,
- * `tools.executionSandbox`, `security.allowPrivateNetworkHooks` and
+ * `tools.executionSandbox`, `tools.lspEnabled`, `security.allowPrivateNetworkHooks` and
  * `security.allowedInsecureVoiceBaseUrls` out of workspace settings, so generate
- * skips those four in project scope and announces a granting value in global
+ * skips those five in project scope and announces a granting value in global
  * scope (any `executionSandbox` change counts). `tools.workflowNameOnly` is
  * written in both scopes, but a workspace may only turn it on, which the
  * project-scope note says. `security.allowedHttpHookUrls` (honored in a workspace only while no
