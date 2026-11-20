@@ -327,6 +327,72 @@ describe("QoderHooks", () => {
       expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Dropping "rewakeSummary"'));
     });
 
+    it("should emit tools and maxTurns on agent hooks", async () => {
+      const rulesyncHooks = buildRulesyncHooks(testDir, {
+        version: 1,
+        hooks: {
+          stop: [
+            {
+              type: "agent",
+              prompt: "Verify: $ARGUMENTS",
+              model: "fast",
+              tools: ["Read", "Grep"],
+              maxTurns: 10,
+              timeout: 60,
+            },
+          ],
+        },
+      });
+
+      const logger = createMockLogger();
+      const warnSpy = vi.spyOn(logger, "warn");
+      const qoderHooks = await QoderHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+        logger,
+      });
+
+      const hook = JSON.parse(qoderHooks.getFileContent()).hooks.Stop[0].hooks[0];
+      expect(hook).toEqual({
+        type: "agent",
+        prompt: "Verify: $ARGUMENTS",
+        model: "fast",
+        tools: ["Read", "Grep"],
+        maxTurns: 10,
+        timeout: 60,
+      });
+      expect(warnSpy).not.toHaveBeenCalled();
+    });
+
+    it("should drop tools and maxTurns from non-agent hooks with a warning", async () => {
+      const rulesyncHooks = buildRulesyncHooks(testDir, {
+        version: 1,
+        hooks: {
+          stop: [{ type: "prompt", prompt: "Done?", tools: ["Read"], maxTurns: 5 }],
+        },
+      });
+
+      const logger = createMockLogger();
+      const warnSpy = vi.spyOn(logger, "warn");
+      const qoderHooks = await QoderHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+        logger,
+      });
+
+      const hook = JSON.parse(qoderHooks.getFileContent()).hooks.Stop[0].hooks[0];
+      expect(hook).not.toHaveProperty("tools");
+      expect(hook).not.toHaveProperty("maxTurns");
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('"tools" on "agent" hooks only'),
+      );
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('"maxTurns" on "agent" hooks only'),
+      );
+    });
+
     it("should anchor dot-relative commands to $QODER_PROJECT_DIR", async () => {
       const rulesyncHooks = buildRulesyncHooks(testDir, {
         version: 1,
@@ -530,6 +596,40 @@ describe("QoderHooks", () => {
       });
       // Sibling settings keys must not leak into the canonical model.
       expect((json as Record<string, unknown>).model).toBeUndefined();
+    });
+
+    it("should import tools and maxTurns on agent hooks only", () => {
+      const qoderHooks = new QoderHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".qoder",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          hooks: {
+            Stop: [
+              {
+                hooks: [
+                  { type: "agent", prompt: "Verify", tools: ["Read"], maxTurns: 20 },
+                  { type: "prompt", prompt: "Done?", tools: ["Read"], maxTurns: 20 },
+                  { type: "agent", prompt: "Bad", maxTurns: 0 },
+                ],
+              },
+            ],
+          },
+        }),
+        validate: false,
+      });
+
+      const json = qoderHooks.toRulesyncHooks().getJson();
+
+      expect(json.hooks.stop?.[0]).toMatchObject({
+        type: "agent",
+        tools: ["Read"],
+        maxTurns: 20,
+      });
+      expect(json.hooks.stop?.[1]).not.toHaveProperty("tools");
+      expect(json.hooks.stop?.[1]).not.toHaveProperty("maxTurns");
+      // A turn count must be a positive integer, so 0 is not imported.
+      expect(json.hooks.stop?.[2]).not.toHaveProperty("maxTurns");
     });
 
     it("should round-trip rewakeMessage and rewakeSummary on command hooks", () => {

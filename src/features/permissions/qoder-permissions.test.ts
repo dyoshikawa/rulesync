@@ -374,6 +374,36 @@ describe("QoderPermissions", () => {
       expect(logger.warn).not.toHaveBeenCalled();
     });
 
+    it("writes security.disableYoloMode without a warning and keeps other security keys", async () => {
+      await writeSettings(testDir, { security: { folderTrust: { enabled: true } } });
+      const logger = createMockLogger();
+
+      const settings = await generateWithOverride(
+        { security: { disableYoloMode: true } },
+        { logger },
+      );
+
+      expect(settings).toEqual({
+        security: { folderTrust: { enabled: true }, disableYoloMode: true },
+        permissions: { allow: ["Bash(ls)"] },
+      });
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("skips unmodeled security keys, with a warning", async () => {
+      const logger = createMockLogger();
+
+      const settings = await generateWithOverride(
+        { security: { blockGitExtensions: true } },
+        { logger },
+      );
+
+      expect(settings).toEqual({ permissions: { allow: ["Bash(ls)"] } });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("qoder.security.blockGitExtensions"),
+      );
+    });
+
     it("writes autoMode in global mode only", async () => {
       const autoMode = { allow: ["running tests"], environment: ["pnpm monorepo"] };
       const logger = createMockLogger();
@@ -414,6 +444,7 @@ describe("QoderPermissions", () => {
         tools: { core: ["Read"], shell: { pager: "less" } },
         mcp: { enabledProjectMcpServers: ["playwright"], lazyLoad: "yes" },
         agents: { overrides: { Explore: { enabled: false } } },
+        security: { disableYoloMode: true, blockGitExtensions: true },
         autoMode: { allow: ["running tests"] },
         agentsMdExcludes: ["vendor/**"],
       });
@@ -433,6 +464,7 @@ describe("QoderPermissions", () => {
         tools: { core: ["Read"] },
         mcp: { enabledProjectMcpServers: ["playwright"] },
         agents: { overrides: { Explore: { enabled: false } } },
+        security: { disableYoloMode: true },
         agentsMdExcludes: ["vendor/**"],
       };
       expect(load(false)).toEqual(shared);

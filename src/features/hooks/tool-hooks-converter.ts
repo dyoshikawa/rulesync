@@ -127,10 +127,16 @@ export type ToolHooksConverterConfig = {
    * is what an authored value is validated against.
    */
   numberPassthroughFields?: ReadonlyArray<{
-    readonly canonical: "additionalContextLimit";
+    readonly canonical: "additionalContextLimit" | "maxTurns";
     readonly tool: string;
     /** Emit only on `command` hooks, for a field the tool documents there only. */
     readonly commandOnly?: boolean;
+    /**
+     * Hook types the tool documents the field on, for a field that belongs to
+     * another hook type than `command` (Qoder's agent-hook `maxTurns`);
+     * unrestricted when absent.
+     */
+    readonly hookTypes?: ReadonlySet<HookType>;
   }>;
   /**
    * Per-hook string fields to carry through the round-trip, each mapping a
@@ -191,10 +197,16 @@ export type ToolHooksConverterConfig = {
    */
   skippedWhenFields?: ReadonlyArray<"if">;
   arrayPassthroughFields?: ReadonlyArray<{
-    readonly canonical: "args";
+    readonly canonical: "args" | "tools";
     readonly tool: string;
     /** Emit only on `command` hooks, for a field the tool documents there only. */
     readonly commandOnly?: boolean;
+    /**
+     * Hook types the tool documents the field on, for a field that belongs to
+     * another hook type than `command` (Qoder's agent-hook `maxTurns`);
+     * unrestricted when absent.
+     */
+    readonly hookTypes?: ReadonlySet<HookType>;
   }>;
   /**
    * Per-hook string-map fields to carry through the round-trip. Only plain
@@ -567,6 +579,7 @@ type PassthroughFieldSpec = {
   readonly canonical: string;
   readonly tool: string;
   readonly commandOnly?: boolean;
+  readonly hookTypes?: ReadonlySet<HookType>;
   readonly maxLength?: number;
   readonly collapseWhitespaceForLength?: boolean;
   readonly onlyWithFlag?: "asyncRewake";
@@ -589,19 +602,46 @@ function describeEvents(names: ReadonlySet<string>): string {
   return [...names].map((name) => `"${name}"`).join(", ");
 }
 
+const COMMAND_HOOK_TYPES: ReadonlySet<HookType> = new Set(["command"]);
+
 /**
- * Whether a field registered for `command` hooks only applies to this hook.
- * Applied on both export and import: a value imported into a canonical field
- * the exporter would then drop is silently deleted on the next generate.
+ * The hook types a field is documented on, or `undefined` when unrestricted.
+ * `commandOnly` is shorthand for `command` alone.
+ */
+function documentedHookTypes({
+  commandOnly,
+  hookTypes,
+}: {
+  commandOnly?: boolean;
+  hookTypes?: ReadonlySet<HookType>;
+}): ReadonlySet<HookType> | undefined {
+  return commandOnly === true ? COMMAND_HOOK_TYPES : hookTypes;
+}
+
+/** Quote the hook types a restricted field is documented on, for a warning. */
+function describeDocumentedHookTypes(spec: {
+  commandOnly?: boolean;
+  hookTypes?: ReadonlySet<HookType>;
+}): string {
+  return describeEvents(documentedHookTypes(spec) ?? COMMAND_HOOK_TYPES);
+}
+
+/**
+ * Whether a field registered for some hook types only (`command` hooks, or
+ * the listed `hookTypes`) applies to this hook. Applied on both export and
+ * import: a value imported into a canonical field the exporter would then
+ * drop is silently deleted on the next generate.
  */
 function isFieldApplicable({
   commandOnly,
+  hookTypes,
   hookType,
 }: {
   commandOnly: boolean | undefined;
+  hookTypes?: ReadonlySet<HookType>;
   hookType: HookType;
 }): boolean {
-  return commandOnly !== true || hookType === "command";
+  return documentedHookTypes({ commandOnly, hookTypes })?.has(hookType) ?? true;
 }
 
 /**
@@ -643,6 +683,7 @@ function emitPassthroughFields<TValue>({
     canonical,
     tool,
     commandOnly,
+    hookTypes,
     maxLength,
     collapseWhitespaceForLength,
     onlyWithFlag,
@@ -652,10 +693,11 @@ function emitPassthroughFields<TValue>({
     if (value === undefined) {
       continue;
     }
-    if (!isFieldApplicable({ commandOnly, hookType })) {
+    if (!isFieldApplicable({ commandOnly, hookTypes, hookType })) {
       warn?.(
         `Dropping "${canonical}" from a "${hookType}" hook on "${eventName}": this tool documents ` +
-          `"${tool}" on "command" hooks only, so it is not generated.`,
+          `"${tool}" on ${describeDocumentedHookTypes({ commandOnly, hookTypes })} hooks only, ` +
+          `so it is not generated.`,
       );
       continue;
     }
@@ -702,8 +744,8 @@ function emitPassthroughFields<TValue>({
   return Object.fromEntries(
     fields
       .filter(
-        ({ canonical, commandOnly, events }) =>
-          isFieldApplicable({ commandOnly, hookType }) &&
+        ({ canonical, commandOnly, hookTypes, events }) =>
+          isFieldApplicable({ commandOnly, hookTypes, hookType }) &&
           isEventApplicable({ events, eventName }) &&
           isValid({ value: def[canonical], canonical }),
       )
@@ -735,21 +777,23 @@ function importPassthroughFields<TValue>({
   describeInvalid?: (args: { tool: string; canonical: string; value: unknown }) => string;
   warn?: (message: string) => void;
 }): Record<string, TValue> {
-  const typeApplicable = fields.filter(({ commandOnly }) =>
-    isFieldApplicable({ commandOnly, hookType }),
+  const typeApplicable = fields.filter(({ commandOnly, hookTypes }) =>
+    isFieldApplicable({ commandOnly, hookTypes, hookType }),
   );
   const applicable = typeApplicable.filter(({ events }) =>
     isEventApplicable({ events, eventName }),
   );
-  const skipped = fields.filter(({ commandOnly }) => !isFieldApplicable({ commandOnly, hookType }));
+  const skipped = fields.filter(
+    ({ commandOnly, hookTypes }) => !isFieldApplicable({ commandOnly, hookTypes, hookType }),
+  );
   // Warned rather than dropped silently, for the callers that thread a logger
   // through: neither an inapplicable nor an unusable value survives the import,
   // so it is gone from the canonical config the next generate reads.
-  for (const { tool } of skipped) {
+  for (const { tool, commandOnly, hookTypes } of skipped) {
     if (h[tool] !== undefined) {
       warn?.(
         `Dropping "${tool}" from an imported "${hookType}" hook: this tool documents it on ` +
-          `"command" hooks only, so it is not imported.`,
+          `${describeDocumentedHookTypes({ commandOnly, hookTypes })} hooks only, so it is not imported.`,
       );
     }
   }

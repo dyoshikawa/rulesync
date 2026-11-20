@@ -753,8 +753,10 @@ export type ReasonixPermissionsOverride = z.infer<typeof ReasonixPermissionsOver
  * holds: `general.defaultPermissionMode`, `tools.core` / `tools.exclude`, the
  * MCP approval and loading keys under `mcp` (`allowed`, `excluded`,
  * `enableAllProjectMcpServers`, `enabledProjectMcpServers`, `lazyLoad`),
- * `agents.overrides`, the top-level `agentsMdExcludes` and the top-level
- * `autoMode` classifier guidance (`allow` / `soft_deny` / `environment`).
+ * `agents.overrides`, `security.disableYoloMode` (turns off the
+ * `bypass_permissions` / YOLO mode; it only hardens, so it is not announced),
+ * the top-level `agentsMdExcludes` and the top-level `autoMode` classifier
+ * guidance (`allow` / `soft_deny` / `environment`).
  * Qoder reads `autoMode` from the user settings only, so it is written by
  * `--global` generate alone. Only the keys listed here are written; any other
  * key of these groups or of `autoMode` (`tools.shell.pager`,
@@ -800,6 +802,11 @@ const QoderPermissionsOverrideSchema = z.looseObject({
   agents: z.optional(
     z.looseObject({
       overrides: z.optional(z.record(z.string(), z.looseObject({}))),
+    }),
+  ),
+  security: z.optional(
+    z.looseObject({
+      disableYoloMode: z.optional(z.boolean()),
     }),
   ),
   autoMode: z.optional(
