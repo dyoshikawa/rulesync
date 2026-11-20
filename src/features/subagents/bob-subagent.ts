@@ -1,5 +1,7 @@
 import { join } from "node:path";
 
+import { dump } from "js-yaml";
+
 import {
   BOB_CUSTOM_MODES_FILE_NAME,
   BOB_DIR,
@@ -7,9 +9,11 @@ import {
 } from "../../constants/bob-paths.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
+import type { Logger } from "../../utils/logger.js";
+import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isRecord, isStringArray } from "../../utils/type-guards.js";
 import { loadYaml } from "../../utils/yaml.js";
-import { RooMode, RooSubagent, stringifyRooModes } from "./roo-subagent.js";
+import { RooMode, RooSubagent } from "./roo-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 import type { ToolSubagentSettablePaths } from "./tool-subagent.js";
 
@@ -66,6 +70,19 @@ export class BobSubagent extends RooSubagent {
     };
   }
 
+  /** Receives the merge warnings; set by {@link BobSubagent.fromRulesyncSubagents}. */
+  private bobLogger: Logger | undefined;
+
+  static override fromRulesyncSubagents(
+    params: Parameters<typeof RooSubagent.fromRulesyncSubagents>[0] & { logger?: Logger },
+  ): RooSubagent {
+    const subagent = super.fromRulesyncSubagents(params);
+    if (subagent instanceof BobSubagent) {
+      subagent.bobLogger = params.logger;
+    }
+    return subagent;
+  }
+
   override isDeletable(): boolean {
     // The global file is shared with Bob IDE's own mode editor.
     return !this.global;
@@ -110,19 +127,40 @@ export class BobSubagent extends RooSubagent {
       );
     }
 
-    const generated = new Map(this.getModes().map((mode) => [mode.slug, mode]));
-    const merged: unknown[] = (Array.isArray(existingModes) ? existingModes : []).map((entry) => {
+    const generatedModes = this.getModes();
+    const generatedSlugs = new Set(generatedModes.map((mode) => mode.slug));
+    const pending = new Map(generatedModes.map((mode) => [mode.slug, mode]));
+    const duplicateSlugs = new Set<string>();
+    const merged: unknown[] = [];
+    for (const entry of Array.isArray(existingModes) ? existingModes : []) {
       const slug = isRecord(entry) ? entry.slug : undefined;
-      if (typeof slug !== "string" || !generated.has(slug)) {
-        return entry;
+      if (typeof slug !== "string" || !generatedSlugs.has(slug)) {
+        merged.push(entry);
+        continue;
       }
-      const mode = generated.get(slug);
-      generated.delete(slug);
-      return mode;
-    });
-    merged.push(...generated.values());
+      const mode = pending.get(slug);
+      if (mode === undefined) {
+        // A later copy of a generated slug would keep its stale content.
+        duplicateSlugs.add(slug);
+        continue;
+      }
+      merged.push(mode);
+      pending.delete(slug);
+    }
+    merged.push(...pending.values());
+    if (duplicateSlugs.size > 0) {
+      this.bobLogger?.warn(
+        `Removed duplicate Bob custom mode(s) ${[...duplicateSlugs].map(quoteValueForWarning).join(", ")} ` +
+          `from ${filePath}: rulesync generates these slugs and keeps only one entry for each.`,
+      );
+    }
 
-    super.setFileContent(stringifyRooModes(merged));
+    super.setFileContent(
+      dump(
+        { ...(isRecord(parsed) ? parsed : {}), customModes: merged },
+        { lineWidth: -1, noRefs: true },
+      ),
+    );
   }
 
   static override isTargetedByRulesyncSubagent(rulesyncSubagent: RulesyncSubagent): boolean {

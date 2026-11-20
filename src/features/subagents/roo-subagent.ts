@@ -71,7 +71,7 @@ export function sanitizeRooSlug(raw: string): string {
   return slug.length > 0 ? slug : "mode";
 }
 
-export function stringifyRooModes(modes: readonly unknown[]): string {
+function stringifyRooModes(modes: RooMode[]): string {
   return dump({ customModes: modes }, { lineWidth: -1, noRefs: true });
 }
 
