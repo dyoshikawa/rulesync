@@ -169,6 +169,8 @@ Since Auggie also accepts `.claude-plugin/` bundles, a `claudecode-plugin` bundl
 
 Shell steps in plugin commands (`` !`cmd` `` and ` ```! ` blocks) follow the same rule as in `.zcode/commands/`: since ZCode 3.17.2 the model runs them with the Bash tool after a permission prompt instead of ZCode running them before sending the prompt. Before handing a step over, ZCode fills in the plugin variables (`${CLAUDE_PLUGIN_ROOT}` / `${ZCODE_PLUGIN_ROOT}`, the `*_PLUGIN_DATA` paths, `ZCODE_PLUGIN_ID` and `ZCODE_PLUGIN_NAME`) with literal values. A step that uses `${CLAUDE_SKILL_DIR}` / `${ZCODE_SKILL_DIR}` is not run. Rulesync writes the command body unchanged.
 
+Since ZCode 3.19.0, a project can load a generated bundle without installing it: list its directory under `plugins.dirs` in the project's `.zcode/config.json`, e.g. `"plugins": { "dirs": ["./plugins/zcode-review-tools"] }`. Relative paths resolve against the project root. Each user must trust a plugin loaded this way for the workspace, and changing the plugin's declaration asks for trust again. Before 3.19.0, `plugins.dirs` was read only from the user config. Rulesync does not write `plugins.dirs`, but the `zcode` target keeps an existing `plugins` key when it rewrites `.zcode/config.json`.
+
 ZCode namespaces plugin agents and MCP servers under the plugin name. Since ZCode also accepts `.claude-plugin/` bundles, a `claudecode-plugin` bundle installs in ZCode too, but its components carry Claude Code frontmatter and its hook commands use `$CLAUDE_PLUGIN_ROOT`; use `zcode-plugin` when the bundle targets ZCode.
 
 ## Vibe Code plugins

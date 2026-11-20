@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { createMockLogger } from "../test-utils/mock-logger.js";
 import {
+  ALLOWED_NPM_TOKEN_ENV_NAMES_HINT,
   buildPackumentUrl,
   fetchPackument,
   fetchTarball,
@@ -115,7 +116,7 @@ describe("resolveNpmToken", () => {
   ])("refuses tokenEnv %j, which is not an NPM_TOKEN variable", (tokenEnv) => {
     vi.stubEnv(tokenEnv, FAKE_TOKEN);
     expect(() => resolveNpmToken({ tokenEnv, registryUrl: defaultRegistry })).toThrow(
-      /is not allowed/,
+      `tokenEnv "${tokenEnv}" is not allowed. ${ALLOWED_NPM_TOKEN_ENV_NAMES_HINT}`,
     );
   });
 

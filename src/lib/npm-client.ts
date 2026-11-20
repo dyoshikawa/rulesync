@@ -99,6 +99,12 @@ export function isAllowedNpmTokenEnvName(name: string): boolean {
   return NPM_TOKEN_ENV_NAME_REGEX.test(name);
 }
 
+/**
+ * The rule {@link isAllowedNpmTokenEnvName} enforces, in words. Shared by
+ * `install`, `add` and `doctor` so the three report the same names.
+ */
+export const ALLOWED_NPM_TOKEN_ENV_NAMES_HINT = `It must be "${DEFAULT_NPM_TOKEN_ENV}", "NODE_AUTH_TOKEN", or end with "_${DEFAULT_NPM_TOKEN_ENV}" (e.g. "ACME_${DEFAULT_NPM_TOKEN_ENV}").`;
+
 function toOrigin(url: string): string | undefined {
   try {
     return new URL(url).origin;
@@ -162,7 +168,7 @@ export function resolveNpmToken(params: {
   const { tokenEnv, registryUrl, logger } = params;
   if (tokenEnv !== undefined && !isAllowedNpmTokenEnvName(tokenEnv)) {
     throw new NpmClientError(
-      `tokenEnv "${tokenEnv}" is not allowed. It must be "${DEFAULT_NPM_TOKEN_ENV}", "NODE_AUTH_TOKEN", or end with "_${DEFAULT_NPM_TOKEN_ENV}" (e.g. "ACME_${DEFAULT_NPM_TOKEN_ENV}").`,
+      `tokenEnv "${tokenEnv}" is not allowed. ${ALLOWED_NPM_TOKEN_ENV_NAMES_HINT}`,
     );
   }
 
