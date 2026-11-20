@@ -53,6 +53,60 @@ describe("BobSubagent", () => {
     expect(subagent.getRelativeFilePath()).toBe("custom_modes.yaml");
   });
 
+  it("writes global-scope custom modes to ~/.bob/settings/custom_modes.yaml", () => {
+    expect(BobSubagent.getSettablePaths({ global: true })).toEqual({
+      relativeDirPath: join(".bob", "settings"),
+      relativeFilePath: "custom_modes.yaml",
+    });
+
+    const subagent = BobSubagent.fromRulesyncSubagents({
+      outputRoot: testDir,
+      rulesyncSubagents: [makeSubagent({})],
+      global: true,
+    });
+
+    expect(subagent.getRelativeDirPath()).toBe(join(".bob", "settings"));
+    expect(subagent.getRelativeFilePath()).toBe("custom_modes.yaml");
+
+    const single = BobSubagent.fromRulesyncSubagent({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync/subagents",
+      rulesyncSubagent: makeSubagent({}),
+      global: true,
+    });
+    expect(single.getRelativeDirPath()).toBe(join(".bob", "settings"));
+  });
+
+  it("imports global-scope custom modes from ~/.bob/settings/custom_modes.yaml", async () => {
+    await writeFileContent(
+      join(testDir, ".bob", "settings", "custom_modes.yaml"),
+      [
+        "customModes:",
+        "  - slug: reviewer",
+        "    name: Reviewer",
+        "    roleDefinition: You review code.",
+        "    groups:",
+        "      - read",
+        "",
+      ].join("\n"),
+    );
+
+    const imported = await BobSubagent.fromFile({
+      outputRoot: testDir,
+      relativeFilePath: "custom_modes.yaml",
+      global: true,
+    });
+
+    expect(imported.getRelativeDirPath()).toBe(join(".bob", "settings"));
+    const [rulesyncSubagent] = imported.toRulesyncSubagents();
+    expect(rulesyncSubagent?.getRelativeFilePath()).toBe("reviewer.md");
+    expect(rulesyncSubagent?.getFrontmatter()).toMatchObject({
+      targets: ["bob"],
+      name: "Reviewer",
+      bob: { slug: "reviewer", groups: ["read"] },
+    });
+  });
+
   it("defaults groups to Bob's spelling of read/edit/execute/mcp", () => {
     const subagent = BobSubagent.fromRulesyncSubagents({
       outputRoot: testDir,

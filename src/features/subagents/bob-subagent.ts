@@ -1,4 +1,8 @@
-import { BOB_CUSTOM_MODES_FILE_NAME, BOB_DIR } from "../../constants/bob-paths.js";
+import {
+  BOB_CUSTOM_MODES_FILE_NAME,
+  BOB_DIR,
+  BOB_GLOBAL_SETTINGS_DIR_PATH,
+} from "../../constants/bob-paths.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { isRecord, isStringArray } from "../../utils/type-guards.js";
 import { RooMode, RooSubagent } from "./roo-subagent.js";
@@ -12,8 +16,9 @@ import type { ToolSubagentSettablePaths } from "./tool-subagent.js";
  * presets `explore` and `general` — but it reads custom modes from an
  * aggregated `customModes` YAML file in Roo's format, so every targeted rulesync
  * subagent becomes one mode in `.bob/custom_modes.yaml`, exactly as the `roo`
- * target fills `.roomodes`. Only the project file is emitted: the Bob IDE and
- * Bob Shell docs name different global files.
+ * target fills `.roomodes`. In global mode the same array goes to
+ * `~/.bob/settings/custom_modes.yaml`, the user file both the Bob IDE and Bob
+ * Shell custom-modes pages name.
  *
  * The mode fields ride a `bob:` frontmatter section rather than Roo's `roo:`
  * one, because Bob's tool groups are spelled differently (`execute` where Roo
@@ -41,12 +46,14 @@ export class BobSubagent extends RooSubagent {
   ];
   protected static override readonly importTarget: ToolTarget = "bob";
 
-  static override getSettablePaths(_options: { global?: boolean } = {}): ToolSubagentSettablePaths {
+  static override getSettablePaths({
+    global = false,
+  }: { global?: boolean } = {}): ToolSubagentSettablePaths {
     // Naming the file keeps the derived gitignore entry to that one file
     // instead of the whole `.bob/` directory, which holds other features'
     // outputs and hand-maintained settings.
     return {
-      relativeDirPath: BOB_DIR,
+      relativeDirPath: global ? BOB_GLOBAL_SETTINGS_DIR_PATH : BOB_DIR,
       relativeFilePath: BOB_CUSTOM_MODES_FILE_NAME,
     };
   }

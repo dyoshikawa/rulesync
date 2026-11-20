@@ -230,6 +230,7 @@ const subagentsGlobalTargets = [
   { target: "antigravity-cli", outputPath: join(".gemini", "config", "agents", "planner.md") },
   { target: "antigravity-ide", outputPath: join(".gemini", "config", "agents", "planner.md") },
   { target: "augmentcode", outputPath: join(".augment", "agents", "planner.md") },
+  { target: "bob", outputPath: join(".bob", "settings", "custom_modes.yaml") },
   { target: "claudecode", outputPath: join(".claude", "agents", "planner.md") },
   { target: "codexcli", outputPath: join(".codex", "agents", "planner.toml") },
   { target: "commandcode", outputPath: join(".commandcode", "agents", "planner.md") },
