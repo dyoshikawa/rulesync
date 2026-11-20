@@ -1972,6 +1972,7 @@ Second global content`;
         "antigravity-cli",
         "antigravity-ide",
         "augmentcode",
+        "bob",
         "claudecode",
         "claudecode-legacy",
         "cline",
