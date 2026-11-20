@@ -178,6 +178,11 @@ const QWEN_OVERRIDE_TOOLS_KEYS = [
   // object), and changing it requires a restart. Added in Qwen Code v0.24.4.
   // https://github.com/QwenLM/qwen-code/pull/12267
   "executionSandbox",
+  // Experimental LSP code intelligence without the `--experimental-lsp` flag.
+  // Boolean, off by default, needs a restart, and honored in user/system
+  // settings only — see `QWEN_SCOPED_TOOLS_KEYS`. Added in Qwen Code v0.27.1.
+  // https://github.com/QwenLM/qwen-code/pull/14613
+  "lspEnabled",
 ] as const;
 // `allowedHttpHookUrls` (URL patterns allowed as `type: "http"` hook targets; an
 // empty list means allow-all) and `allowPrivateNetworkHooks` (relaxes the SSRF
@@ -383,6 +388,17 @@ const QWEN_SCOPED_TOOLS_KEYS = {
     grants: () => true,
     globalNote:
       "Qwen Code ignores this key in workspace settings so a repository cannot choose its own sandbox; in the global scope it sets the filesystem and network policy every tool command runs under for every project on this machine (a System value still replaces it, and Qwen Code needs a restart to pick it up).",
+  },
+  // On `WORKSPACE_RESTRICTED_SETTINGS` since Qwen Code v0.27.1 (verified
+  // against v0.28.0).
+  lspEnabled: {
+    rule: "workspace-stripped",
+    // Qwen Code turns LSP on only for a literal `true` (`isLspOptedIn` in
+    // `packages/cli/src/config/lsp-opt-in.ts`), unlike the booleans it reads
+    // for truth, so only `true` is a grant worth announcing.
+    grants: (value) => value === true,
+    globalNote:
+      "Qwen Code ignores this key in workspace settings so a repository cannot start language servers on its own behalf; in the global scope it turns on LSP code intelligence for every project on this machine, and the servers run with your permissions. A server declared in a workspace `.lsp.json` still needs an explicitly trusted folder, LSP is refused at startup when `tools.executionSandbox` is set, and the `QWEN_CODE_ENABLE_LSP` / `QWEN_CODE_DISABLE_LSP` environment variables override this setting (disable wins).",
   },
   workflowNameOnly: {
     // On `WORKSPACE_TIGHTEN_ONLY_SETTINGS`: a workspace `true` is honored, a

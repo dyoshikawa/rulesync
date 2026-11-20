@@ -1,4 +1,4 @@
-import { nonnegative, z } from "zod/mini";
+import { nonnegative, positive, z } from "zod/mini";
 
 import { invertRecord } from "../utils/own-lookup.js";
 
@@ -164,6 +164,13 @@ export const HookDefinitionSchema = z.looseObject({
   // (defaults to a fast model when omitted). Also forwarded to Qwen Code
   // prompt hooks.
   model: z.optional(safeString),
+  // Qoder `agent` hooks: the tool allow-list of the verifier sub-agent (all
+  // hook-safe tools when omitted) and its turn limit (50 upstream). A turn
+  // count is a positive integer, so anything else is refused at parse time
+  // rather than written into a config Qoder would reject.
+  // https://docs.qoder.com/cli/hooks
+  tools: z.optional(z.array(safeString)),
+  maxTurns: z.optional(z.int().check(positive())),
   // AugmentCode command hooks: extra argv appended to `command` by the runner,
   // so a hook can pass arguments without quoting them into the command string.
   // Accepted by the shipped CLI's validator (`@augmentcode/auggie` 0.33.0),

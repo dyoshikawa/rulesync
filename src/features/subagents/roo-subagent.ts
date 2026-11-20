@@ -190,10 +190,12 @@ export class RooSubagent extends ToolSubagent {
     outputRoot = process.cwd(),
     rulesyncSubagents,
     validate = true,
+    global = false,
   }: {
     outputRoot?: string;
     rulesyncSubagents: RulesyncSubagent[];
     validate?: boolean;
+    global?: boolean;
   }): RooSubagent {
     const bySlug = new Map<string, RooMode>();
     for (const rulesyncSubagent of rulesyncSubagents) {
@@ -203,10 +205,11 @@ export class RooSubagent extends ToolSubagent {
 
     return new this({
       outputRoot,
-      relativeDirPath: this.getSettablePaths().relativeDirPath,
+      relativeDirPath: this.getSettablePaths({ global }).relativeDirPath,
       relativeFilePath: this.modesFileName,
       modes: [...bySlug.values()],
       validate,
+      global,
     });
   }
 
@@ -214,11 +217,13 @@ export class RooSubagent extends ToolSubagent {
     outputRoot = process.cwd(),
     rulesyncSubagent,
     validate = true,
+    global = false,
   }: ToolSubagentFromRulesyncSubagentParams): RooSubagent {
     return this.fromRulesyncSubagents({
       outputRoot,
       rulesyncSubagents: [rulesyncSubagent],
       validate,
+      global,
     });
   }
 
@@ -305,8 +310,9 @@ export class RooSubagent extends ToolSubagent {
     outputRoot = process.cwd(),
     relativeFilePath,
     validate = true,
+    global = false,
   }: ToolSubagentFromFileParams): Promise<RooSubagent> {
-    const paths = this.getSettablePaths();
+    const paths = this.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(filePath);
 
@@ -330,6 +336,7 @@ export class RooSubagent extends ToolSubagent {
       relativeFilePath: basename(relativeFilePath),
       modes: result.data.customModes,
       validate,
+      global,
     });
   }
 
@@ -337,6 +344,7 @@ export class RooSubagent extends ToolSubagent {
     outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
+    global = false,
   }: ToolSubagentForDeletionParams): RooSubagent {
     return new this({
       outputRoot,
@@ -344,6 +352,7 @@ export class RooSubagent extends ToolSubagent {
       relativeFilePath,
       modes: [],
       validate: false,
+      global,
     });
   }
 }
