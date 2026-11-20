@@ -486,7 +486,7 @@ describe("FactorydroidHooks", () => {
         fileContent: JSON.stringify({
           version: 1,
           hooks: {
-            preToolUse: [{ matcher: "Execute", commandRegex: "^git ", command: "audit.sh" }],
+            preToolUse: [{ matcher: "Execute", commandRegex: "^git ", command: "./audit.sh" }],
           },
         }),
         validate: false,
@@ -517,7 +517,7 @@ describe("FactorydroidHooks", () => {
           version: 1,
           hooks: {
             preToolUse: [
-              { matcher: "Execute", commandRegex: "^git ", command: "audit.sh" },
+              { matcher: "Execute", commandRegex: "^git ", command: "./audit.sh" },
               { matcher: "Execute", command: "always.sh" },
               { matcher: "Execute", commandRegex: "^npm ", command: "npm-audit.sh" },
             ],
@@ -602,6 +602,53 @@ describe("FactorydroidHooks", () => {
       const hookDef = parsed.PreToolUse[0].hooks[0];
       expect(hookDef.type).toBe("command");
       expect(hookDef.timeout).toBe(30000);
+    });
+
+    it("should emit failClosed as onFailure: block only on events where Droid blocks", async () => {
+      // https://docs.factory.com/harness/hooks#block-when-a-hook-fails
+      const logger = createMockLogger();
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            preToolUse: [
+              { type: "command", command: "guard.sh", failClosed: true, timeout: 30 },
+              { type: "command", command: "audit.sh", failClosed: false },
+            ],
+            beforeSubmitPrompt: [{ type: "command", command: "prompt.sh", failClosed: true }],
+            stop: [{ type: "command", command: "stop.sh", failClosed: true }],
+          },
+        }),
+        validate: false,
+      });
+
+      const factorydroidHooks = await FactorydroidHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+        logger,
+      });
+
+      const parsed = JSON.parse(factorydroidHooks.getFileContent());
+      const preToolUse = parsed.PreToolUse.flatMap(
+        (entry: { hooks: Array<Record<string, unknown>> }) => entry.hooks,
+      );
+      expect(preToolUse).toEqual([
+        { type: "command", command: "guard.sh", timeout: 30, onFailure: "block" },
+        { type: "command", command: "audit.sh" },
+      ]);
+      expect(parsed.UserPromptSubmit[0].hooks[0]).toEqual({
+        type: "command",
+        command: "prompt.sh",
+        onFailure: "block",
+      });
+      expect(parsed.Stop[0].hooks[0]).toEqual({ type: "command", command: "stop.sh" });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Dropping "failClosed" from a "command" hook on "stop"'),
+      );
     });
 
     it("should skip prompt-type hooks, which Droid cannot execute (issue #2412)", async () => {
@@ -714,6 +761,42 @@ describe("FactorydroidHooks", () => {
 
       expect(factorydroidHooks.toRulesyncHooks().getJson().hooks.sessionStart?.[0]?.command).toBe(
         "legacy.sh",
+      );
+    });
+
+    it("should import onFailure back into failClosed and drop it where Droid ignores it", () => {
+      const logger = createMockLogger();
+      const factorydroidHooks = new FactorydroidHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".factory",
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          PreToolUse: [
+            {
+              hooks: [
+                { type: "command", command: "block.sh", onFailure: "block" },
+                { type: "command", command: "continue.sh", onFailure: "continue" },
+                { type: "command", command: "typo.sh", onFailure: "Block" },
+              ],
+            },
+          ],
+          Stop: [{ hooks: [{ type: "command", command: "stop.sh", onFailure: "block" }] }],
+        }),
+        validate: false,
+      });
+
+      const json = factorydroidHooks.toRulesyncHooks({ logger }).getJson();
+      expect(json.hooks.preToolUse).toEqual([
+        { type: "command", command: "block.sh", failClosed: true },
+        { type: "command", command: "continue.sh", failClosed: false },
+        { type: "command", command: "typo.sh" },
+      ]);
+      expect(json.hooks.stop).toEqual([{ type: "command", command: "stop.sh" }]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('"Block" is not a value this tool documents for it'),
+      );
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Dropping "onFailure" from a "command" hook on "stop"'),
       );
     });
 
