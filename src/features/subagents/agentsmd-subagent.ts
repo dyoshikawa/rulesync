@@ -1,6 +1,6 @@
 import { AGENTSMD_SUBAGENTS_DIR_PATH } from "../../constants/agentsmd-paths.js";
 import {
-  ANTIGRAVITY_SHARED_SUBAGENT_SECTION_KEYS,
+  AGENTS_DIR_SHARED_SUBAGENT_SECTION_KEYS,
   stringifyAntigravitySubagentFile,
   toAntigravitySubagentFrontmatter,
 } from "./antigravity-shared-subagent.js";
@@ -57,7 +57,7 @@ export class AgentsmdSubagent extends SimulatedSubagent {
     // reduced file instead is exactly the degradation the shared block prevents.
     const frontmatter = toAntigravitySubagentFrontmatter({
       rulesyncSubagent: params.rulesyncSubagent,
-      sectionKeys: ANTIGRAVITY_SHARED_SUBAGENT_SECTION_KEYS,
+      sectionKeys: AGENTS_DIR_SHARED_SUBAGENT_SECTION_KEYS,
       toolTarget: "agentsmd",
     });
 

@@ -260,6 +260,7 @@ export const subagentsProcessorToolTargetTuple = [
   "kiro-ide",
   "lettacode",
   "mimocode",
+  "musecode",
   "omp",
   "opencode",
   "opencodev1",

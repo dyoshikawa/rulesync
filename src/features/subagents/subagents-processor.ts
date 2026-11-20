@@ -62,6 +62,7 @@ import { KiroIdeSubagent } from "./kiro-ide-subagent.js";
 import { KiroSubagent } from "./kiro-subagent.js";
 import { LettacodeSubagent } from "./lettacode-subagent.js";
 import { MimocodeSubagent } from "./mimocode-subagent.js";
+import { MusecodeSubagent } from "./musecode-subagent.js";
 import { OmpSubagent } from "./omp-subagent.js";
 import { OpenCodeSubagent } from "./opencode-subagent.js";
 import { Opencodev1Subagent } from "./opencodev1-subagent.js";
@@ -745,6 +746,21 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
     "mimocode",
     {
       class: MimocodeSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.md",
+      },
+    },
+  ],
+  [
+    "musecode",
+    {
+      // Muse Code custom agents: Markdown + YAML frontmatter under the shared
+      // `.agents/agents/` (project) and `~/.config/muse/agents/` (global).
+      // https://dev.meta.ai/docs/muse-code/agents
+      class: MusecodeSubagent,
       meta: {
         supportsProject: true,
         supportsSimulated: false,

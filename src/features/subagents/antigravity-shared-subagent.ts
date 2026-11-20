@@ -68,6 +68,21 @@ export const ANTIGRAVITY_SHARED_SUBAGENT_SECTION_KEYS = [
   "antigravity-cli",
 ] as const satisfies readonly ToolTarget[];
 
+/**
+ * Tool-specific rulesync sections every writer of the project
+ * `.agents/agents/<name>.md` file merges, in increasing precedence order.
+ *
+ * Muse Code loads its project agents from the same directory, so its section
+ * is merged into the shared file too, below the Antigravity blocks: a key both
+ * set keeps the Antigravity value the file carried before Muse Code joined.
+ * Global agents live in per-tool directories, so this list applies to the
+ * project file only.
+ */
+export const AGENTS_DIR_SHARED_SUBAGENT_SECTION_KEYS = [
+  "musecode",
+  ...ANTIGRAVITY_SHARED_SUBAGENT_SECTION_KEYS,
+] as const satisfies readonly ToolTarget[];
+
 export type AntigravitySharedSubagentParams = {
   frontmatter: AntigravitySubagentFrontmatter;
   body: string;
@@ -213,11 +228,15 @@ export class AntigravitySharedSubagent extends ToolSubagent {
    * therefore merges the shared `antigravity-ide` → `antigravity-cli` sections
    * (the CLI block wins, matching the fixed order the MCP feature already uses
    * for the same shared-output reason), and the plugin target layers its own
-   * section on top of that. Only `getToolTarget()` decides which section an
-   * import writes back into.
+   * section on top of that. The project file is also read by Muse Code, so in
+   * project scope the `musecode` section is merged underneath (see
+   * {@link AGENTS_DIR_SHARED_SUBAGENT_SECTION_KEYS}). Only `getToolTarget()`
+   * decides which section an import writes back into.
    */
-  protected static getReadSectionKeys(): ToolTarget[] {
-    return [...ANTIGRAVITY_SHARED_SUBAGENT_SECTION_KEYS];
+  protected static getReadSectionKeys({ global = false }: { global?: boolean } = {}): ToolTarget[] {
+    return global
+      ? [...ANTIGRAVITY_SHARED_SUBAGENT_SECTION_KEYS]
+      : [...AGENTS_DIR_SHARED_SUBAGENT_SECTION_KEYS];
   }
 
   static getSettablePaths({
@@ -270,7 +289,7 @@ export class AntigravitySharedSubagent extends ToolSubagent {
   }: ToolSubagentFromRulesyncSubagentParams): ToolSubagent {
     const frontmatter = toAntigravitySubagentFrontmatter({
       rulesyncSubagent,
-      sectionKeys: this.getReadSectionKeys(),
+      sectionKeys: this.getReadSectionKeys({ global }),
       toolTarget: this.getToolTarget(),
     });
     const body = rulesyncSubagent.getBody();
