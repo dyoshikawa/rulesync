@@ -203,7 +203,7 @@ export type ToolHooksConverterConfig = {
     readonly commandOnly?: boolean;
     /**
      * Hook types the tool documents the field on, for a field that belongs to
-     * another hook type than `command` (Qoder's agent-hook `maxTurns`);
+     * another hook type than `command` (Qoder's agent-hook `tools`);
      * unrestricted when absent.
      */
     readonly hookTypes?: ReadonlySet<HookType>;
@@ -1127,17 +1127,11 @@ function isKeywordFieldApplicable({
 }): boolean {
   const { canonical, tool, commandOnly, hookTypes, events, ignoredEvents, ignoredWhenFlags } = spec;
   const field = direction === "generated" ? canonical : tool;
-  if (!isFieldApplicable({ commandOnly, hookType })) {
+  if (!isFieldApplicable({ commandOnly, hookTypes, hookType })) {
     warn?.(
       `Dropping "${field}" from a "${hookType}" hook on "${eventName}": this tool documents ` +
-        `"${tool}" on "command" hooks only, so it is not ${direction}.`,
-    );
-    return false;
-  }
-  if (hookTypes !== undefined && !hookTypes.has(hookType)) {
-    warn?.(
-      `Dropping "${field}" from a "${hookType}" hook on "${eventName}": this tool documents ` +
-        `"${tool}" on ${describeEvents(hookTypes)} hooks only, so it is not ${direction}.`,
+        `"${tool}" on ${describeDocumentedHookTypes({ commandOnly, hookTypes })} hooks only, ` +
+        `so it is not ${direction}.`,
     );
     return false;
   }
