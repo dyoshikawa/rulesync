@@ -50,7 +50,7 @@ function normalizeAugmentcodeToolList(value: string[] | string): string[] | unde
 }
 
 // AugmentCode (Auggie CLI) subagents are Markdown files with YAML frontmatter.
-// Auggie 0.36.0 requires `name` (https://docs.augmentcode.com/cli/v0/subagents);
+// Auggie 0.x requires `name` (https://docs.augmentcode.com/cli/v0/subagents);
 // Auggie 1.x makes it optional and "Defaults to the filename without `.md`"
 // (https://docs.augmentcode.com/cli/subagents), so import accepts a file
 // without it and derives the name from the file, while generate always writes

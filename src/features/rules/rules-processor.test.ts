@@ -202,11 +202,12 @@ describe("RulesProcessor", () => {
           }),
         ]);
 
-        // Stable Auggie (0.36.0) still loads plugin rules, so the output is unchanged.
+        // Auggie 0.x (still installable from npm's v0-release tag) loads plugin
+        // rules, so the output is unchanged.
         expect(toolFiles.map((file) => file.getRelativePathFromCwd())).toEqual([
           join("rules", "style.md"),
         ]);
-        expect(findWarning()).toBeDefined();
+        expect(findWarning()).toContain("reach only users pinned to Auggie 0.x");
       });
 
       it("should not warn for the augmentcode target", async () => {

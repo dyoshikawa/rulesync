@@ -108,13 +108,14 @@ const AUGMENT_TO_CANONICAL_TOOL_NAMES: Record<string, string> = invertRecord(
 // Other AugmentCode spellings of the managed tools and the legacy names rulesync emits for them.
 // Auggie 0.x's permissions docs (https://docs.augmentcode.com/cli/v0/permissions) named the tools
 // `terminal` / `read` / `edit` / `write` and aliased the legacy names to them. Auggie 1.x
-// (https://docs.augmentcode.com/cli/permissions, a prerelease at the time of writing) renamed the
+// (https://docs.augmentcode.com/cli/permissions, stable since 1.2.0) renamed the
 // shell tool to `bash` and recognizes only these legacy names in permission rules:
 // `launch-process` / `shell` → `bash`, `view` → `read`, `str-replace-editor` /
 // `str_replace_editor` → `edit`, `save-file` / `save_file` → `write`. A hand-authored
 // settings.json (or one written by 1.x's `/permissions` manager) may therefore use any of these
-// spellings for the same tool. Rulesync keeps EMITTING the legacy names, because both the shipped
-// 0.x CLI (0.36.0) and 1.x accept them while `terminal` and `bash` each work in one line only;
+// spellings for the same tool. Rulesync keeps EMITTING the legacy names, because both 0.x (still
+// installable from npm's `v0-release` tag) and 1.x accept them while `terminal` and `bash` each
+// work in one line only;
 // this map is only consulted when reading an existing file, so that a row written under another
 // spelling is imported, deduplicated and retracted like its legacy twin.
 const CURRENT_TO_LEGACY_AUGMENT_TOOL_NAMES: Record<string, string> = {
@@ -668,8 +669,11 @@ export class AugmentcodePermissions extends ToolPermissions {
  * does nothing.
  *
  * Only Auggie 0.x reads `recommendedMarketplaces`: the 1.x plugin settings
- * reference lists `enabledPlugins` alone. The key is still written because the
- * stable CLI is 0.x, and the write warning says it is 0.x-only.
+ * reference lists `enabledPlugins` alone, and the 1.x settings loader never
+ * reads the key. 1.x is the stable CLI since 1.2.0, so the key now reaches only
+ * users pinned to 0.x (npm `v0-release` with auto-update off). It is still
+ * written for them, and the write warning says so.
+ * @see https://www.augmentcode.com/changelog
  *
  * Both make Auggie load code the repository did not ship — a recommended
  * marketplace is one prompt away from being cloned, and an enabled plugin can
@@ -706,7 +710,7 @@ function buildPluginConsumptionPatch({
         !isDeepStrictEqual(recommendedMarketplaces, existingMarketplaces)
       ) {
         logger?.warn(
-          `Writing AugmentCode \`recommendedMarketplaces\` (${recommendedMarketplaces.map(quoteValueForWarning).join(", ")}): Auggie 0.x prompts everyone who opens this workspace to install these plugin marketplaces (Auggie 1.x no longer reads this key).`,
+          `Writing AugmentCode \`recommendedMarketplaces\` (${recommendedMarketplaces.map(quoteValueForWarning).join(", ")}): Auggie 0.x prompts everyone who opens this workspace to install these plugin marketplaces (Auggie 1.x no longer reads this key, so only users pinned to Auggie 0.x see the prompt).`,
         );
       }
       warnAboutRemovedPluginIds({

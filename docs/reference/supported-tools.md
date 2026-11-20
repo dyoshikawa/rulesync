@@ -119,15 +119,18 @@ a new compatibility validation.
 
 ## AugmentCode (Auggie 1.x) compatibility
 
-The `augmentcode` and `augmentcode-plugin` targets follow the stable Auggie CLI
-(0.36.0, npm `latest`). Auggie 1.x, a rewrite published on npm's `prerelease`
-tag, is documented at [docs.augmentcode.com/cli](https://docs.augmentcode.com/cli/whats-new),
-while the 0.x documentation moved under `/cli/v0/`. Rulesync's output stays
-loadable by both lines: permissions keep the legacy tool names both accept, and
-subagents keep writing `name`, which only 0.x requires. Import also reads the
-1.x spellings (`bash` shell rules, agents without `name`). One gap remains:
-1.x no longer loads `rules/` from plugins, so `augmentcode-plugin` rules reach
-0.x users only, and generate warns about it.
+Auggie 1.x, a rewrite documented at [docs.augmentcode.com/cli](https://docs.augmentcode.com/cli/whats-new),
+is the stable Auggie CLI since [1.2.0](https://www.augmentcode.com/changelog)
+(2026-11-09, npm `latest`), and 0.x installs with auto-update enabled upgrade
+to it on their own. Auggie 0.x (0.37.x) remains available only on npm's
+`v0-release` tag with `"autoUpdate": false`, and its documentation lives under
+`/cli/v0/`. Rulesync's output stays loadable by both lines: permissions keep the
+legacy tool names both accept, and subagents keep writing `name`, which only 0.x
+requires. Import also reads the 1.x spellings (`bash` shell rules, agents
+without `name`). Two outputs still reach pinned 0.x users only, and generate
+warns about each: `augmentcode-plugin` rules (1.x no longer loads `rules/` from
+plugins) and the `recommendedMarketplaces` permissions override (1.x no longer
+reads the key).
 
 ## Deprecation notes
 

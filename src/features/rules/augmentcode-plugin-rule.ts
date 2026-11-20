@@ -21,13 +21,15 @@ export class AugmentcodePluginRule extends AugmentcodeRule {
   }
 
   /**
-   * Auggie 1.x (still a prerelease on npm at the time of writing; the stable
-   * line is 0.36.0) no longer loads `rules/` from plugins: "Rules shipped in
-   * plugins (`rules/` in a plugin)" is listed among the removed features, while
-   * commands, agents, skills, hooks and MCP servers still load. The rule files
-   * are still written, because the stable 0.x CLI reads them, but under 1.x the
-   * bundle silently loses them, so say so.
+   * Auggie 1.x (the stable line on npm `latest` since 1.2.0; 0.x is kept only
+   * on the `v0-release` tag with auto-update turned off) no longer loads
+   * `rules/` from plugins: "Rules shipped in plugins (`rules/` in a plugin)" is
+   * listed among the removed features, while commands, agents, skills, hooks
+   * and MCP servers still load. The rule files are still written for users
+   * pinned to 0.x, which reads them, but under 1.x the bundle silently loses
+   * them, so say so.
    * @see https://docs.augmentcode.com/cli/whats-new
+   * @see https://www.augmentcode.com/changelog
    * @see https://docs.augmentcode.com/cli/v0/plugins
    */
   static async getGenerationWarnings({ toolRules }: { toolRules: ToolRule[] }): Promise<string[]> {
@@ -35,7 +37,7 @@ export class AugmentcodePluginRule extends AugmentcodeRule {
       return [];
     }
     return [
-      `augmentcode-plugin: plugin rules (rules/*.md) are loaded by Auggie 0.x only; Auggie 1.x no longer reads rules/ from plugins, so these ${toolRules.length} rule file(s) have no effect there. Ship instructions that must reach Auggie 1.x users as a skill, or have them generate the augmentcode target in their project.`,
+      `augmentcode-plugin: plugin rules (rules/*.md) are loaded by Auggie 0.x only; Auggie 1.x no longer reads rules/ from plugins, so these ${toolRules.length} rule file(s) reach only users pinned to Auggie 0.x (1.x is the stable CLI since 1.2.0). Ship instructions that must reach Auggie 1.x users as a skill, or have them generate the augmentcode target in their project.`,
     ];
   }
 }
