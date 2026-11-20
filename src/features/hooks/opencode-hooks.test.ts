@@ -851,6 +851,40 @@ describe("OpencodeHooks (OpenCode V2)", () => {
       expect(out).toEqual(["s1: context-1", "s2: ", "s1: context-1", "s101: context-101"]);
     }, 60_000);
 
+    it("writes a timed-out sessionStart command's stderr to the host once it ends on Bun Shell", async () => {
+      const content = generateOpencodeStylePluginCode(
+        {
+          version: 1,
+          hooks: {
+            sessionStart: [
+              {
+                command: `node -e "setTimeout(() => process.stderr.write('late-stderr'), 1500)"`,
+                timeout: 1,
+              },
+            ],
+          },
+        },
+        OPENCODE_HOOK_EVENTS,
+        "opencodev1",
+        CANONICAL_TO_OPENCODE_EVENT_NAMES,
+      );
+      const { out } = await runUnderBun({
+        content,
+        prelude: [
+          "const write = process.stderr.write.bind(process.stderr);",
+          "process.stderr.write = (chunk, ...rest) => (String(chunk).includes('late-stderr') && out.push('stderr: ' + chunk), write(chunk, ...rest));",
+          "hooks = await mod.RulesyncHooksPlugin({ directory });",
+        ].join("\n"),
+        body: [
+          "await hooks.event({ event: { type: 'session.created', properties: { info: { id: 's1' } } } });",
+          "out.push('timed out');",
+          "await Bun.sleep(2500);",
+        ].join("\n"),
+      });
+
+      expect(out).toEqual(["timed out", "stderr: late-stderr"]);
+    }, 60_000);
+
     // A Windows program ends its lines with CRLF; the context is trimmed of it.
     it.runIf(process.platform === "win32")(
       "reads sessionStart context printed through cmd.exe on Windows",
