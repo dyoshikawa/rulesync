@@ -486,7 +486,7 @@ describe("FactorydroidHooks", () => {
         fileContent: JSON.stringify({
           version: 1,
           hooks: {
-            preToolUse: [{ matcher: "Execute", commandRegex: "^git ", command: "./audit.sh" }],
+            preToolUse: [{ matcher: "Execute", commandRegex: "^git ", command: "audit.sh" }],
           },
         }),
         validate: false,
@@ -517,7 +517,7 @@ describe("FactorydroidHooks", () => {
           version: 1,
           hooks: {
             preToolUse: [
-              { matcher: "Execute", commandRegex: "^git ", command: "./audit.sh" },
+              { matcher: "Execute", commandRegex: "^git ", command: "audit.sh" },
               { matcher: "Execute", command: "always.sh" },
               { matcher: "Execute", commandRegex: "^npm ", command: "npm-audit.sh" },
             ],
@@ -650,6 +650,45 @@ describe("FactorydroidHooks", () => {
         expect.stringContaining('Dropping "failClosed" from a "command" hook on "stop"'),
       );
     });
+
+    it.each([
+      ["preToolUse", "PreToolUse"],
+      ["postToolUse", "PostToolUse"],
+      ["beforeSubmitPrompt", "UserPromptSubmit"],
+      ["preCompact", "PreCompact"],
+    ])(
+      "should emit failClosed as onFailure: block on %s (%s)",
+      async (canonicalEvent, droidEvent) => {
+        const logger = createMockLogger();
+        const rulesyncHooks = new RulesyncHooks({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: "hooks.json",
+          fileContent: JSON.stringify({
+            version: 1,
+            hooks: {
+              [canonicalEvent]: [{ type: "command", command: "guard.sh", failClosed: true }],
+            },
+          }),
+          validate: false,
+        });
+
+        const factorydroidHooks = await FactorydroidHooks.fromRulesyncHooks({
+          outputRoot: testDir,
+          rulesyncHooks,
+          validate: false,
+          logger,
+        });
+
+        const parsed = JSON.parse(factorydroidHooks.getFileContent());
+        expect(parsed[droidEvent][0].hooks[0]).toEqual({
+          type: "command",
+          command: "guard.sh",
+          onFailure: "block",
+        });
+        expect(logger.warn).not.toHaveBeenCalled();
+      },
+    );
 
     it("should skip prompt-type hooks, which Droid cannot execute (issue #2412)", async () => {
       await ensureDir(join(testDir, ".factory"));
