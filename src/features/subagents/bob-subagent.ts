@@ -1,11 +1,15 @@
+import { join } from "node:path";
+
 import {
   BOB_CUSTOM_MODES_FILE_NAME,
   BOB_DIR,
   BOB_GLOBAL_SETTINGS_DIR_PATH,
 } from "../../constants/bob-paths.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
+import { formatError } from "../../utils/error.js";
 import { isRecord, isStringArray } from "../../utils/type-guards.js";
-import { RooMode, RooSubagent } from "./roo-subagent.js";
+import { loadYaml } from "../../utils/yaml.js";
+import { RooMode, RooSubagent, stringifyRooModes } from "./roo-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 import type { ToolSubagentSettablePaths } from "./tool-subagent.js";
 
@@ -18,7 +22,11 @@ import type { ToolSubagentSettablePaths } from "./tool-subagent.js";
  * subagent becomes one mode in `.bob/custom_modes.yaml`, exactly as the `roo`
  * target fills `.roomodes`. In global mode the same array goes to
  * `~/.bob/settings/custom_modes.yaml`, the user file both the Bob IDE and Bob
- * Shell custom-modes pages name.
+ * Shell custom-modes pages name. That file is unversioned and Bob IDE's "Edit
+ * Global Modes" setting writes it too, so rulesync does not own it: a global
+ * generate merges the generated modes into it by `slug`, keeps every other
+ * mode, and the file is never deleted. The project file stays wholly owned by
+ * rulesync, like Roo's `.roomodes`.
  *
  * The mode fields ride a `bob:` frontmatter section rather than Roo's `roo:`
  * one, because Bob's tool groups are spelled differently (`execute` where Roo
@@ -56,6 +64,65 @@ export class BobSubagent extends RooSubagent {
       relativeDirPath: global ? BOB_GLOBAL_SETTINGS_DIR_PATH : BOB_DIR,
       relativeFilePath: BOB_CUSTOM_MODES_FILE_NAME,
     };
+  }
+
+  override isDeletable(): boolean {
+    // The global file is shared with Bob IDE's own mode editor.
+    return !this.global;
+  }
+
+  override shouldMergeExistingFileContent(): boolean {
+    return this.global;
+  }
+
+  /**
+   * Merge the generated modes into the existing global file: a mode whose
+   * `slug` rulesync generates is replaced in place, every other entry is kept
+   * as written, and new modes are appended. A file that cannot be read as a
+   * `customModes` document is an error rather than something to overwrite.
+   */
+  override setFileContent(existingContent: string): void {
+    if (!this.global) {
+      super.setFileContent(existingContent);
+      return;
+    }
+    const filePath = join(
+      this.getOutputRoot(),
+      this.getRelativeDirPath(),
+      this.getRelativeFilePath(),
+    );
+    let parsed: unknown;
+    try {
+      parsed = loadYaml(existingContent);
+    } catch (error) {
+      throw new Error(
+        `Failed to parse custom modes (${filePath}); not overwriting it: ${formatError(error)}`,
+        { cause: error },
+      );
+    }
+    const existingModes = isRecord(parsed) ? parsed.customModes : undefined;
+    if (
+      !(parsed === null || parsed === undefined || isRecord(parsed)) ||
+      !(existingModes === null || existingModes === undefined || Array.isArray(existingModes))
+    ) {
+      throw new Error(
+        `Invalid custom modes in ${filePath}; not overwriting it: expected a "customModes" list.`,
+      );
+    }
+
+    const generated = new Map(this.getModes().map((mode) => [mode.slug, mode]));
+    const merged: unknown[] = (Array.isArray(existingModes) ? existingModes : []).map((entry) => {
+      const slug = isRecord(entry) ? entry.slug : undefined;
+      if (typeof slug !== "string" || !generated.has(slug)) {
+        return entry;
+      }
+      const mode = generated.get(slug);
+      generated.delete(slug);
+      return mode;
+    });
+    merged.push(...generated.values());
+
+    super.setFileContent(stringifyRooModes(merged));
   }
 
   static override isTargetedByRulesyncSubagent(rulesyncSubagent: RulesyncSubagent): boolean {

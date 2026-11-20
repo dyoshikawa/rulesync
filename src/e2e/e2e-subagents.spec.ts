@@ -14,6 +14,7 @@ import {
   writeFileContent,
 } from "../utils/file.js";
 import { getHermesagentGlobalDir } from "../utils/hermesagent.js";
+import { loadYaml } from "../utils/yaml.js";
 import {
   assertGenerateMatrixCoversTargets,
   runGenerate,
@@ -1435,6 +1436,93 @@ You are the planner. Analyze files and create a plan.
       }
     },
   );
+
+  it("should keep hand-written Bob global modes when generating", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+    const globalModesPath = join(homeDir, ".bob", "settings", "custom_modes.yaml");
+
+    await writeFileContent(
+      globalModesPath,
+      [
+        "customModes:",
+        "  - slug: my-own",
+        "    name: My Own",
+        "    roleDefinition: Hand-written in Bob IDE.",
+        "    groups:",
+        "      - read",
+        "  - slug: planner",
+        "    name: Old Planner",
+        "    roleDefinition: Stale copy.",
+        "    groups:",
+        "      - read",
+        "",
+      ].join("\n"),
+    );
+    await writeFileContent(
+      join(projectDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
+      `---
+root: true
+name: planner
+targets: ["bob"]
+description: "Plans implementation tasks"
+---
+You are the planner.
+`,
+    );
+
+    await runGenerate({
+      target: "bob",
+      features: "subagents",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const modes = (loadYaml(await readFileContent(globalModesPath)) as { customModes: unknown[] })
+      .customModes;
+    expect(modes).toEqual([
+      expect.objectContaining({ slug: "my-own", roleDefinition: "Hand-written in Bob IDE." }),
+      expect.objectContaining({ slug: "planner", roleDefinition: "You are the planner." }),
+    ]);
+  });
+
+  it("should not delete the Bob global modes file with --delete and no bob subagent", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+    const globalModesPath = join(homeDir, ".bob", "settings", "custom_modes.yaml");
+    const original = [
+      "customModes:",
+      "  - slug: my-own",
+      "    name: My Own",
+      "    roleDefinition: Hand-written in Bob IDE.",
+      "    groups:",
+      "      - read",
+      "",
+    ].join("\n");
+
+    await writeFileContent(globalModesPath, original);
+    await writeFileContent(
+      join(projectDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
+      `---
+root: true
+name: planner
+targets: ["claudecode"]
+description: "Plans implementation tasks"
+---
+You are the planner.
+`,
+    );
+
+    await runGenerate({
+      target: "bob",
+      features: "subagents",
+      global: true,
+      deleteFiles: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    expect(await readFileContent(globalModesPath)).toBe(original);
+  });
 
   it("should ignore non-root subagents in global mode", async () => {
     const projectDir = getProjectDir();

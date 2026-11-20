@@ -77,6 +77,80 @@ describe("BobSubagent", () => {
     expect(single.getRelativeDirPath()).toBe(join(".bob", "settings"));
   });
 
+  it("owns the project file outright: deletable and never merged", () => {
+    const subagent = BobSubagent.fromRulesyncSubagents({
+      outputRoot: testDir,
+      rulesyncSubagents: [makeSubagent({})],
+    });
+    expect(subagent.isDeletable()).toBe(true);
+    expect(subagent.shouldMergeExistingFileContent()).toBe(false);
+    expect(
+      BobSubagent.forDeletion({
+        outputRoot: testDir,
+        relativeDirPath: ".bob",
+        relativeFilePath: "custom_modes.yaml",
+      }).isDeletable(),
+    ).toBe(true);
+  });
+
+  it("never deletes the global file", () => {
+    const subagent = BobSubagent.forDeletion({
+      outputRoot: testDir,
+      relativeDirPath: join(".bob", "settings"),
+      relativeFilePath: "custom_modes.yaml",
+      global: true,
+    });
+    expect(subagent.isDeletable()).toBe(false);
+  });
+
+  it("merges generated modes into the existing global file by slug", () => {
+    const subagent = BobSubagent.fromRulesyncSubagents({
+      outputRoot: testDir,
+      rulesyncSubagents: [makeSubagent({}), makeSubagent({}, "reviewer.md")],
+      global: true,
+    });
+    expect(subagent.shouldMergeExistingFileContent()).toBe(true);
+
+    subagent.setFileContent(
+      [
+        "customModes:",
+        "  - slug: my-own",
+        "    name: My Own",
+        "    roleDefinition: Hand-written.",
+        "    groups: [read]",
+        "    source: global",
+        "  - slug: planner",
+        "    name: Old Planner",
+        "    roleDefinition: Stale.",
+        "    groups: [read]",
+        "",
+      ].join("\n"),
+    );
+
+    const modes = (
+      loadYaml(subagent.getFileContent()) as { customModes: Record<string, unknown>[] }
+    ).customModes;
+    expect(modes.map((mode) => mode.slug)).toEqual(["my-own", "planner", "reviewer"]);
+    expect(modes[0]).toEqual({
+      slug: "my-own",
+      name: "My Own",
+      roleDefinition: "Hand-written.",
+      groups: ["read"],
+      source: "global",
+    });
+    expect(modes[1]?.roleDefinition).toBe("You are a planner.");
+  });
+
+  it("refuses to overwrite a global file that is not a customModes document", () => {
+    const subagent = BobSubagent.fromRulesyncSubagents({
+      outputRoot: testDir,
+      rulesyncSubagents: [makeSubagent({})],
+      global: true,
+    });
+    expect(() => subagent.setFileContent("customModes: oops\n")).toThrow(/not overwriting it/);
+    expect(() => subagent.setFileContent("customModes: [\n")).toThrow(/not overwriting it/);
+  });
+
   it("imports global-scope custom modes from ~/.bob/settings/custom_modes.yaml", async () => {
     await writeFileContent(
       join(testDir, ".bob", "settings", "custom_modes.yaml"),

@@ -71,7 +71,7 @@ export function sanitizeRooSlug(raw: string): string {
   return slug.length > 0 ? slug : "mode";
 }
 
-function stringifyRooModes(modes: RooMode[]): string {
+export function stringifyRooModes(modes: readonly unknown[]): string {
   return dump({ customModes: modes }, { lineWidth: -1, noRefs: true });
 }
 
@@ -209,6 +209,7 @@ export class RooSubagent extends ToolSubagent {
       relativeFilePath: this.modesFileName,
       modes: [...bySlug.values()],
       validate,
+      global,
     });
   }
 
@@ -335,6 +336,7 @@ export class RooSubagent extends ToolSubagent {
       relativeFilePath: basename(relativeFilePath),
       modes: result.data.customModes,
       validate,
+      global,
     });
   }
 
@@ -342,6 +344,7 @@ export class RooSubagent extends ToolSubagent {
     outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
+    global = false,
   }: ToolSubagentForDeletionParams): RooSubagent {
     return new this({
       outputRoot,
@@ -349,6 +352,7 @@ export class RooSubagent extends ToolSubagent {
       relativeFilePath,
       modes: [],
       validate: false,
+      global,
     });
   }
 }
