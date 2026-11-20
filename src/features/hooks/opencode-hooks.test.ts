@@ -136,11 +136,12 @@ describe("OpencodeHooks (OpenCode V2)", () => {
         'ctx.tool.hook("execute.before"',
         'ctx.tool.hook("execute.after"',
         'ctx.session.hook("prompt"',
-        'ctx.session.hook("context"',
         'ctx.session.hook("compaction"',
       ]) {
         expect(content.split(hook).length - 1).toBe(1);
       }
+      // preModelInvocation's, and the one that adds sessionStart context to the system prompt.
+      expect(content.split('ctx.session.hook("context"').length - 1).toBe(2);
       for (const eventType of [
         "session.created",
         "session.deleted",
@@ -705,6 +706,138 @@ describe("OpencodeHooks (OpenCode V2)", () => {
       ]);
       expect(printed.endsWith("streamed-end")).toBe(true);
     }, 60_000);
+
+    // Prints what its mode names; `plain` takes a moment and writes to stderr too.
+    const CONTEXT_SCRIPT = [
+      "const mode = process.argv[2];",
+      "const print = (text) => process.stdout.write(text);",
+      'if (mode === "plain") setTimeout(() => (process.stderr.write("to-stderr\\n"), print("  plain-context\\n")), 500);',
+      'if (mode === "json") print(JSON.stringify({ hookSpecificOutput: { additionalContext: "json-context" } }));',
+      'if (mode === "json-none") print(JSON.stringify({ continue: true }));',
+      'if (mode === "fail") (print("failed-context"), (process.exitCode = 1));',
+      'if (mode === "long") print("x".repeat(12000));',
+      'if (mode === "huge") print("y".repeat(2 * 1048576));',
+    ].join("\n");
+
+    it("gives sessionStart stdout to the model as context of its own session only", async () => {
+      await writeFileContent(join(testDir, "ctx.cjs"), CONTEXT_SCRIPT);
+      const content = generate({
+        hooks: {
+          sessionStart: ["plain", "json", "json-none", "fail"].map((mode) => ({
+            command: `node ctx.cjs ${mode}`,
+          })),
+        },
+      });
+      const body = [
+        "const context = async (sessionID) => {",
+        "  const request = { sessionID, system: [{ type: 'text', text: 'base' }] };",
+        "  await call(() => hooks['session:context'](request));",
+        "  out.push(sessionID + ': ' + request.system.slice(1).map((part) => part.type + ':' + part.text).join('|'));",
+        "};",
+        "push({ type: 'session.created', data: { sessionID: 's1' } });",
+        "await Bun.sleep(50);",
+        // The first request waits for the session's sessionStart commands.
+        "await context('s1');",
+        "await context('s1');",
+        "await context('s2');",
+        "await Bun.sleep(100);",
+        "push({ type: 'session.deleted', data: { sessionID: 's1' } });",
+        "await Bun.sleep(100);",
+        "await context('s1');",
+      ].join("\n");
+      const expected = [
+        "ok",
+        "s1: text:plain-context\n\njson-context",
+        "ok",
+        "s1: text:plain-context\n\njson-context",
+        "ok",
+        "s2: ",
+        "ok",
+        "s1: ",
+      ];
+      const prelude = "await mod.default.setup(ctx);";
+      const viaExec = await runUnderBun({ content, prelude, body });
+      expect(viaExec.out).toEqual(expected);
+      expect(viaExec.types).toEqual([["session.created", "session.deleted"]]);
+      // Its stdout goes to the model instead of OpenCode's own stdout.
+      expect(viaExec.printed).not.toContain("context");
+
+      // Bun Shell, when the host binary is not the Bun CLI, gives the same context.
+      const fallback = await runUnderBun({
+        content,
+        prelude: `process.execPath = ${JSON.stringify(process.execPath)};\n${prelude}`,
+        body,
+      });
+      expect(fallback.out).toEqual(expected);
+      expect(fallback.printed).not.toContain("context");
+    }, 60_000);
+
+    it("adds sessionStart context to the OpenCode 1.x system prompt, capped like Claude Code's", async () => {
+      await writeFileContent(join(testDir, "ctx.cjs"), CONTEXT_SCRIPT);
+      const content = generateOpencodeStylePluginCode(
+        {
+          version: 1,
+          hooks: {
+            sessionStart: [{ command: "node ctx.cjs long" }, { command: "node ctx.cjs huge" }],
+          },
+        },
+        OPENCODE_HOOK_EVENTS,
+        "opencodev1",
+        CANONICAL_TO_OPENCODE_EVENT_NAMES,
+      );
+      const { out } = await runUnderBun({
+        content,
+        prelude: [
+          "console.error = (message) => out.push('error: ' + message);",
+          "hooks = await mod.RulesyncHooksPlugin({ directory });",
+        ].join("\n"),
+        body: [
+          "const transform = async (sessionID) => {",
+          "  const output = { system: ['base'] };",
+          "  await call(() => hooks['experimental.chat.system.transform']({ sessionID, model: {} }, output));",
+          "  out.push(sessionID + ': ' + output.system.slice(1).map((text) => text[0] + text.length).join('|'));",
+          "};",
+          "const started = hooks.event({ event: { type: 'session.created', properties: { info: { id: 'v1' } } } });",
+          "await transform('v1');",
+          "await transform('v2');",
+          "await started;",
+          "await hooks.event({ event: { type: 'session.deleted', properties: { info: { id: 'v1' } } } });",
+          "await transform('v1');",
+        ].join("\n"),
+      });
+
+      expect(out).toEqual([
+        "error: [rulesync-hooks] sessionStart hook wrote more than 1 MiB to stdout; it is ignored",
+        "ok",
+        "v1: x10000",
+        "ok",
+        "v2: ",
+        "ok",
+        "v1: ",
+      ]);
+    }, 60_000);
+
+    // A Windows program ends its lines with CRLF; the context is trimmed of it.
+    it.runIf(process.platform === "win32")(
+      "reads sessionStart context printed through cmd.exe on Windows",
+      async () => {
+        const { out } = await runUnderBun({
+          content: generate({
+            hooks: { sessionStart: [{ command: "cmd.exe /c echo win-context" }] },
+          }),
+          prelude: "await mod.default.setup(ctx);",
+          body: [
+            "push({ type: 'session.created', data: { sessionID: 's1' } });",
+            "await Bun.sleep(50);",
+            "const request = { sessionID: 's1', system: [] };",
+            "await call(() => hooks['session:context'](request));",
+            "out.push(JSON.stringify(request.system));",
+          ].join("\n"),
+        });
+        expect(out).toEqual(["ok", JSON.stringify([{ type: "text", text: "win-context" }])]);
+      },
+      60_000,
+    );
 
     // POSIX only: the guard is an `sh` script.
     it.runIf(process.platform !== "win32")(
