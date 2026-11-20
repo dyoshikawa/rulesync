@@ -30,6 +30,7 @@ import { createMockLogger } from "../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { ensureDir, fileExists, readFileContent, writeFileContent } from "../utils/file.js";
 import { addCommand } from "./add.js";
+import { ALLOWED_NPM_TOKEN_ENV_NAMES_HINT } from "./npm-client.js";
 import {
   getInstalledSourceRuleNames,
   getInstalledSourceSkillNames,
@@ -511,7 +512,9 @@ describe("addCommand", () => {
 
     await expect(
       addCommand(logger, { source: "@acme/skills", transport: "npm", tokenEnv: "GITHUB_TOKEN" }),
-    ).rejects.toThrow(/--token-env "GITHUB_TOKEN" is not allowed/);
+    ).rejects.toThrow(
+      `--token-env "GITHUB_TOKEN" is not allowed. ${ALLOWED_NPM_TOKEN_ENV_NAMES_HINT}`,
+    );
 
     expect(await readFileContent(configPath)).toBe(originalContent);
     expect(resolveAndFetchSources).not.toHaveBeenCalled();

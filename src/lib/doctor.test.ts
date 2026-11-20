@@ -19,6 +19,7 @@ import {
   offsetToPosition,
   suggestNearest,
 } from "./doctor.js";
+import { ALLOWED_NPM_TOKEN_ENV_NAMES_HINT } from "./npm-client.js";
 
 const FILE = "rulesync.jsonc";
 
@@ -325,7 +326,11 @@ describe("collectConfigFileDiagnostics", () => {
       env: { GITHUB_TOKEN: "secret" },
     });
     expect(diagnostics).toEqual([
-      expect.objectContaining({ code: "config/token-env-not-allowed", severity: "error" }),
+      expect.objectContaining({
+        code: "config/token-env-not-allowed",
+        severity: "error",
+        hint: ALLOWED_NPM_TOKEN_ENV_NAMES_HINT,
+      }),
     ]);
   });
 
