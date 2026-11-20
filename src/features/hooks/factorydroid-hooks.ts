@@ -69,6 +69,23 @@ export const FACTORYDROID_CONVERTER_CONFIG: ToolHooksConverterConfig = {
       subdividesGroup: true,
     },
   ],
+  // Droid spells the canonical `failClosed` as a per-hook `onFailure: "block"`:
+  // a hook that cannot start, times out, exits with a code other than 0 or 2,
+  // or prints JSON that cannot be applied then blocks the event the way exit 2
+  // would. `"continue"` is the default, so `false` is omitted. It only blocks on
+  // PreToolUse, PostToolUse, UserPromptSubmit and PreCompact; on Stop,
+  // SubagentStop and the events that cannot block it has no effect, so a `true`
+  // there is dropped with a warning.
+  // https://docs.factory.com/harness/hooks#block-when-a-hook-fails
+  keywordPassthroughFields: [
+    {
+      canonical: "failClosed",
+      tool: "onFailure",
+      trueValue: "block",
+      falseValue: "continue",
+      events: new Set(["preToolUse", "postToolUse", "beforeSubmitPrompt", "preCompact"]),
+    },
+  ],
 };
 
 /** Droid's nine event names, the keys a standalone `hooks.json` is made of. */
