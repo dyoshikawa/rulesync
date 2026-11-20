@@ -1306,7 +1306,9 @@ export const ANTIGRAVITY_CLI_ARTIFACT_REVIEW_POLICIES = [
  * import filter for the same reason as {@link ANTIGRAVITY_CLI_TOOL_PERMISSIONS}.
  * `auto` (Preview) requires the terminal sandbox (`enableTerminalSandbox`), is
  * not offered to business or enterprise accounts, and falls back to `default`
- * when unavailable.
+ * when unavailable. Canonical `default` is stored by the CLI as `""` (the
+ * translation lives in `antigravity-cli-permissions.ts`), and since CLI 1.5.7
+ * an omitted `agentMode` starts in `auto` where available.
  * @see https://antigravity.google/docs/cli/modes
  */
 export const ANTIGRAVITY_CLI_AGENT_MODES = ["default", "accept-edits", "plan", "auto"] as const;
