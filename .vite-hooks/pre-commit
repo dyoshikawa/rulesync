@@ -1,1 +1,2 @@
 vp staged
+npx --yes @gglint/cli@0.5.1 secrets --staged
