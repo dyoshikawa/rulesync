@@ -57,6 +57,9 @@ const QODER_OVERRIDE_GROUP_KEYS = {
     "lazyLoad",
   ],
   agents: ["overrides"],
+  // Hardening only (turns off the `bypass_permissions` / YOLO mode), so it is
+  // not announced like the permissive keys.
+  security: ["disableYoloMode"],
 } as const satisfies Record<string, readonly string[]>;
 
 type QoderOverrideGroup = keyof typeof QODER_OVERRIDE_GROUP_KEYS;
@@ -447,6 +450,7 @@ function isLiftableQoderValue(key: string, value: unknown): boolean {
       return typeof value === "string" && value.trim() !== "";
     case "enableAllProjectMcpServers":
     case "lazyLoad":
+    case "disableYoloMode":
       return typeof value === "boolean";
     case "overrides":
       return isRecord(value) && Object.values(value).every(isRecord);

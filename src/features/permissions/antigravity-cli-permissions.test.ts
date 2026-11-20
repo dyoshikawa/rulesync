@@ -895,6 +895,51 @@ describe("AntigravityCliPermissions", () => {
       expect(json["antigravity-cli"]).toEqual({ agentMode: "auto", enableTerminalSandbox: true });
     });
 
+    it('writes canonical agentMode default as the stored "" and reads it back (issue #2666)', async () => {
+      const rulesyncPermissions = new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: {},
+          "antigravity-cli": { agentMode: "default" },
+        }),
+      });
+
+      const permissions = await AntigravityCliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const settings = JSON.parse(permissions.getFileContent()) as SettingsJson & {
+        agentMode?: string;
+      };
+      expect(settings.agentMode).toBe("");
+
+      const dir = join(testDir, ".gemini", "antigravity-cli");
+      await ensureDir(dir);
+      await writeFileContent(join(dir, "settings.json"), permissions.getFileContent());
+      const loaded = await AntigravityCliPermissions.fromFile({ outputRoot: testDir });
+      const json = loaded.toRulesyncPermissions().getJson() as {
+        "antigravity-cli"?: Record<string, unknown>;
+      };
+      expect(json["antigravity-cli"]).toEqual({ agentMode: "default" });
+    });
+
+    it('still imports a stored agentMode "default" written by earlier releases', async () => {
+      const dir = join(testDir, ".gemini", "antigravity-cli");
+      await ensureDir(dir);
+      await writeFileContent(
+        join(dir, "settings.json"),
+        JSON.stringify({ permissions: {}, agentMode: "default" }),
+      );
+      const loaded = await AntigravityCliPermissions.fromFile({ outputRoot: testDir });
+      const json = loaded.toRulesyncPermissions().getJson() as {
+        "antigravity-cli"?: Record<string, unknown>;
+      };
+      expect(json["antigravity-cli"]).toEqual({ agentMode: "default" });
+    });
+
     it("drops an agentMode value outside the documented enum on import", async () => {
       const dir = join(testDir, ".gemini", "antigravity-cli");
       await ensureDir(dir);

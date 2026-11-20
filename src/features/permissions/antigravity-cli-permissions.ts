@@ -50,6 +50,24 @@ const ANTIGRAVITY_CLI_OVERRIDE_KEYS = [
 const moduleLogger: Logger = fallbackLogger;
 
 /**
+ * The value the CLI stores in `agentMode` for its Default mode. Since CLI 1.5.7
+ * an omitted `agentMode` starts the CLI in `auto` where available, and the
+ * documented stored values are `""` (Default), `"accept-edits"`, `"auto"` and
+ * `"plan"` — there is no `"default"` string.
+ * @see https://antigravity.google/docs/cli/modes
+ * @see https://github.com/google-antigravity/antigravity-cli/releases/tag/1.5.7
+ */
+const ANTIGRAVITY_CLI_STORED_DEFAULT_AGENT_MODE = "";
+
+/**
+ * Translate the canonical `agentMode` override value to the value the CLI
+ * stores: canonical `default` becomes `""`, other modes pass through.
+ */
+function toStoredAgentMode(value: unknown): unknown {
+  return value === "default" ? ANTIGRAVITY_CLI_STORED_DEFAULT_AGENT_MODE : value;
+}
+
+/**
  * Narrow an imported `settings.json` value to one of the documented values of
  * an enum-typed override key. The override schema declares `toolPermission`,
  * `artifactReviewPolicy` and `agentMode` as `z.enum`, so carrying an
@@ -274,7 +292,7 @@ export class AntigravityCliPermissions extends ToolPermissions {
     for (const key of ANTIGRAVITY_CLI_OVERRIDE_KEYS) {
       const value = override?.[key];
       if (value !== undefined) {
-        merged[key] = value;
+        merged[key] = key === "agentMode" ? toStoredAgentMode(value) : value;
       }
     }
 
@@ -340,11 +358,16 @@ export class AntigravityCliPermissions extends ToolPermissions {
     if (typeof settings.allowNonWorkspaceAccess === "boolean") {
       override.allowNonWorkspaceAccess = settings.allowNonWorkspaceAccess;
     }
-    const agentMode = pickDocumentedValue({
-      key: "agentMode",
-      value: settings.agentMode,
-      documented: ANTIGRAVITY_CLI_AGENT_MODES,
-    });
+    // The CLI stores Default as `""`; a stored `"default"` written by earlier
+    // rulesync releases is still accepted.
+    const agentMode =
+      settings.agentMode === ANTIGRAVITY_CLI_STORED_DEFAULT_AGENT_MODE
+        ? "default"
+        : pickDocumentedValue({
+            key: "agentMode",
+            value: settings.agentMode,
+            documented: ANTIGRAVITY_CLI_AGENT_MODES,
+          });
     if (agentMode !== undefined) {
       override.agentMode = agentMode;
     }

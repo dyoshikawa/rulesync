@@ -746,6 +746,89 @@ describe("QwencodePermissions", () => {
       expect(json.qwencode).toEqual({ tools: { workflowsEnabled: true } });
     });
 
+    it("skips tools.lspEnabled with a warning in project scope (issue #2668)", async () => {
+      const logger = createMockLogger();
+      const instance = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { tools: { approvalMode: "auto-edit", lspEnabled: true } },
+          }),
+        }),
+      });
+
+      // Qwen Code strips a Workspace-scoped `lspEnabled` before the merge, so
+      // only the approval mode is emitted here.
+      const content = JSON.parse(instance.getFileContent());
+      expect(content.tools).toEqual({ approvalMode: "auto-edit" });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          `"tools.lspEnabled" = true is only honored in user/system settings, so it is skipped`,
+        ),
+      );
+    });
+
+    it("authors tools.lspEnabled in global scope, announcing the grant (issue #2668)", async () => {
+      const logger = createMockLogger();
+      const instance = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        global: true,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { tools: { lspEnabled: true } },
+          }),
+        }),
+      });
+
+      const content = JSON.parse(instance.getFileContent());
+      expect(content.tools).toEqual({ lspEnabled: true });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('wrote "tools.lspEnabled" = true'),
+      );
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("QWEN_CODE_DISABLE_LSP"));
+    });
+
+    it("stays quiet when global tools.lspEnabled is not a literal true (issue #2668)", async () => {
+      // Qwen Code turns LSP on only for `=== true`, so `1` or `"true"` grant nothing.
+      for (const lspEnabled of [false, 1, "true"]) {
+        const logger = createMockLogger();
+        await QwencodePermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          global: true,
+          logger,
+          rulesyncPermissions: new RulesyncPermissions({
+            relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+            relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+            fileContent: JSON.stringify({
+              permission: {},
+              qwencode: { tools: { lspEnabled } },
+            }),
+          }),
+        });
+
+        expect(logger.warn).not.toHaveBeenCalled();
+      }
+    });
+
+    it("lifts tools.lspEnabled back into the override on import (issue #2668)", () => {
+      const instance = new QwencodePermissions({
+        relativeDirPath: ".qwen",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({ tools: { lspEnabled: true } }),
+      });
+
+      const json = instance.toRulesyncPermissions().getJson();
+      expect(json.qwencode).toEqual({ tools: { lspEnabled: true } });
+    });
+
     it("skips tools.executionSandbox with a warning in project scope (issue #2668)", async () => {
       const logger = createMockLogger();
       const instance = await QwencodePermissions.fromRulesyncPermissions({
@@ -1054,6 +1137,30 @@ describe("QwencodePermissions", () => {
       }).toRulesyncPermissions();
       expect(warn).toHaveBeenCalledWith(
         expect.stringContaining('imported "tools.workflowsEnabled" = true'),
+      );
+    });
+
+    it("warns about a project-file tools.lspEnabled on import only for a literal true (issue #2668)", () => {
+      const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+      // Qwen Code opts into LSP only on `=== true`, so `1` and `"true"` grant
+      // nothing and are not announced.
+      for (const lspEnabled of [1, "true"]) {
+        new QwencodePermissions({
+          relativeDirPath: ".qwen",
+          relativeFilePath: "settings.json",
+          fileContent: JSON.stringify({ tools: { lspEnabled } }),
+        }).toRulesyncPermissions();
+      }
+      expect(warn).not.toHaveBeenCalled();
+
+      new QwencodePermissions({
+        relativeDirPath: ".qwen",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({ tools: { lspEnabled: true } }),
+      }).toRulesyncPermissions();
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('imported "tools.lspEnabled" = true'),
       );
     });
 
