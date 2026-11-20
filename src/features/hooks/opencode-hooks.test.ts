@@ -817,6 +817,40 @@ describe("OpencodeHooks (OpenCode V2)", () => {
       ]);
     }, 60_000);
 
+    it("keeps the 100 most recently used sessionStart contexts, and an empty one evicts none", async () => {
+      const content = generateOpencodeStylePluginCode(
+        { version: 1, hooks: { sessionStart: [{ command: "cat ctx.txt" }] } },
+        OPENCODE_HOOK_EVENTS,
+        "opencodev1",
+        CANONICAL_TO_OPENCODE_EVENT_NAMES,
+      );
+      const { out } = await runUnderBun({
+        content,
+        prelude: "hooks = await mod.RulesyncHooksPlugin({ directory });",
+        body: [
+          "const start = async (id, text) => {",
+          "  await Bun.write(directory + '/ctx.txt', text);",
+          "  await hooks.event({ event: { type: 'session.created', properties: { info: { id } } } });",
+          "};",
+          "const transform = async (sessionID) => {",
+          "  const output = { system: [] };",
+          "  await hooks['experimental.chat.system.transform']({ sessionID, model: {} }, output);",
+          "  out.push(sessionID + ': ' + output.system.join('|'));",
+          "};",
+          "for (let i = 1; i <= 100; i++) await start('s' + i, 'context-' + i);",
+          "await start('empty', '');",
+          // s1 is still kept; reading it makes it the most recently used.
+          "await transform('s1');",
+          "await start('s101', 'context-101');",
+          "await transform('s2');",
+          "await transform('s1');",
+          "await transform('s101');",
+        ].join("\n"),
+      });
+
+      expect(out).toEqual(["s1: context-1", "s2: ", "s1: context-1", "s101: context-101"]);
+    }, 60_000);
+
     // A Windows program ends its lines with CRLF; the context is trimmed of it.
     it.runIf(process.platform === "win32")(
       "reads sessionStart context printed through cmd.exe on Windows",
