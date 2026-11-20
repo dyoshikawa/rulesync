@@ -133,7 +133,8 @@ export const BLOCKING_HOOKS: ReadonlySet<string> = new Set(
  * 5 minutes). Ordinary commands write to the host's stdout and stderr, as Bun
  * Shell echoed them; a `preToolUse` command's are read, 1 MiB each kept (more
  * stdout denies; on the Bun Shell fallback the whole output is buffered before
- * that check). Output
+ * that check), and a `sessionStart` command's stdout is read the same way while
+ * its stderr goes to the host's (after the command, on Bun Shell). Output
  * pipes a background process keeps open are read for 1 s after the command
  * exits; what arrived by then is kept, and the reads are then cancelled, as
  * they are at a timeout. The OpenCode 1.x-style `event` hooks (`inProcess`)
@@ -282,15 +283,18 @@ function buildRunHelperLinesFor(cwdExpression: string): string[] {
     "  const timeout = () => new Promise((resolve) => (timer = setTimeout(resolve, seconds * 1000, null)));",
     "  if (inProcess || !(await __rulesyncCanExec)) {",
     `    const run = Bun.$\`echo \${input} | \${{ raw: command }}\`.cwd(${cwdExpression}).nothrow();`,
-    "    const result = await Promise.race([echo ? run : run.quiet(), timeout()]).finally(() => clearTimeout(timer));",
-    "    if (!result || echo) return result && { exitCode: result.exitCode };",
+    "    // A sessionStart command's stderr reaches the host when it ends, even after its timeout.",
+    "    const finished = echo === true ? run : run.quiet().then((done) => (echo && process.stderr.write(done.stderr), done));",
+    "    const result = await Promise.race([finished, timeout()]).finally(() => clearTimeout(timer));",
+    "    if (!result || echo === true) return result && { exitCode: result.exitCode };",
     "    const { exitCode, stdout, stderr } = result;",
     "    return { exitCode, stdout: stdout.toString(), stderr: stderr.toString(), overflow: stdout.length > 1048576 };",
     "  }",
-    "  // An ordinary command writes to the host's stdout and stderr; a preToolUse one is read.",
-    '  const output = echo ? "inherit" : "pipe";',
-    `  const proc = ${spawn('"export BUN_BE_BUN=\\n" + command', 'new TextEncoder().encode(input + "\\n")', "output")};`,
-    "  const [stdout, stderr] = echo ? [] : [__rulesyncRead(proc.stdout), __rulesyncRead(proc.stderr)];",
+    "  // An ordinary command writes to the host's stdout and stderr; a preToolUse one is read, and",
+    '  // a sessionStart one (`echo: "stderr"`) has its stdout read.',
+    `  const proc = ${spawn('"export BUN_BE_BUN=\\n" + command', 'new TextEncoder().encode(input + "\\n")', 'echo === true ? "inherit" : "pipe"', 'echo ? "inherit" : "pipe"')};`,
+    "  const stdout = echo === true ? undefined : __rulesyncRead(proc.stdout);",
+    "  const stderr = echo ? undefined : __rulesyncRead(proc.stderr);",
     "  const exitCode = await Promise.race([proc.exited, timeout()]).finally(() => clearTimeout(timer));",
     "  if (exitCode === null) {",
     "    stdout?.stop(), stderr?.stop();",
@@ -298,15 +302,15 @@ function buildRunHelperLinesFor(cwdExpression: string): string[] {
     "    else __rulesyncKillTree(proc);",
     "    return null;",
     "  }",
-    "  if (echo) return { exitCode };",
-    "  await Promise.race([Promise.all([stdout.done, stderr.done]), Bun.sleep(1000)]);",
-    "  stdout.stop(), stderr.stop();",
-    "  return { exitCode, stdout: stdout.text(), stderr: stderr.text(), overflow: stdout.overflow() };",
+    "  if (echo === true) return { exitCode };",
+    "  await Promise.race([Promise.all([stdout.done, stderr?.done]), Bun.sleep(1000)]);",
+    "  stdout.stop(), stderr?.stop();",
+    '  return { exitCode, stdout: stdout.text(), stderr: stderr?.text() ?? "", overflow: stdout.overflow() };',
     "};",
-    "const __rulesyncRunHook = async ({ label, command, input, blocking, seconds, inProcess = false }) => {",
+    "const __rulesyncRunHook = async ({ label, command, input, blocking, seconds, inProcess = false, context = false }) => {",
     "  let result;",
     "  try {",
-    "    result = await __rulesyncRunCommand({ command, input, seconds, inProcess, echo: true });",
+    '    result = await __rulesyncRunCommand({ command, input, seconds, inProcess, echo: context ? "stderr" : true });',
     "  } catch (error) {",
     "    if (blocking) throw error;",
     '    console.error("[rulesync-hooks] " + label + " hook failed:", error);',
@@ -317,7 +321,7 @@ function buildRunHelperLinesFor(cwdExpression: string): string[] {
     "    if (blocking) throw new Error(message);",
     "    return console.error(message);",
     "  }",
-    "  if (result.exitCode === 0) return;",
+    "  if (result.exitCode === 0) return result;",
     '  const message = "[rulesync-hooks] " + label + " hook exited with code " + result.exitCode;',
     "  if (blocking) throw new Error(message);",
     "  console.error(message);",
@@ -388,6 +392,78 @@ const PRE_TOOL_USE_RESULT_HELPER_LINES: readonly string[] = [
   "};",
 ];
 
+/**
+ * Helpers the generated plugin defines when a `sessionStart` handler is
+ * present, so the command's stdout reaches the model as Claude Code's
+ * `SessionStart` stdout does:
+ * - `__rulesyncSessionStart(sessionID, run)` runs a session's `sessionStart`
+ *   commands (`run` pushes each command's result) and keeps the pending context
+ *   for that session. It always settles, since every command is bounded by its
+ *   timeout.
+ * - `__rulesyncSessionContext(sessionID)` waits for that context, which the
+ *   host's system-prompt hook then adds to each model request of the session.
+ *
+ * A command's context is its stdout on exit code 0, or the
+ * `hookSpecificOutput.additionalContext` string of a JSON object it prints,
+ * trimmed and capped at Claude Code's 10,000 characters; more than 1 MiB of
+ * stdout is logged and ignored. Only sessions whose context is not empty are
+ * kept, the 100 most recently used, and a deleted session is dropped.
+ */
+const SESSION_CONTEXT_HELPER_LINES: readonly string[] = [
+  "const __rulesyncSessionContexts = new Map();",
+  "const __rulesyncKept = new WeakSet();",
+  "const __rulesyncContextOf = (result) => {",
+  '  if (typeof result?.stdout !== "string") return "";',
+  "  if (result.overflow) {",
+  '    console.error("[rulesync-hooks] sessionStart hook wrote more than 1 MiB to stdout; it is ignored");',
+  '    return "";',
+  "  }",
+  "  let text = result.stdout;",
+  "  try {",
+  "    const parsed = JSON.parse(text);",
+  "    // Like Claude Code, only a JSON object counts as JSON output; anything else is plain text.",
+  '    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) text = parsed.hookSpecificOutput?.additionalContext;',
+  "  } catch {}",
+  '  return typeof text === "string" ? text.trim().slice(0, 10000) : "";',
+  "};",
+  "const __rulesyncSessionStart = (sessionID, run) => {",
+  "  const results = [];",
+  "  const pending = run(results)",
+  "    .catch(() => {})",
+  '    .then(() => results.map(__rulesyncContextOf).filter(Boolean).join("\\n\\n"));',
+  '  if (typeof sessionID === "string") {',
+  "    __rulesyncSessionContexts.delete(sessionID);",
+  "    __rulesyncSessionContexts.set(sessionID, pending);",
+  "    // Only a non-empty context is kept, and only it counts towards the 100: a running",
+  "    // or empty one never evicts another session's context.",
+  "    pending.then((context) => {",
+  "      if (__rulesyncSessionContexts.get(sessionID) !== pending) return;",
+  "      if (!context) return void __rulesyncSessionContexts.delete(sessionID);",
+  "      __rulesyncKept.add(pending);",
+  "      const kept = [...__rulesyncSessionContexts].filter(([, entry]) => __rulesyncKept.has(entry));",
+  "      if (kept.length > 100) __rulesyncSessionContexts.delete(kept[0][0]);",
+  "    });",
+  "  }",
+  "  return pending;",
+  "};",
+  "const __rulesyncSessionContext = async (sessionID) => {",
+  "  const pending = __rulesyncSessionContexts.get(sessionID);",
+  '  if (!pending) return "";',
+  "  __rulesyncSessionContexts.delete(sessionID);",
+  "  __rulesyncSessionContexts.set(sessionID, pending);",
+  "  return pending;",
+  "};",
+];
+
+/** The statements of a `sessionStart` group, run through `__rulesyncSessionStart`. */
+export function wrapSessionStartLines(sessionIdExpression: string, statements: string[]): string[] {
+  return [
+    `await __rulesyncSessionStart(${sessionIdExpression}, async (__rulesyncResults) => {`,
+    ...statements.map((line) => `  ${line}`),
+    "});",
+  ];
+}
+
 function escapeForTemplateLiteral(command: string): string {
   return command.replace(/\\/g, "\\\\").replace(/`/g, "\\`").replace(/\$\{/g, "\\${");
 }
@@ -410,6 +486,8 @@ export type RunnableHandler = {
   /** Unset and `true` deny a timed-out `preToolUse` call; only `false` allows it. */
   failClosed: boolean | undefined;
   payload?: StdinPayload;
+  /** A `sessionStart` handler, whose stdout becomes the session's model context. */
+  context?: boolean;
 };
 
 /**
@@ -488,7 +566,7 @@ type HandlerGroup = Record<string, Handler[]>;
 /** The per-canonical-event gates and payload every handler of it carries. */
 function handlerExtrasFor(
   canonicalEvent: string,
-): Pick<Handler, "event" | "toolGate" | "propertyGate" | "payload"> {
+): Pick<Handler, "event" | "toolGate" | "propertyGate" | "payload" | "context"> {
   const shellGate = SHELL_EVENT_TOOL_GATES[canonicalEvent];
   const propertyGate = GENERIC_EVENT_PROPERTY_GATES[canonicalEvent];
   const payload = shellGate ? undefined : STDIN_PAYLOADS[canonicalEvent];
@@ -497,6 +575,7 @@ function handlerExtrasFor(
     ...(shellGate ? { toolGate: shellGate.tool } : {}),
     ...(propertyGate ? { propertyGate } : {}),
     ...(payload ? { payload } : {}),
+    ...(canonicalEvent === "sessionStart" ? { context: true } : {}),
   };
 }
 
@@ -566,25 +645,33 @@ function buildGenericEventBodyLines(genericEventHandlers: HandlerGroup): string[
     return bodyLines;
   }
   bodyLines.push("    event: async ({ event }) => {");
+  const usesContext = Object.values(genericEventHandlers).some((handlers) =>
+    handlers.some((handler) => handler.context),
+  );
+  if (usesContext) {
+    bodyLines.push(
+      `      if (event.type === "session.deleted") __rulesyncSessionContexts.delete(${V1_SESSION_ID_EXPRESSION});`,
+    );
+  }
   let isFirst = true;
   for (const [eventName, handlers] of Object.entries(genericEventHandlers)) {
     bodyLines.push(`      ${isFirst ? "if" : "else if"} (event.type === "${eventName}") {`);
     isFirst = false;
-    for (const line of buildPayloadClosureLines({ handlers, cwdExpression: V1_CWD_EXPRESSION })) {
-      bodyLines.push(`        ${line}`);
-    }
+    const statements = buildPayloadClosureLines({ handlers, cwdExpression: V1_CWD_EXPRESSION });
     for (const handler of handlers) {
       const runStatement = buildRunStatement(handler);
       if (handler.propertyGate) {
         // The dispatch fires more broadly than the canonical event it came
         // from, so this handler narrows it to the matching payload.
-        bodyLines.push(`        if (${handler.propertyGate}) {`);
-        bodyLines.push(`          ${runStatement}`);
-        bodyLines.push("        }");
+        statements.push(`if (${handler.propertyGate}) {`, `  ${runStatement}`, "}");
       } else {
-        bodyLines.push(`        ${runStatement}`);
+        statements.push(runStatement);
       }
     }
+    const lines = handlers.some((handler) => handler.context)
+      ? wrapSessionStartLines(V1_SESSION_ID_EXPRESSION, statements)
+      : statements;
+    bodyLines.push(...lines.map((line) => `        ${line}`));
     bodyLines.push("      }");
   }
   bodyLines.push("    },");
@@ -597,6 +684,21 @@ function stdinPayloadVariable(stdinEvent: string): string {
 
 /** The `cwd` a V1 payload reports: the session directory, else the process's. */
 const V1_CWD_EXPRESSION = "directory ?? process.cwd()";
+
+/** The session a V1 `session.created` / `session.deleted` event is about. */
+const V1_SESSION_ID_EXPRESSION = "event.properties?.info?.id";
+
+/**
+ * The V1 named hook that adds a session's `sessionStart` context to the system
+ * prompt of each of its model requests. OpenCode 1.x, Kilo and MiMo Code all
+ * call it with the request's `sessionID`.
+ */
+const V1_SYSTEM_TRANSFORM_LINES: readonly string[] = [
+  '    "experimental.chat.system.transform": async (input, output) => {',
+  "      const context = await __rulesyncSessionContext(input?.sessionID);",
+  "      if (context && Array.isArray(output?.system)) output.system.push(context);",
+  "    },",
+];
 
 /** Lazily serialized closures for the payloads the handlers use (internal tables only). */
 export function buildPayloadClosureLines({
@@ -642,8 +744,10 @@ export function buildRunStatement(handler: RunnableHandler): string {
     `blocking: ${handler.blocking}`,
     `seconds: ${handler.timeout}`,
     ...(handler.inProcess ? ["inProcess: true"] : []),
+    ...(handler.context ? ["context: true"] : []),
   ];
-  return `await __rulesyncRunHook({ ${options.join(", ")} });`;
+  const run = `await __rulesyncRunHook({ ${options.join(", ")} })`;
+  return handler.context ? `__rulesyncResults.push(${run});` : `${run};`;
 }
 
 /** The helpers a plugin body defines before its handlers, run in `cwdExpression`. */
@@ -656,9 +760,11 @@ export function buildRunHelperLines({
 }): string[] {
   if (handlers.length === 0) return [];
   const usesPreToolUse = handlers.some((handler) => handler.payload?.name === "PreToolUse");
+  const usesContext = handlers.some((handler) => handler.context);
   return [
     ...buildRunHelperLinesFor(cwdExpression),
     ...(usesPreToolUse ? ["", ...PRE_TOOL_USE_RESULT_HELPER_LINES] : []),
+    ...(usesContext ? ["", ...SESSION_CONTEXT_HELPER_LINES] : []),
   ];
 }
 
@@ -776,9 +882,13 @@ export function generateOpencodeStylePluginCode(
   // base indentation, then wrap them in the requested export shape. The default
   // (Kilo) export nests the function one level deeper, so its body is re-indented
   // by an extra two spaces relative to the named (OpenCode) export.
+  const usesContext = Object.values(genericEventHandlers).some((handlers) =>
+    handlers.some((handler) => handler.context),
+  );
   const bodyLines: string[] = [
     ...buildGenericEventBodyLines(genericEventHandlers),
     ...buildNamedEventBodyLines(namedEventHandlers),
+    ...(usesContext ? V1_SYSTEM_TRANSFORM_LINES : []),
   ];
 
   const preambleLines = buildRunHelperLines({
