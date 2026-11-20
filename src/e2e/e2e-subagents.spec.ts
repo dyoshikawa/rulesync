@@ -155,6 +155,10 @@ const subagentsGenerateTargets = [
     target: "mimocode",
     outputPath: join(".mimocode", "agents", "planner.md"),
   },
+  {
+    target: "musecode",
+    outputPath: join(".agents", "agents", "planner.md"),
+  },
   { target: "omp", outputPath: join(".omp", "agents", "planner.md") },
   {
     target: "opencode",
@@ -250,6 +254,7 @@ const subagentsGlobalTargets = [
   { target: "kilo", outputPath: join(".config", "kilo", "agents", "planner.md") },
   { target: "kimi-code", outputPath: join(".kimi-code", "agents", "planner.md") },
   { target: "mimocode", outputPath: join(".config", "mimocode", "agents", "planner.md") },
+  { target: "musecode", outputPath: join(".config", "muse", "agents", "planner.md") },
   { target: "omp", outputPath: join(".omp", "agent", "agents", "planner.md") },
   { target: "opencode", outputPath: join(".config", "opencode", "agents", "planner.md") },
   { target: "opencodev1", outputPath: join(".config", "opencode", "agents", "planner.md") },
@@ -821,6 +826,7 @@ describe("E2E: subagents (import)", () => {
     { target: "copilot", sourcePath: join(".github", "agents", "planner.md") },
     { target: "kimi-code", sourcePath: join(".kimi-code", "agents", "planner.md") },
     { target: "mimocode", sourcePath: join(".mimocode", "agents", "planner.md") },
+    { target: "musecode", sourcePath: join(".agents", "agents", "planner.md") },
     { target: "omp", sourcePath: join(".omp", "agents", "planner.md") },
     { target: "opencode", sourcePath: join(".opencode", "agents", "planner.md") },
     { target: "opencodev1", sourcePath: join(".opencode", "agents", "planner.md") },

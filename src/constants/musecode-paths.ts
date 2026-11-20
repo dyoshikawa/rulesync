@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import { AGENTSMD_SKILLS_DIR_PATH } from "./agentsmd-paths.js";
+import { AGENTSMD_SKILLS_DIR_PATH, AGENTSMD_SUBAGENTS_DIR_PATH } from "./agentsmd-paths.js";
 
 // Meta Muse Code (terminal coding agent, beta since 2026-08-05).
 // https://research.meta.ai/blog/introducing-muse-code-and-muse-spark-1-2
@@ -27,6 +27,16 @@ export const MUSECODE_SKILLS_DIR_PATH = AGENTSMD_SKILLS_DIR_PATH;
 // https://dev.meta.ai/docs/muse-code/extending.md
 export const MUSECODE_GLOBAL_CONFIG_DIR_PATH = join(".config", "muse");
 export const MUSECODE_GLOBAL_SKILLS_DIR_PATH = join(MUSECODE_GLOBAL_CONFIG_DIR_PATH, "skills");
+
+// Custom agents (subagents) are Markdown files with YAML frontmatter whose
+// body is the agent's prompt. Project agents load from `.agents/agents/` once
+// the workspace is trusted -- the same cross-vendor directory the Antigravity
+// and simulated `agentsmd` writers already own, so the file is rendered by the
+// shared writer. User agents load from `$XDG_CONFIG_HOME/muse/agents/`;
+// rulesync emits only the XDG-default `~/.config/muse/agents`, as for skills.
+// https://dev.meta.ai/docs/muse-code/agents
+export const MUSECODE_SUBAGENTS_DIR_PATH = AGENTSMD_SUBAGENTS_DIR_PATH;
+export const MUSECODE_GLOBAL_SUBAGENTS_DIR_PATH = join(MUSECODE_GLOBAL_CONFIG_DIR_PATH, "agents");
 
 // Deliberately NOT emitted: committed project memory at `<repo>/.agents/memory/`
 // (an `MEMORY.md` index plus one Markdown file per topic). It is agent-maintained

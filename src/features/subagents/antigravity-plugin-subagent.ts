@@ -1,6 +1,9 @@
 import { ANTIGRAVITY_PLUGIN_AGENTS_DIR } from "../../constants/plugin-paths.js";
 import { ToolTarget } from "../../types/tool-targets.js";
-import { AntigravitySharedSubagent } from "./antigravity-shared-subagent.js";
+import {
+  ANTIGRAVITY_SHARED_SUBAGENT_SECTION_KEYS,
+  AntigravitySharedSubagent,
+} from "./antigravity-shared-subagent.js";
 import type { ToolSubagentSettablePaths } from "./tool-subagent.js";
 
 /**
@@ -15,8 +18,10 @@ export class AntigravityPluginSubagent extends AntigravitySharedSubagent {
     return "antigravity-plugin";
   }
 
+  // The bundle is not the shared `.agents/agents/` file, so the `musecode`
+  // section merged there is not read here.
   protected static override getReadSectionKeys(): ToolTarget[] {
-    return [...super.getReadSectionKeys(), "antigravity-plugin"];
+    return [...ANTIGRAVITY_SHARED_SUBAGENT_SECTION_KEYS, "antigravity-plugin"];
   }
 
   static override getSettablePaths(): ToolSubagentSettablePaths {
