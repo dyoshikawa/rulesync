@@ -42,11 +42,17 @@ const GROKCLI_PERMISSION_KEY = "permission";
 
 type GrokPermissionMode = "ask" | "always-approve";
 
-// Grok's third mode: classifier-based approval, toggled in the TUI with
-// `/auto`. Nothing in the canonical permissions model derives it, so rulesync
-// never writes it — but it is preserved when a config already selects it.
+// The coarse modes rulesync derives. Only a `[ui] permission_mode` that already
+// holds one of these is kept in sync on `generate --global`. A missing key is
+// never added: since Grok 1.0.80 a TUI session with no `permission_mode` starts
+// in `auto` (classifier-based review), so adding `ask` would silently move users
+// off that default. Any other value (`auto`, `default`) has no canonical
+// counterpart and is left alone too.
 // https://docs.x.ai/build/features/permissions
-const GROKCLI_AUTO_PERMISSION_MODE = "auto";
+const GROKCLI_DERIVED_PERMISSION_MODES: ReadonlySet<unknown> = new Set<GrokPermissionMode>([
+  "ask",
+  "always-approve",
+]);
 
 // Canonical category ⇒ Grok Claude-style tool prefix. Grok exposes no separate
 // `Write` tool (writes gate through `Edit`), so `write` collapses onto `Edit`;
@@ -373,12 +379,14 @@ function parseGrokRule(
  *     compact arrays, so a user-authored `rules` array is preserved verbatim
  *     but not reconciled against them.
  *
- * The coarse `[ui] permission_mode` toggle is still written for backward
- * compatibility with older Grok versions: `always-approve` when the config is
+ * The coarse `[ui] permission_mode` toggle is kept in sync for backward
+ * compatibility with older Grok versions, but only when the config already
+ * sets it to `ask` or `always-approve`: `always-approve` when the config is
  * pure-`allow`, otherwise `ask` (conservative — it is never `always-approve`
  * while any `deny`/`ask` rule exists, so it never contradicts the fine-grained
- * arrays). It is a user-level UI setting, so it is only written in global scope
- * (see below).
+ * arrays). A missing key is not added, so Grok's own default mode applies. It
+ * is a user-level UI setting, so it is only touched in global scope (see
+ * below).
  *
  * Both scopes are supported: the adapter syncs the project-level
  * `./.grok/config.toml` (default) and the user-level `~/.grok/config.toml`
@@ -476,13 +484,14 @@ export class GrokcliPermissions extends ToolPermissions {
     // `[permission]` arrays are the only permission surface written in project
     // scope. In global scope the `ui` key is patched alongside `permission`.
     //
-    // Grok's third mode, `auto`, is left exactly as it is when the config
-    // already selects it: it has no canonical counterpart to derive it from, so
-    // overwriting it would silently downgrade the user to `ask` on every
-    // `generate --global`.
+    // The key is only updated when it already holds a mode rulesync derives
+    // (`ask` / `always-approve`). It is never added: a missing key means Grok's
+    // own default (`auto` in the TUI since 1.0.80, `ask` for `grok -p`), and
+    // writing `ask` there would pin the user out of it. `auto` and `default`
+    // have no canonical counterpart and are left exactly as they are.
     const existingUi = toRecord(parsed[GROKCLI_UI_KEY]);
     const uiPatch =
-      global && existingUi[GROKCLI_PERMISSION_MODE_KEY] !== GROKCLI_AUTO_PERMISSION_MODE
+      global && GROKCLI_DERIVED_PERMISSION_MODES.has(existingUi[GROKCLI_PERMISSION_MODE_KEY])
         ? {
             [GROKCLI_UI_KEY]: {
               ...existingUi,

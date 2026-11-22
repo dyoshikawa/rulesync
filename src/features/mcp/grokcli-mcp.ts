@@ -36,12 +36,23 @@ const MAX_REMOVE_EMPTY_ENTRIES_DEPTH = 32;
 const GROK_DISABLED_MCP_TOOLS_KEY = "disabled_mcp_tools";
 
 /**
+ * Grok 1.0.88+ runs a command that prints JSON headers at every connect of an
+ * HTTP/SSE server. In `config.toml` the key is `headers_helper`; the camelCase
+ * `headersHelper` (rulesync's canonical spelling) is documented for
+ * `.mcp.json` only, so it is renamed in both directions.
+ * (Grok user guide `07-mcp-servers.md`, "Headers from a command".)
+ */
+const CANONICAL_HEADERS_HELPER_KEY = "headersHelper";
+const GROK_HEADERS_HELPER_KEY = "headers_helper";
+
+/**
  * Grok Build stores MCP servers in `config.toml` under a `[mcp_servers.<name>]`
  * table. Verified against `grok mcp add` (grok 0.2.54): a stdio server emits
  * `command`, `args`, `enabled = true`, and an `[mcp_servers.<name>.env]` table;
  * a remote server emits `url` and `enabled`. Unlike Codex CLI, Grok uses a
- * literal `env` table (not the `env_vars` passthrough list), so the only field
- * rename is `disabled` (rulesync) ↔ `enabled = false` (grok). `disabledTools`
+ * literal `env` table (not the `env_vars` passthrough list), so the field
+ * renames are `disabled` (rulesync) ↔ `enabled = false` (grok) and
+ * `headersHelper` ↔ `headers_helper`. `disabledTools`
  * never lands in the server table: it is lifted into the top-level
  * `[disabled_mcp_tools]` table by `buildDisabledMcpTools`.
  */
@@ -58,6 +69,8 @@ function convertToGrokFormat(mcpServers: McpServers): Record<string, unknown> {
         if (value === true) {
           converted["enabled"] = false;
         }
+      } else if (key === CANONICAL_HEADERS_HELPER_KEY) {
+        converted[GROK_HEADERS_HELPER_KEY] = value;
       } else {
         converted[key] = value;
       }
@@ -80,6 +93,13 @@ function convertFromGrokFormat(grokMcp: Record<string, unknown>): McpServers {
       if (key === "enabled") {
         if (value === false) {
           converted["disabled"] = true;
+        }
+      } else if (key === GROK_HEADERS_HELPER_KEY) {
+        converted[CANONICAL_HEADERS_HELPER_KEY] = value;
+      } else if (key === CANONICAL_HEADERS_HELPER_KEY) {
+        // Grok ignores `headersHelper` when `headers_helper` is also set.
+        if (!(GROK_HEADERS_HELPER_KEY in config)) {
+          converted[CANONICAL_HEADERS_HELPER_KEY] = value;
         }
       } else {
         converted[key] = value;

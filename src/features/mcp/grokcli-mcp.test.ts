@@ -132,6 +132,29 @@ describe("GrokcliMcp", () => {
       expect(isRecord(remote) && remote.url).toBe("https://mcp.example.com/mcp");
     });
 
+    it("writes headersHelper under Grok's config.toml spelling headers_helper", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            remote: {
+              type: "http",
+              url: "https://mcp.example.com/mcp",
+              headersHelper: "~/bin/mint-headers",
+            },
+          },
+        }),
+      });
+
+      const grokcliMcp = await GrokcliMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+      const servers = grokcliMcp.getToml().mcp_servers;
+      const remote = isRecord(servers) ? servers.remote : undefined;
+
+      expect(isRecord(remote) && remote.headers_helper).toBe("~/bin/mint-headers");
+      expect(isRecord(remote) && "headersHelper" in remote).toBe(false);
+    });
+
     it("preserves unrelated config.toml settings when adding mcp_servers", async () => {
       // Pre-existing config with unrelated tables that Rulesync does not own.
       const existingToml = `[ui]
@@ -177,6 +200,46 @@ name = "grok-4"
 
       expect(servers.off.disabled).toBe(true);
       expect("enabled" in servers.off).toBe(false);
+    });
+  });
+
+  describe("headers_helper", () => {
+    it("imports headers_helper back as headersHelper", async () => {
+      await writeFileContent(
+        join(testDir, ".grok", "config.toml"),
+        [
+          "[mcp_servers.remote]",
+          'url = "https://mcp.example.com/mcp"',
+          'headers_helper = "~/bin/mint-headers"',
+          "",
+        ].join("\n"),
+      );
+
+      const grokcliMcp = await GrokcliMcp.fromFile({ outputRoot: testDir });
+      const servers = JSON.parse(grokcliMcp.toRulesyncMcp().getFileContent()).mcpServers;
+
+      expect(servers.remote).toEqual({
+        url: "https://mcp.example.com/mcp",
+        headersHelper: "~/bin/mint-headers",
+      });
+    });
+
+    it("prefers headers_helper over a hand-written headersHelper on import, like Grok", async () => {
+      await writeFileContent(
+        join(testDir, ".grok", "config.toml"),
+        [
+          "[mcp_servers.remote]",
+          'url = "https://mcp.example.com/mcp"',
+          'headersHelper = "~/bin/ignored"',
+          'headers_helper = "~/bin/mint-headers"',
+          "",
+        ].join("\n"),
+      );
+
+      const grokcliMcp = await GrokcliMcp.fromFile({ outputRoot: testDir });
+      const servers = JSON.parse(grokcliMcp.toRulesyncMcp().getFileContent()).mcpServers;
+
+      expect(servers.remote.headersHelper).toBe("~/bin/mint-headers");
     });
   });
 
