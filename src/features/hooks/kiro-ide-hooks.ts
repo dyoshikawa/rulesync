@@ -60,6 +60,31 @@ const KiroIdeHooksFileSchema = z.looseObject({
 type KiroIdeHookEntry = z.infer<typeof KiroIdeHookEntrySchema>;
 
 /**
+ * Triggers on which Kiro runs only `command` actions.
+ * @see https://kiro.dev/docs/hooks/types/#permission-request
+ */
+const KIRO_COMMAND_ONLY_TRIGGERS: ReadonlySet<string> = new Set(["PermissionRequest"]);
+
+/**
+ * Drop `prompt` definitions on a {@link KIRO_COMMAND_ONLY_TRIGGERS} trigger with
+ * a warning, rather than writing an `agent` action Kiro never runs.
+ */
+function dropPromptHooksOnCommandOnlyTrigger(
+  trigger: string,
+  definitions: HooksConfig["hooks"][string],
+  logger?: Logger,
+): HooksConfig["hooks"][string] {
+  if (!KIRO_COMMAND_ONLY_TRIGGERS.has(trigger)) return definitions;
+  return definitions.filter((def) => {
+    if (def.type !== "prompt") return true;
+    logger?.warn(
+      `Skipped a prompt hook on Kiro's "${trigger}" trigger: Kiro runs only command actions on it.`,
+    );
+    return false;
+  });
+}
+
+/**
  * Build the Kiro IDE hook entries for a single canonical event's definitions.
  *
  * `command`-type definitions become `{ type: "command", command }` actions and
@@ -128,7 +153,7 @@ export const KIRO_HOOKS_OVERRIDE_KEY = "kiro";
  */
 const KIRO_HOOKS_IGNORED_OVERRIDE_KEYS = ["kiro-ide", "kiro-cli"] as const;
 
-function canonicalToKiroIdeHooks(config: HooksConfig): KiroIdeHookEntry[] {
+function canonicalToKiroIdeHooks(config: HooksConfig, logger?: Logger): KiroIdeHookEntry[] {
   const kiroIdeSupported: Set<string> = new Set(KIRO_IDE_HOOK_EVENTS);
   const sharedHooks: HooksConfig["hooks"] = {};
   for (const [event, defs] of Object.entries(config.hooks)) {
@@ -155,7 +180,12 @@ function canonicalToKiroIdeHooks(config: HooksConfig): KiroIdeHookEntry[] {
       lookupOwn({ record: CANONICAL_TO_KIRO_IDE_EVENT_NAMES, key: eventName }) ??
       lookupOwn({ record: KIRO_LEGACY_TO_KIRO_IDE_TRIGGER_NAMES, key: eventName }) ??
       eventName;
-    entries.push(...buildKiroIdeEntriesForEvent(trigger, definitions));
+    entries.push(
+      ...buildKiroIdeEntriesForEvent(
+        trigger,
+        dropPromptHooksOnCommandOnlyTrigger(trigger, definitions, logger),
+      ),
+    );
   }
   return entries;
 }
@@ -277,7 +307,7 @@ export class KiroIdeHooks extends ToolHooks {
       );
     }
 
-    const hooks = canonicalToKiroIdeHooks(config);
+    const hooks = canonicalToKiroIdeHooks(config, logger);
     const fileContent = JSON.stringify({ version: "v1", hooks }, null, 2);
     return new this({
       outputRoot,

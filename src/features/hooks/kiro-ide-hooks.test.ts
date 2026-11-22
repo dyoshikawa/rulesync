@@ -77,6 +77,76 @@ describe("KiroIdeHooks", () => {
     expect(byTrigger("Stop").action).toEqual({ type: "agent", prompt: "Summarize the changes" });
   });
 
+  it("maps permissionRequest to PermissionRequest, keeps its matcher and round-trips it", async () => {
+    const rulesyncHooks = new RulesyncHooks({
+      outputRoot: "/mock",
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "hooks.json",
+      fileContent: JSON.stringify({
+        hooks: {
+          permissionRequest: [{ command: ".rulesync/hooks/approve.sh", matcher: "read" }],
+        },
+      }),
+    });
+
+    const hooks = await KiroIdeHooks.fromRulesyncHooks({
+      outputRoot: testDir,
+      rulesyncHooks,
+      validate: true,
+    });
+
+    const parsed = JSON.parse(hooks.getFileContent());
+    expect(parsed.hooks).toEqual([
+      {
+        name: "PermissionRequest",
+        trigger: "PermissionRequest",
+        matcher: "read",
+        action: { type: "command", command: ".rulesync/hooks/approve.sh" },
+        enabled: true,
+      },
+    ]);
+
+    const canonical = hooks.toRulesyncHooks().getJson();
+    expect(canonical.hooks.permissionRequest?.[0]).toMatchObject({
+      command: ".rulesync/hooks/approve.sh",
+      matcher: "read",
+    });
+  });
+
+  it("skips a prompt hook on PermissionRequest with a warning", async () => {
+    const rulesyncHooks = new RulesyncHooks({
+      outputRoot: "/mock",
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "hooks.json",
+      fileContent: JSON.stringify({
+        hooks: {
+          permissionRequest: [
+            { type: "prompt", prompt: "Decide" },
+            { command: ".rulesync/hooks/approve.sh" },
+          ],
+        },
+      }),
+    });
+    const logger = createMockLogger();
+
+    const hooks = await KiroIdeHooks.fromRulesyncHooks({
+      outputRoot: testDir,
+      rulesyncHooks,
+      validate: true,
+      logger,
+    });
+
+    const parsed = JSON.parse(hooks.getFileContent());
+    expect(parsed.hooks).toHaveLength(1);
+    expect(parsed.hooks[0].action).toEqual({
+      type: "command",
+      command: ".rulesync/hooks/approve.sh",
+    });
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('prompt hook on Kiro\'s "PermissionRequest" trigger'),
+    );
+  });
+
   it("passes IDE-only triggers through the shared kiro override block verbatim", async () => {
     const rulesyncHooks = new RulesyncHooks({
       outputRoot: "/mock",

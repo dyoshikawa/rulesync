@@ -2113,6 +2113,7 @@ export const CANONICAL_TO_KIRO_IDE_EVENT_NAMES: Record<string, string> = {
   beforeSubmitPrompt: "UserPromptSubmit",
   preToolUse: "PreToolUse",
   postToolUse: "PostToolUse",
+  permissionRequest: "PermissionRequest",
   stop: "Stop",
 } satisfies Partial<Record<HookEvent, string>>;
 
@@ -2122,7 +2123,9 @@ export const CANONICAL_TO_KIRO_IDE_EVENT_NAMES: Record<string, string> = {
  *
  * Kiro exposes PascalCase triggers. rulesync maps the canonical lifecycle
  * events that have a clean 1:1 equivalent: `SessionStart`, `Stop`,
- * `UserPromptSubmit`, `PreToolUse`, and `PostToolUse`. Kiro also documents
+ * `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, and `PermissionRequest`
+ * (Kiro IDE 1.4.236+ and CLI V3 3.4.0+; it takes a Pre Tool Use–style tool
+ * matcher). Kiro also documents
  * file-event (`PostFileCreate`/`PostFileSave`/`PostFileDelete`) and spec-task
  * (`PreTaskExec`/`PostTaskExec`) triggers that have no canonical equivalent;
  * those can still be emitted verbatim via the shared `kiro` override block

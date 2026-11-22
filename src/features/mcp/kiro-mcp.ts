@@ -2,8 +2,9 @@ import { join } from "node:path";
 
 import { KIRO_MCP_FILE_NAME, KIRO_SETTINGS_DIR_PATH } from "../../constants/kiro-paths.js";
 import { isMcpServers, type McpServers } from "../../types/mcp.js";
+import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
-import { isStringArray } from "../../utils/type-guards.js";
+import { isPlainObject, isStringArray } from "../../utils/type-guards.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -99,6 +100,29 @@ function fromKiroMcpServers(servers: Record<string, unknown>): Record<string, un
   );
 }
 
+/**
+ * Parse an existing user-level `~/.kiro/settings/mcp.json` so a global generate
+ * can merge into it. An unparseable file is refused instead of overwritten:
+ * it is unversioned, so replacing it would lose whatever the user had there.
+ */
+function parseExistingKiroMcpConfig(
+  fileContent: string,
+  configPath: string,
+): Record<string, unknown> {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(fileContent);
+  } catch (error) {
+    throw new Error(`Failed to parse Kiro MCP config at ${configPath}: ${formatError(error)}`, {
+      cause: error,
+    });
+  }
+  if (!isPlainObject(parsed)) {
+    throw new Error(`Failed to parse Kiro MCP config at ${configPath}: expected a JSON object`);
+  }
+  return parsed;
+}
+
 export class KiroMcp extends ToolMcp {
   private readonly json: Record<string, unknown>;
 
@@ -111,6 +135,17 @@ export class KiroMcp extends ToolMcp {
     return this.json;
   }
 
+  /**
+   * The user-level `~/.kiro/settings/mcp.json` also holds settings rulesync
+   * does not manage (such as the top-level `identityProvider` block for
+   * organization sign-in, which Kiro reads only from this file), so it is never
+   * deleted in global mode. The project file is rulesync-managed and may be.
+   * @see https://kiro.dev/docs/mcp/configuration/
+   */
+  override isDeletable(): boolean {
+    return !this.global;
+  }
+
   static getSettablePaths(): ToolMcpSettablePaths {
     return {
       relativeDirPath: KIRO_SETTINGS_DIR_PATH,
@@ -121,6 +156,7 @@ export class KiroMcp extends ToolMcp {
   static async fromFile({
     outputRoot = process.cwd(),
     validate = true,
+    global = false,
   }: ToolMcpFromFileParams): Promise<KiroMcp> {
     const paths = this.getSettablePaths();
     const fileContent =
@@ -134,27 +170,40 @@ export class KiroMcp extends ToolMcp {
       relativeFilePath: paths.relativeFilePath,
       fileContent,
       validate,
+      global,
     });
   }
 
-  static fromRulesyncMcp({
+  /**
+   * In global mode the generated `mcpServers` are merged into the existing
+   * user-level file, keeping every other top-level key (for example
+   * `identityProvider`). The project file is written from scratch.
+   */
+  static async fromRulesyncMcp({
     outputRoot = process.cwd(),
     rulesyncMcp,
     validate = true,
-  }: ToolMcpFromRulesyncMcpParams): KiroMcp {
+    global = false,
+  }: ToolMcpFromRulesyncMcpParams): Promise<KiroMcp> {
     const paths = this.getSettablePaths();
-    const fileContent = JSON.stringify(
-      { mcpServers: toKiroMcpServers(rulesyncMcp.getMcpServers()) },
-      null,
-      2,
-    );
+    const mcpServers = toKiroMcpServers(rulesyncMcp.getMcpServers());
+
+    let existing: Record<string, unknown> = {};
+    if (global) {
+      const configPath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
+      const existingContent = await readFileContentOrNull(configPath);
+      if (existingContent !== null) {
+        existing = parseExistingKiroMcpConfig(existingContent, configPath);
+      }
+    }
 
     return new KiroMcp({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
-      fileContent,
+      fileContent: JSON.stringify({ ...existing, mcpServers }, null, 2),
       validate,
+      global,
     });
   }
 
@@ -173,6 +222,7 @@ export class KiroMcp extends ToolMcp {
     outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
+    global = false,
   }: ToolMcpForDeletionParams): KiroMcp {
     return new KiroMcp({
       outputRoot,
@@ -180,6 +230,7 @@ export class KiroMcp extends ToolMcp {
       relativeFilePath,
       fileContent: "{}",
       validate: false,
+      global,
     });
   }
 }

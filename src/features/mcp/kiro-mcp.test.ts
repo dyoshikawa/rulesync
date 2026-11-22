@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
+import { writeFileContent } from "../../utils/file.js";
 import { KiroMcp } from "./kiro-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 
@@ -31,7 +32,7 @@ describe("KiroMcp", () => {
   });
 
   describe("fromRulesyncMcp", () => {
-    it("should convert exposed servers for project mode", () => {
+    it("should convert exposed servers for project mode", async () => {
       const rulesyncMcp = new RulesyncMcp({
         outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -50,7 +51,7 @@ describe("KiroMcp", () => {
         validate: true,
       });
 
-      const kiroMcp = KiroMcp.fromRulesyncMcp({ rulesyncMcp });
+      const kiroMcp = await KiroMcp.fromRulesyncMcp({ rulesyncMcp });
 
       expect(kiroMcp.getRelativeDirPath()).toBe(join(".kiro", "settings"));
       expect(kiroMcp.getRelativeFilePath()).toBe("mcp.json");
@@ -66,7 +67,7 @@ describe("KiroMcp", () => {
       });
     });
 
-    it("should translate kiroAutoApprove and kiroAutoBlock onto Kiro's native keys", () => {
+    it("should translate kiroAutoApprove and kiroAutoBlock onto Kiro's native keys", async () => {
       const rulesyncMcp = new RulesyncMcp({
         outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -83,7 +84,7 @@ describe("KiroMcp", () => {
         validate: true,
       });
 
-      const kiroMcp = KiroMcp.fromRulesyncMcp({ rulesyncMcp });
+      const kiroMcp = await KiroMcp.fromRulesyncMcp({ rulesyncMcp });
 
       expect(JSON.parse(kiroMcp.getFileContent())).toEqual({
         mcpServers: {
@@ -96,7 +97,7 @@ describe("KiroMcp", () => {
       });
     });
 
-    it("should union the translated lists with natively spelled ones", () => {
+    it("should union the translated lists with natively spelled ones", async () => {
       const rulesyncMcp = new RulesyncMcp({
         outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -115,7 +116,7 @@ describe("KiroMcp", () => {
         validate: true,
       });
 
-      const kiroMcp = KiroMcp.fromRulesyncMcp({ rulesyncMcp });
+      const kiroMcp = await KiroMcp.fromRulesyncMcp({ rulesyncMcp });
 
       expect(JSON.parse(kiroMcp.getFileContent())).toEqual({
         mcpServers: {
@@ -128,7 +129,7 @@ describe("KiroMcp", () => {
       });
     });
 
-    it("should keep an explicitly authored empty list so generate stays idempotent", () => {
+    it("should keep an explicitly authored empty list so generate stays idempotent", async () => {
       const rulesyncMcp = new RulesyncMcp({
         outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -139,7 +140,7 @@ describe("KiroMcp", () => {
         validate: true,
       });
 
-      const kiroMcp = KiroMcp.fromRulesyncMcp({ rulesyncMcp });
+      const kiroMcp = await KiroMcp.fromRulesyncMcp({ rulesyncMcp });
 
       expect(JSON.parse(kiroMcp.getFileContent())).toEqual({
         mcpServers: { api: { command: "node", disabledTools: [] } },
@@ -186,7 +187,7 @@ describe("KiroMcp", () => {
       });
     });
 
-    it("should translate autoApprove back to kiroAutoApprove and round-trip", () => {
+    it("should translate autoApprove back to kiroAutoApprove and round-trip", async () => {
       const kiroMcp = new KiroMcp({
         outputRoot: testDir,
         relativeDirPath: join(".kiro", "settings"),
@@ -214,7 +215,7 @@ describe("KiroMcp", () => {
       });
 
       // Regenerating reproduces the file it was imported from.
-      const regenerated = KiroMcp.fromRulesyncMcp({ rulesyncMcp });
+      const regenerated = await KiroMcp.fromRulesyncMcp({ rulesyncMcp });
       expect(JSON.parse(regenerated.getFileContent())).toEqual({
         mcpServers: {
           api: {
@@ -247,7 +248,94 @@ describe("KiroMcp", () => {
     });
   });
 
+  describe("fromRulesyncMcp in global mode", () => {
+    const makeRulesyncMcp = () =>
+      new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({ mcpServers: { api: { command: "node" } } }),
+        validate: true,
+      });
+
+    it("should keep the user's identityProvider block and other top-level keys", async () => {
+      await writeFileContent(
+        join(testDir, ".kiro", "settings", "mcp.json"),
+        JSON.stringify({
+          identityProvider: { issuer: "https://idp.example.com", clientId: "kiro" },
+          futureKey: true,
+          mcpServers: { stale: { command: "old" } },
+        }),
+      );
+
+      const kiroMcp = await KiroMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp: makeRulesyncMcp(),
+        global: true,
+      });
+
+      expect(JSON.parse(kiroMcp.getFileContent())).toEqual({
+        identityProvider: { issuer: "https://idp.example.com", clientId: "kiro" },
+        futureKey: true,
+        mcpServers: { api: { command: "node" } },
+      });
+    });
+
+    it("should write only mcpServers when no user-level file exists", async () => {
+      const kiroMcp = await KiroMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp: makeRulesyncMcp(),
+        global: true,
+      });
+
+      expect(JSON.parse(kiroMcp.getFileContent())).toEqual({
+        mcpServers: { api: { command: "node" } },
+      });
+    });
+
+    it("should refuse to overwrite an unparseable user-level file", async () => {
+      await writeFileContent(join(testDir, ".kiro", "settings", "mcp.json"), "{ not json");
+
+      await expect(
+        KiroMcp.fromRulesyncMcp({
+          outputRoot: testDir,
+          rulesyncMcp: makeRulesyncMcp(),
+          global: true,
+        }),
+      ).rejects.toThrow(/Failed to parse Kiro MCP config/);
+    });
+
+    it("should not merge an existing file in project mode", async () => {
+      await writeFileContent(
+        join(testDir, ".kiro", "settings", "mcp.json"),
+        JSON.stringify({
+          identityProvider: { issuer: "https://idp.example.com", clientId: "kiro" },
+        }),
+      );
+
+      const kiroMcp = await KiroMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp: makeRulesyncMcp(),
+      });
+
+      expect(JSON.parse(kiroMcp.getFileContent())).toEqual({
+        mcpServers: { api: { command: "node" } },
+      });
+    });
+  });
+
   describe("forDeletion", () => {
+    it("should not be deletable in global mode", () => {
+      const kiroMcp = KiroMcp.forDeletion({
+        outputRoot: testDir,
+        relativeDirPath: join(".kiro", "settings"),
+        relativeFilePath: "mcp.json",
+        global: true,
+      });
+
+      expect(kiroMcp.isDeletable()).toBe(false);
+    });
+
     it("should create deletable placeholder", () => {
       const kiroMcp = KiroMcp.forDeletion({
         outputRoot: testDir,
