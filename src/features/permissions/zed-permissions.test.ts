@@ -366,6 +366,104 @@ describe("ZedPermissions", () => {
       expect(json.agent.tool_permissions.tools.write).toBeUndefined();
     });
 
+    it("should warn that a catch-all ask on edit/write does not prompt for in-project files", async () => {
+      const warn = vi.fn();
+      const permissions = await ZedPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          edit: { "*": "ask" },
+          write: { "*": "ask" },
+        }),
+        logger: { warn } as unknown as Logger,
+      });
+
+      const json = JSON.parse(permissions.getFileContent());
+      expect(json.agent.tool_permissions.tools.edit_file.default).toBe("confirm");
+      expect(json.agent.tool_permissions.tools.write_file.default).toBe("confirm");
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('"edit_file" and "write_file" becomes Zed\'s "confirm" default'),
+      );
+    });
+
+    it("should warn when edit/write fall back to an all-tools ask", async () => {
+      const warn = vi.fn();
+      await ZedPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          "*": { "*": "ask" },
+          write: { "*": "deny" },
+        }),
+        logger: { warn } as unknown as Logger,
+      });
+
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('"ask" for "edit_file" becomes'));
+    });
+
+    it("should not warn when a tool-level allow overrides an all-tools ask", async () => {
+      const warn = vi.fn();
+      const permissions = await ZedPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          "*": { "*": "ask" },
+          edit: { "*": "allow" },
+          write: { "*": "allow" },
+        }),
+        logger: { warn } as unknown as Logger,
+      });
+
+      const json = JSON.parse(permissions.getFileContent());
+      expect(json.agent.tool_permissions.default).toBe("confirm");
+      expect(json.agent.tool_permissions.tools.edit_file.default).toBe("allow");
+      expect(warn).not.toHaveBeenCalled();
+    });
+
+    it("should not warn about a tool whose preserved hand-written entry decides it", async () => {
+      await writeFileContent(
+        join(testDir, ".zed", "settings.json"),
+        JSON.stringify({
+          agent: {
+            tool_permissions: {
+              tools: {
+                edit_file: { default: "allow" },
+                write_file: { default: "deny" },
+              },
+            },
+          },
+        }),
+      );
+      const warn = vi.fn();
+      const permissions = await ZedPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({ "*": { "*": "ask" } }),
+        logger: { warn } as unknown as Logger,
+      });
+
+      const json = JSON.parse(permissions.getFileContent());
+      expect(json.agent.tool_permissions.tools.edit_file).toEqual({ default: "allow" });
+      expect(json.agent.tool_permissions.tools.write_file).toEqual({ default: "deny" });
+      expect(warn).not.toHaveBeenCalled();
+    });
+
+    it("should not warn about in-project edits when an ask pattern covers every file", async () => {
+      const warn = vi.fn();
+      const permissions = await ZedPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          edit: { "*": "ask", ".*": "ask" },
+          write: { "*": "allow" },
+        }),
+        logger: { warn } as unknown as Logger,
+      });
+
+      const json = JSON.parse(permissions.getFileContent());
+      expect(json.agent.tool_permissions.tools.edit_file.always_confirm).toEqual([
+        { pattern: ".*", case_sensitive: false },
+      ]);
+      expect(warn).not.toHaveBeenCalled();
+    });
+
     it("should throw on a malformed existing settings.json instead of overwriting it", async () => {
       await writeFileContent(join(testDir, ".zed", "settings.json"), "{ not valid json");
 
