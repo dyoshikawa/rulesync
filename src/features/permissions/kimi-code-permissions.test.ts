@@ -1,6 +1,7 @@
 import * as smolToml from "smol-toml";
 import { describe, expect, it } from "vite-plus/test";
 
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { KimiCodePermissions } from "./kimi-code-permissions.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 
@@ -313,5 +314,103 @@ describe("KimiCodePermissions tool names that match Object.prototype members", (
     expect((parsed.permission as { rules: unknown[] }).rules).toEqual([
       { decision: "allow", pattern: "Bash(ls)", scope: "user" },
     ]);
+  });
+});
+
+describe("KimiCodePermissions rule precedence warnings", () => {
+  function warningsFor(json: Record<string, unknown>): string[] {
+    const logger = createMockLogger();
+    KimiCodePermissions.fromRulesyncPermissions({
+      outputRoot: ".",
+      rulesyncPermissions: rulesyncPermissions(json),
+      logger,
+    });
+    return logger.warn.mock.calls.map((call) => String(call[0]));
+  }
+
+  it("warns when an override allow is outranked by a canonical deny on the bare tool", () => {
+    const warnings = warningsFor({
+      permission: { bash: { "*": "deny" } },
+      "kimi-code": { rules: [{ decision: "allow", pattern: "Bash(git status)" }] },
+    });
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('allow rule for "Bash(git status)" never takes effect');
+    expect(warnings[0]).toContain('deny rule "Bash"');
+  });
+
+  it("warns when an override ask is outranked by a later override deny with the same pattern", () => {
+    const warnings = warningsFor({
+      permission: {},
+      "kimi-code": {
+        rules: [
+          { decision: "ask", pattern: "Read(.env)" },
+          { decision: "deny", pattern: "Read(.env)" },
+        ],
+      },
+    });
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('ask rule for "Read(.env)"');
+  });
+
+  it("does not warn when the stricter rule names a different tool or an unrelated pattern", () => {
+    expect(
+      warningsFor({
+        permission: { bash: { "rm *": "deny" }, read: { "*": "deny" } },
+        "kimi-code": { rules: [{ decision: "allow", pattern: "Bash(git status)" }] },
+      }),
+    ).toEqual([]);
+  });
+
+  it("does not warn about an override allow outranked only by an equal or weaker rule", () => {
+    expect(
+      warningsFor({
+        permission: { bash: { "*": "allow" } },
+        "kimi-code": { rules: [{ decision: "ask", pattern: "Bash(git push)" }] },
+      }),
+    ).toEqual([]);
+  });
+
+  it("warns about scopes Kimi ignores in config.toml and keeps the rule as authored", () => {
+    const logger = createMockLogger();
+    const permissions = KimiCodePermissions.fromRulesyncPermissions({
+      outputRoot: ".",
+      rulesyncPermissions: rulesyncPermissions({
+        permission: {},
+        "kimi-code": {
+          rules: [
+            { decision: "allow", pattern: "Bash(ls)", scope: "turn-override" },
+            { decision: "deny", pattern: "Write", scope: "session-runtime" },
+            { decision: "deny", pattern: "Edit", scope: "project" },
+          ],
+        },
+      }),
+      logger,
+    });
+    const warnings = logger.warn.mock.calls.map((call) => String(call[0]));
+    expect(warnings).toHaveLength(2);
+    expect(warnings[0]).toContain('scope "turn-override"');
+    expect(warnings[1]).toContain('scope "session-runtime"');
+    const parsed = smolToml.parse(permissions.getFileContent()) as {
+      permission: { rules: Array<{ scope?: string }> };
+    };
+    expect(parsed.permission.rules.map((rule) => rule.scope)).toEqual([
+      "turn-override",
+      "session-runtime",
+      "project",
+    ]);
+  });
+
+  it("does not treat a rule with an ignored scope as outranking another", () => {
+    const warnings = warningsFor({
+      permission: {},
+      "kimi-code": {
+        rules: [
+          { decision: "deny", pattern: "Bash", scope: "session-runtime" },
+          { decision: "allow", pattern: "Bash(ls)" },
+        ],
+      },
+    });
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('scope "session-runtime"');
   });
 });

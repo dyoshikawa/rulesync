@@ -24,6 +24,7 @@ import {
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { honorAllToolsRestrictions } from "./shadowed-allows.js";
 import { MCP_CATEGORY_PREFIX } from "./shell-command-categories.js";
+import { isStricterAction } from "./single-action-collapse.js";
 import {
   ToolPermissions,
   type ToolPermissionsFromFileParams,
@@ -236,7 +237,92 @@ function canonicalToKimiCodeRules({
       });
     }
   }
-  return [...overrideRules, ...sortKimiCodeRulesFailClosed(canonicalRules)];
+  const rules = [...overrideRules, ...sortKimiCodeRulesFailClosed(canonicalRules)];
+  warnAboutIgnoredKimiCodeRuleScopes({ rules: overrideRules, logger });
+  warnAboutShadowedKimiCodeOverrideRules({ overrideRules, rules, logger });
+  return rules;
+}
+
+/**
+ * Scopes Kimi silently ignores on a rule in the user `config.toml`.
+ *
+ * @see https://moonshotai.github.io/kimi-code/en/configuration/config-files.html#permission
+ */
+const KIMI_CODE_IGNORED_USER_RULE_SCOPES = new Set(["turn-override", "session-runtime"]);
+
+function warnAboutIgnoredKimiCodeRuleScopes({
+  rules,
+  logger,
+}: {
+  rules: KimiCodePermissionRule[];
+  logger?: Logger;
+}): void {
+  for (const rule of rules) {
+    if (rule.scope !== undefined && KIMI_CODE_IGNORED_USER_RULE_SCOPES.has(rule.scope)) {
+      logger?.warn(
+        `Kimi Code permissions: the ${rule.decision} rule for "${rule.pattern}" has scope "${rule.scope}", which Kimi ignores in ${KIMI_CODE_CONFIG_SHARED_FILE_KEY}. Use "user" or "project" for it to take effect.`,
+      );
+    }
+  }
+}
+
+function getKimiCodeRuleTool(pattern: string): string {
+  const opening = pattern.indexOf("(");
+  return opening >= 0 && pattern.endsWith(")") ? pattern.slice(0, opening) : pattern;
+}
+
+/**
+ * Whether `stricter` certainly matches every call `rule` matches: the same
+ * pattern, or the bare name of the same tool (which matches every call of
+ * it). Wildcard overlaps are not detected, so this never reports a false
+ * shadow but can miss one.
+ */
+function kimiCodeRuleCovers({
+  stricter,
+  rule,
+}: {
+  stricter: KimiCodePermissionRule;
+  rule: KimiCodePermissionRule;
+}): boolean {
+  return (
+    stricter.pattern === rule.pattern || stricter.pattern === getKimiCodeRuleTool(rule.pattern)
+  );
+}
+
+/**
+ * Kimi does not let the first matching rule win: a matching `deny` beats a
+ * matching `ask`, which beats a matching `allow` (Kimi Code 2.6.0 docs). An
+ * override `allow` or `ask` meant to carve an exception out of a broader,
+ * stricter rule therefore never takes effect, so say so instead of letting
+ * the authored order suggest otherwise.
+ *
+ * @see https://moonshotai.github.io/kimi-code/en/configuration/config-files.html#permission
+ */
+function warnAboutShadowedKimiCodeOverrideRules({
+  overrideRules,
+  rules,
+  logger,
+}: {
+  overrideRules: KimiCodePermissionRule[];
+  rules: KimiCodePermissionRule[];
+  logger?: Logger;
+}): void {
+  for (const rule of overrideRules) {
+    if (rule.decision === "deny") {
+      continue;
+    }
+    const shadowing = rules.find(
+      (other) =>
+        isStricterAction({ action: other.decision, existing: rule.decision }) &&
+        !KIMI_CODE_IGNORED_USER_RULE_SCOPES.has(other.scope ?? "") &&
+        kimiCodeRuleCovers({ stricter: other, rule }),
+    );
+    if (shadowing) {
+      logger?.warn(
+        `Kimi Code permissions: the ${rule.decision} rule for "${rule.pattern}" never takes effect: the matching ${shadowing.decision} rule "${shadowing.pattern}" outranks it, because Kimi ranks matching rules deny > ask > allow regardless of their order.`,
+      );
+    }
+  }
 }
 
 function getKimiCodePatternSpecificity(pattern: string): {
