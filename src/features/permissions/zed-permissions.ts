@@ -309,7 +309,51 @@ function buildZedToolPermissions({
     }
   }
 
+  warnInProjectEditConfirm({ managedDefault, managedTools, logger });
+
   return { managedDefault, managedTools, excludedCategories, inertMcpCategories };
+}
+
+/**
+ * Zed's file-edit tools whose `confirm` default does not prompt for files inside
+ * the project.
+ */
+const ZED_IN_PROJECT_EDIT_TOOLS = ["edit_file", "write_file"] as const;
+
+/**
+ * Zed's `edit_file` and `write_file` skip the permission prompt for files inside
+ * the project when the settings decision is `confirm`: only Zed settings
+ * folders, `.agents/skills/` and paths a symlink places outside the project
+ * still prompt (`authorize_file_edit` in `crates/agent/src/tools/tool_permissions.rs`,
+ * documented under "File Edits Inside the Project" since zed-industries/zed#67037).
+ * A canonical catch-all `ask` on `edit`/`write` — or an all-tools `*` ask those
+ * tools fall back to — therefore lets the agent edit in-project files without
+ * asking, so say so at generate time rather than implying a prompt.
+ */
+function warnInProjectEditConfirm({
+  managedDefault,
+  managedTools,
+  logger,
+}: {
+  managedDefault: ZedPermissionAction | undefined;
+  managedTools: Record<string, ZedToolPermission>;
+  logger?: { warn: (message: string) => void };
+}): void {
+  const confirmTools = ZED_IN_PROJECT_EDIT_TOOLS.filter(
+    (tool) =>
+      (managedTools[tool]?.default ?? managedDefault) === "confirm" &&
+      !managedTools[tool]?.always_confirm?.some((entry) => entry.pattern === ".*"),
+  );
+  if (confirmTools.length === 0) return;
+
+  logger?.warn(
+    `Zed permissions: the catch-all "ask" for ${confirmTools.map((tool) => `"${tool}"`).join(" and ")} ` +
+      `becomes Zed's "confirm" default, which does not prompt for edits to files inside the project ` +
+      `(only Zed settings folders, ".agents/skills/" and files outside the project still prompt). ` +
+      `To be asked before in-project edits, add an "ask" pattern rule to the category (".*" for every file; ` +
+      `note that an "always_confirm" match outranks "always_allow" patterns). Zed honors such patterns ` +
+      `for in-project files from v1.30 on.`,
+  );
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
