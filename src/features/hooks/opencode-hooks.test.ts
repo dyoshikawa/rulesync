@@ -772,6 +772,13 @@ describe("OpencodeHooks (OpenCode V2)", () => {
       expect(fallback.printed).not.toContain("context");
     }, 60_000);
 
+    // Unlike the default stub, this event stream queues events the loop has not read yet.
+    const QUEUED_EVENTS_PRELUDE = [
+      "const queued = []; let wake = () => {};",
+      "ctx.event.subscribe = (o) => { types.push(o.types); return { async *[Symbol.asyncIterator]() { for (;;) { while (queued.length) yield queued.shift(); await new Promise((r) => (wake = r)); } } }; };",
+      "push = (e) => { queued.push(e); wake(); };",
+    ].join("\n");
+
     it("registers sessionStart context while an earlier event's command is still running", async () => {
       await writeFileContent(join(testDir, "ctx.cjs"), CONTEXT_SCRIPT);
       const content = generate({
@@ -785,13 +792,7 @@ describe("OpencodeHooks (OpenCode V2)", () => {
       });
       const { out, records } = await runUnderBun({
         content,
-        // Unlike the default stub, this stream queues events the loop has not read yet.
-        prelude: [
-          "const queued = []; let wake = () => {};",
-          "ctx.event.subscribe = (o) => { types.push(o.types); return { async *[Symbol.asyncIterator]() { for (;;) { while (queued.length) yield queued.shift(); await new Promise((r) => (wake = r)); } } }; };",
-          "push = (e) => { queued.push(e); wake(); };",
-          "await mod.default.setup(ctx);",
-        ].join("\n"),
+        prelude: `${QUEUED_EVENTS_PRELUDE}\nawait mod.default.setup(ctx);`,
         body: [
           "push({ type: 'session.execution.succeeded', data: { sessionID: 's0' } });",
           "await Bun.sleep(50);",
@@ -809,6 +810,41 @@ describe("OpencodeHooks (OpenCode V2)", () => {
 
       expect(out).toEqual(["ok", "json-context", "not held back"]);
       expect(records.map((record) => record.name)).toEqual(["stop"]);
+    }, 60_000);
+
+    it("runs the other event commands in event order, past a slow or throwing one", async () => {
+      const content = generate({
+        hooks: {
+          stop: [
+            { command: `node -e "setTimeout(() => {}, 1500)"` },
+            { command: "node hook.cjs stop 0" },
+          ],
+          sessionDelete: [{ command: "node hook.cjs delete 0" }],
+        },
+      });
+      const { out, records } = await runUnderBun({
+        content,
+        prelude: [
+          "console.error = (message) => out.push('error: ' + message);",
+          QUEUED_EVENTS_PRELUDE,
+          "await mod.default.setup(ctx);",
+        ].join("\n"),
+        body: [
+          // Reading this event's payload throws; the events after it still run.
+          "push({ type: 'session.execution.succeeded', get data() { throw new Error('boom'); } });",
+          "push({ type: 'session.execution.succeeded', data: { sessionID: 's1' } });",
+          "push({ type: 'session.deleted', data: { sessionID: 's1' } });",
+          "const recorded = async () => (await Bun.file(directory + '/rec.jsonl').text()).split('\\n').filter(Boolean).length;",
+          "for (let i = 0; i < 400 && (await recorded()) < 2; i++) await Bun.sleep(50);",
+        ].join("\n"),
+      });
+
+      expect(records.map((record) => record.name)).toEqual(["stop", "delete"]);
+      // Each stop handler logs its own throw.
+      expect(out).toEqual([
+        "error: [rulesync-hooks] stop hook failed:",
+        "error: [rulesync-hooks] stop hook failed:",
+      ]);
     }, 60_000);
 
     it("still loads its other hooks when the host has no session context hook", async () => {
@@ -919,7 +955,8 @@ describe("OpencodeHooks (OpenCode V2)", () => {
     }, 60_000);
 
     it("evicts sessionStart contexts in completion order, not start order", async () => {
-      // Prints ctx.txt as read at start; a `slow` one waits until the test releases it.
+      // Prints ctx.txt as read at start; a `slow` one marks that it has read it, then
+      // waits until the test releases it.
       await writeFileContent(
         join(testDir, "ctx-wait.cjs"),
         [
@@ -927,7 +964,7 @@ describe("OpencodeHooks (OpenCode V2)", () => {
           'const text = fs.readFileSync("ctx.txt", "utf8");',
           "const done = () => process.stdout.write(text);",
           'if (!text.startsWith("slow")) done();',
-          'else { const timer = setInterval(() => fs.existsSync("release") && (clearInterval(timer), done()), 20); }',
+          'else { fs.writeFileSync("started", ""); const timer = setInterval(() => fs.existsSync("release") && (clearInterval(timer), done()), 20); }',
         ].join("\n"),
       );
       const content = generateOpencodeStylePluginCode(
@@ -948,7 +985,7 @@ describe("OpencodeHooks (OpenCode V2)", () => {
           "};",
           "await Bun.write(directory + '/ctx.txt', 'slow-context');",
           "const slow = created('slow');",
-          "await Bun.sleep(1000);",
+          "for (let i = 0; i < 400 && !(await Bun.file(directory + '/started').exists()); i++) await Bun.sleep(25);",
           "for (let i = 1; i <= 100; i++) {",
           "  await Bun.write(directory + '/ctx.txt', 'context-' + i);",
           "  await created('s' + i);",

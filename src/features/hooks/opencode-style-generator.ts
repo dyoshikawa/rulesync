@@ -407,7 +407,8 @@ const PRE_TOOL_USE_RESULT_HELPER_LINES: readonly string[] = [
  * `hookSpecificOutput.additionalContext` string of a JSON object it prints,
  * trimmed and capped at Claude Code's 10,000 characters; more than 1 MiB of
  * stdout is logged and ignored. Only sessions whose context is not empty are
- * kept, the 100 most recently used, and a deleted session is dropped.
+ * kept, the 100 whose context was used or became ready most recently, and a
+ * deleted session is dropped.
  */
 const SESSION_CONTEXT_HELPER_LINES: readonly string[] = [
   "const __rulesyncSessionContexts = new Map();",

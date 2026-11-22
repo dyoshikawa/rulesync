@@ -167,8 +167,9 @@ function buildHookRegistrationLines(hookPoint: string, handlers: V2Handler[]): s
  * The loop itself never waits for a command, so a slow handler cannot hold back
  * the events after it: handlers run one after another on
  * `__rulesyncEventQueue`, in event order, while `sessionStart` starts right
- * away, so its session's pending context is registered before that session's
- * first model request asks for it.
+ * away, outside the queue (so it can overlap other event commands), and its
+ * session's pending context is registered before that session's first model
+ * request asks for it. Handlers still queued at dispose are skipped.
  */
 function buildEventLoopLines(
   eventHandlers: Map<string, V2Handler[]>,
@@ -210,9 +211,11 @@ function buildEventLoopLines(
       : [
           "__rulesyncEventQueue = __rulesyncEventQueue",
           "  .then(async () => {",
+          // A handler still queued when the plugin is disposed does not start.
+          "    if (__rulesyncEvents.signal.aborted) return;",
           ...statements.map((line) => `    ${line}`),
           "  })",
-          "  .catch(() => {});",
+          `  .catch((error) => console.error(${JSON.stringify(`[rulesync-hooks] ${eventType} event hook failed:`)}, error));`,
         ];
     lines.push(...body.map((line) => `      ${line}`));
   }
