@@ -243,6 +243,45 @@ const CLAUDECODE_PROJECT_SCOPE_IGNORED_DEFAULT_MODES: ReadonlySet<string> = new 
 ]);
 
 /**
+ * The `permissions` fields Claude Code reads only from user or managed settings
+ * (and `--settings`), never from a repository's `.claude/settings.json`, so
+ * they are dropped at project scope and written only under `--global`.
+ * `denyInsteadOfPrompting` (v2.1.319+) only restricts, but committing it to a
+ * project file would promise unattended denials that never happen.
+ *
+ * @see https://code.claude.com/docs/en/settings-reference#permissions-denyinsteadofprompting
+ */
+const CLAUDECODE_USER_SCOPE_ONLY_PERMISSIONS_FIELDS: ReadonlySet<string> = new Set([
+  "denyInsteadOfPrompting",
+]);
+
+/**
+ * Drop the project-scope `permissions` fields in
+ * {@link CLAUDECODE_USER_SCOPE_ONLY_PERMISSIONS_FIELDS}, warning once per field
+ * in the same voice as the user-scope-only top-level keys.
+ */
+function stripUserScopeOnlyPermissionsFields({
+  fields,
+  global,
+  relativeFilePath,
+  logger,
+}: {
+  fields: Record<string, unknown>;
+  global: boolean;
+  relativeFilePath: string;
+  logger?: Logger;
+}): void {
+  if (global) return;
+  for (const key of CLAUDECODE_USER_SCOPE_ONLY_PERMISSIONS_FIELDS) {
+    if (!Object.hasOwn(fields, key)) continue;
+    logger?.warn(
+      `Claude Code permissions: 'permissions.${key}' is not honored in the project-scoped ${relativeFilePath}, so it is not written there — Claude Code reads it from user or managed settings only. Author it in the global scope instead, and remove any value an earlier generate may have left in ${relativeFilePath}.`,
+    );
+    delete fields[key];
+  }
+}
+
+/**
  * Drop a project-scope `permissions.defaultMode` Claude Code ignores there (see
  * {@link CLAUDECODE_PROJECT_SCOPE_IGNORED_DEFAULT_MODES}), warning in the same
  * voice as the other values the project-scoped file cannot honor.
@@ -368,8 +407,10 @@ const CLAUDECODE_TRUST_AFFECTING_SANDBOX_PATHS: readonly TrustAffectingSandboxPa
   {
     path: ["autoAllowBashIfSandboxed"],
     reason: "controls whether every Bash command the sandbox accepts runs without a prompt",
-    // Same reasoning as `allowUnsandboxedCommands`: default `true`, and a
-    // project-scope `true` overrides a user-scope `false`.
+    // Default `false` since Claude Code v2.1.324 (it was `true` before), so a
+    // `true` turns prompt-free sandboxed Bash on, and a project-scope `true`
+    // also overrides a user-scope `false`.
+    // https://code.claude.com/docs/en/settings-reference#sandbox-autoallowbashifsandboxed
     widens: isNotFalse,
   },
   {
@@ -385,7 +426,7 @@ const CLAUDECODE_TRUST_AFFECTING_SANDBOX_PATHS: readonly TrustAffectingSandboxPa
   {
     path: ["enabled"],
     reason:
-      "turns the sandbox on, and sandboxed Bash commands then run without a permission prompt unless `autoAllowBashIfSandboxed` is false",
+      "turns the sandbox on, and sandboxed Bash commands then run without a permission prompt wherever `autoAllowBashIfSandboxed` is true (it defaults to false since Claude Code v2.1.324)",
     widens: isNotFalse,
   },
   {
@@ -769,6 +810,7 @@ const CLAUDECODE_UNHONORED_KEY_SOURCES: Readonly<Record<string, string>> = {
   disableCommandPluginSources: "managed settings",
   disableDesktopLocalSessions: "managed settings",
   disableMobileSimulatorTools: "managed settings",
+  disableRemotePreviewScripts: "managed settings",
   disableSideloadFlags: "managed settings",
   externalEditorContext: "~/.claude.json",
   forceRemoteSettingsRefresh: "managed settings",
@@ -1419,6 +1461,12 @@ export class ClaudecodePermissions extends ToolPermissions {
         Object.entries(rest).filter(([key]) => !PROTOTYPE_POLLUTION_KEYS.has(key)),
       );
       stripProjectScopeIgnoredDefaultMode({
+        fields: nonListFields,
+        global,
+        relativeFilePath: paths.relativeFilePath,
+        logger,
+      });
+      stripUserScopeOnlyPermissionsFields({
         fields: nonListFields,
         global,
         relativeFilePath: paths.relativeFilePath,
