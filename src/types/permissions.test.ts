@@ -63,6 +63,13 @@ describe("RulesyncPermissionsFileSchema tool-scoped override enums", () => {
       expect(result.success).toBe(false);
     });
 
+    it("should accept extra_policy, which Codex 0.169.0 removed but older Codex honors", () => {
+      const result = RulesyncPermissionsFileSchema.safeParse(
+        withOverride({ codexcli: { auto_review: { extra_policy: "Extra rules." } } }),
+      );
+      expect(result.success).toBe(true);
+    });
+
     it("should pass unmodeled keys through", () => {
       const result = RulesyncPermissionsFileSchema.safeParse(
         withOverride({

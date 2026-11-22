@@ -51,7 +51,15 @@ describe("GrokcliPermissions", () => {
   });
 
   describe("fromRulesyncPermissions (generate)", () => {
+    const seedMode = async (mode: string) => {
+      await writeFileContent(
+        join(testDir, ".grok", "config.toml"),
+        ["[ui]", `permission_mode = "${mode}"`].join("\n"),
+      );
+    };
+
     it("collapses any deny/ask rule to permission_mode = ask", async () => {
+      await seedMode("always-approve");
       const permissions = await GrokcliPermissions.fromRulesyncPermissions({
         outputRoot: testDir,
         rulesyncPermissions: makeRulesyncPermissions({
@@ -63,20 +71,50 @@ describe("GrokcliPermissions", () => {
       expect(readMode(permissions.getFileContent())).toBe("ask");
     });
 
-    it("maps an all-allow config to permission_mode = always-approve", async () => {
+    it("maps the all-tools catch-all allow to permission_mode = always-approve", async () => {
+      await seedMode("ask");
       const permissions = await GrokcliPermissions.fromRulesyncPermissions({
         outputRoot: testDir,
-        rulesyncPermissions: makeRulesyncPermissions({
-          bash: { "*": "allow" },
-          edit: { "*": "allow" },
-        }),
+        rulesyncPermissions: makeRulesyncPermissions({ "*": { "*": "allow" } }),
         global: true,
       });
 
       expect(readMode(permissions.getFileContent())).toBe("always-approve");
     });
 
-    it("defaults an empty config to permission_mode = ask", async () => {
+    it("never upgrades an existing ask to always-approve from narrow allows", async () => {
+      // `always-approve` lets every tool run without a prompt, so only a true
+      // all-tools catch-all allow may derive it.
+      const narrowAllows: Array<Record<string, Record<string, string>>> = [
+        { bash: { "git *": "allow" } },
+        { bash: { "*": "allow" }, edit: { "*": "allow" } },
+        { "*": { "src/**": "allow" } },
+      ];
+      for (const permission of narrowAllows) {
+        await seedMode("ask");
+        const permissions = await GrokcliPermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          rulesyncPermissions: makeRulesyncPermissions(permission),
+          global: true,
+        });
+
+        expect(readMode(permissions.getFileContent())).toBe("ask");
+      }
+    });
+
+    it("downgrades always-approve to ask when the config only has narrow allows", async () => {
+      await seedMode("always-approve");
+      const permissions = await GrokcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({ bash: { "git *": "allow" } }),
+        global: true,
+      });
+
+      expect(readMode(permissions.getFileContent())).toBe("ask");
+    });
+
+    it("maps an empty config to permission_mode = ask", async () => {
+      await seedMode("always-approve");
       const permissions = await GrokcliPermissions.fromRulesyncPermissions({
         outputRoot: testDir,
         rulesyncPermissions: makeRulesyncPermissions({}),
@@ -86,15 +124,39 @@ describe("GrokcliPermissions", () => {
       expect(readMode(permissions.getFileContent())).toBe("ask");
     });
 
+    it("does not add permission_mode when the config does not set it", async () => {
+      // Since Grok 1.0.80 a TUI session with no `[ui] permission_mode` starts
+      // in `auto`. Adding `ask` would silently move the user off that default.
+      const permissions = await GrokcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({
+          bash: { "*": "allow", "rm *": "deny" },
+        }),
+        global: true,
+      });
+
+      const content = permissions.getFileContent();
+      expect(readMode(content)).toBeUndefined();
+      expect(smolToml.parse(content).ui).toBeUndefined();
+      expect(readPermission(content).deny).toEqual(["Bash(rm *)"]);
+    });
+
     it("preserves other config.toml keys (non-destructive merge)", async () => {
       await writeFileContent(
         join(testDir, ".grok", "config.toml"),
-        ["[mcp_servers.example]", 'command = "echo"', "", "[ui]", 'theme = "dark"'].join("\n"),
+        [
+          "[mcp_servers.example]",
+          'command = "echo"',
+          "",
+          "[ui]",
+          'theme = "dark"',
+          'permission_mode = "ask"',
+        ].join("\n"),
       );
 
       const permissions = await GrokcliPermissions.fromRulesyncPermissions({
         outputRoot: testDir,
-        rulesyncPermissions: makeRulesyncPermissions({ bash: { "*": "allow" } }),
+        rulesyncPermissions: makeRulesyncPermissions({ "*": { "*": "allow" } }),
         global: true,
       });
 
@@ -102,6 +164,17 @@ describe("GrokcliPermissions", () => {
       expect((parsed.ui as Record<string, unknown>).theme).toBe("dark");
       expect((parsed.ui as Record<string, unknown>).permission_mode).toBe("always-approve");
       expect(parsed.mcp_servers).toBeDefined();
+    });
+
+    it("leaves an existing permission_mode = default alone", async () => {
+      await seedMode("default");
+      const permissions = await GrokcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({ bash: { "rm *": "deny" } }),
+        global: true,
+      });
+
+      expect(readMode(permissions.getFileContent())).toBe("default");
     });
 
     it("leaves an existing permission_mode = auto alone", async () => {
