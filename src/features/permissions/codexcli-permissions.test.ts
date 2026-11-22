@@ -2972,6 +2972,71 @@ command = "node"
       });
     });
 
+    it("still writes the [auto_review] keys Codex 0.169.0 removed, with a warning", async () => {
+      const logger = createMockLogger();
+      const rulesyncPermissions = new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: { bash: { "git status": "allow" } },
+          codexcli: {
+            auto_review: {
+              policy: "Deny network calls.",
+              extra_policy: "Extra rules.",
+              experimental_policy_template: "{{ tenant_policy }}",
+            },
+          },
+        }),
+      });
+
+      const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger,
+      });
+
+      const parsed = smolToml.parse(codexPermissions.getFileContent()) as Record<string, unknown>;
+      expect(parsed.auto_review).toEqual({
+        policy: "Deny network calls.",
+        extra_policy: "Extra rules.",
+        experimental_policy_template: "{{ tenant_policy }}",
+      });
+      const warnings = logger.warn.mock.calls.map((call) => String(call[0]));
+      expect(warnings).toContainEqual(
+        expect.stringContaining('"auto_review.extra_policy" was removed in Codex 0.169.0'),
+      );
+      expect(warnings).toContainEqual(
+        expect.stringContaining(
+          '"auto_review.experimental_policy_template" was removed in Codex 0.169.0',
+        ),
+      );
+      expect(warnings.join("\n")).toContain("guardian_extra_policy");
+    });
+
+    it("does not warn about removed [auto_review] keys that are not authored", async () => {
+      const logger = createMockLogger();
+      const rulesyncPermissions = new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: { bash: { "git status": "allow" } },
+          codexcli: { auto_review: { policy: "Deny network calls." } },
+        }),
+      });
+
+      await CodexcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger,
+      });
+
+      expect(logger.warn.mock.calls.map((call) => String(call[0])).join("\n")).not.toContain(
+        "was removed in Codex 0.169.0",
+      );
+    });
+
     it("refuses non-whitelisted override keys (mcp_servers / permissions) with a warning", async () => {
       const logger = createMockLogger();
       const rulesyncPermissions = new RulesyncPermissions({
