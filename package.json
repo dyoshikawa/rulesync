@@ -113,7 +113,7 @@
     "oxlint": "catalog:",
     "repomix": "1.19.0",
     "resend": "6.38.0",
-    "secretlint": "13.1.0",
+    "secretlint": "14.0.1",
     "simple-git": "4.0.2",
     "sort-package-json": "4.1.0",
     "tsx": "4.23.15",
