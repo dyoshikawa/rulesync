@@ -162,6 +162,40 @@ describe("CopilotPermissions", () => {
       );
     });
 
+    it("warns about edits when the edit rules come only from a '*' deny", async () => {
+      const logger = createMockLogger();
+      const permissions = await CopilotPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          edit: {},
+          "*": { "**/.env": "deny" },
+        }),
+        logger,
+      });
+
+      expect(JSON.parse(permissions.getFileContent())[EDITS_KEY]).toEqual({ "**/.env": false });
+      const messages = vi.mocked(logger.warn).mock.calls.map((call) => String(call[0]));
+      expect(messages.some((message) => message.includes("chat.tools.edits.autoApprove"))).toBe(
+        true,
+      );
+    });
+
+    it("does not warn about edits when edit: {} retracts the key", async () => {
+      await writeFileContent(
+        join(testDir, ".vscode", "settings.json"),
+        JSON.stringify({ [EDITS_KEY]: { "**/*": true } }),
+      );
+      const logger = createMockLogger();
+      const permissions = await CopilotPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({ edit: {} }),
+        logger,
+      });
+
+      expect(JSON.parse(permissions.getFileContent())).not.toHaveProperty(EDITS_KEY);
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
     it("does not warn about edits when only bash and webfetch rules are stated", async () => {
       const logger = createMockLogger();
       await CopilotPermissions.fromRulesyncPermissions({
@@ -556,9 +590,81 @@ describe("CopilotPermissions", () => {
         "chat.agent.sandbox.credentials.envVars": envVars,
       });
       expect(logger.warn).toHaveBeenCalledTimes(1);
-      expect(String(vi.mocked(logger.warn).mock.calls[0]?.[0])).toContain(
-        "'sandbox.credentials.envVars'",
+      const message = String(vi.mocked(logger.warn).mock.calls[0]?.[0]);
+      expect(message).toContain("'sandbox.credentials.envVars'");
+      // Each variable is named with the hosts it may reach.
+      expect(message).toContain('"SERVICE_API_KEY" -> "api.example.com"');
+    });
+
+    it("warns separately when an injectHosts entry contains a wildcard", async () => {
+      const logger = createMockLogger();
+      await CopilotPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissionsWithCopilot({
+          sandbox: {
+            credentials: {
+              envVars: {
+                SERVICE_API_KEY: { injectHosts: ["api.example.com"] },
+                NPM_TOKEN: { injectHosts: ["*.npmjs.org"] },
+              },
+            },
+          },
+        }),
+        logger,
+      });
+
+      expect(logger.warn).toHaveBeenCalledTimes(2);
+      const wildcardMessage = String(vi.mocked(logger.warn).mock.calls[1]?.[0]);
+      expect(wildcardMessage).toContain("wildcard");
+      expect(wildcardMessage).toContain('"NPM_TOKEN" -> "*.npmjs.org"');
+      expect(wildcardMessage).not.toContain("SERVICE_API_KEY");
+    });
+
+    it("writes an empty credentials.envVars without a warning", async () => {
+      const logger = createMockLogger();
+      const permissions = await CopilotPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissionsWithCopilot({
+          sandbox: { credentials: { envVars: {} } },
+        }),
+        logger,
+      });
+
+      expect(JSON.parse(permissions.getFileContent())).toEqual({
+        "chat.agent.sandbox.credentials.envVars": {},
+      });
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("keeps a hand-written envVars when it is not stated and replaces it when stated", async () => {
+      const handWritten = { OLD_TOKEN: { injectHosts: ["old.example.com"] } };
+      await writeFileContent(
+        join(testDir, ".vscode", "settings.json"),
+        JSON.stringify({ "chat.agent.sandbox.credentials.envVars": handWritten }),
       );
+
+      const unstated = await CopilotPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissionsWithCopilot({
+          sandbox: { credentials: { authenticategh: false } },
+        }),
+        logger: createMockLogger(),
+      });
+      expect(
+        JSON.parse(unstated.getFileContent())["chat.agent.sandbox.credentials.envVars"],
+      ).toEqual(handWritten);
+
+      const stated = { NEW_TOKEN: { injectHosts: ["new.example.com"] } };
+      const replaced = await CopilotPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissionsWithCopilot({
+          sandbox: { credentials: { envVars: stated } },
+        }),
+        logger: createMockLogger(),
+      });
+      expect(
+        JSON.parse(replaced.getFileContent())["chat.agent.sandbox.credentials.envVars"],
+      ).toEqual(stated);
     });
 
     it("rejects a credentials.envVars entry without injectHosts", () => {

@@ -359,6 +359,59 @@ const COPILOT_TRUST_AFFECTING_SANDBOX_PATHS: readonly TrustAffectingSandboxPath[
 
 const COPILOT_TOOL_LABEL = "GitHub Copilot";
 
+/** The trust-warning label of the `credentials.envVars` leaf. */
+const ENV_VARS_LABEL = "sandbox.credentials.envVars";
+
+type CopilotSandboxEnvVars = NonNullable<NonNullable<CopilotSandbox["credentials"]>["envVars"]>;
+
+/**
+ * Every `VAR -> host, host` pair of a `credentials.envVars` map, so a
+ * developer generating from a cloned repository can spot an unexpected host
+ * without opening the file. Names and hosts are JSON-quoted so control
+ * characters in authored values cannot forge log lines.
+ */
+function describeEnvVars(envVars: CopilotSandboxEnvVars): string {
+  return Object.entries(envVars)
+    .map(
+      ([name, { injectHosts }]) =>
+        `${JSON.stringify(name)} -> ${
+          injectHosts.length > 0
+            ? injectHosts.map((host) => JSON.stringify(host)).join(", ")
+            : "(no hosts)"
+        }`,
+    )
+    .join("; ");
+}
+
+/**
+ * A separate, stronger warning for `injectHosts` entries containing `*`: the
+ * sandbox may then send the credential to any host the pattern matches.
+ */
+function warnOnWildcardInjectHosts({
+  envVars,
+  relativeFilePath,
+  logger,
+}: {
+  envVars: CopilotSandboxEnvVars | undefined;
+  relativeFilePath: string;
+  logger?: Logger;
+}): void {
+  if (envVars === undefined) {
+    return;
+  }
+  const wildcards = Object.entries(envVars).flatMap(([name, { injectHosts }]) =>
+    injectHosts
+      .filter((host) => host.includes("*"))
+      .map((host) => `${JSON.stringify(name)} -> ${JSON.stringify(host)}`),
+  );
+  if (wildcards.length === 0) {
+    return;
+  }
+  logger?.warn(
+    `${COPILOT_TOOL_LABEL}: '${ENV_VARS_LABEL}' in ${relativeFilePath} lets the sandbox send credentials to any host matching a wildcard: ${wildcards.join("; ")}. Review these patterns, since the credential can reach every matching host.`,
+  );
+}
+
 function sandboxKey(path: readonly string[]): string {
   return `${SANDBOX_KEY_PREFIX}${path.join(".")}`;
 }
@@ -655,15 +708,22 @@ export class CopilotPermissions extends ToolPermissions {
           existingSettings: existingSettings(),
         }),
       );
+      const relativeFilePath = join(paths.relativeDirPath, paths.relativeFilePath);
+      const envVars = sandbox.credentials?.envVars;
       warnOnTrustAffectingEntries({
         toolLabel: COPILOT_TOOL_LABEL,
         entries: collectTrustAffectingSandboxPaths({
           sandbox,
           paths: COPILOT_TRUST_AFFECTING_SANDBOX_PATHS,
-        }),
-        relativeFilePath: join(paths.relativeDirPath, paths.relativeFilePath),
+        }).map((entry) =>
+          entry.label === ENV_VARS_LABEL && envVars !== undefined
+            ? { ...entry, reason: `${entry.reason}: ${describeEnvVars(envVars)}` }
+            : entry,
+        ),
+        relativeFilePath,
         logger,
       });
+      warnOnWildcardInjectHosts({ envVars, relativeFilePath, logger });
     }
 
     return new CopilotPermissions({
