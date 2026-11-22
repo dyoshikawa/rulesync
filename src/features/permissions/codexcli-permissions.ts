@@ -77,11 +77,11 @@ const CODEX_DEFAULT_APPROVALS_REVIEWER = "auto_review";
 const CODEX_RETIRED_APPROVAL_POLICY = "untrusted";
 const CODEX_DEPRECATED_APPROVAL_POLICY = "on-failure";
 // `[auto_review]` keys removed in Codex 0.169.0 (openai/codex PR #60646, which
-// moved managed Guardian policy to trusted templates). Codex 0.169.0+ ignores
-// them, 0.170.0+ warns about them at startup, and strict config validation
-// rejects the file. The extra rule text now belongs in a managed
-// `requirements.toml` (`guardian_extra_policy`) or in `auto_review.policy`.
-// https://github.com/openai/codex/blob/rust-v0.170.0/codex-rs/config/src/strict_config.rs
+// moved managed Guardian policy to trusted templates). `AutoReviewToml` does
+// not deny unknown fields, so Codex 0.169.0+ ignores them and warns at startup;
+// only `--strict-config` rejects the file. Codex 0.168.0 and older still honor
+// them, so they are written as authored, with a warning.
+// https://github.com/openai/codex/blob/rust-v0.169.0/codex-rs/config/src/strict_config.rs
 const CODEX_REMOVED_AUTO_REVIEW_KEYS = ["extra_policy", "experimental_policy_template"] as const;
 const CODEX_GLOB_SCAN_MAX_DEPTH = 8; // Matches Codex CLI default glob_scan_max_depth
 // `:minimal = "read"` enables `include_platform_defaults()` (FileSystemSpecialPath::Minimal,
@@ -342,21 +342,6 @@ export class CodexcliPermissions extends ToolPermissions {
         `${join(this.getRelativeDirPath(), this.getRelativeFilePath())} sets approval_policy = "${CODEX_RETIRED_APPROVAL_POLICY}", which was retired in Codex 0.149.0 and makes Codex refuse to start. It was not imported; remove it from the file, or mark the project untrusted in your user config instead ([projects."<path>"] trust_level = "${CODEX_RETIRED_APPROVAL_POLICY}").`,
       );
       delete override.approval_policy;
-    }
-    if (isRecord(override.auto_review)) {
-      // Lifting a removed key would only have the next generate warn and drop
-      // it again; report it once at import. The file itself is left as is.
-      const filePath = join(this.getRelativeDirPath(), this.getRelativeFilePath());
-      const autoReview = withoutRemovedAutoReviewKeys({
-        table: override.auto_review,
-        onRemoved: (removedKey) =>
-          warnWithFallback(
-            undefined,
-            `${filePath}: ${removedAutoReviewKeyMessage(removedKey, "was not imported")}`,
-          ),
-      });
-      if (Object.keys(autoReview).length > 0) override.auto_review = autoReview;
-      else delete override.auto_review;
     }
     // The profile's `extends` baseline is modeled as the
     // `codexcli.base_permission_profile` override (not a top-level key), so it
@@ -1312,17 +1297,7 @@ function computeCodexcliOverridePatch({
     }
     if (value === undefined) continue;
     if (key === "approval_policy" && !isWritableApprovalPolicy({ value, logger })) continue;
-    let writtenValue = value;
-    if (key === "auto_review" && isRecord(value)) {
-      writtenValue = withoutRemovedAutoReviewKeys({
-        table: value,
-        onRemoved: (removedKey) =>
-          logger?.warn(removedAutoReviewKeyMessage(removedKey, "was not written")),
-      });
-      // Only removed keys were authored: write nothing rather than an empty
-      // table (the gateway keeps an existing `[auto_review]` table as it is).
-      if (Object.keys(writtenValue).length === 0 && Object.keys(value).length > 0) continue;
-    }
+    if (key === "auto_review" && isRecord(value)) warnAboutRemovedAutoReviewKeys({ value, logger });
     if (key === "sandbox_mode" || key === "sandbox_workspace_write") {
       logger?.warn(
         `Codex CLI permission override key "${key}" is deprecated. Codex prioritizes the legacy sandbox settings over permission profiles when both are present, so it disables the generated "${RULESYNC_PROFILE_NAME}" permissions profile. Use "base_permission_profile" and the shared "permission" block instead.`,
@@ -1330,9 +1305,7 @@ function computeCodexcliOverridePatch({
     }
     const existingValue = existing[key];
     patch[key] =
-      isRecord(existingValue) && isRecord(writtenValue)
-        ? { ...existingValue, ...writtenValue }
-        : writtenValue;
+      isRecord(existingValue) && isRecord(value) ? { ...existingValue, ...value } : value;
   }
 
   fillCodexcliDefaults({ existing, patch, logger });
@@ -1401,31 +1374,21 @@ function isWritableApprovalPolicy({
   return true;
 }
 
-// A copy of an `[auto_review]` table without the keys Codex 0.169.0 removed,
-// reporting each one it drops.
-function withoutRemovedAutoReviewKeys({
-  table,
-  onRemoved,
+// Warn about authored `[auto_review]` keys Codex 0.169.0 removed. They are
+// still written: older Codex honors them, and newer Codex only ignores them.
+function warnAboutRemovedAutoReviewKeys({
+  value,
+  logger,
 }: {
-  table: Record<string, unknown>;
-  onRemoved: (key: string) => void;
-}): Record<string, unknown> {
-  const kept = { ...table };
+  value: Record<string, unknown>;
+  logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"];
+}): void {
   for (const key of CODEX_REMOVED_AUTO_REVIEW_KEYS) {
-    if (Object.hasOwn(kept, key)) {
-      delete kept[key];
-      onRemoved(key);
-    }
+    if (!Object.hasOwn(value, key)) continue;
+    logger?.warn(
+      `Codex CLI permission override "auto_review.${key}" was removed in Codex 0.169.0: newer Codex ignores it and warns at startup (it is rejected only under --strict-config). It is still written for older Codex. Move the text to "auto_review.policy", or to guardian_extra_policy in a managed requirements.toml.`,
+    );
   }
-  return kept;
-}
-
-function removedAutoReviewKeyMessage(key: string, outcome: string): string {
-  const hint =
-    key === "extra_policy"
-      ? "To enforce additional reviewer rules, fold the text into auto_review.policy, or set guardian_extra_policy in a managed requirements.toml."
-      : "Remove it; use auto_review.policy for local reviewer instructions.";
-  return `Codex CLI auto_review.${key} was removed in Codex 0.169.0, which ignores it (0.170.0+ warns at startup), so it ${outcome}. ${hint}`;
 }
 
 // Lift the whitelisted top-level keys back into the `codexcli` override so they
