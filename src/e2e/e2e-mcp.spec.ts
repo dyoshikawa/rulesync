@@ -1292,6 +1292,18 @@ describe("E2E: mcp (global mode)", () => {
       expect(JSON.parse(await readFileContent(kiroMcpPath)).identityProvider).toEqual(
         identityProvider,
       );
+
+      // An empty source retracts the generated servers and keeps the other keys.
+      await writeFileContent(
+        join(projectDir, RULESYNC_MCP_RELATIVE_FILE_PATH),
+        JSON.stringify({ mcpServers: {} }),
+      );
+      await runGenerate({ target, features: "mcp", global: true, env: { HOME_DIR: homeDir } });
+
+      expect(JSON.parse(await readFileContent(kiroMcpPath))).toEqual({
+        identityProvider,
+        mcpServers: {},
+      });
     },
   );
 

@@ -147,6 +147,36 @@ describe("KiroIdeHooks", () => {
     );
   });
 
+  it("drops an agent action on PermissionRequest on import with a warning", () => {
+    const hooks = new KiroIdeHooks({
+      outputRoot: testDir,
+      relativeDirPath: join(".kiro", "hooks"),
+      relativeFilePath: "rulesync.json",
+      fileContent: JSON.stringify({
+        version: "v1",
+        hooks: [
+          { trigger: "PermissionRequest", action: { type: "agent", prompt: "Decide" } },
+          { trigger: "permissionRequest", action: { type: "agent", prompt: "Decide too" } },
+          {
+            trigger: "PermissionRequest",
+            action: { type: "command", command: ".rulesync/hooks/approve.sh" },
+          },
+        ],
+      }),
+    });
+    const logger = createMockLogger();
+
+    const canonical = hooks.toRulesyncHooks({ logger }).getJson();
+
+    expect(canonical.hooks.permissionRequest).toEqual([
+      { type: "command", command: ".rulesync/hooks/approve.sh" },
+    ]);
+    expect(logger.warn).toHaveBeenCalledTimes(2);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('agent hook on Kiro\'s "PermissionRequest" trigger'),
+    );
+  });
+
   it("passes IDE-only triggers through the shared kiro override block verbatim", async () => {
     const rulesyncHooks = new RulesyncHooks({
       outputRoot: "/mock",

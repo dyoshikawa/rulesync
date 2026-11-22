@@ -140,6 +140,9 @@ export class KiroMcp extends ToolMcp {
    * does not manage (such as the top-level `identityProvider` block for
    * organization sign-in, which Kiro reads only from this file), so it is never
    * deleted in global mode. The project file is rulesync-managed and may be.
+   * The sweep has no in-place retraction, so a global `--delete` run without a
+   * source leaves the generated `mcpServers` behind; an empty source
+   * (`{ "mcpServers": {} }`) retracts them through the normal merge.
    * @see https://kiro.dev/docs/mcp/configuration/
    */
   override isDeletable(): boolean {
