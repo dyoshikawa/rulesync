@@ -251,15 +251,13 @@ export class TaktPermissions extends ToolPermissions {
     });
 
     const runtime = await readTaktRuntimeConfig({ outputRoot, logger });
-    const inheritedProvider = global
-      ? undefined
-      : await readGlobalTaktProvider({ projectFilePath: filePath, logger });
+    const globalLayer = await readGlobalTaktLayer({ global, projectFilePath: filePath, logger });
 
     const rulesyncJson = rulesyncPermissions.getJson();
     const provider = resolveActiveProvider({
       config,
       runtime: runtime.active ? runtime.config : undefined,
-      inheritedProvider,
+      inheritedProvider: globalLayer.provider,
     });
     const mode = deriveTaktPermissionMode(rulesyncJson);
     const override = isPlainObject(rulesyncJson.takt) ? rulesyncJson.takt : undefined;
@@ -307,6 +305,8 @@ export class TaktPermissions extends ToolPermissions {
       providerOptions: trustedProviderOptions,
       readDenyRules: collectReadDenyRules(rulesyncJson),
       existingProviderOptions: config[TAKT_PROVIDER_OPTIONS_KEY],
+      globalProviderOptions: globalLayer.providerOptions,
+      globalFilePath: globalLayer.filePath,
       provider,
       runtimeActive: runtime.active,
       runtimeFilePaths: runtime.filePaths,
@@ -515,17 +515,48 @@ function readProviderName(config: Record<string, unknown>): string | undefined {
 }
 
 /**
- * The top-level `provider:` of the global `~/.takt/config.yaml`, read for a
- * project-scope generate. An unresolvable home directory, a missing or
- * unparsable file, or one that names no provider all mean "nothing inherited".
+ * What a project-scope generate inherits from the global `~/.takt/config.yaml`:
+ * its provider and its `provider_options`. Nothing at global scope, where that
+ * file is the one being generated.
  */
-async function readGlobalTaktProvider({
+async function readGlobalTaktLayer({
+  global,
+  projectFilePath,
+  logger,
+}: {
+  global: boolean;
+  projectFilePath: string;
+  logger?: Logger | undefined;
+}): Promise<{
+  provider: string | undefined;
+  providerOptions: unknown;
+  filePath: string | undefined;
+}> {
+  const globalConfig = global ? undefined : await readGlobalTaktConfig({ projectFilePath, logger });
+  if (globalConfig === undefined) {
+    return { provider: undefined, providerOptions: undefined, filePath: undefined };
+  }
+  return {
+    provider: readProviderName(globalConfig.config),
+    providerOptions: globalConfig.config[TAKT_PROVIDER_OPTIONS_KEY],
+    filePath: globalConfig.filePath,
+  };
+}
+
+/**
+ * The global `~/.takt/config.yaml`, read for a project-scope generate: its
+ * top-level `provider:` is inherited by a project config that names none, and
+ * its `provider_options.claude.permissions.deny` is the list a project list
+ * would replace. An unresolvable home directory or a missing or unparsable file
+ * all mean "nothing inherited".
+ */
+async function readGlobalTaktConfig({
   projectFilePath,
   logger,
 }: {
   projectFilePath: string;
   logger?: Logger | undefined;
-}): Promise<string | undefined> {
+}): Promise<{ filePath: string; config: Record<string, unknown> } | undefined> {
   let globalPath: string;
   try {
     globalPath = join(getHomeDirectory(), TAKT_DIR, TAKT_CONFIG_FILE_NAME);
@@ -542,14 +573,15 @@ async function readGlobalTaktProvider({
     if (content === null) {
       return undefined;
     }
-    return readProviderName(
-      parseSharedConfig({
+    return {
+      filePath: globalPath,
+      config: parseSharedConfig({
         format: "yaml",
         fileContent: content,
         filePath: globalPath,
         invalidRootPolicy: "error",
       }),
-    );
+    };
   } catch (error) {
     logger?.warn(
       `Takt permissions: could not read the provider from ${globalPath} (${formatError(error)}); falling back to the project config alone.`,
@@ -1115,8 +1147,14 @@ function collectReadDenyRules(config: PermissionsConfig): string[] {
  *
  * Takt replaces a `deny` list wholesale rather than concatenating it, so the
  * rules are merged into the list that would otherwise be in force: the one the
- * `takt` block states, else the one already in config.yaml. Nothing is removed
- * from that list — a rule written by hand, or by an earlier generate, is kept.
+ * `takt` block states (which replaces a hand-written config.yaml list, as any
+ * authored `provider_options` leaf does), else the one already in config.yaml.
+ * Without an authored list nothing is removed from config.yaml's — a rule
+ * written by hand, or by an earlier generate, is kept.
+ *
+ * At project scope the written list also replaces a global `~/.takt/config.yaml`
+ * deny list for this project. That list usually holds personal paths, so it is
+ * not copied into the (committed) project file; a warning names it instead.
  *
  * Skipped when the active provider is not Claude-family (no other provider
  * reads the list) and, with a warning, in runtime mode, where `provider_options`
@@ -1127,6 +1165,8 @@ function addClaudeReadDenyRules({
   providerOptions,
   readDenyRules,
   existingProviderOptions,
+  globalProviderOptions,
+  globalFilePath,
   provider,
   runtimeActive,
   runtimeFilePaths,
@@ -1136,6 +1176,8 @@ function addClaudeReadDenyRules({
   providerOptions: Record<string, unknown> | undefined;
   readDenyRules: string[];
   existingProviderOptions: unknown;
+  globalProviderOptions?: unknown;
+  globalFilePath?: string | undefined;
   provider: string;
   runtimeActive: boolean;
   runtimeFilePaths: string[];
@@ -1165,6 +1207,23 @@ function addClaudeReadDenyRules({
     : undefined;
   const baseDeny = authoredDeny ?? existingDeny ?? [];
   const deny = [...new Set([...baseDeny, ...readDenyRules])];
+
+  const globalDeny = isPlainObject(globalProviderOptions)
+    ? readClaudeDenyList(globalProviderOptions[TAKT_CLAUDE_PROVIDER_OPTIONS_KEY])
+    : undefined;
+  const shadowedGlobalDeny = (globalDeny ?? []).filter((rule) => !deny.includes(rule));
+  if (shadowedGlobalDeny.length > 0) {
+    logger?.warn(
+      `Takt permissions: the read deny rules written to "${TAKT_PROVIDER_OPTIONS_KEY}.` +
+        `${TAKT_CLAUDE_PROVIDER_OPTIONS_KEY}.${TAKT_CLAUDE_PERMISSIONS_KEY}.` +
+        `${TAKT_CLAUDE_PERMISSIONS_DENY_KEY}" in ${filePath} replace the list in ` +
+        `${globalFilePath ?? "the global config.yaml"} for this project, because Takt does not ` +
+        `concatenate deny lists across layers. Claude will no longer apply ` +
+        `${shadowedGlobalDeny.join(", ")} here unless you add them to the project list (the ` +
+        `\`takt.provider_options.claude.permissions.deny\` block of the rulesync source) or to ` +
+        `the canonical \`read\` rules.`,
+    );
+  }
 
   const claude = isPlainObject(authoredClaude) ? authoredClaude : {};
   const permissions = isPlainObject(claude[TAKT_CLAUDE_PERMISSIONS_KEY])

@@ -532,6 +532,126 @@ describe("TaktPermissions", () => {
       expect(readMode(permissions.getFileContent(), "codex")).toBe("readonly");
     });
 
+    it.each(["claude-headless", "claude"])(
+      "writes the rules for the %s provider",
+      async (provider) => {
+        await writeFileContent(join(testDir, ".takt", "config.yaml"), `provider: ${provider}\n`);
+
+        const permissions = await TaktPermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          rulesyncPermissions: makeRulesyncPermissions({ read: { ".env": "deny" } }),
+        });
+
+        expect(readClaudeDeny(permissions.getFileContent())).toEqual(["Read(.env)"]);
+      },
+    );
+
+    it("writes nothing for claude-terminal, which does not receive the rules", async () => {
+      await writeFileContent(join(testDir, ".takt", "config.yaml"), "provider: claude-terminal\n");
+
+      const permissions = await TaktPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({ read: { ".env": "deny" } }),
+      });
+
+      expect(toRecord(load(permissions.getFileContent())).provider_options).toBeUndefined();
+    });
+
+    it("writes the rules into the global config.yaml at global scope without a shadowing warning", async () => {
+      const { testDir: homeDir, cleanup: cleanupHome } = await setupTestDirectory({ home: true });
+      try {
+        vi.stubEnv("HOME_DIR", homeDir);
+        await writeFileContent(
+          join(homeDir, ".takt", "config.yaml"),
+          [
+            "provider: claude-sdk",
+            "provider_options:",
+            "  claude:",
+            "    permissions:",
+            "      deny:",
+            "        - Read(~/.ssh/**)",
+          ].join("\n"),
+        );
+        const logger = createMockLogger();
+
+        const permissions = await TaktPermissions.fromRulesyncPermissions({
+          outputRoot: homeDir,
+          global: true,
+          rulesyncPermissions: makeRulesyncPermissions({ read: { ".env": "deny" } }),
+          logger,
+        });
+
+        expect(readClaudeDeny(permissions.getFileContent())).toEqual([
+          "Read(~/.ssh/**)",
+          "Read(.env)",
+        ]);
+        expect(logger.warn).not.toHaveBeenCalled();
+      } finally {
+        vi.unstubAllEnvs();
+        await cleanupHome();
+      }
+    });
+
+    it("warns at project scope that the project list replaces the global deny list", async () => {
+      const { testDir: homeDir, cleanup: cleanupHome } = await setupTestDirectory({ home: true });
+      try {
+        vi.stubEnv("HOME_DIR", homeDir);
+        await writeFileContent(
+          join(homeDir, ".takt", "config.yaml"),
+          [
+            "provider_options:",
+            "  claude:",
+            "    permissions:",
+            "      deny:",
+            "        - Read(~/.ssh/**)",
+            "        - Read(.env)",
+          ].join("\n"),
+        );
+        const logger = createMockLogger();
+
+        const permissions = await TaktPermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          rulesyncPermissions: makeRulesyncPermissions({ read: { ".env": "deny" } }),
+          logger,
+        });
+
+        // The personal global path is not copied into the project file.
+        expect(readClaudeDeny(permissions.getFileContent())).toEqual(["Read(.env)"]);
+        expect(logger.warn).toHaveBeenCalledTimes(1);
+        const message = String(vi.mocked(logger.warn).mock.calls[0]?.[0]);
+        expect(message).toContain("Read(~/.ssh/**)");
+        expect(message).not.toContain("Read(.env)");
+      } finally {
+        vi.unstubAllEnvs();
+        await cleanupHome();
+      }
+    });
+
+    it("does not warn when the project list already covers the global deny list", async () => {
+      const { testDir: homeDir, cleanup: cleanupHome } = await setupTestDirectory({ home: true });
+      try {
+        vi.stubEnv("HOME_DIR", homeDir);
+        await writeFileContent(
+          join(homeDir, ".takt", "config.yaml"),
+          ["provider_options:", "  claude:", "    permissions:", "      deny: [Read(.env)]"].join(
+            "\n",
+          ),
+        );
+        const logger = createMockLogger();
+
+        await TaktPermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          rulesyncPermissions: makeRulesyncPermissions({ read: { ".env": "deny" } }),
+          logger,
+        });
+
+        expect(logger.warn).not.toHaveBeenCalled();
+      } finally {
+        vi.unstubAllEnvs();
+        await cleanupHome();
+      }
+    });
+
     it("writes nothing for read ask rules", async () => {
       const permissions = await TaktPermissions.fromRulesyncPermissions({
         outputRoot: testDir,
