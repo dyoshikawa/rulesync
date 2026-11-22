@@ -772,6 +772,109 @@ describe("OpencodeHooks (OpenCode V2)", () => {
       expect(fallback.printed).not.toContain("context");
     }, 60_000);
 
+    // Unlike the default stub, this event stream queues events the loop has not read yet.
+    const QUEUED_EVENTS_PRELUDE = [
+      "const queued = []; let wake = () => {};",
+      "ctx.event.subscribe = (o) => { types.push(o.types); return { async *[Symbol.asyncIterator]() { for (;;) { while (queued.length) yield queued.shift(); await new Promise((r) => (wake = r)); } } }; };",
+      "push = (e) => { queued.push(e); wake(); };",
+    ].join("\n");
+
+    it("registers sessionStart context while an earlier event's command is still running", async () => {
+      await writeFileContent(join(testDir, "ctx.cjs"), CONTEXT_SCRIPT);
+      const content = generate({
+        hooks: {
+          stop: [
+            { command: `node -e "setTimeout(() => {}, 3000)"` },
+            { command: "node hook.cjs stop 0" },
+          ],
+          sessionStart: [{ command: "node ctx.cjs json" }],
+        },
+      });
+      const { out, records } = await runUnderBun({
+        content,
+        prelude: `${QUEUED_EVENTS_PRELUDE}\nawait mod.default.setup(ctx);`,
+        body: [
+          "push({ type: 'session.execution.succeeded', data: { sessionID: 's0' } });",
+          "await Bun.sleep(50);",
+          "push({ type: 'session.created', data: { sessionID: 's1' } });",
+          "await Bun.sleep(50);",
+          "const started = Date.now();",
+          "const request = { sessionID: 's1', system: [] };",
+          "await call(() => hooks['session:context'](request));",
+          "out.push(request.system.map((part) => part.text).join('|'));",
+          "out.push(Date.now() - started < 2000 ? 'not held back' : 'held back');",
+          // The slow stop command still finishes, and the next one runs after it.
+          "await Bun.sleep(3500);",
+        ].join("\n"),
+      });
+
+      expect(out).toEqual(["ok", "json-context", "not held back"]);
+      expect(records.map((record) => record.name)).toEqual(["stop"]);
+    }, 60_000);
+
+    it("runs the other event commands in event order, past a slow or throwing one", async () => {
+      const content = generate({
+        hooks: {
+          stop: [
+            { command: `node -e "setTimeout(() => {}, 1500)"` },
+            { command: "node hook.cjs stop 0" },
+          ],
+          sessionDelete: [{ command: "node hook.cjs delete 0" }],
+        },
+      });
+      const { out, records } = await runUnderBun({
+        content,
+        prelude: [
+          "console.error = (message) => out.push('error: ' + message);",
+          QUEUED_EVENTS_PRELUDE,
+          "await mod.default.setup(ctx);",
+        ].join("\n"),
+        body: [
+          // Reading this event's payload throws; the events after it still run.
+          "push({ type: 'session.execution.succeeded', get data() { throw new Error('boom'); } });",
+          "push({ type: 'session.execution.succeeded', data: { sessionID: 's1' } });",
+          "push({ type: 'session.deleted', data: { sessionID: 's1' } });",
+          "const recorded = async () => (await Bun.file(directory + '/rec.jsonl').text()).split('\\n').filter(Boolean).length;",
+          "for (let i = 0; i < 400 && (await recorded()) < 2; i++) await Bun.sleep(50);",
+        ].join("\n"),
+      });
+
+      expect(records.map((record) => record.name)).toEqual(["stop", "delete"]);
+      // Each stop handler logs its own throw.
+      expect(out).toEqual([
+        "error: [rulesync-hooks] stop hook failed:",
+        "error: [rulesync-hooks] stop hook failed:",
+      ]);
+    }, 60_000);
+
+    it("still loads its other hooks when the host has no session context hook", async () => {
+      const content = generate({
+        hooks: {
+          preToolUse: [{ command: "node hook.cjs pre 2" }],
+          sessionStart: [{ command: "echo context" }],
+        },
+      });
+      const { out } = await runUnderBun({
+        content,
+        prelude: [
+          "console.error = (message) => out.push('error: ' + message);",
+          "const sessionHook = ctx.session.hook;",
+          "ctx.session.hook = async (name, handler) => {",
+          "  if (name === 'context') throw new Error('unknown hook');",
+          "  return sessionHook(name, handler);",
+          "};",
+          "await mod.default.setup(ctx);",
+        ].join("\n"),
+        body: "await call(() => hooks['tool:execute.before']({ tool: 'shell', input: {} }));",
+      });
+
+      expect(out[0]).toBe(
+        "error: [rulesync-hooks] could not register the session context hook; sessionStart output does not reach the model:",
+      );
+      expect(out.slice(1)).toHaveLength(1);
+      expect(out[1]).toMatch(/^threw: /);
+    }, 60_000);
+
     it("adds sessionStart context to the OpenCode 1.x system prompt, capped like Claude Code's", async () => {
       await writeFileContent(join(testDir, "ctx.cjs"), CONTEXT_SCRIPT);
       const content = generateOpencodeStylePluginCode(
@@ -849,6 +952,53 @@ describe("OpencodeHooks (OpenCode V2)", () => {
       });
 
       expect(out).toEqual(["s1: context-1", "s2: ", "s1: context-1", "s101: context-101"]);
+    }, 60_000);
+
+    it("evicts sessionStart contexts in completion order, not start order", async () => {
+      // Prints ctx.txt as read at start; a `slow` one marks that it has read it, then
+      // waits until the test releases it.
+      await writeFileContent(
+        join(testDir, "ctx-wait.cjs"),
+        [
+          'const fs = require("node:fs");',
+          'const text = fs.readFileSync("ctx.txt", "utf8");',
+          "const done = () => process.stdout.write(text);",
+          'if (!text.startsWith("slow")) done();',
+          'else { fs.writeFileSync("started", ""); const timer = setInterval(() => fs.existsSync("release") && (clearInterval(timer), done()), 20); }',
+        ].join("\n"),
+      );
+      const content = generateOpencodeStylePluginCode(
+        { version: 1, hooks: { sessionStart: [{ command: "node ctx-wait.cjs" }] } },
+        OPENCODE_HOOK_EVENTS,
+        "opencodev1",
+        CANONICAL_TO_OPENCODE_EVENT_NAMES,
+      );
+      const { out } = await runUnderBun({
+        content,
+        prelude: "hooks = await mod.RulesyncHooksPlugin({ directory });",
+        body: [
+          "const created = (id) => hooks.event({ event: { type: 'session.created', properties: { info: { id } } } });",
+          "const transform = async (sessionID) => {",
+          "  const output = { system: [] };",
+          "  await hooks['experimental.chat.system.transform']({ sessionID, model: {} }, output);",
+          "  out.push(sessionID + ': ' + output.system.join('|'));",
+          "};",
+          "await Bun.write(directory + '/ctx.txt', 'slow-context');",
+          "const slow = created('slow');",
+          "for (let i = 0; i < 400 && !(await Bun.file(directory + '/started').exists()); i++) await Bun.sleep(25);",
+          "for (let i = 1; i <= 100; i++) {",
+          "  await Bun.write(directory + '/ctx.txt', 'context-' + i);",
+          "  await created('s' + i);",
+          "}",
+          "await Bun.write(directory + '/release', '');",
+          "await slow;",
+          "await Bun.sleep(50);",
+          "await transform('s1');",
+          "await transform('slow');",
+        ].join("\n"),
+      });
+
+      expect(out).toEqual(["s1: ", "slow: slow-context"]);
     }, 60_000);
 
     it("writes a timed-out sessionStart command's stderr to the host once it ends on Bun Shell", async () => {

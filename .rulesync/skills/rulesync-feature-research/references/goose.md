@@ -13,7 +13,7 @@
 | `skills`      | `https://goose-docs.ai/docs/guides/context-engineering/using-skills/`     | `.goose/skills/`, `.agents/skills/`, global `~/.config/goose/skills/`                                                                                                                                                                              |
 | `hooks`       | `https://goose-docs.ai/docs/guides/context-engineering/hooks/`            | Open Plugins `hooks/hooks.json`; twelve `HookEvent` values on main (2026-09) incl. `PreToolUseResult`; no `SubagentStart`/`SubagentStop`. Rulesync's `GOOSE_HOOK_EVENTS` (`src/types/hooks.ts`) maps only 11, so `PreToolUseResult` has no mapping |
 | `permissions` | `https://goose-docs.ai/docs/guides/managing-tools/tool-permissions/`      | Global `~/.config/goose/permission.yaml` (`user` key) in `goose-permissions.ts`                                                                                                                                                                    |
-| `checks`      | No docs page; source `crates/goose/src/checks/mod.rs`                     | `goose review` checks in `.agents/checks/*.md` and `~/.config/goose/checks/`; unsupported in Rulesync (#2404)                                                                                                                                      |
+| `checks`      | No docs page; source `crates/goose/src/checks/mod.rs`                     | Checks in `.agents/checks/*.md` and `~/.config/goose/checks/`; `goose review` was removed in v1.60.0, so they are only listed as agent sources. Rulesync writes the global dir only (#3395)                                                        |
 
 ## Client Anchors
 
