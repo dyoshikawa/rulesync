@@ -1130,7 +1130,7 @@ describe("McpProcessor", () => {
         fileContent: JSON.stringify({ mcpServers: {} }),
       });
 
-      vi.spyOn(KiroMcp, "fromRulesyncMcp").mockReturnValue({} as KiroMcp);
+      vi.spyOn(KiroMcp, "fromRulesyncMcp").mockResolvedValue({} as KiroMcp);
 
       const processor = new McpProcessor({
         logger: createMockLogger(),

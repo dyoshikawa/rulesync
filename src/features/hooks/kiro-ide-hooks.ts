@@ -60,6 +60,44 @@ const KiroIdeHooksFileSchema = z.looseObject({
 type KiroIdeHookEntry = z.infer<typeof KiroIdeHookEntrySchema>;
 
 /**
+ * Triggers on which Kiro runs only `command` actions.
+ * @see https://kiro.dev/docs/hooks/types/#permission-request
+ */
+const KIRO_COMMAND_ONLY_TRIGGERS: ReadonlySet<string> = new Set(["PermissionRequest"]);
+
+/**
+ * Whether an imported entry is an `agent` action on a command-only trigger
+ * (Kiro also accepts the camelCase `permissionRequest` spelling). Kiro never
+ * runs such a hook, so importing it would hand other targets an LLM
+ * permission hook the user never had in effect.
+ */
+function isAgentActionOnCommandOnlyTrigger(entry: KiroIdeHookEntry): boolean {
+  if (entry.action?.type !== "agent" || entry.trigger === undefined) return false;
+  const trigger =
+    lookupOwn({ record: CANONICAL_TO_KIRO_IDE_EVENT_NAMES, key: entry.trigger }) ?? entry.trigger;
+  return KIRO_COMMAND_ONLY_TRIGGERS.has(trigger);
+}
+
+/**
+ * Drop `prompt` definitions on a {@link KIRO_COMMAND_ONLY_TRIGGERS} trigger with
+ * a warning, rather than writing an `agent` action Kiro never runs.
+ */
+function dropPromptHooksOnCommandOnlyTrigger(
+  trigger: string,
+  definitions: HooksConfig["hooks"][string],
+  logger?: Logger,
+): HooksConfig["hooks"][string] {
+  if (!KIRO_COMMAND_ONLY_TRIGGERS.has(trigger)) return definitions;
+  return definitions.filter((def) => {
+    if (def.type !== "prompt") return true;
+    logger?.warn(
+      `Skipped a prompt hook on Kiro's "${trigger}" trigger: Kiro runs only command actions on it.`,
+    );
+    return false;
+  });
+}
+
+/**
  * Build the Kiro IDE hook entries for a single canonical event's definitions.
  *
  * `command`-type definitions become `{ type: "command", command }` actions and
@@ -128,7 +166,7 @@ export const KIRO_HOOKS_OVERRIDE_KEY = "kiro";
  */
 const KIRO_HOOKS_IGNORED_OVERRIDE_KEYS = ["kiro-ide", "kiro-cli"] as const;
 
-function canonicalToKiroIdeHooks(config: HooksConfig): KiroIdeHookEntry[] {
+function canonicalToKiroIdeHooks(config: HooksConfig, logger?: Logger): KiroIdeHookEntry[] {
   const kiroIdeSupported: Set<string> = new Set(KIRO_IDE_HOOK_EVENTS);
   const sharedHooks: HooksConfig["hooks"] = {};
   for (const [event, defs] of Object.entries(config.hooks)) {
@@ -155,7 +193,12 @@ function canonicalToKiroIdeHooks(config: HooksConfig): KiroIdeHookEntry[] {
       lookupOwn({ record: CANONICAL_TO_KIRO_IDE_EVENT_NAMES, key: eventName }) ??
       lookupOwn({ record: KIRO_LEGACY_TO_KIRO_IDE_TRIGGER_NAMES, key: eventName }) ??
       eventName;
-    entries.push(...buildKiroIdeEntriesForEvent(trigger, definitions));
+    entries.push(
+      ...buildKiroIdeEntriesForEvent(
+        trigger,
+        dropPromptHooksOnCommandOnlyTrigger(trigger, definitions, logger),
+      ),
+    );
   }
   return entries;
 }
@@ -182,10 +225,32 @@ function copyOptionalHookFields({
   }
 }
 
-function kiroIdeHooksToCanonical(entries: KiroIdeHookEntry[]): HooksConfig["hooks"] {
+/**
+ * The canonical `type` plus `command` / `prompt` of an imported Kiro action, or
+ * `undefined` when the action carries nothing to run.
+ */
+function toCanonicalAction(
+  action: NonNullable<KiroIdeHookEntry["action"]>,
+): HookDefinition | undefined {
+  if (action.type === "command") {
+    return action.command ? { type: "command", command: action.command } : undefined;
+  }
+  return action.prompt ? { type: "prompt", prompt: action.prompt } : undefined;
+}
+
+function kiroIdeHooksToCanonical(
+  entries: KiroIdeHookEntry[],
+  logger?: Logger,
+): HooksConfig["hooks"] {
   const canonical: HooksConfig["hooks"] = {};
   for (const entry of entries) {
     if (entry.trigger === undefined || entry.action === undefined) continue;
+    if (isAgentActionOnCommandOnlyTrigger(entry)) {
+      logger?.warn(
+        `Skipped an agent hook on Kiro's "${entry.trigger}" trigger: Kiro runs only command actions on it.`,
+      );
+      continue;
+    }
     const eventName =
       lookupOwn({ record: KIRO_IDE_TO_CANONICAL_EVENT_NAMES, key: entry.trigger }) ?? entry.trigger;
     // A crafted `trigger` (e.g. "__proto__") would otherwise make the
@@ -193,16 +258,8 @@ function kiroIdeHooksToCanonical(entries: KiroIdeHookEntry[]): HooksConfig["hook
     // and throw; skip prototype-pollution keys defensively.
     if (isPrototypePollutionKey(eventName)) continue;
 
-    const def: HookDefinition = {};
-    if (entry.action.type === "command") {
-      if (!entry.action.command) continue;
-      def.type = "command";
-      def.command = entry.action.command;
-    } else {
-      if (!entry.action.prompt) continue;
-      def.type = "prompt";
-      def.prompt = entry.action.prompt;
-    }
+    const def = toCanonicalAction(entry.action);
+    if (def === undefined) continue;
     if (entry.name !== undefined && entry.name !== null) def.name = entry.name;
     if (entry.description !== undefined && entry.description !== null) {
       def.description = entry.description;
@@ -277,7 +334,7 @@ export class KiroIdeHooks extends ToolHooks {
       );
     }
 
-    const hooks = canonicalToKiroIdeHooks(config);
+    const hooks = canonicalToKiroIdeHooks(config, logger);
     const fileContent = JSON.stringify({ version: "v1", hooks }, null, 2);
     return new this({
       outputRoot,
@@ -293,7 +350,7 @@ export class KiroIdeHooks extends ToolHooks {
       displayName: "Kiro IDE",
       parse: (fileContent) => KiroIdeHooksFileSchema.parse(JSON.parse(fileContent)),
     });
-    const hooks = kiroIdeHooksToCanonical(parsed.hooks ?? []);
+    const hooks = kiroIdeHooksToCanonical(parsed.hooks ?? [], logger);
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify(
         buildImportedHooksConfig({ logger, hooks, overrideKey: KIRO_HOOKS_OVERRIDE_KEY }),

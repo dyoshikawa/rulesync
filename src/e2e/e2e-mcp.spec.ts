@@ -14,7 +14,7 @@ import {
 import { warpcliConfigDir } from "../constants/warp-paths.js";
 import { getZedGlobalDir } from "../constants/zed-paths.js";
 import { McpProcessor } from "../features/mcp/mcp-processor.js";
-import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
+import { fileExists, readFileContent, removeFile, writeFileContent } from "../utils/file.js";
 import { getHermesagentGlobalDir } from "../utils/hermesagent.js";
 import { parseJson5 } from "../utils/json5.js";
 import {
@@ -1254,6 +1254,58 @@ describe("E2E: mcp (global mode)", () => {
       reconnectMaxDelayMs: 60000,
     });
   });
+
+  it.each(["kiro-cli", "kiro-ide"] as const)(
+    "should keep the identityProvider block in ~/.kiro/settings/mcp.json and never delete it ($target, global)",
+    async (target) => {
+      const projectDir = getProjectDir();
+      const homeDir = getHomeDir();
+      const kiroMcpPath = join(homeDir, ".kiro", "settings", "mcp.json");
+      const identityProvider = { issuer: "https://idp.example.com", clientId: "kiro" };
+
+      await writeFileContent(
+        kiroMcpPath,
+        JSON.stringify({ identityProvider, mcpServers: { stale: { command: "old" } } }),
+      );
+      await writeFileContent(
+        join(projectDir, RULESYNC_MCP_RELATIVE_FILE_PATH),
+        JSON.stringify({ mcpServers: { api: { command: "node" } } }),
+      );
+
+      await runGenerate({ target, features: "mcp", global: true, env: { HOME_DIR: homeDir } });
+
+      expect(JSON.parse(await readFileContent(kiroMcpPath))).toEqual({
+        identityProvider,
+        mcpServers: { api: { command: "node" } },
+      });
+
+      // With no MCP config left, `--delete` must not remove the user-level file.
+      await removeFile(join(projectDir, RULESYNC_MCP_RELATIVE_FILE_PATH));
+      await runGenerate({
+        target,
+        features: "mcp",
+        global: true,
+        deleteFiles: true,
+        env: { HOME_DIR: homeDir },
+      });
+
+      expect(JSON.parse(await readFileContent(kiroMcpPath)).identityProvider).toEqual(
+        identityProvider,
+      );
+
+      // An empty source retracts the generated servers and keeps the other keys.
+      await writeFileContent(
+        join(projectDir, RULESYNC_MCP_RELATIVE_FILE_PATH),
+        JSON.stringify({ mcpServers: {} }),
+      );
+      await runGenerate({ target, features: "mcp", global: true, env: { HOME_DIR: homeDir } });
+
+      expect(JSON.parse(await readFileContent(kiroMcpPath))).toEqual({
+        identityProvider,
+        mcpServers: {},
+      });
+    },
+  );
 
   it("should merge dsh MCP rows into ~/.dsh/cordis.patch.yml and import them back", async () => {
     const projectDir = getProjectDir();
