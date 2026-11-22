@@ -24,6 +24,7 @@ import {
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { honorAllToolsRestrictions } from "./shadowed-allows.js";
 import { MCP_CATEGORY_PREFIX } from "./shell-command-categories.js";
+import { isStricterAction } from "./single-action-collapse.js";
 import {
   ToolPermissions,
   type ToolPermissionsFromFileParams,
@@ -236,7 +237,103 @@ function canonicalToKimiCodeRules({
       });
     }
   }
-  return [...overrideRules, ...sortKimiCodeRulesFailClosed(canonicalRules)];
+  const rules = [...overrideRules, ...sortKimiCodeRulesFailClosed(canonicalRules)];
+  warnAboutIgnoredKimiCodeRuleScopes({ rules: overrideRules, logger });
+  warnAboutShadowedKimiCodeRules({ rules, logger });
+  return rules;
+}
+
+/**
+ * Scopes Kimi silently ignores on a rule in the user `config.toml`.
+ *
+ * @see https://moonshotai.github.io/kimi-code/en/configuration/config-files.html#permission
+ */
+const KIMI_CODE_IGNORED_USER_RULE_SCOPES = new Set(["turn-override", "session-runtime"]);
+
+function warnAboutIgnoredKimiCodeRuleScopes({
+  rules,
+  logger,
+}: {
+  rules: KimiCodePermissionRule[];
+  logger?: Logger;
+}): void {
+  for (const rule of rules) {
+    if (rule.scope !== undefined && KIMI_CODE_IGNORED_USER_RULE_SCOPES.has(rule.scope)) {
+      logger?.warn(
+        `Kimi Code permissions: the ${rule.decision} rule for "${rule.pattern}" has scope "${rule.scope}", which Kimi ignores in ${KIMI_CODE_CONFIG_SHARED_FILE_KEY}. Use "user" or "project" for it to take effect.`,
+      );
+    }
+  }
+}
+
+/** Split a Kimi rule pattern (`Tool` or `Tool(arg)`) into its tool and argument. */
+function splitKimiCodePattern(pattern: string): {
+  tool: string;
+  argument: string;
+  hasArguments: boolean;
+} {
+  const opening = pattern.indexOf("(");
+  const hasArguments = opening >= 0 && pattern.endsWith(")");
+  return {
+    tool: hasArguments ? pattern.slice(0, opening) : pattern,
+    argument: hasArguments ? pattern.slice(opening + 1, -1) : "",
+    hasArguments,
+  };
+}
+
+/**
+ * Whether `stricter` certainly matches every call `rule` matches: the same
+ * pattern, or the bare name of the same tool (which matches every call of
+ * it). Wildcard overlaps are not detected, so this never reports a false
+ * shadow but can miss one.
+ */
+function kimiCodeRuleCovers({
+  stricter,
+  rule,
+}: {
+  stricter: KimiCodePermissionRule;
+  rule: KimiCodePermissionRule;
+}): boolean {
+  return (
+    stricter.pattern === rule.pattern ||
+    stricter.pattern === splitKimiCodePattern(rule.pattern).tool
+  );
+}
+
+/**
+ * Kimi does not let the first matching rule win: a matching `deny` beats a
+ * matching `ask`, which beats a matching `allow` (Kimi Code 2.6.0 docs). An
+ * `allow` or `ask` meant to carve an exception out of a broader, stricter
+ * rule therefore never takes effect, whether it comes from `kimi-code.rules`
+ * or from a canonical category, so say so instead of letting the authored
+ * order suggest otherwise. A rule whose own scope Kimi ignores already got
+ * its warning and is skipped here.
+ *
+ * @see https://moonshotai.github.io/kimi-code/en/configuration/config-files.html#permission
+ */
+function warnAboutShadowedKimiCodeRules({
+  rules,
+  logger,
+}: {
+  rules: KimiCodePermissionRule[];
+  logger?: Logger;
+}): void {
+  for (const rule of rules) {
+    if (rule.decision === "deny" || KIMI_CODE_IGNORED_USER_RULE_SCOPES.has(rule.scope ?? "")) {
+      continue;
+    }
+    const shadowing = rules.find(
+      (other) =>
+        isStricterAction({ action: other.decision, existing: rule.decision }) &&
+        !KIMI_CODE_IGNORED_USER_RULE_SCOPES.has(other.scope ?? "") &&
+        kimiCodeRuleCovers({ stricter: other, rule }),
+    );
+    if (shadowing) {
+      logger?.warn(
+        `Kimi Code permissions: the ${rule.decision} rule for "${rule.pattern}" never takes effect: the matching ${shadowing.decision} rule "${shadowing.pattern}" outranks it, because Kimi ranks matching rules deny > ask > allow regardless of their order.`,
+      );
+    }
+  }
 }
 
 function getKimiCodePatternSpecificity(pattern: string): {
@@ -247,10 +344,7 @@ function getKimiCodePatternSpecificity(pattern: string): {
   wildcardCount: number;
   hasArguments: boolean;
 } {
-  const opening = pattern.indexOf("(");
-  const hasArguments = opening >= 0 && pattern.endsWith(")");
-  const tool = hasArguments ? pattern.slice(0, opening) : pattern;
-  const argument = hasArguments ? pattern.slice(opening + 1, -1) : "";
+  const { tool, argument, hasArguments } = splitKimiCodePattern(pattern);
   return {
     tool,
     toolLiteralLength: tool.replaceAll("*", "").replaceAll("?", "").length,

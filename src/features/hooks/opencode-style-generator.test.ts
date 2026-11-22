@@ -531,6 +531,7 @@ describe("sessionStart context", () => {
     ...(["opencodev1", "kilo", "mimocode"] as const).map((target) => ({
       target,
       hook: '"experimental.chat.system.transform": async (input, output) => {',
+      start: "await __rulesyncSessionStart(",
       generate: (hooks: HooksConfig["hooks"]) =>
         generateOpencodeStylePluginCode(
           config(hooks),
@@ -543,6 +544,8 @@ describe("sessionStart context", () => {
     {
       target: "opencode",
       hook: 'await ctx.session.hook("context", async (event) => {',
+      // The serial V2 event loop must not wait for the commands.
+      start: "void __rulesyncSessionStart(",
       generate: (hooks: HooksConfig["hooks"]) =>
         generateOpencodeV2PluginCode({
           config: config(hooks),
@@ -553,17 +556,20 @@ describe("sessionStart context", () => {
     },
   ];
 
-  it.each(targets)("adds it through the system prompt hook in $target", ({ hook, generate }) => {
-    const content = generate({ sessionStart: [{ command: "echo context" }] });
+  it.each(targets)(
+    "adds it through the system prompt hook in $target",
+    ({ hook, start, generate }) => {
+      const content = generate({ sessionStart: [{ command: "echo context" }] });
 
-    expect(content.split(hook).length - 1).toBe(1);
-    expect(content).toContain("await __rulesyncSessionStart(");
-    expect(content).toContain("context: true }));");
-    expect(content).toContain(
-      'if (event.type === "session.deleted") __rulesyncSessionContexts.delete(',
-    );
-    execFileSync("node", ["--input-type=module", "--check"], { input: content });
-  });
+      expect(content.split(hook).length - 1).toBe(1);
+      expect(content).toContain(start);
+      expect(content).toContain("context: true }));");
+      expect(content).toContain(
+        'if (event.type === "session.deleted") __rulesyncSessionContexts.delete(',
+      );
+      execFileSync("node", ["--input-type=module", "--check"], { input: content });
+    },
+  );
 
   it.each(targets)(
     "leaves the $target plugin unchanged without sessionStart",
