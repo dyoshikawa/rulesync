@@ -152,6 +152,21 @@ export const CopilotSandboxUserConfiguredPathsSchema = z.strictObject({
 });
 
 /**
+ * `chat.agent.sandbox.credentials.envVars` (VS Code 1.146+): environment
+ * variable names (never their secret values) mapped to the HTTPS hosts the
+ * Agent Host sandbox may inject each value into. Inside the sandbox the
+ * variable is masked.
+ *
+ * @see https://code.visualstudio.com/docs/agents/run/agent-sandboxing
+ */
+export const CopilotSandboxCredentialEnvVarsSchema = z.record(
+  z.string(),
+  z.strictObject({
+    injectHosts: z.array(z.string()),
+  }),
+);
+
+/**
  * The Agent Host sandbox settings VS Code 1.141 settled on, as a nested object
  * whose path mirrors the dotted setting key under `chat.agent.sandbox.` — e.g.
  * `network.allowNetwork` writes `chat.agent.sandbox.network.allowNetwork`.
@@ -177,6 +192,7 @@ const CopilotSandboxSchema = z.strictObject({
     z.strictObject({
       authenticategit: z.optional(z.boolean()),
       authenticategh: z.optional(z.boolean()),
+      envVars: z.optional(CopilotSandboxCredentialEnvVarsSchema),
     }),
   ),
   fileSystem: z.optional(
