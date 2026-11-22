@@ -13,6 +13,7 @@ import {
   type CopilotLocalPermissionLevel,
   type CopilotSandbox,
   CopilotSandboxEnabledSchema,
+  CopilotSandboxCredentialEnvVarsSchema,
   CopilotSandboxUserConfiguredPathsSchema,
   type PermissionAction,
   type PermissionsConfig,
@@ -31,6 +32,7 @@ import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   collectTrustAffectingSandboxPaths,
   isNonEmptyList,
+  isNonEmptyMap,
   isNotFalse,
   isNotTrue,
   readSandboxPath,
@@ -75,7 +77,9 @@ import {
 const AUTO_APPROVE_KEYS: Readonly<Record<string, string>> = {
   bash: "chat.tools.terminal.autoApprove",
   // Glob-to-boolean map gating agent edits, e.g. `{"**/*": true, "**/.env": false}`.
-  // Added in VS Code v1.104.
+  // Added in VS Code v1.104. VS Code registers it with application (user-only)
+  // scope and ignores it in `.vscode/settings.json`; it is still written so the
+  // file round-trips, and generate warns (see `EDITS_KEY_IGNORED_WARNING`).
   edit: "chat.tools.edits.autoApprove",
   // URL-pattern-to-boolean map gating fetch approvals. VS Code also accepts an
   // `{approveRequest, approveResponse}` object per pattern, which the canonical
@@ -84,6 +88,19 @@ const AUTO_APPROVE_KEYS: Readonly<Record<string, string>> = {
   // whenever the canonical config states a `webfetch` category at all.
   webfetch: "chat.tools.urls.autoApprove",
 };
+
+/**
+ * VS Code registers `chat.tools.edits.autoApprove` with
+ * `ConfigurationScope.APPLICATION` (user settings only) and ignores the value
+ * in a workspace `.vscode/settings.json`, so canonical `edit` rules written
+ * there have no effect. The terminal and URL maps are honored in the workspace
+ * only by the Local harness, which VS Code removes in February 2027.
+ *
+ * @see https://github.com/microsoft/vscode/blob/1.147.0/src/vs/workbench/contrib/chat/browser/chat.shared.contribution.ts
+ * @see https://code.visualstudio.com/docs/agents/run/approvals
+ */
+const EDITS_KEY_IGNORED_WARNING =
+  "GitHub Copilot: canonical `edit` rules are written to `chat.tools.edits.autoApprove` in .vscode/settings.json, but VS Code reads that setting from user settings only and ignores it in the workspace. Set edit approvals in your VS Code user settings instead.";
 
 /**
  * The workspace setting holding the starting permission level of new Local
@@ -258,6 +275,7 @@ const SANDBOX_LEAVES: readonly {
   { path: ["lspServers"], schema: z.boolean() },
   { path: ["credentials", "authenticategit"], schema: z.boolean() },
   { path: ["credentials", "authenticategh"], schema: z.boolean() },
+  { path: ["credentials", "envVars"], schema: CopilotSandboxCredentialEnvVarsSchema },
   { path: ["fileSystem", "allowDevToolAccess"], schema: z.boolean() },
   {
     path: ["fileSystem", "userConfiguredPaths"],
@@ -315,6 +333,11 @@ const COPILOT_TRUST_AFFECTING_SANDBOX_PATHS: readonly TrustAffectingSandboxPath[
     path: ["credentials", "authenticategh"],
     reason: "hands your GitHub CLI authentication to sandboxed commands",
     widens: isNotFalse,
+  },
+  {
+    path: ["credentials", "envVars"],
+    reason: "lets the sandbox send the named environment variables' values to the listed hosts",
+    widens: isNonEmptyMap,
   },
   {
     path: ["fileSystem", "allowDevToolAccess"],
@@ -608,6 +631,9 @@ export class CopilotPermissions extends ToolPermissions {
           ? bashRulesHonoringAllTools(config.permission)
           : honorCopilotAllToolsRestrictions({ permission: config.permission, category, logger });
       patch[settingKey] = buildAutoApproveValue({ category, rules });
+      if (category === "edit" && Object.keys(rules).length > 0) {
+        logger?.warn(EDITS_KEY_IGNORED_WARNING);
+      }
     }
     const existingSettings = (): Record<string, unknown> =>
       parseSharedConfig({ format: "jsonc", fileContent: existingContent, filePath });

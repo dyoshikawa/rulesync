@@ -147,6 +147,35 @@ describe("CopilotPermissions", () => {
       expect(Object.keys(json)).toEqual([AUTO_APPROVE_KEY, EDITS_KEY, URLS_KEY]);
     });
 
+    it("warns that VS Code ignores workspace edit rules", async () => {
+      const logger = createMockLogger();
+      const permissions = await CopilotPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({ edit: { "**/.env": "deny" } }),
+        logger,
+      });
+
+      expect(JSON.parse(permissions.getFileContent())[EDITS_KEY]).toEqual({ "**/.env": false });
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(String(vi.mocked(logger.warn).mock.calls[0]?.[0])).toContain(
+        "chat.tools.edits.autoApprove",
+      );
+    });
+
+    it("does not warn about edits when only bash and webfetch rules are stated", async () => {
+      const logger = createMockLogger();
+      await CopilotPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          bash: { "git *": "allow" },
+          webfetch: { "https://example.com/*": "allow" },
+        }),
+        logger,
+      });
+
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
     it("leaves a hand-written map alone when its canonical category is absent", async () => {
       await writeFileContent(
         join(testDir, ".vscode", "settings.json"),
@@ -512,6 +541,34 @@ describe("CopilotPermissions", () => {
       expect(message).toContain("'sandbox.fileSystem.userConfiguredPaths.readwritePaths'");
     });
 
+    it("writes credentials.envVars and warns that it sends values to the listed hosts", async () => {
+      const logger = createMockLogger();
+      const envVars = { SERVICE_API_KEY: { injectHosts: ["api.example.com"] } };
+      const permissions = await CopilotPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissionsWithCopilot({
+          sandbox: { credentials: { envVars } },
+        }),
+        logger,
+      });
+
+      expect(JSON.parse(permissions.getFileContent())).toEqual({
+        "chat.agent.sandbox.credentials.envVars": envVars,
+      });
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(String(vi.mocked(logger.warn).mock.calls[0]?.[0])).toContain(
+        "'sandbox.credentials.envVars'",
+      );
+    });
+
+    it("rejects a credentials.envVars entry without injectHosts", () => {
+      expect(() =>
+        createRulesyncPermissionsWithCopilot({
+          sandbox: { credentials: { envVars: { SERVICE_API_KEY: { hosts: ["a.example.com"] } } } },
+        }),
+      ).toThrow();
+    });
+
     it("rejects a sandbox key VS Code does not register", () => {
       expect(() =>
         createRulesyncPermissionsWithCopilot({ sandbox: { allowNetwork: true } }),
@@ -739,6 +796,7 @@ describe("CopilotPermissions", () => {
         fileContent: JSON.stringify({
           [SANDBOX_ENABLED_KEY]: "allowNetwork",
           [SANDBOX_ALLOW_NETWORK_KEY]: "yes",
+          "chat.agent.sandbox.credentials.envVars": { SERVICE_API_KEY: ["api.example.com"] },
         }),
         validate: false,
       });
@@ -800,7 +858,10 @@ describe("CopilotPermissions", () => {
       const sandbox = {
         enabled: "on",
         network: { allowNetwork: false, allowLocalNetwork: false },
-        credentials: { authenticategit: false },
+        credentials: {
+          authenticategit: false,
+          envVars: { SERVICE_API_KEY: { injectHosts: ["api.example.com"] } },
+        },
         fileSystem: { userConfiguredPaths: { readonlyPaths: ["/shared"], deniedPaths: ["/x"] } },
       };
       const generated = await CopilotPermissions.fromRulesyncPermissions({

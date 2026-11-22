@@ -1089,6 +1089,7 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
           "chat.agent.sandbox.lspServers",
           "chat.agent.sandbox.credentials.authenticategit",
           "chat.agent.sandbox.credentials.authenticategh",
+          "chat.agent.sandbox.credentials.envVars",
           "chat.agent.sandbox.fileSystem.allowDevToolAccess",
           "chat.agent.sandbox.fileSystem.userConfiguredPaths",
           "zoo-code.allowedCommands",
