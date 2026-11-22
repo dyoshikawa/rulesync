@@ -76,6 +76,13 @@ const CODEX_DEFAULT_APPROVALS_REVIEWER = "auto_review";
 // https://learn.chatgpt.com/docs/agent-approvals-security#migrate-from-the-retired-untrusted-approval-policy
 const CODEX_RETIRED_APPROVAL_POLICY = "untrusted";
 const CODEX_DEPRECATED_APPROVAL_POLICY = "on-failure";
+// `[auto_review]` keys removed in Codex 0.169.0 (openai/codex PR #60646, which
+// moved managed Guardian policy to trusted templates). `AutoReviewToml` does
+// not deny unknown fields, so Codex 0.169.0+ ignores them and warns at startup;
+// only `--strict-config` rejects the file. Codex 0.168.0 and older still honor
+// them, so they are written as authored, with a warning.
+// https://github.com/openai/codex/blob/rust-v0.169.0/codex-rs/config/src/strict_config.rs
+const CODEX_REMOVED_AUTO_REVIEW_KEYS = ["extra_policy", "experimental_policy_template"] as const;
 const CODEX_GLOB_SCAN_MAX_DEPTH = 8; // Matches Codex CLI default glob_scan_max_depth
 // `:minimal = "read"` enables `include_platform_defaults()` (FileSystemSpecialPath::Minimal,
 // openai/codex#13434), providing platform/runtime read access for basic sandboxed command execution.
@@ -1290,6 +1297,7 @@ function computeCodexcliOverridePatch({
     }
     if (value === undefined) continue;
     if (key === "approval_policy" && !isWritableApprovalPolicy({ value, logger })) continue;
+    if (key === "auto_review" && isRecord(value)) warnAboutRemovedAutoReviewKeys({ value, logger });
     if (key === "sandbox_mode" || key === "sandbox_workspace_write") {
       logger?.warn(
         `Codex CLI permission override key "${key}" is deprecated. Codex prioritizes the legacy sandbox settings over permission profiles when both are present, so it disables the generated "${RULESYNC_PROFILE_NAME}" permissions profile. Use "base_permission_profile" and the shared "permission" block instead.`,
@@ -1364,6 +1372,23 @@ function isWritableApprovalPolicy({
     );
   }
   return true;
+}
+
+// Warn about authored `[auto_review]` keys Codex 0.169.0 removed. They are
+// still written: older Codex honors them, and newer Codex only ignores them.
+function warnAboutRemovedAutoReviewKeys({
+  value,
+  logger,
+}: {
+  value: Record<string, unknown>;
+  logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"];
+}): void {
+  for (const key of CODEX_REMOVED_AUTO_REVIEW_KEYS) {
+    if (!Object.hasOwn(value, key)) continue;
+    logger?.warn(
+      `Codex CLI permission override "auto_review.${key}" was removed in Codex 0.169.0: newer Codex ignores it and warns at startup (it is rejected only under --strict-config). It is still written for older Codex. Move the text to "auto_review.policy", or to guardian_extra_policy in a managed requirements.toml.`,
+    );
+  }
 }
 
 // Lift the whitelisted top-level keys back into the `codexcli` override so they
