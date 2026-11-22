@@ -381,8 +381,9 @@ function parseGrokRule(
  *
  * The coarse `[ui] permission_mode` toggle is kept in sync for backward
  * compatibility with older Grok versions, but only when the config already
- * sets it to `ask` or `always-approve`: `always-approve` when the config is
- * pure-`allow`, otherwise `ask` (conservative — it is never `always-approve`
+ * sets it to `ask` or `always-approve`: `always-approve` only when the config
+ * has the all-tools catch-all allow (`"*": { "*": "allow" }`) and no
+ * `deny`/`ask` rule, otherwise `ask` (conservative — it is never `always-approve`
  * while any `deny`/`ask` rule exists, so it never contradicts the fine-grained
  * arrays). A missing key is not added, so Grok's own default mode applies. It
  * is a user-level UI setting, so it is only touched in global scope (see
@@ -769,6 +770,8 @@ function parseGrokPermissionArrays(
 /**
  * Legacy coarse fallback: map `[ui] permission_mode` to a canonical action.
  * `always-approve` ⇒ `allow`; anything else (including a missing mode) ⇒ `ask`.
+ * A missing mode now means Grok's own default (`auto` in the TUI since 1.0.80),
+ * which has no canonical counterpart, so the narrower `ask` reading is kept.
  */
 function legacyModeAction(parsed: smolToml.TomlTable): PermissionAction {
   const ui = toRecord(parsed[GROKCLI_UI_KEY]);
@@ -777,22 +780,26 @@ function legacyModeAction(parsed: smolToml.TomlTable): PermissionAction {
 
 /**
  * Collapse a rulesync permissions config into Grok's single coarse mode.
- * Any `deny`/`ask` rule anywhere keeps prompting (`ask`); otherwise an existing
- * `allow` rule opts into `always-approve`; an empty config defaults to `ask`.
+ * `always-approve` lets every tool run without a prompt, so it is derived only
+ * from a true catch-all allow — the all-tools rule `"*": { "*": "allow" }` —
+ * with no `deny`/`ask` rule anywhere. Narrow allows (e.g. `bash: { "git *":
+ * "allow" }`, or even `bash: { "*": "allow" }`) never widen into it; they and
+ * an empty config map to `ask`.
  */
 function deriveGrokPermissionMode(config: PermissionsConfig): GrokPermissionMode {
-  let hasAllow = false;
-
   for (const rules of Object.values(config.permission)) {
     for (const action of Object.values(rules)) {
       if (action === "deny" || action === "ask") {
         return "ask";
       }
-      if (action === "allow") {
-        hasAllow = true;
-      }
     }
   }
 
-  return hasAllow ? "always-approve" : "ask";
+  const allTools = lookupOwn({
+    record: config.permission,
+    key: ALL_TOOLS_PERMISSION_CATEGORY,
+  });
+  const hasCatchAllAllow =
+    allTools !== undefined && lookupOwn({ record: allTools, key: CATCH_ALL_PATTERN }) === "allow";
+  return hasCatchAllAllow ? "always-approve" : "ask";
 }

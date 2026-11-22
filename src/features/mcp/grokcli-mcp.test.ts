@@ -155,6 +155,26 @@ describe("GrokcliMcp", () => {
       expect(isRecord(remote) && "headersHelper" in remote).toBe(false);
     });
 
+    it("prefers an explicit headers_helper over headersHelper regardless of key order", async () => {
+      for (const remoteConfig of [
+        { url: "https://mcp.example.com/mcp", headersHelper: "a", headers_helper: "b" },
+        { url: "https://mcp.example.com/mcp", headers_helper: "b", headersHelper: "a" },
+      ]) {
+        const rulesyncMcp = new RulesyncMcp({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: ".mcp.json",
+          fileContent: JSON.stringify({ mcpServers: { remote: remoteConfig } }),
+        });
+
+        const grokcliMcp = await GrokcliMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+        const servers = grokcliMcp.getToml().mcp_servers;
+        const remote = isRecord(servers) ? servers.remote : undefined;
+
+        expect(isRecord(remote) && remote.headers_helper).toBe("b");
+        expect(isRecord(remote) && "headersHelper" in remote).toBe(false);
+      }
+    });
+
     it("preserves unrelated config.toml settings when adding mcp_servers", async () => {
       // Pre-existing config with unrelated tables that Rulesync does not own.
       const existingToml = `[ui]

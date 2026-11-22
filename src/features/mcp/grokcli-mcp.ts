@@ -70,7 +70,11 @@ function convertToGrokFormat(mcpServers: McpServers): Record<string, unknown> {
           converted["enabled"] = false;
         }
       } else if (key === CANONICAL_HEADERS_HELPER_KEY) {
-        converted[GROK_HEADERS_HELPER_KEY] = value;
+        // An explicit `headers_helper` in the same entry wins, as on import,
+        // so the result does not depend on key order.
+        if (!Object.hasOwn(config, GROK_HEADERS_HELPER_KEY)) {
+          converted[GROK_HEADERS_HELPER_KEY] = value;
+        }
       } else {
         converted[key] = value;
       }
@@ -98,7 +102,7 @@ function convertFromGrokFormat(grokMcp: Record<string, unknown>): McpServers {
         converted[CANONICAL_HEADERS_HELPER_KEY] = value;
       } else if (key === CANONICAL_HEADERS_HELPER_KEY) {
         // Grok ignores `headersHelper` when `headers_helper` is also set.
-        if (!(GROK_HEADERS_HELPER_KEY in config)) {
+        if (!Object.hasOwn(config, GROK_HEADERS_HELPER_KEY)) {
           converted[CANONICAL_HEADERS_HELPER_KEY] = value;
         }
       } else {

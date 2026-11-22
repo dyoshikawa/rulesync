@@ -71,18 +71,46 @@ describe("GrokcliPermissions", () => {
       expect(readMode(permissions.getFileContent())).toBe("ask");
     });
 
-    it("maps an all-allow config to permission_mode = always-approve", async () => {
+    it("maps the all-tools catch-all allow to permission_mode = always-approve", async () => {
       await seedMode("ask");
       const permissions = await GrokcliPermissions.fromRulesyncPermissions({
         outputRoot: testDir,
-        rulesyncPermissions: makeRulesyncPermissions({
-          bash: { "*": "allow" },
-          edit: { "*": "allow" },
-        }),
+        rulesyncPermissions: makeRulesyncPermissions({ "*": { "*": "allow" } }),
         global: true,
       });
 
       expect(readMode(permissions.getFileContent())).toBe("always-approve");
+    });
+
+    it("never upgrades an existing ask to always-approve from narrow allows", async () => {
+      // `always-approve` lets every tool run without a prompt, so only a true
+      // all-tools catch-all allow may derive it.
+      const narrowAllows: Array<Record<string, Record<string, string>>> = [
+        { bash: { "git *": "allow" } },
+        { bash: { "*": "allow" }, edit: { "*": "allow" } },
+        { "*": { "src/**": "allow" } },
+      ];
+      for (const permission of narrowAllows) {
+        await seedMode("ask");
+        const permissions = await GrokcliPermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          rulesyncPermissions: makeRulesyncPermissions(permission),
+          global: true,
+        });
+
+        expect(readMode(permissions.getFileContent())).toBe("ask");
+      }
+    });
+
+    it("downgrades always-approve to ask when the config only has narrow allows", async () => {
+      await seedMode("always-approve");
+      const permissions = await GrokcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({ bash: { "git *": "allow" } }),
+        global: true,
+      });
+
+      expect(readMode(permissions.getFileContent())).toBe("ask");
     });
 
     it("maps an empty config to permission_mode = ask", async () => {
@@ -128,7 +156,7 @@ describe("GrokcliPermissions", () => {
 
       const permissions = await GrokcliPermissions.fromRulesyncPermissions({
         outputRoot: testDir,
-        rulesyncPermissions: makeRulesyncPermissions({ bash: { "*": "allow" } }),
+        rulesyncPermissions: makeRulesyncPermissions({ "*": { "*": "allow" } }),
         global: true,
       });
 
