@@ -440,6 +440,9 @@ const SESSION_CONTEXT_HELPER_LINES: readonly string[] = [
   "      if (__rulesyncSessionContexts.get(sessionID) !== pending) return;",
   "      if (!context) return void __rulesyncSessionContexts.delete(sessionID);",
   "      __rulesyncKept.add(pending);",
+  "      // Evict in completion order: a context counts as used once it is ready.",
+  "      __rulesyncSessionContexts.delete(sessionID);",
+  "      __rulesyncSessionContexts.set(sessionID, pending);",
   "      const kept = [...__rulesyncSessionContexts].filter(([, entry]) => __rulesyncKept.has(entry));",
   "      if (kept.length > 100) __rulesyncSessionContexts.delete(kept[0][0]);",
   "    });",
@@ -455,10 +458,19 @@ const SESSION_CONTEXT_HELPER_LINES: readonly string[] = [
   "};",
 ];
 
-/** The statements of a `sessionStart` group, run through `__rulesyncSessionStart`. */
-export function wrapSessionStartLines(sessionIdExpression: string, statements: string[]): string[] {
+/**
+ * The statements of a `sessionStart` group, run through `__rulesyncSessionStart`.
+ * `__rulesyncSessionStart` registers the session's pending context before its
+ * first `await`, so `"void"` (used by the serial V2 event loop) registers it
+ * as soon as the event is read without waiting for the commands.
+ */
+export function wrapSessionStartLines(
+  sessionIdExpression: string,
+  statements: string[],
+  operator: "await" | "void" = "await",
+): string[] {
   return [
-    `await __rulesyncSessionStart(${sessionIdExpression}, async (__rulesyncResults) => {`,
+    `${operator} __rulesyncSessionStart(${sessionIdExpression}, async (__rulesyncResults) => {`,
     ...statements.map((line) => `  ${line}`),
     "});",
   ];
@@ -563,6 +575,16 @@ type Handler = RunnableHandler & {
 };
 type HandlerGroup = Record<string, Handler[]>;
 
+/** Whether any handler is a `sessionStart` one, whose stdout becomes session context. */
+export function usesSessionContext(handlers: ReadonlyArray<{ context?: boolean }>): boolean {
+  return handlers.some((handler) => handler.context);
+}
+
+/** The handler fields a canonical event's `sessionStart`-ness adds. */
+export function sessionContextExtrasFor(canonicalEvent: string): { context?: true } {
+  return canonicalEvent === "sessionStart" ? { context: true } : {};
+}
+
 /** The per-canonical-event gates and payload every handler of it carries. */
 function handlerExtrasFor(
   canonicalEvent: string,
@@ -575,7 +597,7 @@ function handlerExtrasFor(
     ...(shellGate ? { toolGate: shellGate.tool } : {}),
     ...(propertyGate ? { propertyGate } : {}),
     ...(payload ? { payload } : {}),
-    ...(canonicalEvent === "sessionStart" ? { context: true } : {}),
+    ...sessionContextExtrasFor(canonicalEvent),
   };
 }
 
@@ -645,9 +667,7 @@ function buildGenericEventBodyLines(genericEventHandlers: HandlerGroup): string[
     return bodyLines;
   }
   bodyLines.push("    event: async ({ event }) => {");
-  const usesContext = Object.values(genericEventHandlers).some((handlers) =>
-    handlers.some((handler) => handler.context),
-  );
+  const usesContext = Object.values(genericEventHandlers).some(usesSessionContext);
   if (usesContext) {
     bodyLines.push(
       `      if (event.type === "session.deleted") __rulesyncSessionContexts.delete(${V1_SESSION_ID_EXPRESSION});`,
@@ -668,7 +688,7 @@ function buildGenericEventBodyLines(genericEventHandlers: HandlerGroup): string[
         statements.push(runStatement);
       }
     }
-    const lines = handlers.some((handler) => handler.context)
+    const lines = usesSessionContext(handlers)
       ? wrapSessionStartLines(V1_SESSION_ID_EXPRESSION, statements)
       : statements;
     bodyLines.push(...lines.map((line) => `        ${line}`));
@@ -760,7 +780,7 @@ export function buildRunHelperLines({
 }): string[] {
   if (handlers.length === 0) return [];
   const usesPreToolUse = handlers.some((handler) => handler.payload?.name === "PreToolUse");
-  const usesContext = handlers.some((handler) => handler.context);
+  const usesContext = usesSessionContext(handlers);
   return [
     ...buildRunHelperLinesFor(cwdExpression),
     ...(usesPreToolUse ? ["", ...PRE_TOOL_USE_RESULT_HELPER_LINES] : []),
@@ -882,9 +902,7 @@ export function generateOpencodeStylePluginCode(
   // base indentation, then wrap them in the requested export shape. The default
   // (Kilo) export nests the function one level deeper, so its body is re-indented
   // by an extra two spaces relative to the named (OpenCode) export.
-  const usesContext = Object.values(genericEventHandlers).some((handlers) =>
-    handlers.some((handler) => handler.context),
-  );
+  const usesContext = Object.values(genericEventHandlers).some(usesSessionContext);
   const bodyLines: string[] = [
     ...buildGenericEventBodyLines(genericEventHandlers),
     ...buildNamedEventBodyLines(namedEventHandlers),

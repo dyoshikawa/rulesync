@@ -7,6 +7,8 @@ import {
   type RunnableHandler,
   type StdinPayload,
   validateAndSanitizeMatcher,
+  sessionContextExtrasFor,
+  usesSessionContext,
   wrapSessionStartLines,
 } from "./opencode-style-generator.js";
 
@@ -97,15 +99,22 @@ const V2_SESSION_ID_EXPRESSION = "event.data?.sessionID";
 
 /**
  * The `session:context` registration that adds a session's `sessionStart`
- * context to the system prompt of each of its agent-loop model requests.
+ * context to the system prompt of each of its agent-loop model requests. A
+ * host that cannot register it (no `ctx.session.hook`, or no `context` hook
+ * point) gets a logged error instead of a setup throw, so the plugin's other
+ * hooks, `preToolUse` guards included, still load.
  */
 const SESSION_CONTEXT_HOOK_LINES: readonly string[] = [
-  "__rulesyncRegistrations.push(",
-  '  await ctx.session.hook("context", async (event) => {',
-  "    const context = await __rulesyncSessionContext(event?.sessionID);",
-  '    if (context && Array.isArray(event?.system)) event.system.push({ type: "text", text: context });',
-  "  }),",
-  ");",
+  "try {",
+  "  __rulesyncRegistrations.push(",
+  '    await ctx.session.hook("context", async (event) => {',
+  "      const context = await __rulesyncSessionContext(event?.sessionID);",
+  '      if (context && Array.isArray(event?.system)) event.system.push({ type: "text", text: context });',
+  "    }),",
+  "  );",
+  "} catch (error) {",
+  '  console.error("[rulesync-hooks] could not register the session context hook; sessionStart output does not reach the model:", error);',
+  "}",
 ];
 
 type V2Handler = RunnableHandler & {
@@ -154,6 +163,12 @@ function buildHookRegistrationLines(hookPoint: string, handlers: V2Handler[]): s
  * in its own try/catch, so a throw while evaluating its gate or building its
  * payload, outside `__rulesyncRunHook`, is logged the same way. The
  * subscription passes `types` so the server delivers only the handled events.
+ *
+ * The loop itself never waits for a command, so a slow handler cannot hold back
+ * the events after it: handlers run one after another on
+ * `__rulesyncEventQueue`, in event order, while `sessionStart` starts right
+ * away, so its session's pending context is registered before that session's
+ * first model request asks for it.
  */
 function buildEventLoopLines(
   eventHandlers: Map<string, V2Handler[]>,
@@ -166,6 +181,7 @@ function buildEventLoopLines(
   if (usesContext) eventTypes.add("session.deleted");
   const types = [...eventTypes].map((eventType) => JSON.stringify(eventType)).join(", ");
   lines.push("const __rulesyncEvents = new AbortController();");
+  lines.push("let __rulesyncEventQueue = Promise.resolve();");
   lines.push("void (async () => {");
   lines.push("  for await (const event of ctx.event.subscribe({");
   lines.push(`    types: [${types}],`);
@@ -189,9 +205,15 @@ function buildEventLoopLines(
       statements.push(`  console.error(${message}, error);`);
       statements.push("}");
     }
-    const body = handlers.some((handler) => handler.context)
-      ? wrapSessionStartLines(V2_SESSION_ID_EXPRESSION, statements)
-      : statements;
+    const body = usesSessionContext(handlers)
+      ? wrapSessionStartLines(V2_SESSION_ID_EXPRESSION, statements, "void")
+      : [
+          "__rulesyncEventQueue = __rulesyncEventQueue",
+          "  .then(async () => {",
+          ...statements.map((line) => `    ${line}`),
+          "  })",
+          "  .catch(() => {});",
+        ];
     lines.push(...body.map((line) => `      ${line}`));
   }
   lines.push("    }");
@@ -240,7 +262,7 @@ function buildHandlersFor({
       ...(def.matcher ? { matcher: def.matcher } : {}),
       ...(gate ? { gate } : {}),
       ...(payload ? { payload } : {}),
-      ...(canonicalEvent === "sessionStart" ? { context: true } : {}),
+      ...sessionContextExtrasFor(canonicalEvent),
     });
   }
   return handlers;
@@ -270,9 +292,7 @@ function buildSetupBodyLines({
   if (usesMatcher) {
     body.push("", ...TOOL_MATCHER_HELPER_LINES);
   }
-  const usesContext = [...eventHandlers.values()].some((handlers) =>
-    handlers.some((handler) => handler.context),
-  );
+  const usesContext = [...eventHandlers.values()].some(usesSessionContext);
   const registers = hookHandlers.size > 0 || usesContext;
   const cleanup: string[] = [];
   if (registers) {
