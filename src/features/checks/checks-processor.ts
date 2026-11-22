@@ -176,9 +176,11 @@ export const toolCheckFactories = new Map<ChecksProcessorToolTarget, ToolCheckFa
   [
     "goose",
     {
-      // `goose review` reads `~/.config/goose/checks/*.md` globally. Its
-      // project directory is the cross-tool `.agents/checks/` that the `amp`
-      // target writes, so Goose is global-only here.
+      // Goose discovers `~/.config/goose/checks/*.md` globally. Since v1.60.0
+      // (`goose review` removed) it only lists checks as agent sources and no
+      // longer runs them. Its project directory is the cross-tool
+      // `.agents/checks/` that the `amp` target writes, so Goose is
+      // global-only here.
       class: GooseCheck,
       meta: { supportsGlobal: true, supportsProject: false, filePattern: "*.md" },
     },
