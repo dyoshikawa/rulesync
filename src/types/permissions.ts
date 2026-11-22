@@ -1567,8 +1567,8 @@ const CodexBasePermissionProfileSchema = z.enum(CODEX_BASE_PERMISSION_PROFILES);
  *   Defaults to `auto_review` when neither the override nor the existing
  *   config sets it.
  * - `auto_review` — the `[auto_review]` table that configures the reviewer
- *   `approvals_reviewer = "auto_review"` selects (`policy`, `extra_policy`,
- *   `timeout_ms`, …). A loose table, shallow-merged like `apps` / `tui`.
+ *   `approvals_reviewer = "auto_review"` selects (`policy`, `timeout_ms`, …).
+ *   A loose table, shallow-merged like `apps` / `tui`.
  * - `git_write_rules` — whether the managed profile's `:workspace_roots` table
  *   emits the default `.git` carve-out (`".git/**" = "write"`). Codex's
  *   `:workspace` baseline makes `.git` read-only, which denies basic git
@@ -1625,20 +1625,23 @@ const CodexcliPermissionsOverrideSchema = z.looseObject({
   /**
    * The `[auto_review]` table of `config.toml`, which configures the reviewer
    * that `approvals_reviewer = "auto_review"` (Rulesync's default) selects:
-   * `policy` / `extra_policy` (text inserted into the reviewer prompt),
+   * `policy` (text inserted into the reviewer prompt),
    * `timeout_ms` (the review budget, Codex 0.165.0+; `0` waits without a
    * deadline), `circuit_break_action` (`default` | `strict`) and
    * `conversation_history_max_output_tokens` (a positive token cap). Codex
    * rejects the whole config file when one of these has the wrong type or is
    * out of range (`timeout_ms` is a `u32`, the token cap a `NonZeroUsize`), so
-   * they are checked here; every other key passes through verbatim.
+   * they are checked here; every other key passes through verbatim, except
+   * `extra_policy` and `experimental_policy_template`: Codex 0.169.0 removed
+   * them (openai/codex PR #60646) and ignores them, so generate drops them with
+   * a warning (managed `requirements.toml` `guardian_extra_policy` replaces
+   * `extra_policy`).
    *
-   * @see https://github.com/openai/codex/blob/rust-v0.166.0/codex-rs/config/src/config_toml.rs (`AutoReviewToml`)
+   * @see https://github.com/openai/codex/blob/rust-v0.170.0/codex-rs/config/src/config_toml.rs (`AutoReviewToml`)
    */
   auto_review: z.optional(
     z.looseObject({
       policy: z.optional(z.string()),
-      extra_policy: z.optional(z.string()),
       timeout_ms: z.optional(z.int().check(z.nonnegative(), z.lte(CODEX_U32_MAX))),
       circuit_break_action: z.optional(z.enum(["default", "strict"])),
       conversation_history_max_output_tokens: z.optional(z.int().check(z.positive())),

@@ -2929,7 +2929,7 @@ command = "node"
       await ensureDir(codexDir);
       await writeFileContent(
         join(codexDir, "config.toml"),
-        ["[auto_review]", 'extra_policy = "Keep this."', "timeout_ms = 1000"].join("\n"),
+        ["[auto_review]", 'circuit_break_action = "strict"', "timeout_ms = 1000"].join("\n"),
       );
       const logger = createMockLogger();
       const rulesyncPermissions = new RulesyncPermissions({
@@ -2951,7 +2951,7 @@ command = "node"
       const parsed = smolToml.parse(codexPermissions.getFileContent()) as Record<string, unknown>;
       expect(parsed.approvals_reviewer).toBe("auto_review");
       expect(parsed.auto_review).toEqual({
-        extra_policy: "Keep this.",
+        circuit_break_action: "strict",
         policy: "Deny network calls.",
         timeout_ms: 0,
       });
@@ -2966,10 +2966,97 @@ command = "node"
         fileContent: codexPermissions.getFileContent(),
       });
       expect(reimported.toRulesyncPermissions().getJson().codexcli?.auto_review).toEqual({
-        extra_policy: "Keep this.",
+        circuit_break_action: "strict",
         policy: "Deny network calls.",
         timeout_ms: 0,
       });
+    });
+
+    it("drops the [auto_review] keys Codex 0.169.0 removed, with a warning", async () => {
+      const logger = createMockLogger();
+      const rulesyncPermissions = new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: { bash: { "git status": "allow" } },
+          codexcli: {
+            auto_review: {
+              policy: "Deny network calls.",
+              extra_policy: "Extra rules.",
+              experimental_policy_template: "{{ tenant_policy }}",
+            },
+          },
+        }),
+      });
+
+      const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger,
+      });
+
+      const parsed = smolToml.parse(codexPermissions.getFileContent()) as Record<string, unknown>;
+      expect(parsed.auto_review).toEqual({ policy: "Deny network calls." });
+      const warnings = logger.warn.mock.calls.map((call) => String(call[0]));
+      expect(warnings).toContainEqual(
+        expect.stringContaining("auto_review.extra_policy was removed in Codex 0.169.0"),
+      );
+      expect(warnings).toContainEqual(expect.stringContaining("guardian_extra_policy"));
+      expect(warnings).toContainEqual(
+        expect.stringContaining(
+          "auto_review.experimental_policy_template was removed in Codex 0.169.0",
+        ),
+      );
+    });
+
+    it("writes no [auto_review] table when only removed keys are authored", async () => {
+      const logger = createMockLogger();
+      const rulesyncPermissions = new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: { bash: { "git status": "allow" } },
+          codexcli: { auto_review: { extra_policy: "Extra rules." } },
+        }),
+      });
+
+      const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger,
+      });
+
+      const parsed = smolToml.parse(codexPermissions.getFileContent()) as Record<string, unknown>;
+      expect(parsed.auto_review).toBeUndefined();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("auto_review.extra_policy was removed"),
+      );
+    });
+
+    it("does not import the [auto_review] keys Codex 0.169.0 removed", () => {
+      const imported = new CodexcliPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".codex",
+        relativeFilePath: "config.toml",
+        fileContent: [
+          "[auto_review]",
+          'policy = "Deny network calls."',
+          'extra_policy = "Extra rules."',
+        ].join("\n"),
+      });
+      expect(imported.toRulesyncPermissions().getJson().codexcli?.auto_review).toEqual({
+        policy: "Deny network calls.",
+      });
+
+      const onlyRemoved = new CodexcliPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".codex",
+        relativeFilePath: "config.toml",
+        fileContent: ["[auto_review]", 'experimental_policy_template = "x"'].join("\n"),
+      });
+      expect(onlyRemoved.toRulesyncPermissions().getJson().codexcli?.auto_review).toBeUndefined();
     });
 
     it("refuses non-whitelisted override keys (mcp_servers / permissions) with a warning", async () => {
