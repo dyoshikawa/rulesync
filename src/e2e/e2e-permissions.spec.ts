@@ -4313,10 +4313,18 @@ describe("E2E: permissions (global mode)", () => {
     );
 
     // Pre-seed config.toml with an existing [mcp_servers] table to verify the
-    // non-destructive merge into ~/.grok/config.toml.
+    // non-destructive merge into ~/.grok/config.toml. The coarse
+    // `permission_mode` is only kept in sync when the file already sets it.
     await writeFileContent(
       join(homeDir, ".grok", "config.toml"),
-      ["[mcp_servers.example]", 'command = "echo"', "", "[ui]", 'theme = "dark"'].join("\n"),
+      [
+        "[mcp_servers.example]",
+        'command = "echo"',
+        "",
+        "[ui]",
+        'theme = "dark"',
+        'permission_mode = "always-approve"',
+      ].join("\n"),
     );
 
     await runGenerate({
@@ -4326,10 +4334,9 @@ describe("E2E: permissions (global mode)", () => {
       env: { HOME_DIR: homeDir },
     });
 
-    // Grok gates tools with the coarse `[ui] permission_mode` toggle in the
-    // global ~/.grok/config.toml. A `deny` rule collapses the lossy mapping to
-    // `ask`. Permissions are global-scope only, so there is no project-mode
-    // equivalent.
+    // The coarse `[ui] permission_mode` toggle in the global
+    // ~/.grok/config.toml is a user-level setting. A `deny` rule collapses the
+    // lossy mapping to `ask`.
     const content = await readFileContent(join(homeDir, ".grok", "config.toml"));
     expect(content).toContain('permission_mode = "ask"');
     // The existing MCP server config and other [ui] keys are preserved.

@@ -14,8 +14,13 @@ const GooseCheckFrontmatterSchema = z.extend(AmpCheckFrontmatterSchema, {
 });
 
 /**
- * Represents a Goose review check (`goose review`), written to the user-wide
+ * Represents a Goose review check, written to the user-wide
  * `~/.config/goose/checks/` (global scope only).
+ *
+ * Goose v1.60.0 removed the `goose review` subcommand that ran these checks
+ * (aaif-goose/goose#13469). Goose still discovers them, but only lists them as
+ * agent sources (`properties.kind = "check"`), so `model` and `turn-limit`
+ * have no runtime effect there.
  *
  * Goose discovers repository checks in `.agents/checks/*.md`, the same
  * cross-tool directory the `amp` checks target already writes (Goose's
