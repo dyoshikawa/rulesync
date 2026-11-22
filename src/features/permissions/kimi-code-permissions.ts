@@ -239,7 +239,7 @@ function canonicalToKimiCodeRules({
   }
   const rules = [...overrideRules, ...sortKimiCodeRulesFailClosed(canonicalRules)];
   warnAboutIgnoredKimiCodeRuleScopes({ rules: overrideRules, logger });
-  warnAboutShadowedKimiCodeOverrideRules({ overrideRules, rules, logger });
+  warnAboutShadowedKimiCodeRules({ rules, logger });
   return rules;
 }
 
@@ -266,9 +266,19 @@ function warnAboutIgnoredKimiCodeRuleScopes({
   }
 }
 
-function getKimiCodeRuleTool(pattern: string): string {
+/** Split a Kimi rule pattern (`Tool` or `Tool(arg)`) into its tool and argument. */
+function splitKimiCodePattern(pattern: string): {
+  tool: string;
+  argument: string;
+  hasArguments: boolean;
+} {
   const opening = pattern.indexOf("(");
-  return opening >= 0 && pattern.endsWith(")") ? pattern.slice(0, opening) : pattern;
+  const hasArguments = opening >= 0 && pattern.endsWith(")");
+  return {
+    tool: hasArguments ? pattern.slice(0, opening) : pattern,
+    argument: hasArguments ? pattern.slice(opening + 1, -1) : "",
+    hasArguments,
+  };
 }
 
 /**
@@ -285,30 +295,31 @@ function kimiCodeRuleCovers({
   rule: KimiCodePermissionRule;
 }): boolean {
   return (
-    stricter.pattern === rule.pattern || stricter.pattern === getKimiCodeRuleTool(rule.pattern)
+    stricter.pattern === rule.pattern ||
+    stricter.pattern === splitKimiCodePattern(rule.pattern).tool
   );
 }
 
 /**
  * Kimi does not let the first matching rule win: a matching `deny` beats a
  * matching `ask`, which beats a matching `allow` (Kimi Code 2.6.0 docs). An
- * override `allow` or `ask` meant to carve an exception out of a broader,
- * stricter rule therefore never takes effect, so say so instead of letting
- * the authored order suggest otherwise.
+ * `allow` or `ask` meant to carve an exception out of a broader, stricter
+ * rule therefore never takes effect, whether it comes from `kimi-code.rules`
+ * or from a canonical category, so say so instead of letting the authored
+ * order suggest otherwise. A rule whose own scope Kimi ignores already got
+ * its warning and is skipped here.
  *
  * @see https://moonshotai.github.io/kimi-code/en/configuration/config-files.html#permission
  */
-function warnAboutShadowedKimiCodeOverrideRules({
-  overrideRules,
+function warnAboutShadowedKimiCodeRules({
   rules,
   logger,
 }: {
-  overrideRules: KimiCodePermissionRule[];
   rules: KimiCodePermissionRule[];
   logger?: Logger;
 }): void {
-  for (const rule of overrideRules) {
-    if (rule.decision === "deny") {
+  for (const rule of rules) {
+    if (rule.decision === "deny" || KIMI_CODE_IGNORED_USER_RULE_SCOPES.has(rule.scope ?? "")) {
       continue;
     }
     const shadowing = rules.find(
@@ -333,10 +344,7 @@ function getKimiCodePatternSpecificity(pattern: string): {
   wildcardCount: number;
   hasArguments: boolean;
 } {
-  const opening = pattern.indexOf("(");
-  const hasArguments = opening >= 0 && pattern.endsWith(")");
-  const tool = hasArguments ? pattern.slice(0, opening) : pattern;
-  const argument = hasArguments ? pattern.slice(opening + 1, -1) : "";
+  const { tool, argument, hasArguments } = splitKimiCodePattern(pattern);
   return {
     tool,
     toolLiteralLength: tool.replaceAll("*", "").replaceAll("?", "").length,

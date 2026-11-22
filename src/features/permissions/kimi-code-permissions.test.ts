@@ -361,7 +361,15 @@ describe("KimiCodePermissions rule precedence warnings", () => {
     ).toEqual([]);
   });
 
-  it("does not warn about an override allow outranked only by an equal or weaker rule", () => {
+  it("warns when a canonical allow is outranked by a canonical deny on the bare tool", () => {
+    const warnings = warningsFor({
+      permission: { bash: { "*": "deny", "git status": "allow" } },
+    });
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('allow rule for "Bash(git status)" never takes effect');
+  });
+
+  it("does not warn about an override rule outranked only by an equal or weaker rule", () => {
     expect(
       warningsFor({
         permission: { bash: { "*": "allow" } },
@@ -387,6 +395,8 @@ describe("KimiCodePermissions rule precedence warnings", () => {
       logger,
     });
     const warnings = logger.warn.mock.calls.map((call) => String(call[0]));
+    // The ignored-scope allow is not reported again as shadowed by nothing,
+    // and the `Edit` deny is not a shadow target.
     expect(warnings).toHaveLength(2);
     expect(warnings[0]).toContain('scope "turn-override"');
     expect(warnings[1]).toContain('scope "session-runtime"');
@@ -407,10 +417,15 @@ describe("KimiCodePermissions rule precedence warnings", () => {
         rules: [
           { decision: "deny", pattern: "Bash", scope: "session-runtime" },
           { decision: "allow", pattern: "Bash(ls)" },
+          { decision: "allow", pattern: "Read", scope: "turn-override" },
+          { decision: "deny", pattern: "Read" },
         ],
       },
     });
-    expect(warnings).toHaveLength(1);
+    // Two ignored-scope warnings and no shadow warning: the ignored deny does
+    // not outrank `Bash(ls)`, and the ignored `Read` allow is not reported twice.
+    expect(warnings).toHaveLength(2);
     expect(warnings[0]).toContain('scope "session-runtime"');
+    expect(warnings[1]).toContain('scope "turn-override"');
   });
 });
