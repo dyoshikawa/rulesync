@@ -13,6 +13,7 @@ import type { Logger } from "../../utils/logger.js";
 import { isPlainObject } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
+  buildReadDenyEntry,
   mergeSharedConfigDeep,
   parseSharedConfig,
   TAKT_CONFIG_SHARED_FILE_KEY,
@@ -108,6 +109,19 @@ const TAKT_DEFAULT_PROVIDER = "claude-sdk";
 // choice, so it is not promoted to the active provider.
 const TAKT_LEGACY_DEFAULT_PROVIDER = "claude";
 
+// Providers that receive `provider_options.claude.permissions.deny` (Takt
+// 0.76.0+): `claude-sdk`, its `claude` alias, and `claude-headless`.
+// `claude-terminal` does not receive the rules.
+// https://github.com/nrslib/takt/blob/main/docs/configuration.md#claude-read-deny-rules
+const TAKT_CLAUDE_READ_DENY_PROVIDERS: readonly string[] = [
+  "claude-sdk",
+  "claude",
+  "claude-headless",
+];
+const TAKT_CLAUDE_PROVIDER_OPTIONS_KEY = "claude";
+const TAKT_CLAUDE_PERMISSIONS_KEY = "permissions";
+const TAKT_CLAUDE_PERMISSIONS_DENY_KEY = "deny";
+
 /**
  * Permissions adapter for Takt (`.takt/config.yaml`).
  *
@@ -145,6 +159,12 @@ const TAKT_LEGACY_DEFAULT_PROVIDER = "claude";
  * profile, layered on top of `default_permission_mode`) and `provider_options`
  * (a top-level per-provider sandbox/network table). Both are authored on
  * generate and re-extracted on import.
+ *
+ * Canonical `read` deny rules are also kept per path where the active provider
+ * is Claude-family (Takt 0.76.0+): they are written as `Read(<pattern>)`
+ * entries into `provider_options.claude.permissions.deny`, in addition to the
+ * `readonly` mode they already derive. The list is only ever added to, so a
+ * deny never turns into a broader allow.
  *
  * Takt 0.56.0 moved provider configuration into a separate `runtime.yaml`
  * (`.takt/runtime.yaml`, `~/.takt/runtime.yaml`). Once its `provider:` section
@@ -275,7 +295,7 @@ export class TaktPermissions extends ToolPermissions {
           `${filePath} is left untouched — rulesync does not own that key.`,
       );
     }
-    const overrideProviderOptions = runtimeModeRefusesProviderOptions
+    const trustedProviderOptions = runtimeModeRefusesProviderOptions
       ? undefined
       : dropUntrustedProviderOptions({
           providerOptions: authoredProviderOptions,
@@ -283,6 +303,16 @@ export class TaktPermissions extends ToolPermissions {
           filePath,
           logger,
         });
+    const overrideProviderOptions = addClaudeReadDenyRules({
+      providerOptions: trustedProviderOptions,
+      readDenyRules: collectReadDenyRules(rulesyncJson),
+      existingProviderOptions: config[TAKT_PROVIDER_OPTIONS_KEY],
+      provider,
+      runtimeActive: runtime.active,
+      runtimeFilePaths: runtime.filePaths,
+      filePath,
+      logger,
+    });
 
     const authoredPolicies = pickSecurityPolicies(override, {
       filePath,
@@ -1064,6 +1094,108 @@ function taktModeToRulesyncConfig(mode: unknown): PermissionsConfig {
       // `readonly` and any unset/unknown mode.
       return { permission: { bash: { [CATCH_ALL_PATTERN]: "deny" } } };
   }
+}
+
+/**
+ * The canonical `read` deny rules as Claude Code `Read(...)` entries, in the
+ * form the Claude Code permissions and ignore adapters write them: the pattern
+ * verbatim, and a bare `Read` for the catch-all.
+ */
+function collectReadDenyRules(config: PermissionsConfig): string[] {
+  const rules = config.permission.read ?? {};
+  return Object.entries(rules)
+    .filter(([, action]) => action === "deny")
+    .map(([pattern]) => (pattern === CATCH_ALL_PATTERN ? "Read" : buildReadDenyEntry(pattern)));
+}
+
+/**
+ * Add the canonical `read` deny rules to `provider_options.claude.permissions.deny`
+ * (Takt 0.76.0+), which Takt passes to `claude-sdk` / `claude-headless` as
+ * Claude Code `permissions.deny` rules.
+ *
+ * Takt replaces a `deny` list wholesale rather than concatenating it, so the
+ * rules are merged into the list that would otherwise be in force: the one the
+ * `takt` block states, else the one already in config.yaml. Nothing is removed
+ * from that list — a rule written by hand, or by an earlier generate, is kept.
+ *
+ * Skipped when the active provider is not Claude-family (no other provider
+ * reads the list) and, with a warning, in runtime mode, where `provider_options`
+ * in config.yaml stops Takt with "Mixed provider configuration detected".
+ * https://github.com/nrslib/takt/blob/main/docs/configuration.md#claude-read-deny-rules
+ */
+function addClaudeReadDenyRules({
+  providerOptions,
+  readDenyRules,
+  existingProviderOptions,
+  provider,
+  runtimeActive,
+  runtimeFilePaths,
+  filePath,
+  logger,
+}: {
+  providerOptions: Record<string, unknown> | undefined;
+  readDenyRules: string[];
+  existingProviderOptions: unknown;
+  provider: string;
+  runtimeActive: boolean;
+  runtimeFilePaths: string[];
+  filePath: string;
+  logger?: Logger | undefined;
+}): Record<string, unknown> | undefined {
+  if (readDenyRules.length === 0 || !TAKT_CLAUDE_READ_DENY_PROVIDERS.includes(provider)) {
+    return providerOptions;
+  }
+  if (runtimeActive) {
+    logger?.warn(
+      `Takt permissions: not writing the read deny rules (${readDenyRules.join(", ")}) to ` +
+        `"${TAKT_PROVIDER_OPTIONS_KEY}.${TAKT_CLAUDE_PROVIDER_OPTIONS_KEY}.` +
+        `${TAKT_CLAUDE_PERMISSIONS_KEY}.${TAKT_CLAUDE_PERMISSIONS_DENY_KEY}" in ${filePath} ` +
+        `because ${runtimeFilePaths.join(" + ")} puts Takt in runtime provider mode. They still ` +
+        `make the mode readonly; to have Claude enforce them per path, add them under ` +
+        `\`${TAKT_CLAUDE_PERMISSIONS_KEY}.${TAKT_CLAUDE_PERMISSIONS_DENY_KEY}\` in the options ` +
+        `of a Claude profile in runtime.yaml.`,
+    );
+    return providerOptions;
+  }
+
+  const authoredClaude = providerOptions?.[TAKT_CLAUDE_PROVIDER_OPTIONS_KEY];
+  const authoredDeny = readClaudeDenyList(authoredClaude);
+  const existingDeny = isPlainObject(existingProviderOptions)
+    ? readClaudeDenyList(existingProviderOptions[TAKT_CLAUDE_PROVIDER_OPTIONS_KEY])
+    : undefined;
+  const baseDeny = authoredDeny ?? existingDeny ?? [];
+  const deny = [...new Set([...baseDeny, ...readDenyRules])];
+
+  const claude = isPlainObject(authoredClaude) ? authoredClaude : {};
+  const permissions = isPlainObject(claude[TAKT_CLAUDE_PERMISSIONS_KEY])
+    ? claude[TAKT_CLAUDE_PERMISSIONS_KEY]
+    : {};
+  return {
+    ...providerOptions,
+    [TAKT_CLAUDE_PROVIDER_OPTIONS_KEY]: {
+      ...claude,
+      [TAKT_CLAUDE_PERMISSIONS_KEY]: {
+        ...permissions,
+        [TAKT_CLAUDE_PERMISSIONS_DENY_KEY]: deny,
+      },
+    },
+  };
+}
+
+/** The string entries of `<claude options>.permissions.deny`, when it is a list. */
+function readClaudeDenyList(claudeOptions: unknown): string[] | undefined {
+  if (!isPlainObject(claudeOptions)) {
+    return undefined;
+  }
+  const permissions = claudeOptions[TAKT_CLAUDE_PERMISSIONS_KEY];
+  if (!isPlainObject(permissions)) {
+    return undefined;
+  }
+  const deny = permissions[TAKT_CLAUDE_PERMISSIONS_DENY_KEY];
+  if (!Array.isArray(deny)) {
+    return undefined;
+  }
+  return deny.filter((entry): entry is string => typeof entry === "string" && entry !== "");
 }
 
 // Providers whose `provider_options.<provider>.base_url` Takt restricts to

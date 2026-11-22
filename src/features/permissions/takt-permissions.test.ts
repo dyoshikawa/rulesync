@@ -438,6 +438,162 @@ describe("TaktPermissions", () => {
     });
   });
 
+  describe("read deny rules (provider_options.claude.permissions.deny, Takt 0.76.0+)", () => {
+    const readClaudeDeny = (content: string): unknown =>
+      toRecord(toRecord(toRecord(toRecord(load(content)).provider_options).claude).permissions)
+        .deny;
+
+    it("writes canonical read deny patterns as Read() rules for the default claude-sdk provider", async () => {
+      const permissions = await TaktPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({
+          read: { ".env": "deny", "~/.ssh/**": "deny", "src/**": "allow" },
+          edit: { "*": "allow" },
+        }),
+      });
+
+      const content = permissions.getFileContent();
+      expect(readClaudeDeny(content)).toEqual(["Read(.env)", "Read(~/.ssh/**)"]);
+      // The coarse mode is unchanged: any deny still makes it readonly.
+      expect(readMode(content, "claude-sdk")).toBe("readonly");
+    });
+
+    it("writes a catch-all read deny as a bare Read rule", async () => {
+      const permissions = await TaktPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({ read: { "*": "deny" } }),
+      });
+
+      expect(readClaudeDeny(permissions.getFileContent())).toEqual(["Read"]);
+    });
+
+    it("merges into an authored deny list and keeps the other claude options", async () => {
+      const permissions = await TaktPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissionsJson({
+          permission: { read: { ".env": "deny", "secrets/**": "deny" } },
+          takt: {
+            provider_options: {
+              claude: {
+                sandbox: { allow_unsandboxed_commands: true },
+                permissions: { deny: ["Read(.env)", "Bash(curl *)"], import_user_read_deny: true },
+              },
+            },
+          },
+        }),
+      });
+
+      const claude = toRecord(
+        toRecord(toRecord(load(permissions.getFileContent())).provider_options).claude,
+      );
+      expect(claude).toEqual({
+        sandbox: { allow_unsandboxed_commands: true },
+        permissions: {
+          deny: ["Read(.env)", "Bash(curl *)", "Read(secrets/**)"],
+          import_user_read_deny: true,
+        },
+      });
+    });
+
+    it("keeps a deny list already in config.yaml when the source states none", async () => {
+      await writeFileContent(
+        join(testDir, ".takt", "config.yaml"),
+        [
+          "provider: claude-headless",
+          "provider_options:",
+          "  claude:",
+          "    permissions:",
+          "      deny:",
+          "        - Read(./private/**)",
+        ].join("\n"),
+      );
+
+      const permissions = await TaktPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({ read: { ".env": "deny" } }),
+      });
+
+      expect(readClaudeDeny(permissions.getFileContent())).toEqual([
+        "Read(./private/**)",
+        "Read(.env)",
+      ]);
+    });
+
+    it("writes nothing for a provider that is not Claude-family", async () => {
+      await writeFileContent(join(testDir, ".takt", "config.yaml"), "provider: codex\n");
+
+      const permissions = await TaktPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({ read: { ".env": "deny" } }),
+      });
+
+      const parsed = toRecord(load(permissions.getFileContent()));
+      expect(parsed.provider_options).toBeUndefined();
+      expect(readMode(permissions.getFileContent(), "codex")).toBe("readonly");
+    });
+
+    it("writes nothing for read ask rules", async () => {
+      const permissions = await TaktPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({ read: { ".env": "ask" } }),
+      });
+
+      expect(toRecord(load(permissions.getFileContent())).provider_options).toBeUndefined();
+    });
+
+    it("skips the rules with a warning in runtime mode", async () => {
+      await writeRuntimeYaml(
+        testDir,
+        [
+          "version: 1",
+          "provider:",
+          "  defaults:",
+          "    profile: default",
+          "  profiles:",
+          "    default:",
+          "      provider: claude-sdk",
+          "      model: sonnet",
+        ].join("\n"),
+      );
+      const logger = createMockLogger();
+
+      const permissions = await TaktPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({ read: { ".env": "deny" } }),
+        logger,
+      });
+
+      const content = permissions.getFileContent();
+      expect(toRecord(load(content)).provider_options).toBeUndefined();
+      expect(readMode(content, "claude-sdk")).toBe("readonly");
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("Read(.env)"));
+    });
+
+    it("round-trips through import without growing the list", async () => {
+      const generated = await TaktPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({ read: { ".env": "deny" } }),
+      });
+      await writeFileContent(join(testDir, ".takt", "config.yaml"), generated.getFileContent());
+
+      const imported = (await TaktPermissions.fromFile({ outputRoot: testDir }))
+        .toRulesyncPermissions()
+        .getJson();
+      expect(toRecord(toRecord(imported.takt).provider_options)).toEqual({
+        claude: { permissions: { deny: ["Read(.env)"] } },
+      });
+
+      const regenerated = await TaktPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissionsJson({
+          ...imported,
+          permission: { ...imported.permission, read: { ".env": "deny" } },
+        }),
+      });
+      expect(readClaudeDeny(regenerated.getFileContent())).toEqual(["Read(.env)"]);
+    });
+  });
+
   describe("runtime provider mode (runtime.yaml, Takt 0.56.0+)", () => {
     const ACTIVE_RUNTIME_YAML = [
       "version: 1",
