@@ -309,8 +309,6 @@ function buildZedToolPermissions({
     }
   }
 
-  warnInProjectEditConfirm({ managedDefault, managedTools, logger });
-
   return { managedDefault, managedTools, excludedCategories, inertMcpCategories };
 }
 
@@ -329,18 +327,27 @@ const ZED_IN_PROJECT_EDIT_TOOLS = ["edit_file", "write_file"] as const;
  * A canonical catch-all `ask` on `edit`/`write` — or an all-tools `*` ask those
  * tools fall back to — therefore lets the agent edit in-project files without
  * asking, so say so at generate time rather than implying a prompt.
+ *
+ * The check runs on the merged `tools` result: a tool whose entry is a
+ * preserved, hand-written one (not managed by rulesync) is skipped, since its
+ * decision is the user's own. Only the literal `.*` ask pattern counts as
+ * "prompt for every file" and silences the warning; any narrower pattern still
+ * leaves other in-project files unprompted, so the warning stays.
  */
 function warnInProjectEditConfirm({
   managedDefault,
   managedTools,
+  preservedToolNames,
   logger,
 }: {
   managedDefault: ZedPermissionAction | undefined;
   managedTools: Record<string, ZedToolPermission>;
+  preservedToolNames: ReadonlySet<string>;
   logger?: { warn: (message: string) => void };
 }): void {
   const confirmTools = ZED_IN_PROJECT_EDIT_TOOLS.filter(
     (tool) =>
+      !preservedToolNames.has(tool) &&
       (managedTools[tool]?.default ?? managedDefault) === "confirm" &&
       !managedTools[tool]?.always_confirm?.some((entry) => entry.pattern === ".*"),
   );
@@ -350,9 +357,11 @@ function warnInProjectEditConfirm({
     `Zed permissions: the catch-all "ask" for ${confirmTools.map((tool) => `"${tool}"`).join(" and ")} ` +
       `becomes Zed's "confirm" default, which does not prompt for edits to files inside the project ` +
       `(only Zed settings folders, ".agents/skills/" and files outside the project still prompt). ` +
-      `To be asked before in-project edits, add an "ask" pattern rule to the category (".*" for every file; ` +
-      `note that an "always_confirm" match outranks "always_allow" patterns). Zed honors such patterns ` +
-      `for in-project files from v1.30 on.`,
+      `To be asked before in-project edits, add the "ask" pattern ".*" to the category (only that exact ` +
+      `pattern silences this warning; an "always_confirm" match outranks "always_allow" patterns). Zed ` +
+      `honors such patterns for in-project files from v1.30 on. Canonical patterns are shared by every ` +
+      `target: in glob-matching targets (such as Claude Code's "Edit(.*)") ".*" matches dotfiles only, so ` +
+      `there it adds an extra "ask" for those files and loosens nothing.`,
   );
 }
 
@@ -602,6 +611,13 @@ export class ZedPermissions extends ToolPermissions {
     const preservedTools = Object.fromEntries(
       Object.entries(existingTools).filter(([toolName]) => !managedToolNames.has(toolName)),
     );
+
+    warnInProjectEditConfirm({
+      managedDefault,
+      managedTools,
+      preservedToolNames: new Set(Object.keys(preservedTools)),
+      logger,
+    });
 
     return new ZedPermissions({
       outputRoot,
