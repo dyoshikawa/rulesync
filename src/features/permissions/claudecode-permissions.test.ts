@@ -1173,6 +1173,7 @@ describe("ClaudecodePermissions", () => {
         defaultToAgentsView: "~/.claude.json",
         leftArrowOpensAgents: "~/.claude.json",
         prStatusFooterEnabled: "~/.claude.json",
+        disableRemotePreviewScripts: "managed settings",
       };
       const rulesyncPermissions = new RulesyncPermissions({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -1195,6 +1196,7 @@ describe("ClaudecodePermissions", () => {
             defaultToAgentsView: true,
             leftArrowOpensAgents: true,
             prStatusFooterEnabled: false,
+            disableRemotePreviewScripts: true,
           },
         }),
       });
@@ -1701,6 +1703,50 @@ describe("ClaudecodePermissions", () => {
         );
       },
     );
+
+    it("drops permissions.denyInsteadOfPrompting at project scope and writes it under --global", async () => {
+      const fileContent = JSON.stringify({
+        permission: { bash: { "git *": "allow" } },
+        claudecode: { permissions: { denyInsteadOfPrompting: true, defaultMode: "plan" } },
+      });
+      const expected =
+        "'permissions.denyInsteadOfPrompting' is not honored in the project-scoped settings.json";
+
+      const projectLogger = createMockLogger();
+      const projectWarnSpy = vi.spyOn(projectLogger, "warn");
+      const project = await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent,
+        }),
+        logger: projectLogger,
+      });
+      const projectContent = JSON.parse(project.getFileContent());
+      expect(projectContent.permissions).not.toHaveProperty("denyInsteadOfPrompting");
+      expect(projectContent.permissions.defaultMode).toBe("plan");
+      expect(projectWarnSpy).toHaveBeenCalledWith(expect.stringContaining(expected));
+
+      const globalLogger = createMockLogger();
+      const globalWarnSpy = vi.spyOn(globalLogger, "warn");
+      const globalInstance = await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent,
+        }),
+        global: true,
+        logger: globalLogger,
+      });
+      expect(JSON.parse(globalInstance.getFileContent()).permissions.denyInsteadOfPrompting).toBe(
+        true,
+      );
+      expect(globalWarnSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining("permissions.denyInsteadOfPrompting"),
+      );
+    });
 
     it("stays quiet about a defaultMode that widens nothing", async () => {
       const mockLogger = createMockLogger();

@@ -71,9 +71,9 @@ const CLAUDE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
     { canonical: "continueOnBlock", tool: "continueOnBlock" },
   ],
   // Claude Code v2.1.295+ spells the canonical `failClosed` as
-  // `onFailure: "block"` on `command` and `http` hooks, making a hook that
-  // cannot start, errors, times out or returns invalid output act like exit
-  // code 2. `"continue"` is the default, so `false` is omitted. The field has
+  // `onFailure: "block"` on `command` and `http` hooks (and on `mcp_tool`
+  // hooks since v2.1.328), making a hook that cannot start, errors, times out
+  // or returns invalid output act like exit code 2. `"continue"` is the default, so `false` is omitted. The field has
   // no effect on Stop, SubagentStop, TaskCompleted and TeammateIdle hooks, so
   // a `true` there is dropped with a warning; the same goes for background
   // command hooks that set `async` or `asyncRewake`.
@@ -84,7 +84,7 @@ const CLAUDE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
       tool: "onFailure",
       trueValue: "block",
       falseValue: "continue",
-      hookTypes: new Set(["command", "http"]),
+      hookTypes: new Set(["command", "http", "mcp_tool"]),
       ignoredEvents: CLAUDE_ON_FAILURE_IGNORED_EVENTS,
       ignoredWhenFlags: ["async", "asyncRewake"],
     },
