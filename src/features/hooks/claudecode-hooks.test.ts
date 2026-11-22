@@ -164,7 +164,7 @@ describe("ClaudecodeHooks", () => {
       });
     });
 
-    it("should write failClosed as onFailure: block on command and http hooks only", async () => {
+    it("should write failClosed as onFailure: block on command, http and mcp_tool hooks only", async () => {
       await ensureDir(join(testDir, ".claude"));
       await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));
 
@@ -182,6 +182,8 @@ describe("ClaudecodeHooks", () => {
             // `async` is command-only and not emitted on http hooks, so it
             // cannot switch onFailure off there.
             { type: "http", url: "https://example.com/bg", async: true, failClosed: true },
+            // Upstream: mcp_tool hooks accept onFailure since v2.1.328.
+            { type: "mcp_tool", server: "policy", tool: "check", failClosed: true },
           ],
           // Upstream: onFailure has no effect on Stop hooks.
           stop: [{ type: "command", command: "on-stop.sh", failClosed: true }],
@@ -203,7 +205,7 @@ describe("ClaudecodeHooks", () => {
       });
 
       const parsed = JSON.parse(claudecodeHooks.getFileContent());
-      const [command, http, prompt, failOpen, background, rewake, httpWithAsync] =
+      const [command, http, prompt, failOpen, background, rewake, httpWithAsync, mcpTool] =
         parsed.hooks.PreToolUse[0].hooks;
       expect(command.onFailure).toBe("block");
       expect(http.onFailure).toBe("block");
@@ -214,6 +216,10 @@ describe("ClaudecodeHooks", () => {
       expect(rewake).not.toHaveProperty("onFailure");
       expect(httpWithAsync.onFailure).toBe("block");
       expect(httpWithAsync).not.toHaveProperty("async");
+      expect(mcpTool.onFailure).toBe("block");
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining('Dropping "failClosed" from a "mcp_tool" hook'),
+      );
       expect(logger.warn).not.toHaveBeenCalledWith(
         expect.stringContaining('from a "http" hook on "preToolUse": this tool ignores'),
       );
@@ -246,6 +252,7 @@ describe("ClaudecodeHooks", () => {
                   { type: "command", command: "typo.sh", onFailure: "Block" },
                   { type: "command", command: "bg.sh", async: true, onFailure: "block" },
                   { type: "command", command: "rewake.sh", asyncRewake: true, onFailure: "block" },
+                  { type: "mcp_tool", server: "policy", tool: "check", onFailure: "block" },
                 ],
               },
             ],
@@ -255,13 +262,14 @@ describe("ClaudecodeHooks", () => {
       });
 
       const parsed = claudecodeHooks.toRulesyncHooks({ logger }).getJson();
-      const [block, cont, typo, background, rewake] = parsed.hooks.preToolUse ?? [];
+      const [block, cont, typo, background, rewake, mcpTool] = parsed.hooks.preToolUse ?? [];
       expect(block?.failClosed).toBe(true);
       expect(cont?.failClosed).toBe(false);
       expect(typo).not.toHaveProperty("failClosed");
       expect(background).not.toHaveProperty("failClosed");
       expect(rewake).not.toHaveProperty("failClosed");
       expect(rewake?.asyncRewake).toBe(true);
+      expect(mcpTool?.failClosed).toBe(true);
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining('ignores "onFailure" on a hook that sets "asyncRewake"'),
       );
