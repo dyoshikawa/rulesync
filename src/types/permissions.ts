@@ -1625,15 +1625,20 @@ const CodexcliPermissionsOverrideSchema = z.looseObject({
   /**
    * The `[auto_review]` table of `config.toml`, which configures the reviewer
    * that `approvals_reviewer = "auto_review"` (Rulesync's default) selects:
-   * `policy` / `extra_policy` (text inserted into the reviewer prompt),
+   * `policy` / `extra_policy` (text inserted into the reviewer prompt;
+   * `extra_policy` only up to Codex 0.168.0),
    * `timeout_ms` (the review budget, Codex 0.165.0+; `0` waits without a
    * deadline), `circuit_break_action` (`default` | `strict`) and
    * `conversation_history_max_output_tokens` (a positive token cap). Codex
    * rejects the whole config file when one of these has the wrong type or is
    * out of range (`timeout_ms` is a `u32`, the token cap a `NonZeroUsize`), so
    * they are checked here; every other key passes through verbatim.
+   * `extra_policy` and `experimental_policy_template` were removed in Codex
+   * 0.169.0 (openai/codex PR #60646): newer Codex ignores them and warns at
+   * startup (only `--strict-config` rejects them), so they are still accepted
+   * and written for older Codex, and generate warns when they are authored.
    *
-   * @see https://github.com/openai/codex/blob/rust-v0.166.0/codex-rs/config/src/config_toml.rs (`AutoReviewToml`)
+   * @see https://github.com/openai/codex/blob/rust-v0.169.0/codex-rs/config/src/config_toml.rs (`AutoReviewToml`)
    */
   auto_review: z.optional(
     z.looseObject({
