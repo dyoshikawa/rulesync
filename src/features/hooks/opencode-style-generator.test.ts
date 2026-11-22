@@ -9,6 +9,8 @@ import {
   CANONICAL_TO_OPENCODE_EVENT_NAMES,
   CANONICAL_TO_OPENCODE_V2_EVENT_NAMES,
   type HooksConfig,
+  OPENCODE_HOOK_EVENTS,
+  OPENCODE_V2_HOOK_EVENTS,
 } from "../../types/hooks.js";
 import { writeFileContent } from "../../utils/file.js";
 import {
@@ -17,7 +19,10 @@ import {
   generateOpencodeStylePluginCode,
   SHELL_EVENT_TOOL_GATES,
 } from "./opencode-style-generator.js";
-import { isBlockingOpencodeV2Target } from "./opencode-v2-plugin-generator.js";
+import {
+  generateOpencodeV2PluginCode,
+  isBlockingOpencodeV2Target,
+} from "./opencode-v2-plugin-generator.js";
 
 const SUPPORTED_EVENTS = [
   "sessionStart",
@@ -517,6 +522,59 @@ describe("generateOpencodeStylePluginCode", () => {
       });
     });
   });
+});
+
+describe("sessionStart context", () => {
+  const config = (hooks: HooksConfig["hooks"]): HooksConfig => ({ version: 1, hooks });
+  // Every target that shares these generators, with the hook its plugin adds the context through.
+  const targets = [
+    ...(["opencodev1", "kilo", "mimocode"] as const).map((target) => ({
+      target,
+      hook: '"experimental.chat.system.transform": async (input, output) => {',
+      generate: (hooks: HooksConfig["hooks"]) =>
+        generateOpencodeStylePluginCode(
+          config(hooks),
+          OPENCODE_HOOK_EVENTS,
+          target,
+          CANONICAL_TO_OPENCODE_EVENT_NAMES,
+          target === "kilo" ? "default" : "named",
+        ),
+    })),
+    {
+      target: "opencode",
+      hook: 'await ctx.session.hook("context", async (event) => {',
+      generate: (hooks: HooksConfig["hooks"]) =>
+        generateOpencodeV2PluginCode({
+          config: config(hooks),
+          supportedEvents: OPENCODE_V2_HOOK_EVENTS,
+          toolConfigKey: "opencode",
+          eventMap: CANONICAL_TO_OPENCODE_V2_EVENT_NAMES,
+        }),
+    },
+  ];
+
+  it.each(targets)("adds it through the system prompt hook in $target", ({ hook, generate }) => {
+    const content = generate({ sessionStart: [{ command: "echo context" }] });
+
+    expect(content.split(hook).length - 1).toBe(1);
+    expect(content).toContain("await __rulesyncSessionStart(");
+    expect(content).toContain("context: true }));");
+    expect(content).toContain(
+      'if (event.type === "session.deleted") __rulesyncSessionContexts.delete(',
+    );
+    execFileSync("node", ["--input-type=module", "--check"], { input: content });
+  });
+
+  it.each(targets)(
+    "leaves the $target plugin unchanged without sessionStart",
+    ({ hook, generate }) => {
+      const content = generate({ stop: [{ command: "echo stop" }] });
+
+      expect(content).not.toContain(hook);
+      expect(content).not.toContain("__rulesyncSessionContext");
+      expect(content).toContain('command: "echo stop"');
+    },
+  );
 });
 
 describe("ALWAYS_BLOCKING_EVENTS", () => {

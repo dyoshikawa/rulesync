@@ -7,6 +7,7 @@ import {
   type RunnableHandler,
   type StdinPayload,
   validateAndSanitizeMatcher,
+  wrapSessionStartLines,
 } from "./opencode-style-generator.js";
 
 /**
@@ -91,6 +92,22 @@ const OPENCODE_V2_MATCHABLE_HOOKS: ReadonlySet<string> = new Set([
   "tool:execute.after",
 ]);
 
+/** The session a V2 `session.created` / `session.deleted` event is about. */
+const V2_SESSION_ID_EXPRESSION = "event.data?.sessionID";
+
+/**
+ * The `session:context` registration that adds a session's `sessionStart`
+ * context to the system prompt of each of its agent-loop model requests.
+ */
+const SESSION_CONTEXT_HOOK_LINES: readonly string[] = [
+  "__rulesyncRegistrations.push(",
+  '  await ctx.session.hook("context", async (event) => {',
+  "    const context = await __rulesyncSessionContext(event?.sessionID);",
+  '    if (context && Array.isArray(event?.system)) event.system.push({ type: "text", text: context });',
+  "  }),",
+  ");",
+];
+
 type V2Handler = RunnableHandler & {
   matcher?: string;
   gate?: string;
@@ -138,33 +155,44 @@ function buildHookRegistrationLines(hookPoint: string, handlers: V2Handler[]): s
  * payload, outside `__rulesyncRunHook`, is logged the same way. The
  * subscription passes `types` so the server delivers only the handled events.
  */
-function buildEventLoopLines(eventHandlers: Map<string, V2Handler[]>): string[] {
+function buildEventLoopLines(
+  eventHandlers: Map<string, V2Handler[]>,
+  usesContext: boolean,
+): string[] {
   const lines: string[] = [];
-  // Event types come from the internal event map, never from user input.
-  const types = [...eventHandlers.keys()].map((eventType) => JSON.stringify(eventType)).join(", ");
+  // Event types come from the internal event map, never from user input. A
+  // deleted session's `sessionStart` context is dropped, so its event is read too.
+  const eventTypes = new Set(eventHandlers.keys());
+  if (usesContext) eventTypes.add("session.deleted");
+  const types = [...eventTypes].map((eventType) => JSON.stringify(eventType)).join(", ");
   lines.push("const __rulesyncEvents = new AbortController();");
   lines.push("void (async () => {");
   lines.push("  for await (const event of ctx.event.subscribe({");
   lines.push(`    types: [${types}],`);
   lines.push("    signal: __rulesyncEvents.signal,");
   lines.push("  })) {");
+  if (usesContext) {
+    lines.push(
+      `    if (event.type === "session.deleted") __rulesyncSessionContexts.delete(${V2_SESSION_ID_EXPRESSION});`,
+    );
+  }
   let isFirst = true;
   for (const [eventType, handlers] of eventHandlers) {
     lines.push(`    ${isFirst ? "if" : "} else if"} (event.type === "${eventType}") {`);
     isFirst = false;
-    lines.push(
-      ...buildPayloadClosureLines({ handlers, cwdExpression: "directory" }).map(
-        (line) => `      ${line}`,
-      ),
-    );
+    const statements = buildPayloadClosureLines({ handlers, cwdExpression: "directory" });
     for (const handler of handlers) {
-      lines.push("      try {");
-      lines.push(...wrapInConditions(handler, buildRunStatement(handler), "        "));
-      lines.push("      } catch (error) {");
+      statements.push("try {");
+      statements.push(...wrapInConditions(handler, buildRunStatement(handler), "  "));
+      statements.push("} catch (error) {");
       const message = JSON.stringify(`[rulesync-hooks] ${handler.event} hook failed:`);
-      lines.push(`        console.error(${message}, error);`);
-      lines.push("      }");
+      statements.push(`  console.error(${message}, error);`);
+      statements.push("}");
     }
+    const body = handlers.some((handler) => handler.context)
+      ? wrapSessionStartLines(V2_SESSION_ID_EXPRESSION, statements)
+      : statements;
+    lines.push(...body.map((line) => `      ${line}`));
   }
   lines.push("    }");
   lines.push("  }");
@@ -212,6 +240,7 @@ function buildHandlersFor({
       ...(def.matcher ? { matcher: def.matcher } : {}),
       ...(gate ? { gate } : {}),
       ...(payload ? { payload } : {}),
+      ...(canonicalEvent === "sessionStart" ? { context: true } : {}),
     });
   }
   return handlers;
@@ -241,18 +270,23 @@ function buildSetupBodyLines({
   if (usesMatcher) {
     body.push("", ...TOOL_MATCHER_HELPER_LINES);
   }
+  const usesContext = [...eventHandlers.values()].some((handlers) =>
+    handlers.some((handler) => handler.context),
+  );
+  const registers = hookHandlers.size > 0 || usesContext;
   const cleanup: string[] = [];
-  if (hookHandlers.size > 0) {
+  if (registers) {
     body.push("", "const __rulesyncRegistrations = [];");
     for (const [hookPoint, handlers] of hookHandlers) {
       body.push(...buildHookRegistrationLines(hookPoint, handlers));
     }
+    if (usesContext) body.push(...SESSION_CONTEXT_HOOK_LINES);
   }
   if (eventHandlers.size > 0) {
-    body.push("", ...buildEventLoopLines(eventHandlers));
+    body.push("", ...buildEventLoopLines(eventHandlers, usesContext));
     cleanup.push("  __rulesyncEvents.abort();");
   }
-  if (hookHandlers.size > 0) {
+  if (registers) {
     cleanup.push(
       "  await Promise.all(__rulesyncRegistrations.map((registration) => registration.dispose()));",
     );
