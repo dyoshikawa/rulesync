@@ -105,7 +105,9 @@ export default defineConfig({
 
   // `vp staged`, run by the pre-commit hook (`.vite-hooks/pre-commit`).
   staged: {
-    "*": ["npx secretlint"],
+    // gglint reads the staged agent config files from git itself, so it takes
+    // no file list.
+    "*": ["npx secretlint", () => "gglint secrets --staged"],
     "package.json": ["npx sort-package-json"],
     "docs/**/*.md": [
       "tsx scripts/generate-docs-content.ts",

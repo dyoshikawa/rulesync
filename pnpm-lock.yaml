@@ -85,6 +85,9 @@ importers:
       '@anthropic-ai/claude-agent-sdk':
         specifier: 0.3.330
         version: 0.3.330(@anthropic-ai/sdk@1.12.0(zod@4.6.7))(@modelcontextprotocol/sdk@1.32.2(supports-color@10.2.2)(zod@4.6.7))(zod@4.6.7)
+      '@gglint/cli':
+        specifier: 0.5.1
+        version: 0.5.1
       '@openrouter/sdk':
         specifier: 1.5.127
         version: 1.5.127
@@ -888,6 +891,41 @@ packages:
     engines: {node: '>=18'}
     cpu: [x64]
     os: [win32]
+
+  '@gglint/cli-darwin-arm64@0.5.1':
+    resolution: {integrity: sha512-t4hQ2OX4z56l0JiP5h2PLmrH6SvAt9LssEldrNsk2VyY4tqvShFuRRia5rmIgg6Wtdx+GakbRVZnSievx7WNUQ==}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@gglint/cli-darwin-x64@0.5.1':
+    resolution: {integrity: sha512-KAHt+V6qM3hV6fEx+amp9E1LHxQ5gaLZbSSpDVkensUobS8lzaOwfgsgQqX8CPxXyC7jfehhh5no0vK+qyPelw==}
+    cpu: [x64]
+    os: [darwin]
+
+  '@gglint/cli-linux-arm64@0.5.1':
+    resolution: {integrity: sha512-FO3D0K7Hz1s1XhR+w4rcefQYCktE/ZjXUO0ddwxY/SWQToO9ZzoLpUWNrJwkNybo1xszzx+YWIkV51jENoTWlw==}
+    cpu: [arm64]
+    os: [linux]
+
+  '@gglint/cli-linux-x64@0.5.1':
+    resolution: {integrity: sha512-8hzAOwMWnFOMKIZe9D+Yuosz7k2afb3HOkb6SDIeeZ40RzhW27V2zJLaWJvqv76jnkbP5ji6LRJam+7ubPHAKw==}
+    cpu: [x64]
+    os: [linux]
+
+  '@gglint/cli-win32-arm64@0.5.1':
+    resolution: {integrity: sha512-xIjfLZgwzm8ku8u7wyqSc06PP410/Rhnzoq0mUKILFmvaNHO5yrkludil1zmPO/eTTOusrlCyw1518doeJcMQg==}
+    cpu: [arm64]
+    os: [win32]
+
+  '@gglint/cli-win32-x64@0.5.1':
+    resolution: {integrity: sha512-Joc/T3u2sYKwlH+/GkxT612weY0xQ6Phb9ab+LnJRvxsi8DW+PAoIKxR6M0Tf/vMNQ1WzZr817X34XBysS4zQQ==}
+    cpu: [x64]
+    os: [win32]
+
+  '@gglint/cli@0.5.1':
+    resolution: {integrity: sha512-JrVABnLir4neHO1c6monGmi4+Nk8PfZQ/D5+QTeDVOh6k3HrTlS3bJedM3iAlS2nnfiyo+5nrYl/eE+fMiKsCQ==}
+    engines: {node: '>=14'}
+    hasBin: true
 
   '@hono/node-server@2.1.11':
     resolution: {integrity: sha512-KzKz9vl4vvr1vgLHamj+g5uonbrj5NwAdO3yzOS6cd2HjALVeOgTgeZOyAzNxejbkfOOPIcvuf/Tg8l1pEFLog==}
@@ -4661,6 +4699,33 @@ snapshots:
 
   '@esbuild/win32-x64@0.28.2':
     optional: true
+
+  '@gglint/cli-darwin-arm64@0.5.1':
+    optional: true
+
+  '@gglint/cli-darwin-x64@0.5.1':
+    optional: true
+
+  '@gglint/cli-linux-arm64@0.5.1':
+    optional: true
+
+  '@gglint/cli-linux-x64@0.5.1':
+    optional: true
+
+  '@gglint/cli-win32-arm64@0.5.1':
+    optional: true
+
+  '@gglint/cli-win32-x64@0.5.1':
+    optional: true
+
+  '@gglint/cli@0.5.1':
+    optionalDependencies:
+      '@gglint/cli-darwin-arm64': 0.5.1
+      '@gglint/cli-darwin-x64': 0.5.1
+      '@gglint/cli-linux-arm64': 0.5.1
+      '@gglint/cli-linux-x64': 0.5.1
+      '@gglint/cli-win32-arm64': 0.5.1
+      '@gglint/cli-win32-x64': 0.5.1
 
   '@hono/node-server@2.1.11(hono@4.13.19)':
     dependencies:

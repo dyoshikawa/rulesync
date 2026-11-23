@@ -551,6 +551,7 @@
     "PROGRAMW",
     "PSMODULEPATH",
     "SYSTEMDRIVE",
-    "SYSTEMROOT"
+    "SYSTEMROOT",
+    "gglint"
   ]
 }
