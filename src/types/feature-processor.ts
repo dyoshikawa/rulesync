@@ -435,6 +435,22 @@ export async function warnIfWriteFollowsLink({
     `${quoteForLog(linkPath)} is a symbolic link to ${quoteForLog(linkLanding)}; ` +
       "files rulesync writes through it land there",
   );
+  // A further link below the first one (`~/.codex -> ~/dotfiles/.codex` with
+  // `~/dotfiles/.codex/AGENTS.md -> ../.claude/CLAUDE.md`) sends this file
+  // somewhere the warning above does not name, so the file gets its own.
+  const restOfPath = relative(linkPath, resolve(targetPath));
+  if (restOfPath === "") {
+    return;
+  }
+  const targetLanding = await writeLandingPath(targetPath);
+  if (targetLanding === null || targetLanding === join(linkLanding, restOfPath)) {
+    return;
+  }
+  warnOnceWithFallback(
+    logger,
+    `${quoteForLog(targetPath)} is reached through further symbolic links; ` +
+      `rulesync writes it to ${quoteForLog(targetLanding)}`,
+  );
 }
 
 /**

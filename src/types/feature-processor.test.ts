@@ -534,6 +534,39 @@ describe("FeatureProcessor", () => {
     );
 
     it.skipIf(process.platform === "win32")(
+      "should also name the file's own landing when a further link below the first redirects it",
+      async () => {
+        vi.mocked(readFileContentOrNull).mockResolvedValue(null);
+        const logger = createMockLogger();
+        const root = join(testDir, "home");
+        await mkdir(join(root, "dotfiles", ".codex"), { recursive: true });
+        await mkdir(join(root, "dotfiles", ".claude"), { recursive: true });
+        await writeFile(join(root, "dotfiles", ".claude", "CLAUDE.md"), "kept\n");
+        // `~/.codex -> ~/dotfiles/.codex`, and inside it
+        // `AGENTS.md -> ../.claude/CLAUDE.md`.
+        await symlink(join(root, "dotfiles", ".codex"), join(root, ".codex"));
+        await symlink(
+          join("..", ".claude", "CLAUDE.md"),
+          join(root, "dotfiles", ".codex", "AGENTS.md"),
+        );
+        const processor = new TestProcessor({ logger, outputRoot: root });
+
+        const linkedPath = join(root, ".codex", "AGENTS.md");
+        await processor.writeAiFiles([createMockFile(linkedPath, { outputRoot: root })]);
+
+        expect(logger.warn).toHaveBeenCalledTimes(2);
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining(`${JSON.stringify(join(root, ".codex"))} is a symbolic link to`),
+        );
+        expect(logger.warn).toHaveBeenCalledWith(
+          `${JSON.stringify(linkedPath)} is reached through further symbolic links; ` +
+            `rulesync writes it to ` +
+            `${JSON.stringify(await realpath(join(root, "dotfiles", ".claude", "CLAUDE.md")))}`,
+        );
+      },
+    );
+
+    it.skipIf(process.platform === "win32")(
       "should not warn when only the output root itself is a link",
       async () => {
         vi.mocked(readFileContentOrNull).mockResolvedValue(null);

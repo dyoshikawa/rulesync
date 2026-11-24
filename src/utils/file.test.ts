@@ -1466,6 +1466,25 @@ describe("file utilities", () => {
         ).toBe(join(root, "AGENTS.md"));
       });
 
+      it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+        "should propagate an error other than a missing entry",
+        async () => {
+          const root = join(testDir, "root");
+          await ensureDir(join(root, "locked"));
+          await chmod(join(root, "locked"), 0o000);
+          try {
+            await expect(
+              firstLinkBelowRoot({
+                rootPath: root,
+                targetPath: join(root, "locked", "inner", "file.md"),
+              }),
+            ).rejects.toMatchObject({ code: "EACCES" });
+          } finally {
+            await chmod(join(root, "locked"), 0o755);
+          }
+        },
+      );
+
       it("should give null for a target outside the root", async () => {
         const root = join(testDir, "root");
 
