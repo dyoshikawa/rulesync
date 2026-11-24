@@ -30,6 +30,7 @@ import { AiDir, AiDirFile } from "./ai-dir.js";
 import {
   caseFoldIdentity,
   refusesAnyWriteOutsideRoot,
+  warnIfWriteFollowsLink,
   refusesDirWriteOntoRoot,
   sweepRefusalReason,
 } from "./feature-processor.js";
@@ -159,6 +160,26 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
   }
 
   /**
+   * Warn about each file of `aiDir` about to be written through a symbolic link
+   * that stays inside the output root (see {@link warnIfWriteFollowsLink}).
+   */
+  private async warnIfFilesFollowLinks({
+    aiDir,
+    filePaths,
+  }: {
+    aiDir: AiDir;
+    filePaths: readonly string[];
+  }): Promise<void> {
+    for (const targetPath of filePaths) {
+      await warnIfWriteFollowsLink({
+        logger: this.logger,
+        rootPath: aiDir.getOutputRoot(),
+        targetPath,
+      });
+    }
+  }
+
+  /**
    * Once converted to rulesync/tool dirs, write them to the filesystem.
    * Returns the number of directories written.
    *
@@ -254,6 +275,8 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
         continue;
       }
 
+      // The directory entry itself is not written; every file below it is.
+      await this.warnIfFilesFollowLinks({ aiDir, filePaths: writtenPaths.slice(1) });
       const relativeDir = aiDir.getRelativePathFromCwd();
       if (this.dryRun) {
         this.logger.info(`[DRY RUN] Would create directory: ${stripControlCharacters(dirPath)}`);

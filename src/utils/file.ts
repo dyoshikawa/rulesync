@@ -1082,6 +1082,47 @@ export async function relativeWriteLanding({
 }
 
 /**
+ * The first symbolic link on the way from `rootPath` down to `targetPath`, or
+ * `null` when no existing entry below the root is a link. Only the segments
+ * below the root are looked at, so a root that is itself a link (macOS
+ * `/tmp -> /private/tmp`, a linked home directory) does not count; nor does a
+ * target that is not spelled below the root. Once a segment is missing,
+ * nothing below it exists, so the walk stops there.
+ */
+export async function firstLinkBelowRoot({
+  rootPath,
+  targetPath,
+}: {
+  rootPath: string;
+  targetPath: string;
+}): Promise<string | null> {
+  const relativeTarget = relative(resolve(rootPath), resolve(targetPath));
+  if (relativeTarget === "" || pathEscapesRoot(relativeTarget)) {
+    return null;
+  }
+  let current = resolve(rootPath);
+  for (const segment of splitPathSegments(relativeTarget)) {
+    if (segment === "") {
+      continue;
+    }
+    current = join(current, segment);
+    let stats: Stats;
+    try {
+      stats = await lstat(current);
+    } catch (error) {
+      if (isFileNotFoundError(error) || isNotADirectoryError(error)) {
+        return null;
+      }
+      throw error;
+    }
+    if (stats.isSymbolicLink()) {
+      return current;
+    }
+  }
+  return null;
+}
+
+/**
  * Directory names that hold version-control metadata. Bytes landing in one of
  * them change how the VCS behaves rather than what it tracks: `.git/config`
  * can set `core.fsmonitor`, `.git/hooks/*` run on the next commit.

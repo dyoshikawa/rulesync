@@ -1,4 +1,4 @@
-import { chmod, mkdir, symlink } from "node:fs/promises";
+import { chmod, mkdir, realpath, symlink } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
@@ -1432,6 +1432,66 @@ describe("DirFeatureProcessor", () => {
           `Refusing to write ${JSON.stringify(join(dirPath, "scripts", "run.sh"))}: it resolves ` +
             `outside ${JSON.stringify(root)} through a symbolic link`,
         );
+      },
+    );
+
+    it.skipIf(process.platform === "win32")(
+      "should warn when a directory is written through a link that stays inside the output root",
+      async () => {
+        vi.mocked(readFileContentOrNull).mockResolvedValue(null);
+        const logger = createMockLogger();
+        const root = join(testDir, "root");
+        // The mock directory's output root is its parent, `skills`.
+        const sharedDir = join(root, "skills", "shared-demo");
+        await mkdir(sharedDir, { recursive: true });
+        // `skills/demo -> shared-demo`: the write lands in another directory.
+        const dirPath = join(root, "skills", "demo");
+        await symlink("shared-demo", dirPath);
+        const processor = new TestDirProcessor({ logger, outputRoot: root });
+
+        const result = await processor.writeAiDirs([
+          createMockDirWithFiles({
+            dirPath,
+            mainFileBody: "body",
+            otherFiles: ["a.sh", "b.sh"].map(
+              (name) =>
+                ({
+                  relativeFilePathToDirPath: join("scripts", name),
+                  fileBuffer: Buffer.from("#!/bin/sh\n"),
+                }) as unknown as AiDirFile,
+            ),
+          }),
+        ]);
+
+        expect(result.count).toBe(1);
+        expect(writeFileContent).toHaveBeenCalledWith(join(dirPath, "SKILL.md"), expect.anything());
+        expect(writeFileBuffer).toHaveBeenCalledTimes(2);
+        // One warning for the link, not one per file written below it.
+        expect(logger.warn).toHaveBeenCalledTimes(1);
+        expect(logger.warn).toHaveBeenCalledWith(
+          `${JSON.stringify(dirPath)} is a symbolic link to ` +
+            `${JSON.stringify(await realpath(sharedDir))}; files rulesync writes through it land there`,
+        );
+      },
+    );
+
+    it.skipIf(process.platform === "win32")(
+      "should not warn about a linked directory whose files are already up to date",
+      async () => {
+        vi.mocked(readFileContentOrNull).mockResolvedValue("---\n---\nbody\n");
+        const logger = createMockLogger();
+        const root = join(testDir, "root");
+        await mkdir(join(root, "skills", "shared-demo"), { recursive: true });
+        const dirPath = join(root, "skills", "demo");
+        await symlink("shared-demo", dirPath);
+        const processor = new TestDirProcessor({ logger, outputRoot: root });
+
+        const result = await processor.writeAiDirs([
+          createMockDirWithFiles({ dirPath, mainFileBody: "body" }),
+        ]);
+
+        expect(result).toEqual({ count: 0, paths: [] });
+        expect(logger.warn).not.toHaveBeenCalled();
       },
     );
 
