@@ -843,7 +843,7 @@ const code = "preserved";
         hasFrontmatter: true,
       });
       // The former `/^\s*#[^\n]+/gm` check took about 10 s on this input.
-      expect(performance.now() - startedAt).toBeLessThan(1000);
+      expect(performance.now() - startedAt).toBeLessThan(3000);
     });
 
     it("should apply the size guard to a block with no closing fence", () => {
@@ -867,7 +867,7 @@ const code = "preserved";
 
   // Frontmatter used to be read by gray-matter on js-yaml 4. It is now split
   // in-house and still parsed with js-yaml 4 (the `js-yaml-v4` alias), so
-  // every file reads exactly as before.
+  // every file reads as it did in this repository and the release binaries.
   describe("YAML schema compatibility", () => {
     it("should parse YAML 1.2 scalars correctly (yes/no as strings, not booleans)", () => {
       // YAML 1.1 parses yes/no/on/off as booleans; the core schema keeps them

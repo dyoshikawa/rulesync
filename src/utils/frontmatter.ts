@@ -254,7 +254,8 @@ export function stringifyFrontmatter(
   // With lineWidth disabled js-yaml never folds a long string into a block
   // scalar (>- or |-). Some tools use simplified frontmatter parsers that read
   // those indicators as literal string values. The default output is dumped
-  // with js-yaml 4, as gray-matter did here through its pnpm override, because
+  // with js-yaml 4, as gray-matter did in this repository and the release
+  // binaries through its pnpm override, because
   // v5 stops folding a long string that has no space to break at and would
   // change files on regeneration.
   const yaml = (
@@ -385,6 +386,8 @@ function splitFrontmatter(content: string): { block: string; body: string } {
  * Whether a raw block holds nothing but blank and comment lines. Checked line
  * by line rather than with gray-matter's `/^\s*#[^\n]+/gm`, whose `\s*` also
  * spans line breaks and backtracks quadratically on a long run of blank lines.
+ * The one known difference: a lone `\r` now ends a comment line, as it does
+ * in YAML, where the old pattern let the comment run on past it.
  */
 function isBlankFrontmatterBlock(block: string): boolean {
   return block.split(/\r\n|\r|\n/).every((line) => {
