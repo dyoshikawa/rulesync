@@ -807,7 +807,7 @@ junie: # for JetBrains Junie CLI specific parameters (generated to .junie/agents
   maxTurns: 20 # max agentic turns
   skills: ["kotlin", "writerside"] # Agent Skills to utilize
   allowPromptArgument: true # whether the subagent accepts a prompt argument
-  # On import, a Junie agent without `description` (optional upstream, frontmatter included) takes Junie's own fallback: the first non-heading body paragraph, truncated to 1,024 characters. Without `name`, the file name minus `.agent.md` / `.md` is used. Explicit and file-derived names are lowercased, with whitespace replaced by hyphens, matching Junie's name normalization.
+  # On import, a Junie agent without `description` (optional upstream, frontmatter included) takes Junie's own fallback: the first non-heading body paragraph, truncated to 1,024 characters. Without `name`, the file name minus `.agent.md` / `.md` is used. Explicit and file-derived names are trimmed and lowercased, and each run of whitespace becomes a single hyphen, matching Junie's name normalization (an empty or whitespace-only `name` falls back to the file name). When two Junie agents normalize to the same name (e.g. `Code Reviewer.md` and `code-reviewer.md`), a warning is logged and only the earlier one is imported.
 takt: # takt specific parameters (optional; emitted under .takt/facets/personas/)
   name: "renamed-stem" # (optional) override the emitted filename stem (no path separators or "..")
 roo: # for Roo Code specific parameters (optional; aggregated into the root .roomodes file)
