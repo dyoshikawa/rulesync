@@ -7,6 +7,7 @@ import { CURSOR_DIR } from "../../constants/cursor-paths.js";
 import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { RulesyncTargets } from "../../types/tool-targets.js";
+import { splitBraceAwareList } from "../../utils/brace-aware-list.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
 import {
@@ -30,6 +31,12 @@ const CursorRuleFrontmatterSchema = z.object({
 });
 
 export type CursorRuleFrontmatter = z.infer<typeof CursorRuleFrontmatterSchema>;
+
+/**
+ * A top-level `description:` / `globs:` line written the way Cursor writes it.
+ * Indented lines belong to nested sections and stay with YAML.
+ */
+const CURSOR_RAW_SCALAR_LINE_PATTERN = /^(description|globs):[ \t]+(\S.*)$/;
 
 /**
  * Globs that match the whole project, and so say nothing `alwaysApply: true`
@@ -173,9 +180,11 @@ export class CursorRule extends ToolRule {
     frontmatter: Record<string, unknown>;
     body: string;
   } {
-    // Special handling for MDC files: preprocess globs field to handle asterisks
-    // MDC files don't support quotes in YAML, so we need to handle patterns like *.ts specially.
-    // Only the frontmatter block is rewritten, so a `globs: *...` line in the body stays as is.
+    // Cursor treats `description` and `globs` as raw text, so quote every
+    // unquoted value before YAML reads it: YAML would otherwise misread `#`,
+    // `-`, `@`, a leading backtick, `?` and even `true` or `123`. Only the
+    // frontmatter block is rewritten, so a `globs: *...` line in the body
+    // stays as is.
     const bounds = findFrontmatterBlockBounds(fileContent);
     if (!bounds) {
       return parseFrontmatter(fileContent, filePath);
@@ -183,10 +192,26 @@ export class CursorRule extends ToolRule {
     const { blockStart, blockEnd } = bounds;
     const block = fileContent
       .slice(blockStart, blockEnd)
-      .replace(/^globs:[ \t]*(\*[^\r\n]*?)$/m, (_match, globPattern: string) => {
-        // Wrap the glob pattern in quotes for YAML parsing
-        return `globs: ${JSON.stringify(globPattern.trimEnd())}`;
-      });
+      .split("\n")
+      .map((line) => {
+        const carriageReturn = line.endsWith("\r") ? "\r" : "";
+        const bareLine = carriageReturn === "" ? line : line.slice(0, -1);
+        const match = CURSOR_RAW_SCALAR_LINE_PATTERN.exec(bareLine);
+        if (!match) {
+          return line;
+        }
+        const [, key = "", rawValue = ""] = match;
+        const value = rawValue.trimEnd();
+        // A value already quoted, or written as a block scalar, is read by YAML
+        // as its author intended and stays untouched.
+        if (/^["'|>]/.test(value)) {
+          return line;
+        }
+        // Single quotes are YAML's literal-quote form: only a quote itself has
+        // to be doubled, so the text Cursor displays survives unchanged.
+        return `${key}: '${value.replaceAll("'", "''")}'${carriageReturn}`;
+      })
+      .join("\n");
     const preprocessedContent =
       fileContent.slice(0, blockStart) + block + fileContent.slice(blockEnd);
 
@@ -199,17 +224,12 @@ export class CursorRule extends ToolRule {
     // Convert Cursor rule types to Rulesync format
     const isAlways = this.frontmatter.alwaysApply === true;
 
-    // Split the globs string on commas. An empty or omitted `globs:` field
-    // parses as null, so an Always Apply rule written from Cursor's own
-    // template arrives here with no patterns at all.
+    // Split the globs string on separators, leaving commas inside brace groups
+    // alone: `**/*.{ts,tsx}` is one pattern, not two. An empty or omitted
+    // `globs:` field parses as null, so an Always Apply rule written from
+    // Cursor's own template arrives here with no patterns at all.
     const rawGlobs = this.frontmatter.globs;
-    const sourceGlobs =
-      rawGlobs && rawGlobs.trim() !== ""
-        ? rawGlobs
-            .split(",")
-            .map((g) => g.trim())
-            .filter((g) => g.length > 0)
-        : [];
+    const sourceGlobs = rawGlobs && rawGlobs.trim() !== "" ? splitBraceAwareList(rawGlobs) : [];
 
     // The canonical field has to describe the rule for every other tool, none
     // of which knows about `alwaysApply`, so an Always Apply rule becomes

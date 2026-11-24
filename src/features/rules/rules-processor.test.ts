@@ -1,3 +1,5 @@
+// cspell:ignore gitdir -- the pointer written by a worktree's .git file
+
 import { symlink } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -1809,6 +1811,59 @@ describe("RulesProcessor", () => {
 
       expect(paths).toContain(join("packages", "api", "AGENTS.md"));
       expect(paths).not.toContain(join("services", "api", "vendor", "dep", "AGENTS.md"));
+    });
+
+    it("should skip nested AGENTS.md files inside other git repositories", async () => {
+      // A workspace folder can hold separate clones and worktrees, each with
+      // its own AGENTS.md. They are not subprojects of the current project.
+      await writeFileContent(join(testDir, "AGENTS.md"), "# Root");
+      await writeFileContent(
+        join(testDir, "clones", "app", ".git", "HEAD"),
+        "ref: refs/heads/main\n",
+      );
+      await writeFileContent(join(testDir, "clones", "app", "AGENTS.md"), "# Other repo");
+      await writeFileContent(
+        join(testDir, "clones", "worktree", ".git"),
+        "gitdir: ../app/.git/worktrees/wt\n",
+      );
+      await writeFileContent(join(testDir, "clones", "worktree", "AGENTS.md"), "# Worktree");
+      await writeFileContent(join(testDir, "packages", "api", "AGENTS.md"), "# API");
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "agentsmd" });
+      const paths = (await processor.loadToolFiles()).map((file) =>
+        join(file.getRelativeDirPath(), file.getRelativeFilePath()),
+      );
+
+      expect(paths).toContain(join("packages", "api", "AGENTS.md"));
+      expect(paths).not.toContain(join("clones", "app", "AGENTS.md"));
+      expect(paths).not.toContain(join("clones", "worktree", "AGENTS.md"));
+    });
+
+    it("should import nested AGENTS.md when the project root has .git", async () => {
+      await writeFileContent(join(testDir, ".git", "HEAD"), "ref: refs/heads/main\n");
+      await writeFileContent(join(testDir, "AGENTS.md"), "# Root");
+      await writeFileContent(join(testDir, "packages", "api", "AGENTS.md"), "# API");
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "agentsmd" });
+      const paths = (await processor.loadToolFiles()).map((file) =>
+        join(file.getRelativeDirPath(), file.getRelativeFilePath()),
+      );
+
+      expect(paths).toContain(join("packages", "api", "AGENTS.md"));
+    });
+
+    it("should import nested AGENTS.md when outputRoot is inside a larger repository", async () => {
+      const outputRoot = join(testDir, "workspace", "project");
+      await writeFileContent(join(testDir, "workspace", ".git", "HEAD"), "ref: refs/heads/main\n");
+      await writeFileContent(join(outputRoot, "AGENTS.md"), "# Root");
+      await writeFileContent(join(outputRoot, "packages", "api", "AGENTS.md"), "# API");
+
+      const processor = new RulesProcessor({ logger, outputRoot, toolTarget: "agentsmd" });
+      const paths = (await processor.loadToolFiles()).map((file) =>
+        join(file.getRelativeDirPath(), file.getRelativeFilePath()),
+      );
+
+      expect(paths).toContain(join("packages", "api", "AGENTS.md"));
     });
 
     it("should still find nested files when .gitignore excludes the generated file name", async () => {
