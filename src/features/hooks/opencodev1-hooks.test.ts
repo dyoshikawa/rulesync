@@ -1,3 +1,4 @@
+// cspell:ignore todoread -- OpenCode tool id
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 
@@ -9,6 +10,13 @@ import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { Opencodev1Hooks } from "./opencodev1-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
+
+/** The matcher regexes a generated plugin embeds, compiled in source order. */
+function embeddedMatchers(content: string): RegExp[] {
+  return [...content.matchAll(/new RegExp\(("(?:[^"\\]|\\.)*")\)/g)].map(
+    ([, literal]) => new RegExp(JSON.parse(literal ?? '""') as string),
+  );
+}
 
 describe("Opencodev1Hooks", () => {
   let testDir: string;
@@ -433,7 +441,7 @@ describe("Opencodev1Hooks", () => {
       const content = opencodeHooks.getFileContent();
       expect(content).toContain('"tool.execute.before"');
       expect(content).toContain("input.tool");
-      expect(content).toContain('new RegExp("Write|Edit")');
+      expect(content).toContain('new RegExp("^(?:write|edit)$")');
       expect(content).toContain(".rulesync/hooks/lint.sh");
     });
 
@@ -463,7 +471,7 @@ describe("Opencodev1Hooks", () => {
 
       const content = opencodeHooks.getFileContent();
       expect(content).toContain('new RegExp(".*")');
-      expect(content).toContain('new RegExp("Read*")');
+      expect(content).toContain('new RegExp("read*")');
       expect(content).toContain("all-tools.sh");
       expect(content).toContain("read-tools.sh");
     });
@@ -644,8 +652,8 @@ describe("Opencodev1Hooks", () => {
       const content = opencodeHooks.getFileContent();
       expect(content).toContain("lint.sh");
       expect(content).toContain("format.sh");
-      expect(content).toContain('new RegExp("Write")');
-      expect(content).toContain('new RegExp("Edit")');
+      expect(content).toContain('new RegExp("^(?:write)$")');
+      expect(content).toContain('new RegExp("^(?:edit)$")');
     });
 
     it("should generate valid block-scoped regex declarations for multiple matcher handlers", () => {
@@ -677,7 +685,7 @@ describe("Opencodev1Hooks", () => {
       expect(content).toContain(
         [
           "      {",
-          '        const __re = new RegExp("Read");',
+          '        const __re = new RegExp("^(?:read)$");',
           "        if (__re.test(input.tool)) {",
           '          await __rulesyncRunHook({ label: "postToolUse", command: "audit-read.sh", input: __rulesyncPostToolUseInput(), blocking: false, seconds: 600 });',
           "        }",
@@ -687,7 +695,7 @@ describe("Opencodev1Hooks", () => {
       expect(content).toContain(
         [
           "      {",
-          '        const __re = new RegExp("Write");',
+          '        const __re = new RegExp("^(?:write)$");',
           "        if (__re.test(input.tool)) {",
           '          await __rulesyncRunHook({ label: "postToolUse", command: "audit-write.sh", input: __rulesyncPostToolUseInput(), blocking: false, seconds: 600 });',
           "        }",
@@ -697,7 +705,7 @@ describe("Opencodev1Hooks", () => {
       expect(content).toContain(
         [
           "      {",
-          '        const __re = new RegExp("Edit");',
+          '        const __re = new RegExp("^(?:edit)$");',
           "        if (__re.test(input.tool)) {",
           '          await __rulesyncRunHook({ label: "postToolUse", command: "audit-edit.sh", input: __rulesyncPostToolUseInput(), blocking: false, seconds: 600 });',
           "        }",
@@ -756,10 +764,10 @@ describe("Opencodev1Hooks", () => {
       });
 
       const content = opencodeHooks.getFileContent();
-      expect(content).toContain('new RegExp("Write|Edit")');
+      expect(content).toContain('new RegExp("^(?:write|edit)$")');
       // The matcher itself should not contain newline/CR (they were stripped)
-      expect(content).not.toMatch(/\/Write\n/);
-      expect(content).not.toMatch(/Edit\r/);
+      expect(content).not.toMatch(/\/write\n/);
+      expect(content).not.toMatch(/edit\r/);
     });
 
     it("should strip NUL byte from matcher", () => {
@@ -784,7 +792,7 @@ describe("Opencodev1Hooks", () => {
       });
 
       const content = opencodeHooks.getFileContent();
-      expect(content).toContain('new RegExp("Write|Edit")');
+      expect(content).toContain('new RegExp("^(?:write|edit)$")');
     });
 
     it("should escape double quotes in matcher", () => {
@@ -810,9 +818,89 @@ describe("Opencodev1Hooks", () => {
 
       const content = opencodeHooks.getFileContent();
       // Double quotes should be escaped in the RegExp string
-      expect(content).toContain('new RegExp("Write\\"||true||\\"")');
+      expect(content).toContain('new RegExp("write\\"||true||\\"")');
       // Should not contain unescaped double quotes that would break the JS string
-      expect(content).not.toContain('new RegExp("Write"');
+      expect(content).not.toContain('new RegExp("write"');
+    });
+
+    it("translates canonical tool names in tool matchers to OpenCode 1.x tool ids", () => {
+      const logger = createMockLogger();
+      const warnSpy = vi.spyOn(logger, "warn");
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            preToolUse: [
+              { command: "guard.sh", matcher: "Read|Edit|Write" },
+              { command: "shell.sh", matcher: "^Bash$" },
+              { command: "partial.sh", matcher: "\\bRead\\b|ReadFile" },
+              { command: "multi-1.sh", matcher: "Edit|MultiEdit" },
+              { command: "multi-2.sh", matcher: "Edit|MultiEdit" },
+            ],
+            // The slash command name is not a tool name, so it stays as written.
+            userPromptExpansion: [{ command: "deploy.sh", matcher: "Deploy" }],
+          },
+          opencodev1: { hooks: { postToolUse: [{ command: "fmt.sh", matcher: "Edit" }] } },
+        }),
+        validate: false,
+      });
+
+      const content = Opencodev1Hooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+        logger,
+      }).getFileContent();
+
+      expect(content).toContain('new RegExp("^(?:read|edit|write)$")');
+      expect(content).toContain('new RegExp("^bash$")');
+      expect(content).toContain('new RegExp("\\\\bread\\\\b|ReadFile")');
+      expect(content).toContain('new RegExp("^(?:edit|MultiEdit)$")');
+      expect(content).toContain('new RegExp("^(?:edit)$")');
+      expect(content).toContain('new RegExp("Deploy")');
+      // One warning per distinct matcher, not per hook; none for the slash command.
+      expect(warnSpy.mock.calls).toEqual([
+        [expect.stringContaining('"ReadFile" in the "preToolUse" matcher')],
+        [expect.stringContaining('"MultiEdit" in the "preToolUse" matcher')],
+      ]);
+      expect(warnSpy.mock.calls[1]?.[0]).toContain("OpenCode V1 matches hook matchers");
+      expect(warnSpy.mock.calls[1]?.[0]).toContain("is not translated by rulesync");
+    });
+
+    it("anchors translated plain-name matchers so they match whole tool names only", () => {
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            preToolUse: [
+              { command: "write.sh", matcher: "Write" },
+              { command: "files.sh", matcher: "Read|Edit|Write" },
+              { command: "regex.sh", matcher: "^Wr" },
+            ],
+          },
+        }),
+        validate: false,
+      });
+
+      const content = Opencodev1Hooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      }).getFileContent();
+
+      const [write, files, regex] = embeddedMatchers(content);
+      expect(write?.test("write")).toBe(true);
+      expect(write?.test("todowrite")).toBe(false);
+      expect(["read", "edit", "write"].every((tool) => files?.test(tool))).toBe(true);
+      expect(["todoread", "todowrite", "multiedit"].some((tool) => files?.test(tool))).toBe(false);
+      // A regex-style matcher is written as-is.
+      expect(regex?.source).toBe("^Wr");
     });
 
     it("should escape backslashes in matcher for JS string embedding", () => {
@@ -838,7 +926,7 @@ describe("Opencodev1Hooks", () => {
 
       const content = opencodeHooks.getFileContent();
       // \b should be double-escaped for embedding in a JS double-quoted string
-      expect(content).toContain('new RegExp("\\\\bWrite\\\\b")');
+      expect(content).toContain('new RegExp("\\\\bwrite\\\\b")');
     });
 
     it("should escape backticks in commands", () => {

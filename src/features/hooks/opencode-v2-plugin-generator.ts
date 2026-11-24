@@ -1,9 +1,12 @@
 import { HooksConfig } from "../../types/hooks.js";
+import type { Logger } from "../../utils/logger.js";
 import {
   buildPayloadClosureLines,
   buildRunHelperLines,
   buildRunStatement,
+  createOpencodeMatcherTranslator,
   hookTimingOf,
+  type OpencodeMatcherTranslator,
   type RunnableHandler,
   type StdinPayload,
   validateAndSanitizeMatcher,
@@ -31,6 +34,22 @@ import {
 
 /** Tool name OpenCode V2 gives its shell tool (V1 called it `bash`). */
 const OPENCODE_V2_SHELL_TOOL = "shell";
+
+/**
+ * Canonical (Claude Code) tool names mapped to the lowercase names OpenCode 2.x
+ * reports in `event.tool`, which a matcher is tested against case-sensitively.
+ * Observed on OpenCode 2.3.2: a `preToolUse` hook fires with `read`, `write`,
+ * `edit` and `shell`, so a canonical `Read|Edit|Write` or `Bash` never matched.
+ * `Bash` becomes the V2 name `shell`; the generated helper still accepts the
+ * V1 name `bash` for a matcher written that way.
+ * https://opencode.ai/v2/docs/build/plugins/
+ */
+const CANONICAL_TO_OPENCODE_V2_TOOL_NAMES: Readonly<Record<string, string>> = {
+  Bash: OPENCODE_V2_SHELL_TOOL,
+  Read: "read",
+  Write: "write",
+  Edit: "edit",
+};
 
 /**
  * Per-canonical-event conditions the generated handler gates on, because the
@@ -238,10 +257,12 @@ function buildHandlersFor({
   canonicalEvent,
   definitions,
   target,
+  translateMatcher,
 }: {
   canonicalEvent: string;
   definitions: HooksConfig["hooks"][string];
   target: string;
+  translateMatcher: OpencodeMatcherTranslator;
 }): V2Handler[] {
   const gate = OPENCODE_V2_HANDLER_GATES[canonicalEvent];
   const payload = OPENCODE_V2_STDIN_PAYLOADS[canonicalEvent];
@@ -262,7 +283,7 @@ function buildHandlersFor({
       event: canonicalEvent,
       blocking: isBlockingOpencodeV2Target(target),
       ...hookTimingOf(def),
-      ...(def.matcher ? { matcher: def.matcher } : {}),
+      ...(def.matcher ? { matcher: translateMatcher(def.matcher, canonicalEvent) } : {}),
       ...(gate ? { gate } : {}),
       ...(payload ? { payload } : {}),
       ...sessionContextExtrasFor(canonicalEvent),
@@ -323,14 +344,21 @@ export function generateOpencodeV2PluginCode({
   supportedEvents,
   toolConfigKey,
   eventMap,
+  logger,
 }: {
   config: HooksConfig;
   supportedEvents: readonly string[];
   toolConfigKey: "opencode" | "opencodev1" | "mimocode";
   eventMap: Record<string, string>;
+  logger?: Logger;
 }): string {
   const supported: Set<string> = new Set(supportedEvents);
   const configHooks = { ...config.hooks, ...config[toolConfigKey]?.hooks };
+  const translateMatcher = createOpencodeMatcherTranslator({
+    toolNames: CANONICAL_TO_OPENCODE_V2_TOOL_NAMES,
+    toolConfigKey,
+    logger,
+  });
 
   // Keyed by `<domain>:<name>` hook point and by event type respectively, in
   // first-seen order.
@@ -341,7 +369,12 @@ export function generateOpencodeV2PluginCode({
     if (!supported.has(canonicalEvent)) continue;
     const target = eventMap[canonicalEvent];
     if (!target) continue;
-    const handlers = buildHandlersFor({ canonicalEvent, definitions, target });
+    const handlers = buildHandlersFor({
+      canonicalEvent,
+      definitions,
+      target,
+      translateMatcher,
+    });
     if (handlers.length === 0) continue;
     const isEvent = target.startsWith("event:");
     const key = isEvent ? target.slice("event:".length) : target;

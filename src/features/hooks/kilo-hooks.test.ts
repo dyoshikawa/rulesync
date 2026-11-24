@@ -221,7 +221,7 @@ describe("KiloHooks", () => {
       const content = kiloHooks.getFileContent();
       expect(content).toContain('"tool.execute.before"');
       expect(content).toContain("input.tool");
-      expect(content).toContain('new RegExp("Write|Edit")');
+      expect(content).toContain('new RegExp("^(?:write|edit)$")');
       expect(content).toContain(".rulesync/hooks/lint.sh");
     });
 
@@ -251,7 +251,7 @@ describe("KiloHooks", () => {
 
       const content = kiloHooks.getFileContent();
       expect(content).toContain('new RegExp(".*")');
-      expect(content).toContain('new RegExp("Read*")');
+      expect(content).toContain('new RegExp("read*")');
       expect(content).toContain("all-tools.sh");
       expect(content).toContain("read-tools.sh");
     });
@@ -412,7 +412,7 @@ describe("KiloHooks", () => {
       expect(content).not.toContain("export const RulesyncHooksPlugin");
       // Handlers are still present, just nested under `server`.
       expect(content).toContain('event.type === "session.created"');
-      expect(content).toContain('new RegExp("Write")');
+      expect(content).toContain('new RegExp("^(?:write)$")');
       // Generated module must be syntactically valid ESM.
       execFileSync("node", ["--input-type=module", "--check"], { input: content });
     });
@@ -471,8 +471,8 @@ describe("KiloHooks", () => {
       const content = kiloHooks.getFileContent();
       expect(content).toContain("lint.sh");
       expect(content).toContain("format.sh");
-      expect(content).toContain('new RegExp("Write")');
-      expect(content).toContain('new RegExp("Edit")');
+      expect(content).toContain('new RegExp("^(?:write)$")');
+      expect(content).toContain('new RegExp("^(?:edit)$")');
     });
 
     it("should generate valid block-scoped regex declarations for multiple matcher handlers", () => {
@@ -504,7 +504,7 @@ describe("KiloHooks", () => {
       expect(content).toContain(
         [
           "        {",
-          '          const __re = new RegExp("Read");',
+          '          const __re = new RegExp("^(?:read)$");',
           "          if (__re.test(input.tool)) {",
           '            await __rulesyncRunHook({ label: "postToolUse", command: "audit-read.sh", input: __rulesyncPostToolUseInput(), blocking: false, seconds: 600 });',
           "          }",
@@ -514,7 +514,7 @@ describe("KiloHooks", () => {
       expect(content).toContain(
         [
           "        {",
-          '          const __re = new RegExp("Write");',
+          '          const __re = new RegExp("^(?:write)$");',
           "          if (__re.test(input.tool)) {",
           '            await __rulesyncRunHook({ label: "postToolUse", command: "audit-write.sh", input: __rulesyncPostToolUseInput(), blocking: false, seconds: 600 });',
           "          }",
@@ -524,7 +524,7 @@ describe("KiloHooks", () => {
       expect(content).toContain(
         [
           "        {",
-          '          const __re = new RegExp("Edit");',
+          '          const __re = new RegExp("^(?:edit)$");',
           "          if (__re.test(input.tool)) {",
           '            await __rulesyncRunHook({ label: "postToolUse", command: "audit-edit.sh", input: __rulesyncPostToolUseInput(), blocking: false, seconds: 600 });',
           "          }",
@@ -581,10 +581,10 @@ describe("KiloHooks", () => {
       });
 
       const content = kiloHooks.getFileContent();
-      expect(content).toContain('new RegExp("Write|Edit")');
+      expect(content).toContain('new RegExp("^(?:write|edit)$")');
       // The matcher itself should not contain newline/CR (they were stripped)
-      expect(content).not.toMatch(/\/Write\n/);
-      expect(content).not.toMatch(/Edit\r/);
+      expect(content).not.toMatch(/\/write\n/);
+      expect(content).not.toMatch(/edit\r/);
     });
 
     it("should strip NUL byte from matcher", () => {
@@ -609,7 +609,7 @@ describe("KiloHooks", () => {
       });
 
       const content = kiloHooks.getFileContent();
-      expect(content).toContain('new RegExp("Write|Edit")');
+      expect(content).toContain('new RegExp("^(?:write|edit)$")');
     });
 
     it("should escape double quotes in matcher", () => {
@@ -635,9 +635,44 @@ describe("KiloHooks", () => {
 
       const content = kiloHooks.getFileContent();
       // Double quotes should be escaped in the RegExp string
-      expect(content).toContain('new RegExp("Write\\"||true||\\"")');
+      expect(content).toContain('new RegExp("write\\"||true||\\"")');
       // Should not contain unescaped double quotes that would break the JS string
-      expect(content).not.toContain('new RegExp("Write"');
+      expect(content).not.toContain('new RegExp("write"');
+    });
+
+    it("translates canonical tool names in tool matchers to Kilo tool ids", () => {
+      const logger = createMockLogger();
+      const warnSpy = vi.spyOn(logger, "warn");
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            preToolUse: [
+              { command: "guard.sh", matcher: "Read|Edit|Write" },
+              { command: "shell.sh", matcher: "Bash" },
+              { command: "glob.sh", matcher: "Glob" },
+            ],
+          },
+        }),
+        validate: false,
+      });
+
+      const content = KiloHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+        logger,
+      }).getFileContent();
+
+      expect(content).toContain('new RegExp("^(?:read|edit|write)$")');
+      expect(content).toContain('new RegExp("^(?:bash)$")');
+      expect(content).toContain('new RegExp("Glob")');
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(warnSpy.mock.calls[0]?.[0]).toContain("Kilo Code matches hook matchers");
+      expect(warnSpy.mock.calls[0]?.[0]).toContain('"Glob" in the "preToolUse" matcher');
     });
 
     it("should escape backslashes in matcher for JS string embedding", () => {
@@ -663,7 +698,7 @@ describe("KiloHooks", () => {
 
       const content = kiloHooks.getFileContent();
       // \b should be double-escaped for embedding in a JS double-quoted string
-      expect(content).toContain('new RegExp("\\\\bWrite\\\\b")');
+      expect(content).toContain('new RegExp("\\\\bwrite\\\\b")');
     });
 
     it("should escape backticks in commands", () => {
