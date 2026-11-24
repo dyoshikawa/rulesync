@@ -79,6 +79,7 @@ export class OpencodeHooks extends ToolHooks {
             supportedEvents: OPENCODE_V2_HOOK_EVENTS,
             toolConfigKey: this.layout.toolTarget,
             eventMap: CANONICAL_TO_OPENCODE_V2_EVENT_NAMES,
+            logger,
           })
         : generateOpencodeStylePluginCode(
             config,

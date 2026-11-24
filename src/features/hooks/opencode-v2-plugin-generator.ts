@@ -1,4 +1,7 @@
 import { HooksConfig } from "../../types/hooks.js";
+import type { Logger } from "../../utils/logger.js";
+import { quoteValueForWarning } from "../../utils/quote-value.js";
+import { capitalizedMatcherNames, replaceMatcherNames } from "./hook-matcher-tool-names.js";
 import {
   buildPayloadClosureLines,
   buildRunHelperLines,
@@ -31,6 +34,50 @@ import {
 
 /** Tool name OpenCode V2 gives its shell tool (V1 called it `bash`). */
 const OPENCODE_V2_SHELL_TOOL = "shell";
+
+/**
+ * Canonical (Claude Code) tool names mapped to the lowercase names OpenCode 2.x
+ * reports in `event.tool`, which a matcher is tested against case-sensitively.
+ * Observed on OpenCode 2.3.2: a `preToolUse` hook fires with `read`, `write`,
+ * `edit` and `shell`, so a canonical `Read|Edit|Write` or `Bash` never matched.
+ * `Bash` becomes the V2 name `shell`; the generated helper still accepts the
+ * V1 name `bash` for a matcher written that way.
+ * https://opencode.ai/v2/docs/build/plugins/
+ */
+const CANONICAL_TO_OPENCODE_V2_TOOL_NAMES: Readonly<Record<string, string>> = {
+  Bash: OPENCODE_V2_SHELL_TOOL,
+  Read: "read",
+  Write: "write",
+  Edit: "edit",
+};
+
+/**
+ * Rewrite the canonical tool names in a matcher to their OpenCode 2.x names,
+ * warning about a capitalized name left over (`MultiEdit`, `NotebookEdit`),
+ * which no lowercase OpenCode tool name can match.
+ */
+function canonicalToOpencodeV2Matcher({
+  matcher,
+  eventName,
+  logger,
+}: {
+  matcher: string;
+  eventName: string;
+  logger?: Logger;
+}): string {
+  const translated = replaceMatcherNames(matcher, CANONICAL_TO_OPENCODE_V2_TOOL_NAMES);
+  const unmatched = capitalizedMatcherNames(translated);
+  if (unmatched.length > 0) {
+    logger?.warn(
+      `OpenCode matches hook matchers case-sensitively against lowercase tool names, and ` +
+        `${unmatched.map((name) => quoteValueForWarning(name)).join(", ")} in the ` +
+        `"${eventName}" matcher ${quoteValueForWarning(matcher)} has no known OpenCode ` +
+        `equivalent, so it is written as-is and will likely never match. Use the tool name ` +
+        `OpenCode reports instead.`,
+    );
+  }
+  return translated;
+}
 
 /**
  * Per-canonical-event conditions the generated handler gates on, because the
@@ -238,10 +285,12 @@ function buildHandlersFor({
   canonicalEvent,
   definitions,
   target,
+  logger,
 }: {
   canonicalEvent: string;
   definitions: HooksConfig["hooks"][string];
   target: string;
+  logger?: Logger;
 }): V2Handler[] {
   const gate = OPENCODE_V2_HANDLER_GATES[canonicalEvent];
   const payload = OPENCODE_V2_STDIN_PAYLOADS[canonicalEvent];
@@ -262,7 +311,15 @@ function buildHandlersFor({
       event: canonicalEvent,
       blocking: isBlockingOpencodeV2Target(target),
       ...hookTimingOf(def),
-      ...(def.matcher ? { matcher: def.matcher } : {}),
+      ...(def.matcher
+        ? {
+            matcher: canonicalToOpencodeV2Matcher({
+              matcher: def.matcher,
+              eventName: canonicalEvent,
+              logger,
+            }),
+          }
+        : {}),
       ...(gate ? { gate } : {}),
       ...(payload ? { payload } : {}),
       ...sessionContextExtrasFor(canonicalEvent),
@@ -323,11 +380,13 @@ export function generateOpencodeV2PluginCode({
   supportedEvents,
   toolConfigKey,
   eventMap,
+  logger,
 }: {
   config: HooksConfig;
   supportedEvents: readonly string[];
   toolConfigKey: "opencode" | "opencodev1" | "mimocode";
   eventMap: Record<string, string>;
+  logger?: Logger;
 }): string {
   const supported: Set<string> = new Set(supportedEvents);
   const configHooks = { ...config.hooks, ...config[toolConfigKey]?.hooks };
@@ -341,7 +400,7 @@ export function generateOpencodeV2PluginCode({
     if (!supported.has(canonicalEvent)) continue;
     const target = eventMap[canonicalEvent];
     if (!target) continue;
-    const handlers = buildHandlersFor({ canonicalEvent, definitions, target });
+    const handlers = buildHandlersFor({ canonicalEvent, definitions, target, logger });
     if (handlers.length === 0) continue;
     const isEvent = target.startsWith("event:");
     const key = isEvent ? target.slice("event:".length) : target;

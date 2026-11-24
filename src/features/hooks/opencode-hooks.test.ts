@@ -29,7 +29,10 @@ describe("OpencodeHooks (OpenCode V2)", () => {
     vi.unstubAllGlobals();
   });
 
-  const generate = (config: Record<string, unknown>): string => {
+  const generate = (
+    config: Record<string, unknown>,
+    logger?: ReturnType<typeof createMockLogger>,
+  ): string => {
     const rulesyncHooks = new RulesyncHooks({
       outputRoot: testDir,
       relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -41,6 +44,7 @@ describe("OpencodeHooks (OpenCode V2)", () => {
       outputRoot: testDir,
       rulesyncHooks,
       validate: false,
+      logger,
     }).getFileContent();
   };
 
@@ -221,6 +225,44 @@ describe("OpencodeHooks (OpenCode V2)", () => {
       expect(content).toContain(
         'if (event.status === "completed" && __rulesyncMatchesTool(new RegExp("write|edit"), event.tool)) {',
       );
+    });
+
+    it("translates canonical tool names in matchers to the names OpenCode reports", () => {
+      const logger = createMockLogger();
+      const warnSpy = vi.spyOn(logger, "warn");
+      const content = generate(
+        {
+          hooks: {
+            preToolUse: [
+              { matcher: "Read|Edit|Write", command: "echo guarded" },
+              { matcher: "^Bash$", command: "echo shell-guarded" },
+              { matcher: "mcp__srv__Read|webfetch", command: "echo untouched" },
+            ],
+          },
+        },
+        logger,
+      );
+
+      expect(content).toContain('__rulesyncMatchesTool(new RegExp("read|edit|write"), event.tool)');
+      expect(content).toContain('__rulesyncMatchesTool(new RegExp("^shell$"), event.tool)');
+      expect(content).toContain(
+        '__rulesyncMatchesTool(new RegExp("mcp__srv__Read|webfetch"), event.tool)',
+      );
+      expect(warnSpy).not.toHaveBeenCalled();
+    });
+
+    it("warns about a capitalized matcher name with no OpenCode equivalent", () => {
+      const logger = createMockLogger();
+      const warnSpy = vi.spyOn(logger, "warn");
+      const content = generate(
+        { hooks: { postToolUse: [{ matcher: "Edit|MultiEdit", command: "echo fmt" }] } },
+        logger,
+      );
+
+      expect(content).toContain('__rulesyncMatchesTool(new RegExp("edit|MultiEdit"), event.tool)');
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(warnSpy.mock.calls[0]?.[0]).toContain('"MultiEdit"');
+      expect(warnSpy.mock.calls[0]?.[0]).toContain('"postToolUse" matcher');
     });
 
     it("drops matcher-carrying definitions on hook points with nothing to match", () => {
