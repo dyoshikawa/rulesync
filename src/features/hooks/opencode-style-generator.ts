@@ -1,5 +1,5 @@
 // cspell:ignore nothrow setsid procfs lstart reparented subreaper taskkill -- Bun Shell API, POSIX, Windows
-import { HooksConfig } from "../../types/hooks.js";
+import { HooksConfig, stripControlChars } from "../../types/hooks.js";
 import type { Logger } from "../../utils/logger.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { buildBlockReasonSanitizerLines } from "./hook-block-reason.js";
@@ -585,6 +585,12 @@ const CANONICAL_TO_OPENCODE_V1_TOOL_NAMES: Readonly<Record<string, string>> = {
   Edit: "edit",
 };
 
+/**
+ * A matcher made only of plain names joined by `|`, which Claude Code matches
+ * as an exact tool name list rather than as a regex.
+ */
+const PLAIN_NAME_MATCHER_PATTERN = /^[A-Za-z0-9_]+(?:\|[A-Za-z0-9_]+)*$/;
+
 /** Translates one matcher of one canonical event to the tool's names. */
 export type OpencodeMatcherTranslator = (matcher: string, eventName: string) => string;
 
@@ -594,6 +600,11 @@ export type OpencodeMatcherTranslator = (matcher: string, eventName: string) => 
  * (`MultiEdit`, `Glob`), which no lowercase tool id can match. Each distinct
  * matcher of an event is translated once, so hooks sharing one do not repeat
  * its warning.
+ *
+ * The plugins test the matcher unanchored, so a translated plain-name matcher
+ * is anchored as `^(?:...)$` to keep Claude Code's exact-name semantics:
+ * otherwise `write` would also match OpenCode's `todowrite`. Regex-style and
+ * untranslated matchers are left as written.
  */
 export function createOpencodeMatcherTranslator({
   toolNames,
@@ -610,13 +621,17 @@ export function createOpencodeMatcherTranslator({
     const key = `${eventName}\0${matcher}`;
     const cached = translated.get(key);
     if (cached !== undefined) return cached;
-    const result = replaceMatcherNames(matcher, toolNames);
+    const replaced = replaceMatcherNames(matcher, toolNames);
+    const result =
+      replaced !== matcher && PLAIN_NAME_MATCHER_PATTERN.test(stripControlChars(matcher))
+        ? `^(?:${replaced})$`
+        : replaced;
     const unmatched = capitalizedMatcherNames(result);
     if (unmatched.length > 0) {
       logger?.warn(
         `${label} matches hook matchers case-sensitively against lowercase tool names, and ` +
           `${unmatched.map((name) => quoteValueForWarning(name)).join(", ")} in the ` +
-          `"${eventName}" matcher ${quoteValueForWarning(matcher)} is not translated by ` +
+          `${quoteValueForWarning(eventName)} matcher ${quoteValueForWarning(matcher)} is not translated by ` +
           `rulesync, so it is written as-is and will likely never match. Use the tool name ` +
           `${label} reports instead.`,
       );

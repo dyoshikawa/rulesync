@@ -221,7 +221,7 @@ describe("KiloHooks", () => {
       const content = kiloHooks.getFileContent();
       expect(content).toContain('"tool.execute.before"');
       expect(content).toContain("input.tool");
-      expect(content).toContain('new RegExp("write|edit")');
+      expect(content).toContain('new RegExp("^(?:write|edit)$")');
       expect(content).toContain(".rulesync/hooks/lint.sh");
     });
 
@@ -412,7 +412,7 @@ describe("KiloHooks", () => {
       expect(content).not.toContain("export const RulesyncHooksPlugin");
       // Handlers are still present, just nested under `server`.
       expect(content).toContain('event.type === "session.created"');
-      expect(content).toContain('new RegExp("write")');
+      expect(content).toContain('new RegExp("^(?:write)$")');
       // Generated module must be syntactically valid ESM.
       execFileSync("node", ["--input-type=module", "--check"], { input: content });
     });
@@ -471,8 +471,8 @@ describe("KiloHooks", () => {
       const content = kiloHooks.getFileContent();
       expect(content).toContain("lint.sh");
       expect(content).toContain("format.sh");
-      expect(content).toContain('new RegExp("write")');
-      expect(content).toContain('new RegExp("edit")');
+      expect(content).toContain('new RegExp("^(?:write)$")');
+      expect(content).toContain('new RegExp("^(?:edit)$")');
     });
 
     it("should generate valid block-scoped regex declarations for multiple matcher handlers", () => {
@@ -504,7 +504,7 @@ describe("KiloHooks", () => {
       expect(content).toContain(
         [
           "        {",
-          '          const __re = new RegExp("read");',
+          '          const __re = new RegExp("^(?:read)$");',
           "          if (__re.test(input.tool)) {",
           '            await __rulesyncRunHook({ label: "postToolUse", command: "audit-read.sh", input: __rulesyncPostToolUseInput(), blocking: false, seconds: 600 });',
           "          }",
@@ -514,7 +514,7 @@ describe("KiloHooks", () => {
       expect(content).toContain(
         [
           "        {",
-          '          const __re = new RegExp("write");',
+          '          const __re = new RegExp("^(?:write)$");',
           "          if (__re.test(input.tool)) {",
           '            await __rulesyncRunHook({ label: "postToolUse", command: "audit-write.sh", input: __rulesyncPostToolUseInput(), blocking: false, seconds: 600 });',
           "          }",
@@ -524,7 +524,7 @@ describe("KiloHooks", () => {
       expect(content).toContain(
         [
           "        {",
-          '          const __re = new RegExp("edit");',
+          '          const __re = new RegExp("^(?:edit)$");',
           "          if (__re.test(input.tool)) {",
           '            await __rulesyncRunHook({ label: "postToolUse", command: "audit-edit.sh", input: __rulesyncPostToolUseInput(), blocking: false, seconds: 600 });',
           "          }",
@@ -581,7 +581,7 @@ describe("KiloHooks", () => {
       });
 
       const content = kiloHooks.getFileContent();
-      expect(content).toContain('new RegExp("write|edit")');
+      expect(content).toContain('new RegExp("^(?:write|edit)$")');
       // The matcher itself should not contain newline/CR (they were stripped)
       expect(content).not.toMatch(/\/write\n/);
       expect(content).not.toMatch(/edit\r/);
@@ -609,7 +609,7 @@ describe("KiloHooks", () => {
       });
 
       const content = kiloHooks.getFileContent();
-      expect(content).toContain('new RegExp("write|edit")');
+      expect(content).toContain('new RegExp("^(?:write|edit)$")');
     });
 
     it("should escape double quotes in matcher", () => {
@@ -667,8 +667,8 @@ describe("KiloHooks", () => {
         logger,
       }).getFileContent();
 
-      expect(content).toContain('new RegExp("read|edit|write")');
-      expect(content).toContain('new RegExp("bash")');
+      expect(content).toContain('new RegExp("^(?:read|edit|write)$")');
+      expect(content).toContain('new RegExp("^(?:bash)$")');
       expect(content).toContain('new RegExp("Glob")');
       expect(warnSpy).toHaveBeenCalledTimes(1);
       expect(warnSpy.mock.calls[0]?.[0]).toContain("Kilo Code matches hook matchers");

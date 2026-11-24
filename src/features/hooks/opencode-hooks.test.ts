@@ -1,3 +1,4 @@
+// cspell:ignore todoread -- OpenCode tool id
 import { execFileSync, spawn } from "node:child_process";
 import { chmod } from "node:fs/promises";
 import { join } from "node:path";
@@ -13,6 +14,13 @@ import { ensureDir, readFileContent, writeFileContent } from "../../utils/file.j
 import { OpencodeHooks } from "./opencode-hooks.js";
 import { generateOpencodeStylePluginCode } from "./opencode-style-generator.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
+
+/** The matcher regexes a generated plugin embeds, compiled in source order. */
+function embeddedMatchers(content: string): RegExp[] {
+  return [...content.matchAll(/new RegExp\(("(?:[^"\\]|\\.)*")\)/g)].map(
+    ([, literal]) => new RegExp(JSON.parse(literal ?? '""') as string),
+  );
+}
 
 describe("OpencodeHooks (OpenCode V2)", () => {
   let testDir: string;
@@ -243,7 +251,9 @@ describe("OpencodeHooks (OpenCode V2)", () => {
         logger,
       );
 
-      expect(content).toContain('__rulesyncMatchesTool(new RegExp("read|edit|write"), event.tool)');
+      expect(content).toContain(
+        '__rulesyncMatchesTool(new RegExp("^(?:read|edit|write)$"), event.tool)',
+      );
       expect(content).toContain('__rulesyncMatchesTool(new RegExp("^shell$"), event.tool)');
       expect(content).toContain(
         '__rulesyncMatchesTool(new RegExp("mcp__srv__Read|webfetch"), event.tool)',
@@ -259,7 +269,9 @@ describe("OpencodeHooks (OpenCode V2)", () => {
         logger,
       );
 
-      expect(content).toContain('__rulesyncMatchesTool(new RegExp("edit|MultiEdit"), event.tool)');
+      expect(content).toContain(
+        '__rulesyncMatchesTool(new RegExp("^(?:edit|MultiEdit)$"), event.tool)',
+      );
       expect(warnSpy).toHaveBeenCalledTimes(1);
       expect(warnSpy.mock.calls[0]?.[0]).toContain('"MultiEdit"');
       expect(warnSpy.mock.calls[0]?.[0]).toContain('"postToolUse" matcher');
@@ -285,12 +297,32 @@ describe("OpencodeHooks (OpenCode V2)", () => {
       expect(content).toContain(
         '__rulesyncMatchesTool(new RegExp("\\\\bread\\\\b|ReadFile"), event.tool)',
       );
-      expect(content).toContain('__rulesyncMatchesTool(new RegExp("write"), event.tool)');
+      expect(content).toContain('__rulesyncMatchesTool(new RegExp("^(?:write)$"), event.tool)');
       expect(warnSpy.mock.calls).toEqual([
         [expect.stringContaining('"ReadFile" in the "preToolUse" matcher')],
         [expect.stringContaining('"Glob" in the "preToolUse" matcher')],
       ]);
       expect(warnSpy.mock.calls[1]?.[0]).toContain("is not translated by rulesync");
+    });
+
+    it("anchors translated plain-name matchers so they match whole tool names only", () => {
+      const content = generate({
+        hooks: {
+          preToolUse: [
+            { command: "write.sh", matcher: "Write" },
+            { command: "files.sh", matcher: "Read|Edit|Write" },
+            { command: "regex.sh", matcher: "^Wr" },
+          ],
+        },
+      });
+
+      const [write, files, regex] = embeddedMatchers(content);
+      expect(write?.test("write")).toBe(true);
+      expect(write?.test("todowrite")).toBe(false);
+      expect(["read", "edit", "write"].every((tool) => files?.test(tool))).toBe(true);
+      expect(["todoread", "todowrite", "multiedit"].some((tool) => files?.test(tool))).toBe(false);
+      // A regex-style matcher is written as-is.
+      expect(regex?.source).toBe("^Wr");
     });
 
     it("drops matcher-carrying definitions on hook points with nothing to match", () => {

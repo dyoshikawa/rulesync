@@ -60,6 +60,33 @@ describe("MimocodeHooks", () => {
     expect(content).not.toContain("opencode-only.sh");
   });
 
+  it("translates canonical tool names in tool matchers through the V1 plugin", () => {
+    const logger = createMockLogger();
+    const warnSpy = vi.spyOn(logger, "warn");
+    const rulesyncHooks = new RulesyncHooks({
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: "hooks.json",
+      fileContent: JSON.stringify({
+        version: 1,
+        hooks: { preToolUse: [{ command: "guard.sh", matcher: "Bash|Write|MultiEdit" }] },
+      }),
+      validate: false,
+    });
+
+    const content = MimocodeHooks.fromRulesyncHooks({
+      outputRoot: testDir,
+      rulesyncHooks,
+      validate: false,
+      logger,
+    }).getFileContent();
+
+    expect(content).toContain('const __re = new RegExp("^(?:bash|write|MultiEdit)$");');
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy.mock.calls[0]?.[0]).toContain("MiMo Code matches hook matchers");
+    expect(warnSpy.mock.calls[0]?.[0]).toContain('"MultiEdit" in the "preToolUse" matcher');
+  });
+
   it("warns that a failClosed: true is ignored on every event but preToolUse", () => {
     const logger = createMockLogger();
     const warnSpy = vi.spyOn(logger, "warn");
