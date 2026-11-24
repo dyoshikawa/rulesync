@@ -15,8 +15,9 @@ import {
   relativeWriteLanding,
   removeFile,
   writeFileContent,
+  writeLandingPath,
 } from "../utils/file.js";
-import type { Logger } from "../utils/logger.js";
+import { type Logger, warnOnceWithFallback } from "../utils/logger.js";
 import type { WriteResult } from "../utils/result.js";
 import { AiFile } from "./ai-file.js";
 import { RulesyncFile } from "./rulesync-file.js";
@@ -118,6 +119,11 @@ export abstract class FeatureProcessor extends RulesyncSourceConsumer {
         continue;
       }
 
+      await warnIfWriteFollowsLink({
+        logger: this.logger,
+        rootPath: aiFile.getOutputRoot(),
+        targetPath: filePath,
+      });
       if (this.dryRun) {
         this.logger.info(`[DRY RUN] Would write: ${stripControlCharacters(filePath)}`);
       } else {
@@ -388,6 +394,46 @@ export async function refusesWriteOutsideRoot({
   }
   logger.warn(`Refusing to write ${quoteForLog(targetPath)}: ${reason}`);
   return true;
+}
+
+/**
+ * Warn, once per run and output path, that a write to `targetPath` goes through
+ * a symbolic link that stays inside `rootPath` and so changes another file: the
+ * warning names both the path as spelled and the real path the bytes land on.
+ *
+ * Links that lead out of the root are refused by
+ * {@link refusesWriteOutsideRoot} before this is asked; an in-root link is
+ * written through on purpose (dotfiles setups rely on it), but a committed
+ * `AGENTS.md -> .claude/CLAUDE.md` would otherwise have one target silently
+ * replace another target's file. Writers call this only for a file they are
+ * about to change (or, in a dry run, would change), so an unchanged file
+ * reached through a link stays quiet.
+ */
+export async function warnIfWriteFollowsLink({
+  logger,
+  rootPath,
+  targetPath,
+}: {
+  logger: Logger;
+  rootPath: string;
+  targetPath: string;
+}): Promise<void> {
+  const relativeLanding = await relativeWriteLanding({ rootPath, targetPath });
+  if (
+    relativeLanding === null ||
+    relativeLanding === relative(resolve(rootPath), resolve(targetPath))
+  ) {
+    return;
+  }
+  const landingPath = await writeLandingPath(targetPath);
+  if (landingPath === null) {
+    return;
+  }
+  warnOnceWithFallback(
+    logger,
+    `Writing ${quoteForLog(targetPath)} through a symbolic link: the content lands in ` +
+      `${quoteForLog(landingPath)}`,
+  );
 }
 
 /**

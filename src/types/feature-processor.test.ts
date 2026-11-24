@@ -1,4 +1,4 @@
-import { mkdir, symlink, writeFile } from "node:fs/promises";
+import { mkdir, realpath, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
@@ -499,9 +499,120 @@ describe("FeatureProcessor", () => {
 
         expect(result).toEqual({ count: 1, paths: [linkedPath] });
         expect(writeFileContent).toHaveBeenCalledWith(linkedPath, "content\n");
+        // Written through, but the file it really changes is named.
+        expect(logger.warn).toHaveBeenCalledTimes(1);
+        expect(logger.warn).toHaveBeenCalledWith(
+          `Writing ${JSON.stringify(linkedPath)} through a symbolic link: the content lands in ` +
+            `${JSON.stringify(join(await realpath(join(root, "dotfiles", ".tool")), "rules.md"))}`,
+        );
+      },
+    );
+
+    it.skipIf(process.platform === "win32")(
+      "should warn when a file link inside the output root redirects a write onto another file",
+      async () => {
+        vi.mocked(readFileContentOrNull).mockResolvedValue("# Project instructions\n");
+        const logger = createMockLogger();
+        const root = join(testDir, "root");
+        await mkdir(join(root, ".claude"), { recursive: true });
+        await writeFile(join(root, ".claude", "CLAUDE.md"), "# Project instructions\n");
+        // `AGENTS.md -> .claude/CLAUDE.md`: Codex CLI's root rule would replace
+        // Claude Code's instructions file.
+        await symlink(join(".claude", "CLAUDE.md"), join(root, "AGENTS.md"));
+        const processor = new TestProcessor({ logger, outputRoot: root });
+
+        const linkedPath = join(root, "AGENTS.md");
+        const result = await processor.writeAiFiles([
+          createMockFile(linkedPath, { outputRoot: root }),
+        ]);
+
+        expect(result).toEqual({ count: 1, paths: [linkedPath] });
+        expect(writeFileContent).toHaveBeenCalledWith(linkedPath, "content\n");
+        expect(logger.warn).toHaveBeenCalledWith(
+          `Writing ${JSON.stringify(linkedPath)} through a symbolic link: the content lands in ` +
+            `${JSON.stringify(await realpath(join(root, ".claude", "CLAUDE.md")))}`,
+        );
+      },
+    );
+
+    it.skipIf(process.platform === "win32")(
+      "should warn about a write through an in-root link in a dry run too",
+      async () => {
+        vi.mocked(readFileContentOrNull).mockResolvedValue(null);
+        const logger = createMockLogger();
+        const root = join(testDir, "root");
+        await mkdir(join(root, ".claude"), { recursive: true });
+        await writeFile(join(root, ".claude", "CLAUDE.md"), "kept\n");
+        await symlink(join(".claude", "CLAUDE.md"), join(root, "AGENTS.md"));
+        const processor = new TestProcessor({ logger, outputRoot: root, dryRun: true });
+
+        const linkedPath = join(root, "AGENTS.md");
+        await processor.writeAiFiles([createMockFile(linkedPath, { outputRoot: root })]);
+
+        expect(writeFileContent).not.toHaveBeenCalled();
+        expect(logger.info).toHaveBeenCalledWith(`[DRY RUN] Would write: ${linkedPath}`);
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining(`Writing ${JSON.stringify(linkedPath)} through a symbolic link`),
+        );
+      },
+    );
+
+    it.skipIf(process.platform === "win32")(
+      "should not warn about an in-root link whose content is already up to date",
+      async () => {
+        vi.mocked(readFileContentOrNull).mockResolvedValue("content\n");
+        const logger = createMockLogger();
+        const root = join(testDir, "root");
+        await mkdir(join(root, ".claude"), { recursive: true });
+        await writeFile(join(root, ".claude", "CLAUDE.md"), "content\n");
+        await symlink(join(".claude", "CLAUDE.md"), join(root, "AGENTS.md"));
+        const processor = new TestProcessor({ logger, outputRoot: root });
+
+        const result = await processor.writeAiFiles([
+          createMockFile(join(root, "AGENTS.md"), { outputRoot: root }),
+        ]);
+
+        expect(result).toEqual({ count: 0, paths: [] });
         expect(logger.warn).not.toHaveBeenCalled();
       },
     );
+
+    it.skipIf(process.platform === "win32")(
+      "should warn once per run when two processors write the same linked file",
+      async () => {
+        vi.mocked(readFileContentOrNull).mockResolvedValue(null);
+        const logger = createMockLogger();
+        const root = join(testDir, "root");
+        await mkdir(join(root, ".claude"), { recursive: true });
+        await writeFile(join(root, ".claude", "CLAUDE.md"), "kept\n");
+        await symlink(join(".claude", "CLAUDE.md"), join(root, "AGENTS.md"));
+        const linkedPath = join(root, "AGENTS.md");
+
+        // Codex CLI and OpenCode both write the project-root `AGENTS.md`.
+        for (const fileContent of ["codex", "opencode"]) {
+          const processor = new TestProcessor({ logger, outputRoot: root });
+          await processor.writeAiFiles([
+            createMockFile(linkedPath, { fileContent, outputRoot: root }),
+          ]);
+        }
+
+        expect(writeFileContent).toHaveBeenCalledTimes(2);
+        expect(logger.warn).toHaveBeenCalledTimes(1);
+      },
+    );
+
+    it("should not warn about a write whose path has no link on it", async () => {
+      vi.mocked(readFileContentOrNull).mockResolvedValue(null);
+      const logger = createMockLogger();
+      const processor = new TestProcessor({ logger, outputRoot: testDir });
+
+      await processor.writeAiFiles([
+        createMockFile(join(testDir, "AGENTS.md"), { outputRoot: testDir }),
+      ]);
+
+      expect(writeFileContent).toHaveBeenCalledTimes(1);
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
 
     it.skipIf(process.platform === "win32")(
       "should refuse to write through a link that lands in .git inside the output root",
