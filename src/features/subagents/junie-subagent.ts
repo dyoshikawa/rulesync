@@ -94,6 +94,25 @@ function nameFromFileName(relativeFilePath: string): string {
   return relativeFilePath.replace(/(\.agent)?\.md$/, "");
 }
 
+/**
+ * Normalizes a subagent name the way Junie does: the result is what Junie
+ * accepts for `--agent` and must match `[a-z0-9][a-z0-9_-]*`.
+ *
+ * - Surrounding whitespace is trimmed first, so a quoted `"  Code Reviewer "`
+ *   (or a file named ` Reviewer.md`) does not start or end with a hyphen,
+ *   which the leading-character rule would reject.
+ * - Uppercase letters are lowercased.
+ * - Each run of whitespace (spaces, tabs, ...) becomes a single hyphen. The
+ *   upstream docs only say Junie "replaces spaces with hyphens"; collapsing
+ *   runs gives `code-reviewer` for `Code  Reviewer`, which is the name a user
+ *   would expect and still matches the pattern, instead of `code--reviewer`.
+ *
+ * @see https://junie.jetbrains.com/docs/junie-cli-subagents.html
+ */
+export function normalizeJunieName(name: string): string {
+  return name.trim().toLowerCase().replace(/\s+/g, "-");
+}
+
 export type JunieSubagentParams = {
   frontmatter: JunieSubagentFrontmatter;
   body: string;
@@ -144,8 +163,23 @@ export class JunieSubagent extends ToolSubagent {
     return this.body;
   }
 
+  /**
+   * The name Junie resolves after normalization, so `Code Reviewer.md` and
+   * `code-reviewer.md` (both `code-reviewer`) are reported as duplicates on
+   * import instead of becoming two rulesync subagents with the same name.
+   */
+  override getImportIdentity(): string {
+    return this.getNormalizedName();
+  }
+
+  private getNormalizedName(): string {
+    return normalizeJunieName(
+      this.frontmatter.name ?? nameFromFileName(this.getRelativeFilePath()),
+    );
+  }
+
   toRulesyncSubagent(): RulesyncSubagent {
-    const { name, description, ...restFields } = this.frontmatter;
+    const { name: _name, description, ...restFields } = this.frontmatter;
 
     const junieSection: Record<string, unknown> = {
       ...restFields,
@@ -153,9 +187,7 @@ export class JunieSubagent extends ToolSubagent {
 
     const rulesyncFrontmatter: RulesyncSubagentFrontmatter = {
       targets: ["*"] as const,
-      name: (name ?? nameFromFileName(this.getRelativeFilePath()))
-        .toLowerCase()
-        .replace(/\s+/g, "-"),
+      name: this.getNormalizedName(),
       ...(description !== undefined && { description }),
       ...(Object.keys(junieSection).length > 0 && { junie: junieSection }),
     };

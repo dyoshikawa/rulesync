@@ -10,6 +10,7 @@ import {
   JunieSubagent,
   type JunieSubagentFrontmatter,
   JunieSubagentFrontmatterSchema,
+  normalizeJunieName,
 } from "./junie-subagent.js";
 import { RulesyncSubagent, type RulesyncSubagentFrontmatter } from "./rulesync-subagent.js";
 
@@ -76,6 +77,26 @@ describe("JunieSubagentFrontmatterSchema", () => {
       JunieSubagentFrontmatterSchema.parse({ description: "x", allowPromptArgument: "yes" }),
     ).toThrow();
   });
+});
+
+describe("normalizeJunieName", () => {
+  it.each([
+    ["Code Reviewer", "code-reviewer"],
+    ["Code  Reviewer", "code-reviewer"],
+    ["Code\tReviewer", "code-reviewer"],
+    ["Code \t\n Reviewer", "code-reviewer"],
+    ["  Code Reviewer ", "code-reviewer"],
+    ["\tReviewer\n", "reviewer"],
+  ])("should normalize %j to %j", (input, expected) => {
+    expect(normalizeJunieName(input)).toBe(expected);
+  });
+
+  it.each(["code-reviewer", "reviewer_2", "a", "0-agent"])(
+    "should leave the already-normalized name %j unchanged",
+    (name) => {
+      expect(normalizeJunieName(name)).toBe(name);
+    },
+  );
 });
 
 describe("JunieSubagent", () => {
@@ -375,6 +396,8 @@ describe("JunieSubagent", () => {
       ["explicit.md", { name: "Code Reviewer" }],
       ["Code Reviewer.md", {}],
       ["Code Reviewer.agent.md", {}],
+      ["padded.md", { name: "  Code\tReviewer " }],
+      [" Code  Reviewer .md", {}],
     ])("should import the normalized Junie name from %s", async (relativeFilePath, frontmatter) => {
       await writeFileContent(
         join(testDir, ".junie", "agents", relativeFilePath),

@@ -1415,6 +1415,32 @@ Body from inputRoots[0]`;
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("differs only in case"));
     });
 
+    it("should warn and keep one copy when two subagents normalize to the same name", async () => {
+      const logger = createMockLogger();
+      const collisionProcessor = new SubagentsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "junie",
+      });
+      const junieDir = join(testDir, ".junie", "agents");
+      await ensureDir(junieDir);
+
+      // Junie resolves both files to `code-reviewer`, so importing both would
+      // give the generated tools two subagents of the same name.
+      await writeFileContent(
+        join(junieDir, "Code Reviewer.md"),
+        "---\ndescription: Spaced\n---\nSpaced content",
+      );
+      await writeFileContent(join(junieDir, "code-reviewer.md"), junieSubagentMd("code-reviewer"));
+
+      const toolFiles = await collisionProcessor.loadToolFiles();
+
+      expect(toolFiles).toHaveLength(1);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Duplicate junie subagent "code-reviewer"'),
+      );
+    });
+
     it("should not delete files in the .agents import root (forDeletion targets .junie/agents only)", async () => {
       const junieDir = join(testDir, ".junie", "agents");
       const sharedDir = join(testDir, ".agents");
