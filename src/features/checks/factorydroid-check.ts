@@ -13,24 +13,22 @@ import { type ToolCheckSettablePaths } from "./tool-check.js";
  *
  * rulesync never writes frontmatter here, but a user who authored this path as
  * an ordinary skill did, and that block is the skill's metadata rather than
- * review instructions. Writing the check back out hands the body to
- * gray-matter's `stringify`, which re-parses whatever leads it and *merges*
- * those keys into the frontmatter it is given — so a `severity: bogus` copied
- * out of a skill would fail `.rulesync/checks/` validation for a file rulesync
- * had just written, and a stray `name: [unclosed` would make the import throw
- * a raw YAML error.
+ * review instructions. Left in place it would be carried into the body of
+ * the check written to `.rulesync/checks/` as a block of YAML right behind
+ * that file's own frontmatter, where a `severity: bogus` copied out of a skill
+ * looks like the check's own setting to anyone reading or editing it.
  *
- * The block is therefore found the way gray-matter finds it rather than by
- * parsing it, so that what gray-matter would have swallowed is what goes: the
- * opening delimiter may carry a language name (`---yaml`), but four dashes are
- * a horizontal rule gray-matter itself skips. The one deliberate difference is
- * a fence nothing closes: gray-matter would swallow the rest of the file, so
- * only the rule line goes and the prose under it is kept.
+ * The block is therefore found the way `parseFrontmatter` finds it rather than
+ * by parsing it, so that what the parser would have read as frontmatter is
+ * what goes: the opening delimiter may carry a language name (`---yaml`), but
+ * four dashes are a horizontal rule the parser itself skips. The one
+ * deliberate difference is a fence nothing closes: the parser would take the
+ * rest of the file, so only the rule line goes and the prose under it is kept.
  */
-// `(?!-)` mirrors gray-matter's own "next character is a delimiter, so this is
+// `(?!-)` mirrors the parser's own "next character is a delimiter, so this is
 // not front matter" test; the rest of the line is the language name it reads.
 const FRONTMATTER_OPEN_PATTERN = /^\uFEFF?---(?!-)[^\r\n]*\r?\n/;
-// gray-matter ends the block at the first `\n---`, with no requirement that the
+// The parser ends the block at the first `\n---`, with no requirement that the
 // delimiter be alone on its line, and drops one newline after it. It starts
 // that search at the newline of the opening line, which the opening pattern
 // above has already consumed — so `^---` is the same delimiter seen from here,
@@ -41,10 +39,10 @@ const LEADING_BLANK_LINE_PATTERN = /^[^\S\r\n]*\r?\n/;
 
 function stripSkillFrontmatter(fileContent: string): string {
   let content = fileContent;
-  // A loop, not a single pass: gray-matter takes only the leading block, so a
-  // second one written immediately behind the first would lead the body and be
-  // merged into the check's own frontmatter on the way out. A block further
-  // down is ordinary content and the loop stops before it.
+  // A loop, not a single pass: the parser takes only the leading block, so a
+  // second one written immediately behind the first would be left leading the
+  // check's body. A block further down is ordinary content and the loop stops
+  // before it.
   for (;;) {
     const opening = FRONTMATTER_OPEN_PATTERN.exec(content);
     if (!opening) {

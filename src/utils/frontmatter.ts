@@ -1,7 +1,7 @@
 import { join } from "node:path";
 
-import matter from "gray-matter";
 import { dump } from "js-yaml";
+import { dump as dumpYamlV4, load as loadYamlV4 } from "js-yaml-v4";
 import type { z } from "zod/mini";
 
 import type { ValidationResult } from "../types/ai-file.js";
@@ -12,7 +12,6 @@ import { toPosixPath } from "./file.js";
 import { warnOnceWithFallback } from "./logger.js";
 import { isPrototypePollutionKey } from "./prototype-pollution.js";
 import { isPlainObject } from "./type-guards.js";
-import { loadYaml } from "./yaml.js";
 
 /**
  * Upper bound on the number of values a frontmatter document may expand to
@@ -70,10 +69,10 @@ export const MAX_FRONTMATTER_DEPTH = 64;
  * block itself, checked before it is ever handed to the YAML parser.
  *
  * The budgets above only bound the *parsed* document — the walk over
- * `matter()`'s output — but a complex YAML key (an array or mapping used as a
+ * the parser's output — but a complex YAML key (an array or mapping used as a
  * mapping key) is joined into a string by js-yaml while it parses, and a
  * mapping with many such keys can cost real memory before that walk ever
- * starts, or even before `matter()` returns. Capping the raw block size keeps
+ * starts, or even before the parser returns. Capping the raw block size keeps
  * that parse-time cost bounded regardless of what the block contains. Real
  * frontmatter blocks are a few hundred bytes at most; even a large project
  * manifest stays well under this.
@@ -110,8 +109,8 @@ function estimateLeafChars(value: unknown): number {
 /**
  * Copy one parsed value, dropping nullish leaves and cyclic references.
  *
- * Every alias is still written out as an independent copy, as gray-matter's
- * default YAML engine would otherwise serialize shared references as `&ref_0`
+ * Every alias is still written out as an independent copy, as js-yaml's
+ * dumper would otherwise serialize shared references as `&ref_0`
  * anchors that simplified frontmatter parsers cannot read; the expansion is
  * bounded by {@link MAX_FRONTMATTER_VALUES} instead.
  */
@@ -252,76 +251,28 @@ export function stringifyFrontmatter(
     ? deepFlattenStringsObject(frontmatter)
     : deepRemoveNullishObject(frontmatter);
 
-  // Pass a pre-split file object rather than the raw body string. When
-  // gray-matter's `file` argument is a string, `matter.stringify` re-parses
-  // that whole string as a document and merges the result's `data` under
-  // `cleanFrontmatter` before turning the result into a string — so a body that itself contains a
-  // `---`-delimited block (a fenced YAML example inside a skill's
-  // instructions, say) would inject its own frontmatter keys into the output
-  // unsanitized, bypassing every budget above. Passing `{ content: body }`
-  // skips that re-parse: `file.data` is left `undefined`, so gray-matter
-  // merges nothing extra in and the body is carried through byte-for-byte.
-  const file = { content: body };
+  // With lineWidth disabled js-yaml never folds a long string into a block
+  // scalar (>- or |-). Some tools use simplified frontmatter parsers that read
+  // those indicators as literal string values. The default output is dumped
+  // with js-yaml 4, as gray-matter did in this repository and the release
+  // binaries through its pnpm override, because
+  // v5 stops folding a long string that has no space to break at and would
+  // change files on regeneration.
+  const yaml = (
+    avoidBlockScalars ? dump(cleanFrontmatter, { lineWidth: -1 }) : dumpYamlV4(cleanFrontmatter)
+  ).trim();
 
-  if (avoidBlockScalars) {
-    // Use a custom YAML engine with lineWidth disabled to prevent js-yaml from
-    // emitting block scalars (>- or |-). Some tools use simplified frontmatter
-    // parsers that interpret these indicators as literal string values.
-    return matter.stringify(file, cleanFrontmatter, {
-      engines: {
-        yaml: {
-          parse: (input: string) => loadYaml(input) ?? {},
-          stringify: (data: object) => dump(data, { lineWidth: -1 }),
-        },
-      },
-    });
-  }
-
-  return matter.stringify(file, cleanFrontmatter);
+  // The body is carried through byte-for-byte and never re-parsed, so a body
+  // that itself opens with a `---`-delimited block (a fenced YAML example
+  // inside a skill's instructions, say) cannot inject keys into the output.
+  // An empty mapping writes no fence at all, just the body.
+  const head = yaml === "{}" ? "" : `---\n${yaml}\n---\n`;
+  return head + withTrailingNewline(body);
 }
 
-/**
- * Thrown in place of gray-matter's built-in JavaScript engine.
- *
- * gray-matter picks the parser from the text after the opening fence, so a
- * file that opens with `---js` or `---javascript` has its frontmatter handed
- * to `eval()`. Frontmatter here comes from third-party skills, fetched sources
- * and untrusted repositories, so that would run arbitrary code on the machine
- * of whoever generates or imports it. Every engine name that resolves to code
- * execution is mapped to this refusal; {@link assertYamlFrontmatterLanguage}
- * refuses those fences earlier still, so this is the second line of defense.
- */
-function refuseExecutableFrontmatter(): never {
-  throw new Error(
-    "Frontmatter written in an executable language (JavaScript / CoffeeScript) is not supported; use YAML",
-  );
+function withTrailingNewline(text: string): string {
+  return text.endsWith("\n") ? text : `${text}\n`;
 }
-
-const REFUSED_FRONTMATTER_ENGINE = {
-  parse: refuseExecutableFrontmatter,
-  stringify: refuseExecutableFrontmatter,
-};
-
-/**
- * Engines passed to every gray-matter parse. Supplying them merges over
- * gray-matter's defaults, so the JavaScript engine (and the CoffeeScript names
- * a plugin could register) can never be reached through an alias.
- *
- * `patches/gray-matter@4.0.3.patch` also deletes the JavaScript engine, but a
- * pnpm patch only applies inside this repository: gray-matter is an external
- * dependency of the published package, so an installed rulesync runs the
- * unpatched gray-matter, and this override plus the language check are what
- * protect it. Exported for the test that pins that.
- */
-export const FRONTMATTER_PARSE_OPTIONS = {
-  engines: {
-    javascript: REFUSED_FRONTMATTER_ENGINE,
-    js: REFUSED_FRONTMATTER_ENGINE,
-    coffee: REFUSED_FRONTMATTER_ENGINE,
-    coffeescript: REFUSED_FRONTMATTER_ENGINE,
-    cson: REFUSED_FRONTMATTER_ENGINE,
-  },
-};
 
 /** Frontmatter languages accepted after the opening `---` fence. */
 const ALLOWED_FRONTMATTER_LANGUAGE_PATTERN = /^(?:ya?ml)?$/i;
@@ -331,7 +282,7 @@ type FrontmatterFence = {
   language: string;
   /**
    * Offset in `content` of the fence line's line break, or `undefined` when
-   * the content has no line break at all. gray-matter looks for the closing
+   * the content has no line break at all. The splitter looks for the closing
    * `\n---` from here, so an empty block (`---\n---`) closes on this very
    * line break.
    */
@@ -341,17 +292,18 @@ type FrontmatterFence = {
 };
 
 /**
- * Read the opening frontmatter fence the way gray-matter does, or return
- * `undefined` when gray-matter would see no frontmatter at all.
+ * Read the opening frontmatter fence, or return `undefined` when the content
+ * carries no frontmatter at all.
  *
- * gray-matter strips one byte order mark, treats `---` as a fence only when a
- * fourth `-` does not follow, and takes the language from the text between the
- * fence and the first `\r?\n`, trimmed — dropping the last character when
- * there is no line break at all. Every check below that has to agree with
- * gray-matter on where the block is (the language check, the size guard, the
- * repair pass) goes through this one reading, so none of them can be bypassed
- * by a fence line gray-matter accepts and a stricter pattern would not (a
- * stray `\r` before the line break, say).
+ * The grammar is gray-matter's, which rulesync used to depend on, kept so that
+ * every file reads the same as before: one byte order mark is skipped, `---`
+ * is a fence only when a fourth `-` does not follow, and the language is the
+ * text between the fence and the first `\r?\n`, trimmed — dropping the last
+ * character when there is no line break at all. Every check that has to agree
+ * with {@link splitFrontmatter} on where the block is (the language check and
+ * the repair pass) goes through this one reading, so none of them
+ * can be bypassed by a fence line the splitter accepts and a stricter pattern
+ * would not (a stray `\r` before the line break, say).
  */
 function readFrontmatterFence(content: string): FrontmatterFence | undefined {
   const offset = content.startsWith("\uFEFF") ? 1 : 0;
@@ -372,9 +324,11 @@ function readFrontmatterFence(content: string): FrontmatterFence | undefined {
 /**
  * Refuse a frontmatter fence that names any language other than YAML.
  *
- * Only YAML is ever written by rulesync or by the tools it targets, so anything
- * else — `---js` above all, whose block gray-matter would `eval()` — is
- * rejected before gray-matter sees the content.
+ * Only YAML is ever written by rulesync or by the tools it targets. Generic
+ * frontmatter libraries pick a parser from the fence language, and some hand a
+ * `---js` block to `eval()`; rulesync parses everything as YAML, and refusing
+ * any other language keeps a file meant for such a parser from being read as
+ * something it is not.
  */
 function assertYamlFrontmatterLanguage(content: string): void {
   const fence = readFrontmatterFence(content);
@@ -386,19 +340,60 @@ function assertYamlFrontmatterLanguage(content: string): void {
 }
 
 /**
- * The number of characters gray-matter would hand to the YAML parser as the
- * frontmatter block. Unlike {@link findFrontmatterBlockBounds}, a missing
- * closing fence does not make this zero: gray-matter then parses everything
- * after the fence line, so that is what the size guard has to measure.
+ * Split `content` into its raw frontmatter block and its body, the way
+ * gray-matter 4 did (see {@link readFrontmatterFence}).
+ *
+ * The block ends at the first `\n---`, with no requirement that the delimiter
+ * be alone on its line, and one line break after it is dropped from the body.
+ * A fence nothing closes makes the rest of the file the block and leaves the
+ * body empty. Without a fence, `block` is `""` and the body is the content
+ * minus a leading byte order mark.
  */
-function measureFrontmatterBlockChars(content: string): number {
-  const fence = readFrontmatterFence(content);
-  if (fence?.lineBreakStart === undefined) {
-    return 0;
+// Keep in step with readFrontmatterFence: both read the BOM, the `----` rule
+// and the fence language the same way. They stay separate because the
+// splitter must reproduce gray-matter's quirk of keeping a whitespace-only
+// language in the block, which the fence reading has no use for.
+function splitFrontmatter(content: string): { block: string; body: string } {
+  const text = content.startsWith("\uFEFF") ? content.slice(1) : content;
+  if (!text.startsWith("---") || text.charAt(3) === "-") {
+    return { block: "", body: text };
   }
-  const rest = content.slice(fence.lineBreakStart);
+
+  let rest = text.slice(3);
+  // `search` returns -1 without a line break, so the slice then drops the last
+  // character; readFrontmatterFence reads the language the same way.
+  const rawLanguage = rest.slice(0, rest.search(/\r?\n/));
+  if (rawLanguage.trim() !== "") {
+    rest = rest.slice(rawLanguage.length);
+  }
+
   const closeIndex = rest.indexOf("\n---");
-  return closeIndex === -1 ? rest.length : closeIndex;
+  if (closeIndex === -1) {
+    return { block: rest, body: "" };
+  }
+
+  let body = rest.slice(closeIndex + "\n---".length);
+  if (body.startsWith("\r")) {
+    body = body.slice(1);
+  }
+  if (body.startsWith("\n")) {
+    body = body.slice(1);
+  }
+  return { block: rest.slice(0, closeIndex), body };
+}
+
+/**
+ * Whether a raw block holds nothing but blank and comment lines. Checked line
+ * by line rather than with gray-matter's `/^\s*#[^\n]+/gm`, whose `\s*` also
+ * spans line breaks and backtracks quadratically on a long run of blank lines.
+ * The one known difference: a lone `\r` now ends a comment line, as it does
+ * in YAML, where the old pattern let the comment run on past it.
+ */
+function isBlankFrontmatterBlock(block: string): boolean {
+  return block.split(/\r\n|\r|\n/).every((line) => {
+    const trimmed = line.trim();
+    return trimmed === "" || trimmed.startsWith("#");
+  });
 }
 
 export function parseFrontmatter(
@@ -414,7 +409,11 @@ export function parseFrontmatter(
   let hasFrontmatter: boolean;
   try {
     assertYamlFrontmatterLanguage(content);
-    if (measureFrontmatterBlockChars(content) > MAX_FRONTMATTER_RAW_CHARS) {
+    // Measured on the block the splitter actually returns, so the guard and
+    // the parser can never disagree on what the block is (a whitespace-only
+    // fence language or a file with no line break at all, say).
+    const split = splitFrontmatter(content);
+    if (split.block.length > MAX_FRONTMATTER_RAW_CHARS) {
       // A complex YAML key (an array or mapping used as a mapping key) costs
       // real memory inside js-yaml while it parses, before any post-parse
       // budget above ever runs. Refusing an oversized block outright keeps
@@ -424,28 +423,23 @@ export function parseFrontmatter(
       );
     }
 
-    // Passing an options object is what turns gray-matter's content cache
-    // off, and it has to stay off. The cache is written *before* the YAML is
-    // parsed, so a file that throws leaves an entry behind whose `data` is
-    // empty and whose `content` is the whole unparsed file; the next parse of
-    // identical content — the same malformed skill vendored under two
-    // directories, say — hits that entry and returns empty frontmatter with the
-    // frontmatter text spilled into the body, instead of reporting the error
-    // again. Caching a parse this cheap is not worth failing silently.
-    // The options also replace the executable engines; see
-    // FRONTMATTER_PARSE_OPTIONS.
-    const result = matter(content, FRONTMATTER_PARSE_OPTIONS);
+    // js-yaml 4, not the js-yaml 5 the rest of rulesync uses: v5 is stricter
+    // (it rejects, for one, a flow list whose closing `]` sits at column 0)
+    // and drops v4's default timestamp, merge and binary tags, so it would
+    // refuse or misread frontmatter that has always been accepted.
+    const data = isBlankFrontmatterBlock(split.block) ? {} : loadYamlV4(split.block);
     // Strip null/undefined values from parsed frontmatter for consistency.
     // YAML parses bare keys (e.g. "description:") as null, which would fail
     // Zod validation (z.optional(z.string()) does not accept null). The same
     // walk drops cyclic aliases and prototype keys and refuses a document that
     // expands past MAX_FRONTMATTER_VALUES, so it belongs with the parse errors.
-    frontmatter = deepRemoveNullishObject(result.data);
-    body = result.content;
-    // gray-matter returns an empty .matter string and sets .content equal to
-    // the original input when no YAML frontmatter fence (---) is present.
-    // Use this to detect whether the file actually contained frontmatter.
-    hasFrontmatter = result.matter !== "" || content.trimStart().startsWith("---");
+    // A scalar block (not a mapping) yields `{}`.
+    frontmatter = deepRemoveNullishObject(data as Record<string, unknown> | null | undefined);
+    body = split.body;
+    // An empty file has always counted as carrying (empty) frontmatter; keep
+    // it that way so an empty command or skill file is not newly rejected as
+    // missing its frontmatter.
+    hasFrontmatter = content === "" || split.block !== "" || content.trimStart().startsWith("---");
   } catch (error) {
     if (filePath) {
       throw new Error(`Failed to parse frontmatter in ${filePath}: ${formatError(error)}`, {
@@ -529,11 +523,11 @@ function repairFrontmatterLine(line: string): RepairedLine {
 /**
  * Locate a raw `---`-delimited frontmatter block's bounds within `content`,
  * without parsing it, for the YAML repair pass below and the rule loaders that
- * pre-process `globs:`. The opening fence is read exactly as gray-matter reads
+ * pre-process `globs:`. The opening fence is read exactly as the splitter reads
  * it ({@link readFrontmatterFence}); an explicit `yaml` / `yml` language is
- * still YAML, any other language yields no bounds. gray-matter ends the block
+ * still YAML, any other language yields no bounds. The splitter ends the block
  * at the first `\n---`, with no requirement that the delimiter be alone on its
- * line, so a stricter pattern here would run past gray-matter's delimiter and
+ * line, so a stricter pattern here would run past the splitter's delimiter and
  * act on text that is really the body. A block with no closing fence has no
  * bounds; the size guard measures that case separately.
  */
@@ -550,7 +544,7 @@ export function findFrontmatterBlockBounds(
   }
 
   const blockStart = fence.lineEnd;
-  // Search from the fence line's own line break, as gray-matter does, so an
+  // Search from the fence line's own line break, as the splitter does, so an
   // empty block (`---\n---`) closes there instead of at a later `---` in the
   // body.
   const closing = /\r?\n---/.exec(content.slice(fence.lineBreakStart));

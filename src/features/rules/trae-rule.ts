@@ -228,8 +228,8 @@ export class TraeRule extends ToolRule {
    * before parsing, inside the frontmatter block only so the body is never
    * rewritten. A quoted value, a YAML flow list, a null or boolean keyword and a
    * block scalar indicator (`|`, `>`) are left alone. The block bounds are
-   * gray-matter's own (it closes the block at the first `\n---`, even inside a
-   * `----` line), so the quoting never reaches text gray-matter reads as body.
+   * `parseFrontmatter`'s own (it closes the block at the first `\n---`, even
+   * inside a `----` line), so the quoting never reaches text it reads as body.
    */
   private static parseTraeFrontmatter(
     fileContent: string,

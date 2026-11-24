@@ -285,7 +285,7 @@ describe("FactorydroidCheck", () => {
         })
       ).toRulesyncChecks();
 
-      // gray-matter closes the block at the first `\n---` whatever follows it on
+      // The frontmatter parser closes the block at the first `\n---` whatever follows it on
       // that line, so the strip has to end there too or the broken YAML stays.
       expect(imported[0]!.getBody()).toBe("extra\nCheck Prisma queries.");
     });
@@ -300,7 +300,7 @@ describe("FactorydroidCheck", () => {
         })
       ).toRulesyncChecks();
 
-      // gray-matter reads the rest of that line as an engine name and parses
+      // The frontmatter parser reads the rest of that line as a language name and parses
       // the block, so a `---yaml` fence left in place leaks its keys too.
       expect(imported[0]!.getBody()).toBe("Check Prisma queries.");
       expect(imported[0]!.getFrontmatter()).toEqual({ targets: ["*"] });
@@ -316,7 +316,7 @@ describe("FactorydroidCheck", () => {
         })
       ).toRulesyncChecks();
 
-      // gray-matter looks for the closing `\n---` from the newline of the
+      // The frontmatter parser looks for the closing `\n---` from the newline of the
       // opening line, so two adjacent delimiters are an empty block rather
       // than a fence nothing closes.
       expect(imported[0]!.getBody()).toBe("Check Prisma queries.");
@@ -346,7 +346,7 @@ describe("FactorydroidCheck", () => {
         })
       ).toRulesyncChecks();
 
-      // gray-matter stops at a fourth dash, so this is content, not a fence.
+      // The frontmatter parser stops at a fourth dash, so this is content, not a fence.
       expect(imported[0]!.getBody()).toContain("----------");
     });
 
@@ -362,8 +362,8 @@ describe("FactorydroidCheck", () => {
         })
       ).toRulesyncChecks();
 
-      // gray-matter merges the keys of whatever leads the body into the
-      // frontmatter it is handed, so a second adjacent block leaks too.
+      // A second adjacent block would otherwise be left leading the check's
+      // body, so it goes too.
       expect(imported[0]!.getBody()).toBe("Rule.");
       expect(imported[0]!.getFrontmatter()).toEqual({ targets: ["*"] });
     });

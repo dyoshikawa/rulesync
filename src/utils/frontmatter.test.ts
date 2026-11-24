@@ -5,7 +5,6 @@ import { z } from "zod/mini";
 
 import {
   findFrontmatterBlockBounds,
-  FRONTMATTER_PARSE_OPTIONS,
   MAX_FRONTMATTER_DEPTH,
   MAX_FRONTMATTER_RAW_CHARS,
   MAX_FRONTMATTER_STRING_CHARS,
@@ -16,34 +15,6 @@ import {
   validateFrontmatterSchema,
 } from "./frontmatter.js";
 import { fallbackLogger } from "./logger.js";
-
-// Hoisted mock for gray-matter - used by specific tests
-const mockMatter = vi.hoisted(() => ({
-  shouldThrow: false,
-  errorMessage: "YAML parse error from mock",
-}));
-
-vi.mock("gray-matter", async () => {
-  const actualModule = await vi.importActual<typeof import("gray-matter")>("gray-matter");
-  // gray-matter is a CommonJS module that exports a function directly
-  // vi.importActual returns the module object, but with esModuleInterop, the function is on .default
-  const actualFn =
-    (actualModule as unknown as { default: typeof actualModule }).default || actualModule;
-
-  const mockedMatter = vi.fn((...args: Parameters<typeof actualFn>) => {
-    if (mockMatter.shouldThrow) {
-      throw new Error(mockMatter.errorMessage);
-    }
-    return actualFn(...args);
-  });
-  // Copy over all properties from the original module
-  const mockedModule = Object.assign(mockedMatter, {
-    stringify: actualModule.stringify,
-    test: actualModule.test,
-    language: actualModule.language,
-  });
-  return { default: mockedModule };
-});
 
 /** A frontmatter document whose `metadata` holds `levels` nested YAML aliases of `width` items each. */
 function aliasChain(levels: number, width: number): string {
@@ -639,13 +610,10 @@ const code = "preserved";
     it.each([{ avoidBlockScalars: false }, { avoidBlockScalars: true }])(
       "should not let a body containing a `---`-delimited block inject its own frontmatter keys (avoidBlockScalars: $avoidBlockScalars)",
       ({ avoidBlockScalars }) => {
-        // gray-matter's `matter.stringify` re-parses a string `file` argument as
-        // a whole document, merging whatever frontmatter it finds inside the
-        // body under the caller-supplied data before sanitizing. A body that
-        // itself contains a `---`-delimited block (e.g. a fenced YAML example
-        // inside a skill's instructions) could smuggle keys past the cleaner
-        // that way. stringifyFrontmatter must pass a pre-split file object
-        // instead, so the body is never re-parsed as frontmatter.
+        // A body that itself contains a `---`-delimited block (e.g. a fenced
+        // YAML example inside a skill's instructions) must never be re-parsed
+        // as frontmatter and merged into the output, or it could smuggle keys
+        // past the cleaner.
         const body = ["Example:", "---", "allowed-tools: Bash(*)", "---", "More text."].join("\n");
 
         const output = stringifyFrontmatter(body, { name: "safe-skill" }, { avoidBlockScalars });
@@ -754,23 +722,15 @@ const code = "preserved";
     });
 
     it("should re-throw original error when no file path provided", () => {
-      // Configure mock to throw deterministically
-      mockMatter.shouldThrow = true;
-      mockMatter.errorMessage = "YAML parse error from mock";
+      const content = "---\na: {\n---\nbody";
 
-      const content = "any content";
-
-      // Verify the error is re-thrown without file path wrapping
       try {
         parseFrontmatter(content);
         expect.unreachable("should have thrown");
       } catch (error) {
+        expect((error as Error).name).toBe("YAMLException");
         expect((error as Error).message).not.toMatch(/Failed to parse frontmatter in/);
-        expect((error as Error).message).toBe("YAML parse error from mock");
       }
-
-      // Reset mock
-      mockMatter.shouldThrow = false;
     });
   });
 
@@ -821,23 +781,6 @@ const code = "preserved";
       expect(globals.__RULESYNC_FRONTMATTER_PWNED__).toBeUndefined();
     });
 
-    it("should keep the patched gray-matter free of its eval-based JavaScript engine", async () => {
-      const actualModule = await vi.importActual<typeof import("gray-matter")>("gray-matter");
-      const actualMatter =
-        (actualModule as unknown as { default: typeof actualModule }).default || actualModule;
-
-      // gray-matter's typings do not declare the `engines` export.
-      const { engines } = actualMatter as unknown as { engines: Record<string, unknown> };
-      expect(Object.hasOwn(engines, "javascript")).toBe(false);
-      expect(() =>
-        actualMatter(
-          '---js\n{ name: (globalThis.__RULESYNC_FRONTMATTER_PWNED__ = 1, "x") }\n---\n',
-          {},
-        ),
-      ).toThrow(/engine "js" is not registered/);
-      expect(globals.__RULESYNC_FRONTMATTER_PWNED__).toBeUndefined();
-    });
-
     it.each(["---yaml", "---yml", "--- YAML "])(
       "should still parse an explicit %j fence",
       (fence) => {
@@ -849,7 +792,7 @@ const code = "preserved";
     );
 
     it.each(["---\r\r\n", "---yaml\r\r\n", "--- \r\n"])(
-      "should apply the size guard to a %j fence line gray-matter accepts",
+      "should apply the size guard to a %j fence line the splitter accepts",
       (fence) => {
         const content = `${fence}description: "${"a".repeat(MAX_FRONTMATTER_RAW_CHARS)}"\n---\nBody`;
 
@@ -875,40 +818,38 @@ const code = "preserved";
       expect(findFrontmatterBlockBounds(content)).toEqual({ blockStart: 4, blockEnd: 4 });
     });
 
-    it("should apply the size guard to a block with no closing fence", () => {
-      const content = `---\ndescription: "${"a".repeat(MAX_FRONTMATTER_RAW_CHARS)}"\n`;
+    it("should apply the size guard to blank text hidden behind a whitespace-only fence language", () => {
+      // The fence line's trailing blanks stay in the block, and with `\r` as
+      // the only separator there is no `\n` before the closing fence; the guard
+      // has to count all of it.
+      const content = `---${" \r".repeat(40_000)}\nname: x\n---\nBody`;
 
       expect(() => parseFrontmatter(content)).toThrow(/Frontmatter block is larger than/);
     });
 
-    it("should refuse a JavaScript fence even when gray-matter still ships its eval engine", async () => {
-      // The pnpm patch that removes gray-matter's JavaScript engine only applies
-      // inside this repository; an installed rulesync gets the unpatched
-      // package. Re-register an eval-based engine to stand in for it and check
-      // that the engine overrides passed by parseFrontmatter still win.
-      const actualModule = await vi.importActual<typeof import("gray-matter")>("gray-matter");
-      const actualMatter =
-        (actualModule as unknown as { default: typeof actualModule }).default || actualModule;
-      // gray-matter's typings do not declare the `engines` export.
-      const { engines } = actualMatter as unknown as { engines: Record<string, unknown> };
-      engines.javascript = {
-        parse: (input: string) => {
-          // eslint-disable-next-line no-eval -- deliberately mirrors the upstream engine
-          return (0, eval)(`(${input})`);
-        },
-      };
-      try {
-        const content =
-          '---js\n{ name: (globalThis.__RULESYNC_FRONTMATTER_PWNED__ = 1, "x") }\n---\n';
-        // Bypass the language check to exercise the engine overrides alone.
-        expect(() => actualMatter(content, FRONTMATTER_PARSE_OPTIONS)).toThrow(
-          /executable language/,
-        );
-        expect(() => parseFrontmatter(content)).toThrow(/Unsupported frontmatter language/);
-        expect(globals.__RULESYNC_FRONTMATTER_PWNED__).toBeUndefined();
-      } finally {
-        delete engines.javascript;
-      }
+    it("should apply the size guard to a file with no line break at all", () => {
+      expect(() => parseFrontmatter(`---${" ".repeat(MAX_FRONTMATTER_RAW_CHARS + 1)}x`)).toThrow(
+        /Frontmatter block is larger than/,
+      );
+    });
+
+    it("should read a long run of blank lines within the size guard in linear time", () => {
+      const content = `---\n${"\n".repeat(MAX_FRONTMATTER_RAW_CHARS - 2)}\n---\nBody`;
+      const startedAt = performance.now();
+
+      expect(parseFrontmatter(content)).toEqual({
+        frontmatter: {},
+        body: "Body",
+        hasFrontmatter: true,
+      });
+      // The former `/^\s*#[^\n]+/gm` check took about 10 s on this input.
+      expect(performance.now() - startedAt).toBeLessThan(3000);
+    });
+
+    it("should apply the size guard to a block with no closing fence", () => {
+      const content = `---\ndescription: "${"a".repeat(MAX_FRONTMATTER_RAW_CHARS)}"\n`;
+
+      expect(() => parseFrontmatter(content)).toThrow(/Frontmatter block is larger than/);
     });
 
     it("should apply the size guard to an explicit yaml fence", () => {
@@ -924,16 +865,13 @@ const code = "preserved";
     });
   });
 
-  // Regression tests for issue #1973: verify that the gray-matter js-yaml
-  // override (PR #1959) is actually effective. The patch rewrites gray-matter's
-  // YAML engine from the deprecated js-yaml v3 API (safeLoad/safeDump) to the
-  // js-yaml v4 API (load/dump). If the patch is silently dropped by a future
-  // `pnpm install`, these tests will catch the regression.
-  describe("js-yaml v4 engine regression (issue #1973)", () => {
+  // Frontmatter used to be read by gray-matter on js-yaml 4. It is now split
+  // in-house and still parsed with js-yaml 4 (the `js-yaml-v4` alias), so
+  // every file reads as it did in this repository and the release binaries.
+  describe("YAML schema compatibility", () => {
     it("should parse YAML 1.2 scalars correctly (yes/no as strings, not booleans)", () => {
-      // js-yaml v3 (YAML 1.1) parses yes/no/on/off as booleans.
-      // js-yaml v4 (YAML 1.2 core schema) parses them as strings.
-      // This difference is the most reliable way to detect which engine is active.
+      // YAML 1.1 parses yes/no/on/off as booleans; the core schema keeps them
+      // as strings.
       const content = `---
 flag: yes
 status: no
@@ -943,16 +881,14 @@ Body.`;
 
       const result = parseFrontmatter(content);
 
-      // With js-yaml v4, these should be strings, not booleans
       expect(result.frontmatter.flag).toBe("yes");
       expect(result.frontmatter.status).toBe("no");
       expect(result.frontmatter.toggle).toBe("on");
     });
 
     it("should not line-wrap long strings when avoidBlockScalars is true (lineWidth: -1)", () => {
-      // The custom engine override in stringifyFrontmatter uses lineWidth: -1
-      // to prevent js-yaml from wrapping long lines. If the override is not
-      // applied, js-yaml's default lineWidth of 80 would cause wrapping.
+      // stringifyFrontmatter dumps with lineWidth: -1 here; js-yaml's default
+      // lineWidth of 80 would wrap the value.
       const body = "Body";
       const veryLongValue =
         "This is an intentionally very long string value that exceeds the default " +
@@ -973,9 +909,7 @@ Body.`;
       expect(descriptionLine).toContain(veryLongValue);
     });
 
-    it("should round-trip correctly with avoidBlockScalars custom engine", () => {
-      // Verify that stringify (with custom engine) and parse (with patched default
-      // engine) are consistent — both use js-yaml v4.
+    it("should round-trip correctly with avoidBlockScalars", () => {
       const body = "Body content";
       const frontmatter = {
         name: "test-agent",
@@ -991,6 +925,116 @@ Body.`;
       expect(parsed.frontmatter.description).toBe(frontmatter.description);
       expect(parsed.frontmatter.targets).toEqual(["claudecode", "cursor"]);
       expect(parsed.hasFrontmatter).toBe(true);
+    });
+
+    it("should read js-yaml v4 default-schema tags the way gray-matter did", () => {
+      const content = [
+        "---",
+        "created: 2024-01-01",
+        "base: &base { a: 1 }",
+        "merged:",
+        "  <<: *base",
+        "  b: 2",
+        "blob: !!binary aGk=",
+        "? [x, y]",
+        ": joined",
+        "---",
+        "Body",
+      ].join("\n");
+
+      const { frontmatter } = parseFrontmatter(content);
+
+      expect(frontmatter.created).toEqual(new Date("2024-01-01"));
+      expect(frontmatter.merged).toEqual({ a: 1, b: 2 });
+      expect(frontmatter.blob).toEqual(new Uint8Array([104, 105]));
+      expect(frontmatter["x,y"]).toBe("joined");
+    });
+  });
+
+  describe("frontmatter splitting", () => {
+    it.each([
+      { name: "a byte order mark", content: "\uFEFF---\na: 1\n---\nBody", body: "Body" },
+      { name: "CRLF line endings", content: "---\r\na: 1\r\n---\r\nBody\r\n", body: "Body\r\n" },
+      {
+        name: "a closing fence with trailing text",
+        content: "---\na: 1\n--- x\nBody",
+        body: " x\nBody",
+      },
+      { name: "a closing `----` line", content: "---\na: 1\n----\nBody", body: "-\nBody" },
+      { name: "a blank line after the fence", content: "---\na: 1\n---\n\nBody", body: "\nBody" },
+    ])("should split frontmatter with $name", ({ content, body }) => {
+      const result = parseFrontmatter(content);
+
+      expect(result.frontmatter).toEqual({ a: 1 });
+      expect(result.body).toBe(body);
+      expect(result.hasFrontmatter).toBe(true);
+    });
+
+    it("should take the rest of the file as the block when no fence closes it", () => {
+      const result = parseFrontmatter("---\na: 1\nb: 2\n");
+
+      expect(result.frontmatter).toEqual({ a: 1, b: 2 });
+      expect(result.body).toBe("");
+    });
+
+    it("should read a comment-only block as empty frontmatter", () => {
+      const result = parseFrontmatter("---\n# just a comment\n---\nBody");
+
+      expect(result.frontmatter).toEqual({});
+      expect(result.body).toBe("Body");
+      expect(result.hasFrontmatter).toBe(true);
+    });
+
+    it("should read a scalar block as empty frontmatter", () => {
+      expect(parseFrontmatter("---\njust text\n---\nBody").frontmatter).toEqual({});
+    });
+
+    it("should count an empty file as having empty frontmatter", () => {
+      expect(parseFrontmatter("")).toEqual({ frontmatter: {}, body: "", hasFrontmatter: true });
+    });
+
+    it("should leave content without a fence untouched apart from a byte order mark", () => {
+      expect(parseFrontmatter("\uFEFFtext\n---\na: 1\n---\n")).toEqual({
+        frontmatter: {},
+        body: "text\n---\na: 1\n---\n",
+        hasFrontmatter: false,
+      });
+    });
+
+    it("should write only the body when the frontmatter is empty", () => {
+      expect(stringifyFrontmatter("Body", {})).toBe("Body\n");
+      expect(stringifyFrontmatter("Body\n", { dropped: null })).toBe("Body\n");
+    });
+
+    it("should fold a long unbreakable value the way js-yaml 4 does", () => {
+      // js-yaml 5 would leave this value plain; switching the default dump to
+      // v5 would change existing files on regeneration.
+      const value = "x".repeat(100);
+
+      expect(stringifyFrontmatter("Body", { description: value })).toBe(
+        `---\ndescription: >-\n  ${value}\n---\nBody\n`,
+      );
+      expect(
+        stringifyFrontmatter("Body", { description: value }, { avoidBlockScalars: true }),
+      ).toBe(`---\ndescription: ${value}\n---\nBody\n`);
+    });
+
+    it("should take the rest of the file as the block after a language fence nothing closes", () => {
+      expect(parseFrontmatter("---yaml\na: 1\n")).toEqual({
+        frontmatter: { a: 1 },
+        body: "",
+        hasFrontmatter: true,
+      });
+    });
+
+    it("should read a null block as empty frontmatter", () => {
+      expect(parseFrontmatter("---\n~\n---\nBody").frontmatter).toEqual({});
+    });
+
+    it("should end the output with exactly one added line break", () => {
+      expect(stringifyFrontmatter("", { a: 1 })).toBe("---\na: 1\n---\n\n");
+      expect(stringifyFrontmatter("Body", { a: 1 })).toBe("---\na: 1\n---\nBody\n");
+      expect(stringifyFrontmatter("Body\n\n", { a: 1 })).toBe("---\na: 1\n---\nBody\n\n");
     });
   });
   describe("parseFrontmatterWithYamlRepair", () => {
@@ -1151,7 +1195,7 @@ Body.`;
     });
 
     it("should not rewrite body text when the closing delimiter shares its line", () => {
-      // gray-matter ends the block at the first `\n---`, whatever follows it on
+      // The splitter ends the block at the first `\n---`, whatever follows it on
       // that line, so everything after is body and must be passed through.
       const content = "---\nname: a: b\n---more\ndescription: c: d\n---\nbody\n";
 
@@ -1226,9 +1270,10 @@ Body.`;
     });
 
     it("should keep reporting the same malformed content on a second parse", () => {
-      // gray-matter caches a file before parsing it, so a throw used to leave
-      // an entry whose data is empty and whose content is the unparsed file.
-      // The second parse then returned that quietly instead of failing again.
+      // gray-matter, which rulesync used before, cached a file before parsing
+      // it, so a throw left an entry whose data was empty and whose content was
+      // the unparsed file; the second parse returned that quietly. Pin that a
+      // repeated parse keeps failing.
       const content = ["---", "name: broken", "  stray: indentation", "---", "Body"].join("\n");
 
       expect(() => parseFrontmatter(content, "SKILL.md")).toThrow();
