@@ -39,19 +39,6 @@ export type CursorRuleFrontmatter = z.infer<typeof CursorRuleFrontmatterSchema>;
 const CURSOR_RAW_SCALAR_LINE_PATTERN = /^(description|globs):[ \t]+(\S.*)$/;
 
 /**
- * Whether an unquoted Cursor value needs quoting before YAML reads it. Cursor
- * writes a glob as a bare `*...` pattern (a YAML alias), may put `: ` in a
- * description (a new YAML mapping), and keeps ` #` as text (a YAML comment).
- * Plain scalars YAML reads correctly, such as `123` or `true`, keep their types.
- */
-function needsCursorRawQuoting(value: string): boolean {
-  if (/^["'|>]/.test(value)) {
-    return false;
-  }
-  return /^[*!{[&]/.test(value) || /:(?:\s|$)/.test(value) || /[ \t]#/.test(value);
-}
-
-/**
  * Globs that match the whole project, and so say nothing `alwaysApply: true`
  * does not already say. Same pair the Cline and Qwen Code adapters treat as
  * universal.
@@ -193,9 +180,11 @@ export class CursorRule extends ToolRule {
     frontmatter: Record<string, unknown>;
     body: string;
   } {
-    // Cursor writes `description` and `globs` as raw scalars. Quote the ones
-    // YAML cannot read the way Cursor does, inside the frontmatter block only,
-    // so a `globs: *...` line in the body stays as is.
+    // Cursor treats `description` and `globs` as raw text, so quote every
+    // unquoted value before YAML reads it: YAML would otherwise misread `#`,
+    // `-`, `@`, a leading backtick, `?` and even `true` or `123`. Only the
+    // frontmatter block is rewritten, so a `globs: *...` line in the body
+    // stays as is.
     const bounds = findFrontmatterBlockBounds(fileContent);
     if (!bounds) {
       return parseFrontmatter(fileContent, filePath);
@@ -213,7 +202,9 @@ export class CursorRule extends ToolRule {
         }
         const [, key = "", rawValue = ""] = match;
         const value = rawValue.trimEnd();
-        if (!needsCursorRawQuoting(value)) {
+        // A value already quoted, or written as a block scalar, is read by YAML
+        // as its author intended and stays untouched.
+        if (/^["'|>]/.test(value)) {
           return line;
         }
         // Single quotes are YAML's literal-quote form: only a quote itself has

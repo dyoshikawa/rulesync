@@ -601,6 +601,63 @@ This is the rule content
       expect(rule.getFrontmatter().description).toBe("Usar #region para seções");
     });
 
+    it("should read a description starting with a hash", async () => {
+      const filePath = join(testDir, ".cursor/rules", "leading-hash.mdc");
+      await writeFileContent(
+        filePath,
+        "---\ndescription: #region directives\nalwaysApply: false\n---\nBody\n",
+      );
+
+      const rule = await CursorRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "leading-hash.mdc",
+      });
+
+      expect(rule.getFrontmatter().description).toBe("#region directives");
+    });
+
+    it("should read a description starting with a dash and space", async () => {
+      const filePath = join(testDir, ".cursor/rules", "leading-dash.mdc");
+      await writeFileContent(
+        filePath,
+        "---\ndescription: - Use when\nalwaysApply: false\n---\nBody\n",
+      );
+
+      const rule = await CursorRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "leading-dash.mdc",
+      });
+
+      expect(rule.getFrontmatter().description).toBe("- Use when");
+    });
+
+    it("should read a description starting with an at sign", async () => {
+      const filePath = join(testDir, ".cursor/rules", "leading-at.mdc");
+      await writeFileContent(
+        filePath,
+        "---\ndescription: @mention rules\nalwaysApply: false\n---\nBody\n",
+      );
+
+      const rule = await CursorRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "leading-at.mdc",
+      });
+
+      expect(rule.getFrontmatter().description).toBe("@mention rules");
+    });
+
+    it("should read a boolean-looking description as a string", async () => {
+      const filePath = join(testDir, ".cursor/rules", "boolean.mdc");
+      await writeFileContent(filePath, "---\ndescription: true\nalwaysApply: false\n---\nBody\n");
+
+      const rule = await CursorRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "boolean.mdc",
+      });
+
+      expect(rule.getFrontmatter().description).toBe("true");
+    });
+
     it("should leave a globs line in the body untouched", async () => {
       const filePath = join(testDir, ".cursor/rules", "format.mdc");
       await writeFileContent(
@@ -781,9 +838,11 @@ This is the rule content
 
     it("should validate frontmatter by default", async () => {
       const filePath = join(testDir, ".cursor/rules", "invalid.mdc");
+      // `description` and `globs` are read as raw text on import, so a numeric
+      // or boolean value there legitimately reads back as a string. Use a key
+      // the raw-text pre-pass does not rewrite.
       const invalidContent = stringifyFrontmatter("Content", {
-        description: 123, // Invalid type
-        globs: true, // Invalid type
+        alwaysApply: 123, // Invalid type
       });
 
       await writeFileContent(filePath, invalidContent);

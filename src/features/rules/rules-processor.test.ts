@@ -1839,6 +1839,33 @@ describe("RulesProcessor", () => {
       expect(paths).not.toContain(join("clones", "worktree", "AGENTS.md"));
     });
 
+    it("should import nested AGENTS.md when the project root has .git", async () => {
+      await writeFileContent(join(testDir, ".git", "HEAD"), "ref: refs/heads/main\n");
+      await writeFileContent(join(testDir, "AGENTS.md"), "# Root");
+      await writeFileContent(join(testDir, "packages", "api", "AGENTS.md"), "# API");
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "agentsmd" });
+      const paths = (await processor.loadToolFiles()).map((file) =>
+        join(file.getRelativeDirPath(), file.getRelativeFilePath()),
+      );
+
+      expect(paths).toContain(join("packages", "api", "AGENTS.md"));
+    });
+
+    it("should import nested AGENTS.md when outputRoot is inside a larger repository", async () => {
+      const outputRoot = join(testDir, "workspace", "project");
+      await writeFileContent(join(testDir, "workspace", ".git", "HEAD"), "ref: refs/heads/main\n");
+      await writeFileContent(join(outputRoot, "AGENTS.md"), "# Root");
+      await writeFileContent(join(outputRoot, "packages", "api", "AGENTS.md"), "# API");
+
+      const processor = new RulesProcessor({ logger, outputRoot, toolTarget: "agentsmd" });
+      const paths = (await processor.loadToolFiles()).map((file) =>
+        join(file.getRelativeDirPath(), file.getRelativeFilePath()),
+      );
+
+      expect(paths).toContain(join("packages", "api", "AGENTS.md"));
+    });
+
     it("should still find nested files when .gitignore excludes the generated file name", async () => {
       // `rulesync gitignore` writes `**/AGENTS.md` for its own output, so a
       // file-level ignore test would silently disable the whole scan.
