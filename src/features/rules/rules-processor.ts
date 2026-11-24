@@ -1,4 +1,4 @@
-import { basename, dirname, join, posix, relative, sep } from "node:path";
+import { basename, dirname, join, posix, relative, resolve, sep } from "node:path";
 
 import { encode } from "@toon-format/toon";
 import { z } from "zod/mini";
@@ -262,6 +262,36 @@ const rootRelativeGlob = (...segments: Array<string | undefined>): string =>
 
 const isRootRule = (rule: RulesyncRule): boolean =>
   Boolean(rule.getFrontmatter().root || rule.getFrontmatter().localRoot);
+
+/**
+ * Whether a nested-rule candidate lives inside another git repository. A
+ * workspace may hold separate clones (a `.git` directory) or worktrees and
+ * submodules (a `.git` file); their instruction files are not subprojects of
+ * the project being imported. The project root itself is exempt because it
+ * normally holds the repository's own `.git`.
+ */
+async function isInsideNestedGitRepository({
+  directory,
+  rootDir,
+  cache,
+}: {
+  directory: string;
+  rootDir: string;
+  cache: Map<string, boolean>;
+}): Promise<boolean> {
+  const cached = cache.get(directory);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const parent = dirname(directory);
+  const nested =
+    directory !== rootDir &&
+    parent !== directory &&
+    ((await fileExists(join(directory, ".git"))) ||
+      (await isInsideNestedGitRepository({ directory: parent, rootDir, cache })));
+  cache.set(directory, nested);
+  return nested;
+}
 
 export class RulesProcessor extends FeatureProcessor {
   private readonly toolTarget: RulesProcessorToolTarget;
@@ -2035,6 +2065,25 @@ As this project's AI coding tool, you must follow the additional conventions bel
       ignore: patterns.ignore,
     });
 
+    // A `.git` boundary stops the walk: a workspace folder can hold other
+    // clones, worktrees or submodules, whose instruction files are not this
+    // project's subprojects. The nearest boundary is checked first and cached,
+    // since many matches share the same ancestor directories.
+    const rootDir = resolve(this.outputRoot);
+    const repositoryCache = new Map<string, boolean>();
+    const outsideOtherRepositories: string[] = [];
+    for (const filePath of matchedPaths) {
+      if (
+        !(await isInsideNestedGitRepository({
+          directory: dirname(resolve(filePath)),
+          rootDir,
+          cache: repositoryCache,
+        }))
+      ) {
+        outsideOtherRepositories.push(filePath);
+      }
+    }
+
     // The project's own statement of what is not its source. Without it a
     // vendored dependency's rule file — third-party content the user
     // deliberately kept untracked — would be copied into version-controlled
@@ -2042,7 +2091,7 @@ As this project's AI coding tool, you must follow the additional conventions bel
     // one file would then load it unconditionally.
     const filePaths = filterOutPathsInGitIgnoredDirectories({
       rootDir: this.outputRoot,
-      filePaths: matchedPaths,
+      filePaths: outsideOtherRepositories,
       ownedDirPath: patterns.ownedDirPath,
     });
 

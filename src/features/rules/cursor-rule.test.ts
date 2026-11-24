@@ -1,3 +1,5 @@
+// cspell:ignore Proíbe Usar seções -- unquoted Cursor descriptions used as fixtures
+
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
@@ -553,6 +555,52 @@ This is the rule content
       expect(rule.getRelativeFilePath()).toBe("test.mdc");
     });
 
+    it("should read an unquoted description containing a colon-space", async () => {
+      const filePath = join(testDir, ".cursor/rules", "colon.mdc");
+      await writeFileContent(
+        filePath,
+        "---\ndescription: Proíbe X: use Y\nalwaysApply: false\n---\nBody\n",
+      );
+
+      const rule = await CursorRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "colon.mdc",
+      });
+
+      expect(rule.getFrontmatter().description).toBe("Proíbe X: use Y");
+      expect(rule.getBody()).toBe("Body");
+    });
+
+    it("should read an unquoted globs value starting with an asterisk", async () => {
+      const filePath = join(testDir, ".cursor/rules", "glob.mdc");
+      await writeFileContent(
+        filePath,
+        "---\ndescription: TypeScript rules\nglobs: **/*.ts\nalwaysApply: false\n---\nBody\n",
+      );
+
+      const rule = await CursorRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "glob.mdc",
+      });
+
+      expect(rule.getFrontmatter().globs).toBe("**/*.ts");
+    });
+
+    it("should keep text after a space and hash in an unquoted description", async () => {
+      const filePath = join(testDir, ".cursor/rules", "hash.mdc");
+      await writeFileContent(
+        filePath,
+        "---\ndescription: Usar #region para seções\nalwaysApply: false\n---\nBody\n",
+      );
+
+      const rule = await CursorRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "hash.mdc",
+      });
+
+      expect(rule.getFrontmatter().description).toBe("Usar #region para seções");
+    });
+
     it("should leave a globs line in the body untouched", async () => {
       const filePath = join(testDir, ".cursor/rules", "format.mdc");
       await writeFileContent(
@@ -917,6 +965,56 @@ This is the rule content
       const frontmatter = rulesyncRule.getFrontmatter();
 
       expect(frontmatter.globs).toEqual(["*.ts", "*.js", "*.tsx"]);
+    });
+
+    it("should keep a brace glob intact", () => {
+      const cursorRule = new CursorRule({
+        frontmatter: { globs: "**/*.{ts,tsx}" },
+        body: "Content",
+        relativeDirPath: ".cursor/rules",
+        relativeFilePath: "brace.mdc",
+        validate: false,
+      });
+
+      const frontmatter = cursorRule.toRulesyncRule().getFrontmatter();
+
+      expect(frontmatter.globs).toEqual(["**/*.{ts,tsx}"]);
+      expect(frontmatter.cursor?.globs).toEqual(["**/*.{ts,tsx}"]);
+    });
+
+    it("should split a brace glob mixed with plain globs", () => {
+      const cursorRule = new CursorRule({
+        frontmatter: {
+          globs: "**/*.{vue,tsx,jsx,svelte}, src/**/*.ts, tests/**/*.ts",
+        },
+        body: "Content",
+        relativeDirPath: ".cursor/rules",
+        relativeFilePath: "mixed.mdc",
+        validate: false,
+      });
+
+      const frontmatter = cursorRule.toRulesyncRule().getFrontmatter();
+
+      expect(frontmatter.globs).toEqual([
+        "**/*.{vue,tsx,jsx,svelte}",
+        "src/**/*.ts",
+        "tests/**/*.ts",
+      ]);
+      expect(frontmatter.cursor?.globs).toEqual(frontmatter.globs);
+    });
+
+    it("should keep commas inside nested braces", () => {
+      const cursorRule = new CursorRule({
+        frontmatter: { globs: "src/**/{a,{b,c}}/*.ts, docs/**/*.md" },
+        body: "Content",
+        relativeDirPath: ".cursor/rules",
+        relativeFilePath: "nested.mdc",
+        validate: false,
+      });
+
+      const frontmatter = cursorRule.toRulesyncRule().getFrontmatter();
+
+      expect(frontmatter.globs).toEqual(["src/**/{a,{b,c}}/*.ts", "docs/**/*.md"]);
     });
 
     it("should convert .mdc extension to .md", () => {
