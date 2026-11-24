@@ -265,6 +265,34 @@ describe("OpencodeHooks (OpenCode V2)", () => {
       expect(warnSpy.mock.calls[0]?.[0]).toContain('"postToolUse" matcher');
     });
 
+    it("translates whole names only, override matchers too, and warns once per matcher", () => {
+      const logger = createMockLogger();
+      const warnSpy = vi.spyOn(logger, "warn");
+      const content = generate(
+        {
+          hooks: {
+            preToolUse: [
+              { matcher: "\\bRead\\b|ReadFile", command: "echo partial" },
+              { matcher: "Glob", command: "echo glob-1" },
+              { matcher: "Glob", command: "echo glob-2" },
+            ],
+          },
+          opencode: { hooks: { postToolUse: [{ matcher: "Write", command: "echo override" }] } },
+        },
+        logger,
+      );
+
+      expect(content).toContain(
+        '__rulesyncMatchesTool(new RegExp("\\\\bread\\\\b|ReadFile"), event.tool)',
+      );
+      expect(content).toContain('__rulesyncMatchesTool(new RegExp("write"), event.tool)');
+      expect(warnSpy.mock.calls).toEqual([
+        [expect.stringContaining('"ReadFile" in the "preToolUse" matcher')],
+        [expect.stringContaining('"Glob" in the "preToolUse" matcher')],
+      ]);
+      expect(warnSpy.mock.calls[1]?.[0]).toContain("is not translated by rulesync");
+    });
+
     it("drops matcher-carrying definitions on hook points with nothing to match", () => {
       const content = generate({
         hooks: {

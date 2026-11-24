@@ -1,8 +1,10 @@
 // cspell:ignore nothrow setsid procfs lstart reparented subreaper taskkill -- Bun Shell API, POSIX, Windows
 import { HooksConfig } from "../../types/hooks.js";
 import type { Logger } from "../../utils/logger.js";
+import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { buildBlockReasonSanitizerLines } from "./hook-block-reason.js";
 import { sanitizeMatcherRegex } from "./hook-matcher-regex.js";
+import { capitalizedMatcherNames, replaceMatcherNames } from "./hook-matcher-tool-names.js";
 
 /**
  * Tool events emitted as named `(input, ...)` hooks rather than through the
@@ -569,6 +571,61 @@ export function warnIgnoredFailClosed({
   }
 }
 
+/**
+ * Canonical (Claude Code) tool names mapped to the lowercase tool ids OpenCode
+ * 1.x and its forks (Kilo, MiMo Code) pass as `input.tool`, which a matcher is
+ * tested against case-sensitively. The shell tool is `bash` here, the same id
+ * the shell events gate on (see {@link SHELL_EVENT_TOOL_GATES}).
+ * @see https://opencode.ai/docs/plugins/
+ */
+const CANONICAL_TO_OPENCODE_V1_TOOL_NAMES: Readonly<Record<string, string>> = {
+  Bash: "bash",
+  Read: "read",
+  Write: "write",
+  Edit: "edit",
+};
+
+/** Translates one matcher of one canonical event to the tool's names. */
+export type OpencodeMatcherTranslator = (matcher: string, eventName: string) => string;
+
+/**
+ * Build a translator that rewrites the canonical tool names in a matcher
+ * through `toolNames` and warns about a capitalized name left over
+ * (`MultiEdit`, `Glob`), which no lowercase tool id can match. Each distinct
+ * matcher of an event is translated once, so hooks sharing one do not repeat
+ * its warning.
+ */
+export function createOpencodeMatcherTranslator({
+  toolNames,
+  toolConfigKey,
+  logger,
+}: {
+  toolNames: Readonly<Record<string, string>>;
+  toolConfigKey: keyof typeof FAIL_CLOSED_TOOL_LABELS;
+  logger?: Logger;
+}): OpencodeMatcherTranslator {
+  const label = FAIL_CLOSED_TOOL_LABELS[toolConfigKey];
+  const translated = new Map<string, string>();
+  return (matcher, eventName) => {
+    const key = `${eventName}\0${matcher}`;
+    const cached = translated.get(key);
+    if (cached !== undefined) return cached;
+    const result = replaceMatcherNames(matcher, toolNames);
+    const unmatched = capitalizedMatcherNames(result);
+    if (unmatched.length > 0) {
+      logger?.warn(
+        `${label} matches hook matchers case-sensitively against lowercase tool names, and ` +
+          `${unmatched.map((name) => quoteValueForWarning(name)).join(", ")} in the ` +
+          `"${eventName}" matcher ${quoteValueForWarning(matcher)} is not translated by ` +
+          `rulesync, so it is written as-is and will likely never match. Use the tool name ` +
+          `${label} reports instead.`,
+      );
+    }
+    translated.set(key, result);
+    return result;
+  };
+}
+
 type Handler = RunnableHandler & {
   matcher?: string;
   toolGate?: string;
@@ -611,11 +668,13 @@ function collectOpencodeStyleHandlers({
   eventMap,
   namedEventHandlers,
   genericEventHandlers,
+  translateMatcher,
 }: {
   effectiveHooks: HooksConfig["hooks"];
   eventMap: Record<string, string>;
   namedEventHandlers: HandlerGroup;
   genericEventHandlers: HandlerGroup;
+  translateMatcher: OpencodeMatcherTranslator;
 }): void {
   for (const [canonicalEvent, definitions] of Object.entries(effectiveHooks)) {
     const shellGate = SHELL_EVENT_TOOL_GATES[canonicalEvent];
@@ -633,6 +692,9 @@ function collectOpencodeStyleHandlers({
     const isNamedHook = Object.hasOwn(NAMED_HOOK_MATCHER_SUBJECTS, toolEvent);
     const matcherSupported =
       !shellGate && isNamedHook && NAMED_HOOK_MATCHER_SUBJECTS[toolEvent] !== null;
+    // Only a matcher tested against the tool id names tools; the
+    // `command.execute.before` one names a slash command and stays as written.
+    const matchesToolName = NAMED_HOOK_MATCHER_SUBJECTS[toolEvent] === "input.tool";
 
     const handlers: Handler[] = [];
     for (const def of definitions) {
@@ -641,7 +703,11 @@ function collectOpencodeStyleHandlers({
       if (def.matcher && !matcherSupported) continue;
       handlers.push({
         command: def.command,
-        matcher: def.matcher ? def.matcher : undefined,
+        matcher: def.matcher
+          ? matchesToolName
+            ? translateMatcher(def.matcher, canonicalEvent)
+            : def.matcher
+          : undefined,
         blocking: BLOCKING_HOOKS.has(toolEvent),
         ...hookTimingOf(def),
         inProcess: !isNamedHook,
@@ -880,6 +946,7 @@ export function generateOpencodeStylePluginCode(
   //   exports as legacy, so the Kilo target emits this form.
   //   https://kilo.ai/docs/automate/extending/plugins
   exportStyle: "named" | "default" = "named",
+  logger?: Logger,
 ): string {
   const supported: Set<string> = new Set(supportedEvents);
   const configHooks = { ...config.hooks, ...config[toolConfigKey]?.hooks };
@@ -897,6 +964,11 @@ export function generateOpencodeStylePluginCode(
     eventMap,
     namedEventHandlers,
     genericEventHandlers,
+    translateMatcher: createOpencodeMatcherTranslator({
+      toolNames: CANONICAL_TO_OPENCODE_V1_TOOL_NAMES,
+      toolConfigKey,
+      logger,
+    }),
   });
 
   // Build the handler entries (the contents of the returned object) once with a

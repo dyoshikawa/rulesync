@@ -86,6 +86,8 @@ export class OpencodeHooks extends ToolHooks {
             OPENCODE_HOOK_EVENTS,
             this.layout.toolTarget,
             CANONICAL_TO_OPENCODE_EVENT_NAMES,
+            "named",
+            logger,
           );
     const paths = this.getSettablePaths({ global });
     return new this({

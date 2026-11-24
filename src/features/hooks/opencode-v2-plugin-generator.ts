@@ -1,12 +1,12 @@
 import { HooksConfig } from "../../types/hooks.js";
 import type { Logger } from "../../utils/logger.js";
-import { quoteValueForWarning } from "../../utils/quote-value.js";
-import { capitalizedMatcherNames, replaceMatcherNames } from "./hook-matcher-tool-names.js";
 import {
   buildPayloadClosureLines,
   buildRunHelperLines,
   buildRunStatement,
+  createOpencodeMatcherTranslator,
   hookTimingOf,
+  type OpencodeMatcherTranslator,
   type RunnableHandler,
   type StdinPayload,
   validateAndSanitizeMatcher,
@@ -50,34 +50,6 @@ const CANONICAL_TO_OPENCODE_V2_TOOL_NAMES: Readonly<Record<string, string>> = {
   Write: "write",
   Edit: "edit",
 };
-
-/**
- * Rewrite the canonical tool names in a matcher to their OpenCode 2.x names,
- * warning about a capitalized name left over (`MultiEdit`, `NotebookEdit`),
- * which no lowercase OpenCode tool name can match.
- */
-function canonicalToOpencodeV2Matcher({
-  matcher,
-  eventName,
-  logger,
-}: {
-  matcher: string;
-  eventName: string;
-  logger?: Logger;
-}): string {
-  const translated = replaceMatcherNames(matcher, CANONICAL_TO_OPENCODE_V2_TOOL_NAMES);
-  const unmatched = capitalizedMatcherNames(translated);
-  if (unmatched.length > 0) {
-    logger?.warn(
-      `OpenCode matches hook matchers case-sensitively against lowercase tool names, and ` +
-        `${unmatched.map((name) => quoteValueForWarning(name)).join(", ")} in the ` +
-        `"${eventName}" matcher ${quoteValueForWarning(matcher)} has no known OpenCode ` +
-        `equivalent, so it is written as-is and will likely never match. Use the tool name ` +
-        `OpenCode reports instead.`,
-    );
-  }
-  return translated;
-}
 
 /**
  * Per-canonical-event conditions the generated handler gates on, because the
@@ -285,12 +257,12 @@ function buildHandlersFor({
   canonicalEvent,
   definitions,
   target,
-  logger,
+  translateMatcher,
 }: {
   canonicalEvent: string;
   definitions: HooksConfig["hooks"][string];
   target: string;
-  logger?: Logger;
+  translateMatcher: OpencodeMatcherTranslator;
 }): V2Handler[] {
   const gate = OPENCODE_V2_HANDLER_GATES[canonicalEvent];
   const payload = OPENCODE_V2_STDIN_PAYLOADS[canonicalEvent];
@@ -311,15 +283,7 @@ function buildHandlersFor({
       event: canonicalEvent,
       blocking: isBlockingOpencodeV2Target(target),
       ...hookTimingOf(def),
-      ...(def.matcher
-        ? {
-            matcher: canonicalToOpencodeV2Matcher({
-              matcher: def.matcher,
-              eventName: canonicalEvent,
-              logger,
-            }),
-          }
-        : {}),
+      ...(def.matcher ? { matcher: translateMatcher(def.matcher, canonicalEvent) } : {}),
       ...(gate ? { gate } : {}),
       ...(payload ? { payload } : {}),
       ...sessionContextExtrasFor(canonicalEvent),
@@ -390,6 +354,11 @@ export function generateOpencodeV2PluginCode({
 }): string {
   const supported: Set<string> = new Set(supportedEvents);
   const configHooks = { ...config.hooks, ...config[toolConfigKey]?.hooks };
+  const translateMatcher = createOpencodeMatcherTranslator({
+    toolNames: CANONICAL_TO_OPENCODE_V2_TOOL_NAMES,
+    toolConfigKey,
+    logger,
+  });
 
   // Keyed by `<domain>:<name>` hook point and by event type respectively, in
   // first-seen order.
@@ -400,7 +369,12 @@ export function generateOpencodeV2PluginCode({
     if (!supported.has(canonicalEvent)) continue;
     const target = eventMap[canonicalEvent];
     if (!target) continue;
-    const handlers = buildHandlersFor({ canonicalEvent, definitions, target, logger });
+    const handlers = buildHandlersFor({
+      canonicalEvent,
+      definitions,
+      target,
+      translateMatcher,
+    });
     if (handlers.length === 0) continue;
     const isEvent = target.startsWith("event:");
     const key = isEvent ? target.slice("event:".length) : target;

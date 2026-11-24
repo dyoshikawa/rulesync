@@ -96,6 +96,7 @@ export class KiloHooks extends ToolHooks {
       "kilo",
       CANONICAL_TO_KILO_EVENT_NAMES,
       "default",
+      logger,
     );
     const paths = KiloHooks.getSettablePaths({ global });
     return new KiloHooks({
