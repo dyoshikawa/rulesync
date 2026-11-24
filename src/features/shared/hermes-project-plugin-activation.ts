@@ -4,7 +4,7 @@ import {
   HERMESAGENT_CONFIG_FILE_PATH,
   HERMESAGENT_PROJECT_PLUGINS_ENV_VAR,
 } from "../../constants/hermesagent-paths.js";
-import { refusesWriteOutsideRoot } from "../../types/feature-processor.js";
+import { refusesWriteOutsideRoot, warnIfWriteFollowsLink } from "../../types/feature-processor.js";
 import { fileContentsEquivalent } from "../../utils/content-equivalence.js";
 import {
   addTrailingNewline,
@@ -69,12 +69,14 @@ function mergeEnabledPlugins({
 }
 
 async function writeActivationFile({
+  rootPath,
   filePath,
   relativePath,
   expectedContent,
   dryRun,
   logger,
 }: {
+  rootPath: string;
   filePath: string;
   relativePath: string;
   expectedContent: string;
@@ -93,6 +95,7 @@ async function writeActivationFile({
     return false;
   }
 
+  await warnIfWriteFollowsLink({ logger, rootPath, targetPath: filePath });
   if (dryRun) {
     logger.info(`[DRY RUN] Would write: ${filePath}`);
   } else {
@@ -142,6 +145,7 @@ export async function activateHermesProjectPlugins({
 
   if (
     await writeActivationFile({
+      rootPath: configRoot,
       filePath: configPath,
       relativePath: relativeConfigPath,
       expectedContent: expectedConfig,

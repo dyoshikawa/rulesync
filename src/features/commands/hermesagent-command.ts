@@ -18,7 +18,11 @@ import {
 } from "../../constants/rulesync-paths.js";
 import type { SharedWritePath } from "../../lib/shared-file-derive.js";
 import { ValidationResult } from "../../types/ai-file.js";
-import { caseFoldIdentity, refusesWriteOutsideRoot } from "../../types/feature-processor.js";
+import {
+  caseFoldIdentity,
+  refusesWriteOutsideRoot,
+  warnIfWriteFollowsLink,
+} from "../../types/feature-processor.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { readFileContentOrNull, toPosixPath, writeFileContent } from "../../utils/file.js";
 import {
@@ -427,6 +431,7 @@ export class HermesagentCommand extends ToolCommand {
     });
     if (nextContent === currentContent) return 0;
 
+    await warnIfWriteFollowsLink({ logger, rootPath: outputRoot, targetPath: configPath });
     if (dryRun) {
       logger.info(`[DRY RUN] Would write: ${configPath}`);
     } else {

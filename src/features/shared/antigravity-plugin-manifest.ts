@@ -4,7 +4,7 @@ import {
   ANTIGRAVITY_PLUGIN_MANIFEST_FILE_NAME,
   ANTIGRAVITY_PLUGIN_MANIFEST_FOLDERS,
 } from "../../constants/plugin-paths.js";
-import { refusesWriteOutsideRoot } from "../../types/feature-processor.js";
+import { refusesWriteOutsideRoot, warnIfWriteFollowsLink } from "../../types/feature-processor.js";
 import { quoteForLog, stripControlCharacters } from "../../utils/control-characters.js";
 import {
   addTrailingNewline,
@@ -122,6 +122,7 @@ export async function ensureAntigravityPluginManifests({
     noteName(name, filePath);
 
     const content = addTrailingNewline(JSON.stringify({ name }, null, 2));
+    await warnIfWriteFollowsLink({ logger, rootPath: outputRoot, targetPath: filePath });
     if (dryRun) {
       logger.info(`[DRY RUN] Would write: ${stripControlCharacters(filePath)}`);
     } else {

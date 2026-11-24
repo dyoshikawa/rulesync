@@ -11,7 +11,7 @@ import {
 } from "../../constants/goose-paths.js";
 import type { SharedWritePath } from "../../lib/shared-file-derive.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import { refusesWriteOutsideRoot } from "../../types/feature-processor.js";
+import { refusesWriteOutsideRoot, warnIfWriteFollowsLink } from "../../types/feature-processor.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { formatError } from "../../utils/error.js";
 import {
@@ -364,6 +364,7 @@ export class GooseCommand extends ToolCommand {
     const nextContent = getGooseSlashCommandsConfigContent({ currentContent, entries: [] });
     if (nextContent === currentContent) return 0;
 
+    await warnIfWriteFollowsLink({ logger, rootPath: outputRoot, targetPath: configPath });
     if (dryRun) {
       logger.info(`[DRY RUN] Would write: ${configPath}`);
     } else {
