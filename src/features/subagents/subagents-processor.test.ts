@@ -1436,9 +1436,65 @@ Body from inputRoots[0]`;
       const toolFiles = await collisionProcessor.loadToolFiles();
 
       expect(toolFiles).toHaveLength(1);
+      // Files in one root are scanned in sorted path order, so the earlier one wins.
+      expect(toolFiles[0]?.getRelativeFilePath()).toBe("Code Reviewer.md");
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining('Duplicate junie subagent "code-reviewer"'),
       );
+    });
+
+    it("should warn and keep the .junie/agents copy when a name collides across roots", async () => {
+      const logger = createMockLogger();
+      const collisionProcessor = new SubagentsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "junie",
+      });
+      const junieDir = join(testDir, ".junie", "agents");
+      const sharedDir = join(testDir, ".agents");
+      await ensureDir(junieDir);
+      await ensureDir(sharedDir);
+
+      await writeFileContent(join(junieDir, "reviewer.md"), junieSubagentMd("reviewer"));
+      await writeFileContent(join(sharedDir, "review.md"), junieSubagentMd("reviewer"));
+
+      const toolFiles = await collisionProcessor.loadToolFiles();
+
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]?.getRelativeDirPath()).toBe(join(".junie", "agents"));
+      expect(toolFiles[0]?.getRelativeFilePath()).toBe("reviewer.md");
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Duplicate junie subagent "reviewer"'),
+      );
+    });
+
+    it("should import blank-named subagents under their file-derived names", async () => {
+      const logger = createMockLogger();
+      const blankProcessor = new SubagentsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "junie",
+      });
+      const junieDir = join(testDir, ".junie", "agents");
+      await ensureDir(junieDir);
+
+      await writeFileContent(
+        join(junieDir, "Alpha Agent.md"),
+        '---\nname: ""\ndescription: Alpha\n---\nAlpha content',
+      );
+      await writeFileContent(
+        join(junieDir, "beta.md"),
+        '---\nname: "   "\ndescription: Beta\n---\nBeta content',
+      );
+
+      const toolFiles = await blankProcessor.loadToolFiles();
+      const rulesyncFiles = await blankProcessor.convertToolFilesToRulesyncFiles(toolFiles);
+
+      expect(logger.warn).not.toHaveBeenCalled();
+      const names = rulesyncFiles
+        .map((file) => (file as RulesyncSubagent).getFrontmatter().name)
+        .toSorted();
+      expect(names).toEqual(["alpha-agent", "beta"]);
     });
 
     it("should not delete files in the .agents import root (forDeletion targets .junie/agents only)", async () => {

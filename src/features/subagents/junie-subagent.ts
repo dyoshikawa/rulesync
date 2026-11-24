@@ -172,13 +172,19 @@ export class JunieSubagent extends ToolSubagent {
     return this.getNormalizedName();
   }
 
+  /**
+   * An empty or whitespace-only `name` would normalize to `""`, which is not a
+   * valid Junie name and would make every such file share one import identity,
+   * so it falls back to the file name just like a missing `name` does.
+   */
   private getNormalizedName(): string {
-    return normalizeJunieName(
-      this.frontmatter.name ?? nameFromFileName(this.getRelativeFilePath()),
-    );
+    const explicitName =
+      this.frontmatter.name === undefined ? "" : normalizeJunieName(this.frontmatter.name);
+    return explicitName || normalizeJunieName(nameFromFileName(this.getRelativeFilePath()));
   }
 
   toRulesyncSubagent(): RulesyncSubagent {
+    // `name` is resolved (and normalized) by `getNormalizedName()` below.
     const { name: _name, description, ...restFields } = this.frontmatter;
 
     const junieSection: Record<string, unknown> = {

@@ -87,6 +87,9 @@ describe("normalizeJunieName", () => {
     ["Code \t\n Reviewer", "code-reviewer"],
     ["  Code Reviewer ", "code-reviewer"],
     ["\tReviewer\n", "reviewer"],
+    ["", ""],
+    ["   ", ""],
+    ["\t\n", ""],
   ])("should normalize %j to %j", (input, expected) => {
     expect(normalizeJunieName(input)).toBe(expected);
   });
@@ -398,6 +401,8 @@ describe("JunieSubagent", () => {
       ["Code Reviewer.agent.md", {}],
       ["padded.md", { name: "  Code\tReviewer " }],
       [" Code  Reviewer .md", {}],
+      ["Code Reviewer.md", { name: "" }],
+      ["Code Reviewer.md", { name: "   " }],
     ])("should import the normalized Junie name from %s", async (relativeFilePath, frontmatter) => {
       await writeFileContent(
         join(testDir, ".junie", "agents", relativeFilePath),
