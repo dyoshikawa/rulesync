@@ -235,7 +235,7 @@ describe("TraeRule", () => {
     ).rejects.toThrow("Invalid frontmatter");
   });
 
-  it("should end the frontmatter where gray-matter does, even at a ---- line", async () => {
+  it("should end the frontmatter where parseFrontmatter does, even at a ---- line", async () => {
     await writeFileContent(
       join(testDir, ".trae", "rules", "a.md"),
       "---\ndescription: Rules\n----\nglobs: *.ts\n---\nBody\n",

@@ -57,7 +57,7 @@ function tryParseStructured({
 }
 
 /**
- * gray-matter often includes extra newlines right after the closing ---; strip those so the
+ * The parsed body often starts with extra newlines right after the closing ---; strip those so the
  * body matches across generators vs on-disk formatters. Trailing whitespace is normalized via
  * addTrailingNewline (trimEnd + single newline), same as writes.
  */
@@ -185,7 +185,7 @@ export function fileContentIsEmptyPayload({
  * Whether on-disk content is equivalent to generated content for --check / dry-run.
  *
  * Uses structured comparison for JSON/JSONC (via jsonc-parser), YAML, TOML, and Markdown-like
- * frontmatter files (.md, .mdc — same gray-matter path as elsewhere).
+ * frontmatter files (.md, .mdc — same frontmatter parser as elsewhere).
  */
 export function fileContentsEquivalent({
   filePath,
