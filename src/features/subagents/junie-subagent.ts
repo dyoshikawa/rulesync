@@ -153,7 +153,9 @@ export class JunieSubagent extends ToolSubagent {
 
     const rulesyncFrontmatter: RulesyncSubagentFrontmatter = {
       targets: ["*"] as const,
-      name: name ?? nameFromFileName(this.getRelativeFilePath()),
+      name: (name ?? nameFromFileName(this.getRelativeFilePath()))
+        .toLowerCase()
+        .replace(/\s+/g, "-"),
       ...(description !== undefined && { description }),
       ...(Object.keys(junieSection).length > 0 && { junie: junieSection }),
     };

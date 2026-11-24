@@ -371,6 +371,27 @@ describe("JunieSubagent", () => {
   });
 
   describe("fromFile", () => {
+    it.each([
+      ["explicit.md", { name: "Code Reviewer" }],
+      ["Code Reviewer.md", {}],
+      ["Code Reviewer.agent.md", {}],
+    ])("should import the normalized Junie name from %s", async (relativeFilePath, frontmatter) => {
+      await writeFileContent(
+        join(testDir, ".junie", "agents", relativeFilePath),
+        stringifyFrontmatter("Review code changes.", frontmatter),
+      );
+
+      const subagent = await JunieSubagent.fromFile({ outputRoot: testDir, relativeFilePath });
+      const rulesyncSubagent = subagent.toRulesyncSubagent();
+
+      expect(rulesyncSubagent.getFrontmatter().name).toBe("code-reviewer");
+      const regenerated = JunieSubagent.fromRulesyncSubagent({
+        rulesyncSubagent,
+        relativeDirPath: join(".junie", "agents"),
+      }) as JunieSubagent;
+      expect(regenerated.getFrontmatter().name).toBe("code-reviewer");
+    });
+
     it("should load subagent from file", async () => {
       const frontmatter: JunieSubagentFrontmatter = {
         name: "file-test-agent",
