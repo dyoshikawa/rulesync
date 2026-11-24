@@ -10,6 +10,7 @@ import {
   applyFileMode,
   assertDirectoryIfExists,
   assertLandingOutsideVcsMetadata,
+  firstLinkBelowRoot,
   assertNoSymlinkBelowRoot,
   assertTreeContainsNoSymlinks,
   assertPathResolvesInsideRoot,
@@ -1412,6 +1413,66 @@ describe("file utilities", () => {
           ).toBe(false);
         },
       );
+    });
+
+    describe("firstLinkBelowRoot", () => {
+      it("should give null for a path with no link below the root", async () => {
+        const root = join(testDir, "root");
+        await ensureDir(join(root, "dir"));
+
+        expect(
+          await firstLinkBelowRoot({ rootPath: root, targetPath: join(root, "dir", "new.md") }),
+        ).toBeNull();
+      });
+
+      it.skipIf(process.platform === "win32")(
+        "should give the first linked segment below the root",
+        async () => {
+          const root = join(testDir, "root");
+          await ensureDir(join(root, "real", "inner"));
+          await symlink(join(root, "real"), join(root, "linked"));
+          await symlink("inner", join(root, "real", "inner-link"));
+
+          expect(
+            await firstLinkBelowRoot({
+              rootPath: root,
+              targetPath: join(root, "linked", "inner-link", "file.md"),
+            }),
+          ).toBe(join(root, "linked"));
+        },
+      );
+
+      it.skipIf(process.platform === "win32")(
+        "should ignore a root that is itself a link",
+        async () => {
+          const root = join(testDir, "root");
+          await ensureDir(root);
+          const rootLink = join(testDir, "root-link");
+          await symlink(root, rootLink);
+
+          expect(
+            await firstLinkBelowRoot({ rootPath: rootLink, targetPath: join(rootLink, "a.md") }),
+          ).toBeNull();
+        },
+      );
+
+      it.skipIf(process.platform === "win32")("should report a dangling file link", async () => {
+        const root = join(testDir, "root");
+        await ensureDir(root);
+        await symlink("missing.md", join(root, "AGENTS.md"));
+
+        expect(
+          await firstLinkBelowRoot({ rootPath: root, targetPath: join(root, "AGENTS.md") }),
+        ).toBe(join(root, "AGENTS.md"));
+      });
+
+      it("should give null for a target outside the root", async () => {
+        const root = join(testDir, "root");
+
+        expect(
+          await firstLinkBelowRoot({ rootPath: root, targetPath: join(testDir, "other.md") }),
+        ).toBeNull();
+      });
     });
 
     describe("relativeWriteLanding", () => {

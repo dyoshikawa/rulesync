@@ -8,6 +8,7 @@ import {
   addTrailingNewline,
   applyFileMode,
   fileExistsStrict,
+  firstLinkBelowRoot,
   landingEntersVcsMetadata,
   pathEscapesRoot,
   restoreMissingExecutableBit,
@@ -397,17 +398,20 @@ export async function refusesWriteOutsideRoot({
 }
 
 /**
- * Warn, once per run and output path, that a write to `targetPath` goes through
- * a symbolic link that stays inside `rootPath` and so changes another file: the
- * warning names both the path as spelled and the real path the bytes land on.
+ * Warn, once per run and link, that a write to `targetPath` goes through a
+ * symbolic link below `rootPath`: the warning names the link and the real path
+ * it leads to, so the file the write really changes is visible.
  *
- * Links that lead out of the root are refused by
- * {@link refusesWriteOutsideRoot} before this is asked; an in-root link is
- * written through on purpose (dotfiles setups rely on it), but a committed
- * `AGENTS.md -> .claude/CLAUDE.md` would otherwise have one target silently
- * replace another target's file. Writers call this only for a file they are
- * about to change (or, in a dry run, would change), so an unchanged file
- * reached through a link stays quiet.
+ * Links that lead out of the root (or into version-control metadata) are
+ * refused by {@link refusesWriteOutsideRoot} before this is asked; an in-root
+ * link is written through on purpose (dotfiles setups rely on it), but a
+ * committed `AGENTS.md -> .claude/CLAUDE.md` would otherwise have one target
+ * silently replace another target's file. Writers call this only for a file
+ * they are about to change (or, in a dry run, would change), so an unchanged
+ * file reached through a link stays quiet. The warning is keyed on the first
+ * link on the path rather than on the file, so a linked directory such as
+ * `~/.claude -> ~/dotfiles/.claude` is reported once however many files below
+ * it a run writes.
  */
 export async function warnIfWriteFollowsLink({
   logger,
@@ -418,21 +422,18 @@ export async function warnIfWriteFollowsLink({
   rootPath: string;
   targetPath: string;
 }): Promise<void> {
-  const relativeLanding = await relativeWriteLanding({ rootPath, targetPath });
-  if (
-    relativeLanding === null ||
-    relativeLanding === relative(resolve(rootPath), resolve(targetPath))
-  ) {
+  const linkPath = await firstLinkBelowRoot({ rootPath, targetPath });
+  if (linkPath === null) {
     return;
   }
-  const landingPath = await writeLandingPath(targetPath);
-  if (landingPath === null) {
+  const linkLanding = await writeLandingPath(linkPath);
+  if (linkLanding === null) {
     return;
   }
   warnOnceWithFallback(
     logger,
-    `Writing ${quoteForLog(targetPath)} through a symbolic link: the content lands in ` +
-      `${quoteForLog(landingPath)}`,
+    `${quoteForLog(linkPath)} is a symbolic link to ${quoteForLog(linkLanding)}; ` +
+      "files rulesync writes through it land there",
   );
 }
 

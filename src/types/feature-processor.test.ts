@@ -502,9 +502,54 @@ describe("FeatureProcessor", () => {
         // Written through, but the file it really changes is named.
         expect(logger.warn).toHaveBeenCalledTimes(1);
         expect(logger.warn).toHaveBeenCalledWith(
-          `Writing ${JSON.stringify(linkedPath)} through a symbolic link: the content lands in ` +
-            `${JSON.stringify(join(await realpath(join(root, "dotfiles", ".tool")), "rules.md"))}`,
+          `${JSON.stringify(join(root, ".tool"))} is a symbolic link to ` +
+            `${JSON.stringify(await realpath(join(root, "dotfiles", ".tool")))}; ` +
+            "files rulesync writes through it land there",
         );
+      },
+    );
+
+    it.skipIf(process.platform === "win32")(
+      "should warn once for many files written below one linked directory",
+      async () => {
+        vi.mocked(readFileContentOrNull).mockResolvedValue(null);
+        const logger = createMockLogger();
+        const root = join(testDir, "root");
+        await mkdir(join(root, "dotfiles", ".tool"), { recursive: true });
+        // `~/.claude -> ~/dotfiles/.claude` under `--global`.
+        await symlink(join(root, "dotfiles", ".tool"), join(root, ".tool"));
+        const processor = new TestProcessor({ logger, outputRoot: root });
+
+        const files = ["a.md", "b.md", join("nested", "c.md")].map((name) =>
+          createMockFile(join(root, ".tool", name), { outputRoot: root }),
+        );
+        const result = await processor.writeAiFiles(files);
+
+        expect(result.count).toBe(3);
+        expect(logger.warn).toHaveBeenCalledTimes(1);
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining(`${JSON.stringify(join(root, ".tool"))} is a symbolic link to`),
+        );
+      },
+    );
+
+    it.skipIf(process.platform === "win32")(
+      "should not warn when only the output root itself is a link",
+      async () => {
+        vi.mocked(readFileContentOrNull).mockResolvedValue(null);
+        const logger = createMockLogger();
+        const root = join(testDir, "root");
+        await mkdir(root, { recursive: true });
+        const rootLink = join(testDir, "root-link");
+        await symlink(root, rootLink);
+        const processor = new TestProcessor({ logger, outputRoot: rootLink });
+
+        const result = await processor.writeAiFiles([
+          createMockFile(join(rootLink, "AGENTS.md"), { outputRoot: rootLink }),
+        ]);
+
+        expect(result.count).toBe(1);
+        expect(logger.warn).not.toHaveBeenCalled();
       },
     );
 
@@ -529,8 +574,9 @@ describe("FeatureProcessor", () => {
         expect(result).toEqual({ count: 1, paths: [linkedPath] });
         expect(writeFileContent).toHaveBeenCalledWith(linkedPath, "content\n");
         expect(logger.warn).toHaveBeenCalledWith(
-          `Writing ${JSON.stringify(linkedPath)} through a symbolic link: the content lands in ` +
-            `${JSON.stringify(await realpath(join(root, ".claude", "CLAUDE.md")))}`,
+          `${JSON.stringify(linkedPath)} is a symbolic link to ` +
+            `${JSON.stringify(await realpath(join(root, ".claude", "CLAUDE.md")))}; ` +
+            "files rulesync writes through it land there",
         );
       },
     );
@@ -552,7 +598,7 @@ describe("FeatureProcessor", () => {
         expect(writeFileContent).not.toHaveBeenCalled();
         expect(logger.info).toHaveBeenCalledWith(`[DRY RUN] Would write: ${linkedPath}`);
         expect(logger.warn).toHaveBeenCalledWith(
-          expect.stringContaining(`Writing ${JSON.stringify(linkedPath)} through a symbolic link`),
+          expect.stringContaining(`${JSON.stringify(linkedPath)} is a symbolic link to`),
         );
       },
     );

@@ -1,4 +1,4 @@
-import { symlink } from "node:fs/promises";
+import { realpath, symlink } from "node:fs/promises";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
@@ -113,6 +113,37 @@ describe("Hermes project plugin activation", () => {
       await cleanup();
     }
   });
+
+  it.skipIf(process.platform === "win32")(
+    "warns when it rewrites a config through a link inside the home directory",
+    async () => {
+      const { testDir, cleanup } = await setupTestDirectory({ home: true });
+      process.env.HOME_DIR = testDir;
+      try {
+        const dotfilesConfig = join(testDir, "dotfiles", "hermes", "config.yaml");
+        await writeFileContent(dotfilesConfig, "model: hermes-3\n");
+        await ensureDir(join(testDir, ".hermes"));
+        const linkPath = join(testDir, ".hermes", "config.yaml");
+        await symlink(dotfilesConfig, linkPath);
+
+        const logger = createMockLogger();
+        const result = await activateHermesProjectPlugins({
+          pluginNames: ["rulesync-ignore"],
+          dryRun: false,
+          logger,
+        });
+
+        expect(result.count).toBe(1);
+        expect(logger.warn).toHaveBeenCalledWith(
+          `${JSON.stringify(linkPath)} is a symbolic link to ` +
+            `${JSON.stringify(await realpath(dotfilesConfig))}; ` +
+            "files rulesync writes through it land there",
+        );
+      } finally {
+        await cleanup();
+      }
+    },
+  );
 
   it.skipIf(process.platform === "win32")(
     "refuses to rewrite a config that links outside the home directory",

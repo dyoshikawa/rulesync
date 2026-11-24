@@ -1450,15 +1450,27 @@ describe("DirFeatureProcessor", () => {
         const processor = new TestDirProcessor({ logger, outputRoot: root });
 
         const result = await processor.writeAiDirs([
-          createMockDirWithFiles({ dirPath, mainFileBody: "body" }),
+          createMockDirWithFiles({
+            dirPath,
+            mainFileBody: "body",
+            otherFiles: ["a.sh", "b.sh"].map(
+              (name) =>
+                ({
+                  relativeFilePathToDirPath: join("scripts", name),
+                  fileBuffer: Buffer.from("#!/bin/sh\n"),
+                }) as unknown as AiDirFile,
+            ),
+          }),
         ]);
 
-        expect(result).toEqual({ count: 1, paths: [join(dirPath, "SKILL.md")] });
+        expect(result.count).toBe(1);
         expect(writeFileContent).toHaveBeenCalledWith(join(dirPath, "SKILL.md"), expect.anything());
+        expect(writeFileBuffer).toHaveBeenCalledTimes(2);
+        // One warning for the link, not one per file written below it.
         expect(logger.warn).toHaveBeenCalledTimes(1);
         expect(logger.warn).toHaveBeenCalledWith(
-          `Writing ${JSON.stringify(join(dirPath, "SKILL.md"))} through a symbolic link: the ` +
-            `content lands in ${JSON.stringify(join(await realpath(sharedDir), "SKILL.md"))}`,
+          `${JSON.stringify(dirPath)} is a symbolic link to ` +
+            `${JSON.stringify(await realpath(sharedDir))}; files rulesync writes through it land there`,
         );
       },
     );
