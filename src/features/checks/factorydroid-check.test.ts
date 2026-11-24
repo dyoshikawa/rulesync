@@ -362,8 +362,8 @@ describe("FactorydroidCheck", () => {
         })
       ).toRulesyncChecks();
 
-      // A second adjacent block would lead the body and read as the check's
-      // own frontmatter, so it goes too.
+      // A second adjacent block would otherwise be left leading the check's
+      // body, so it goes too.
       expect(imported[0]!.getBody()).toBe("Rule.");
       expect(imported[0]!.getFrontmatter()).toEqual({ targets: ["*"] });
     });

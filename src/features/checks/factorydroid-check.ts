@@ -13,11 +13,10 @@ import { type ToolCheckSettablePaths } from "./tool-check.js";
  *
  * rulesync never writes frontmatter here, but a user who authored this path as
  * an ordinary skill did, and that block is the skill's metadata rather than
- * review instructions. Left in place it would lead the body of the check
- * written to `.rulesync/checks/`, right behind that file's own frontmatter,
- * where it reads as more frontmatter — a `severity: bogus` copied out of a
- * skill would look like the check's own setting, and a stray
- * `name: [unclosed` would make a later parse throw a raw YAML error.
+ * review instructions. Left in place it would be carried into the body of
+ * the check written to `.rulesync/checks/` as a block of YAML right behind
+ * that file's own frontmatter, where a `severity: bogus` copied out of a skill
+ * looks like the check's own setting to anyone reading or editing it.
  *
  * The block is therefore found the way `parseFrontmatter` finds it rather than
  * by parsing it, so that what the parser would have read as frontmatter is
@@ -41,9 +40,9 @@ const LEADING_BLANK_LINE_PATTERN = /^[^\S\r\n]*\r?\n/;
 function stripSkillFrontmatter(fileContent: string): string {
   let content = fileContent;
   // A loop, not a single pass: the parser takes only the leading block, so a
-  // second one written immediately behind the first would lead the body and
-  // read as the check's own frontmatter on the way out. A block further
-  // down is ordinary content and the loop stops before it.
+  // second one written immediately behind the first would be left leading the
+  // check's body. A block further down is ordinary content and the loop stops
+  // before it.
   for (;;) {
     const opening = FRONTMATTER_OPEN_PATTERN.exec(content);
     if (!opening) {

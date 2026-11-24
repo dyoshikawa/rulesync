@@ -818,6 +818,34 @@ const code = "preserved";
       expect(findFrontmatterBlockBounds(content)).toEqual({ blockStart: 4, blockEnd: 4 });
     });
 
+    it("should apply the size guard to blank text hidden behind a whitespace-only fence language", () => {
+      // The fence line's trailing blanks stay in the block, and with `\r` as
+      // the only separator there is no `\n` before the closing fence; the guard
+      // has to count all of it.
+      const content = `---${" \r".repeat(40_000)}\nname: x\n---\nBody`;
+
+      expect(() => parseFrontmatter(content)).toThrow(/Frontmatter block is larger than/);
+    });
+
+    it("should apply the size guard to a file with no line break at all", () => {
+      expect(() => parseFrontmatter(`---${" ".repeat(MAX_FRONTMATTER_RAW_CHARS + 1)}x`)).toThrow(
+        /Frontmatter block is larger than/,
+      );
+    });
+
+    it("should read a long run of blank lines within the size guard in linear time", () => {
+      const content = `---\n${"\n".repeat(MAX_FRONTMATTER_RAW_CHARS - 2)}\n---\nBody`;
+      const startedAt = performance.now();
+
+      expect(parseFrontmatter(content)).toEqual({
+        frontmatter: {},
+        body: "Body",
+        hasFrontmatter: true,
+      });
+      // The former `/^\s*#[^\n]+/gm` check took about 10 s on this input.
+      expect(performance.now() - startedAt).toBeLessThan(1000);
+    });
+
     it("should apply the size guard to a block with no closing fence", () => {
       const content = `---\ndescription: "${"a".repeat(MAX_FRONTMATTER_RAW_CHARS)}"\n`;
 
@@ -976,6 +1004,31 @@ Body.`;
     it("should write only the body when the frontmatter is empty", () => {
       expect(stringifyFrontmatter("Body", {})).toBe("Body\n");
       expect(stringifyFrontmatter("Body\n", { dropped: null })).toBe("Body\n");
+    });
+
+    it("should fold a long unbreakable value the way js-yaml 4 does", () => {
+      // js-yaml 5 would leave this value plain; switching the default dump to
+      // v5 would change existing files on regeneration.
+      const value = "x".repeat(100);
+
+      expect(stringifyFrontmatter("Body", { description: value })).toBe(
+        `---\ndescription: >-\n  ${value}\n---\nBody\n`,
+      );
+      expect(
+        stringifyFrontmatter("Body", { description: value }, { avoidBlockScalars: true }),
+      ).toBe(`---\ndescription: ${value}\n---\nBody\n`);
+    });
+
+    it("should take the rest of the file as the block after a language fence nothing closes", () => {
+      expect(parseFrontmatter("---yaml\na: 1\n")).toEqual({
+        frontmatter: { a: 1 },
+        body: "",
+        hasFrontmatter: true,
+      });
+    });
+
+    it("should read a null block as empty frontmatter", () => {
+      expect(parseFrontmatter("---\n~\n---\nBody").frontmatter).toEqual({});
     });
 
     it("should end the output with exactly one added line break", () => {

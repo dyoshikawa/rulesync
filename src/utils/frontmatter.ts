@@ -254,8 +254,9 @@ export function stringifyFrontmatter(
   // With lineWidth disabled js-yaml never folds a long string into a block
   // scalar (>- or |-). Some tools use simplified frontmatter parsers that read
   // those indicators as literal string values. The default output is dumped
-  // with js-yaml 4, as gray-matter did, because v5 stops folding a long string
-  // that has no space to break at and would change files on regeneration.
+  // with js-yaml 4, as gray-matter did here through its pnpm override, because
+  // v5 stops folding a long string that has no space to break at and would
+  // change files on regeneration.
   const yaml = (
     avoidBlockScalars ? dump(cleanFrontmatter, { lineWidth: -1 }) : dumpYamlV4(cleanFrontmatter)
   ).trim();
@@ -298,8 +299,8 @@ type FrontmatterFence = {
  * is a fence only when a fourth `-` does not follow, and the language is the
  * text between the fence and the first `\r?\n`, trimmed — dropping the last
  * character when there is no line break at all. Every check that has to agree
- * with {@link splitFrontmatter} on where the block is (the language check, the
- * size guard, the repair pass) goes through this one reading, so none of them
+ * with {@link splitFrontmatter} on where the block is (the language check and
+ * the repair pass) goes through this one reading, so none of them
  * can be bypassed by a fence line the splitter accepts and a stricter pattern
  * would not (a stray `\r` before the line break, say).
  */
@@ -338,23 +339,6 @@ function assertYamlFrontmatterLanguage(content: string): void {
 }
 
 /**
- * The number of characters {@link splitFrontmatter} hands to the YAML parser
- * as the frontmatter block. Unlike {@link findFrontmatterBlockBounds}, a
- * missing closing fence does not make this zero: the splitter then parses
- * everything after the fence line, so that is what the size guard has to
- * measure.
- */
-function measureFrontmatterBlockChars(content: string): number {
-  const fence = readFrontmatterFence(content);
-  if (fence?.lineBreakStart === undefined) {
-    return 0;
-  }
-  const rest = content.slice(fence.lineBreakStart);
-  const closeIndex = rest.indexOf("\n---");
-  return closeIndex === -1 ? rest.length : closeIndex;
-}
-
-/**
  * Split `content` into its raw frontmatter block and its body, the way
  * gray-matter 4 did (see {@link readFrontmatterFence}).
  *
@@ -364,6 +348,10 @@ function measureFrontmatterBlockChars(content: string): number {
  * body empty. Without a fence, `block` is `""` and the body is the content
  * minus a leading byte order mark.
  */
+// Keep in step with readFrontmatterFence: both read the BOM, the `----` rule
+// and the fence language the same way. They stay separate because the
+// splitter must reproduce gray-matter's quirk of keeping a whitespace-only
+// language in the block, which the fence reading has no use for.
 function splitFrontmatter(content: string): { block: string; body: string } {
   const text = content.startsWith("\uFEFF") ? content.slice(1) : content;
   if (!text.startsWith("---") || text.charAt(3) === "-") {
@@ -393,9 +381,16 @@ function splitFrontmatter(content: string): { block: string; body: string } {
   return { block: rest.slice(0, closeIndex), body };
 }
 
-/** Whether a raw block holds nothing but blank and comment lines. */
+/**
+ * Whether a raw block holds nothing but blank and comment lines. Checked line
+ * by line rather than with gray-matter's `/^\s*#[^\n]+/gm`, whose `\s*` also
+ * spans line breaks and backtracks quadratically on a long run of blank lines.
+ */
 function isBlankFrontmatterBlock(block: string): boolean {
-  return block.replace(/^\s*#[^\n]+/gm, "").trim() === "";
+  return block.split(/\r\n|\r|\n/).every((line) => {
+    const trimmed = line.trim();
+    return trimmed === "" || trimmed.startsWith("#");
+  });
 }
 
 export function parseFrontmatter(
@@ -411,7 +406,11 @@ export function parseFrontmatter(
   let hasFrontmatter: boolean;
   try {
     assertYamlFrontmatterLanguage(content);
-    if (measureFrontmatterBlockChars(content) > MAX_FRONTMATTER_RAW_CHARS) {
+    // Measured on the block the splitter actually returns, so the guard and
+    // the parser can never disagree on what the block is (a whitespace-only
+    // fence language or a file with no line break at all, say).
+    const split = splitFrontmatter(content);
+    if (split.block.length > MAX_FRONTMATTER_RAW_CHARS) {
       // A complex YAML key (an array or mapping used as a mapping key) costs
       // real memory inside js-yaml while it parses, before any post-parse
       // budget above ever runs. Refusing an oversized block outright keeps
@@ -421,7 +420,6 @@ export function parseFrontmatter(
       );
     }
 
-    const split = splitFrontmatter(content);
     // js-yaml 4, not the js-yaml 5 the rest of rulesync uses: v5 is stricter
     // (it rejects, for one, a flow list whose closing `]` sits at column 0)
     // and drops v4's default timestamp, merge and binary tags, so it would
