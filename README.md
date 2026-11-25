@@ -109,6 +109,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | OpenCode                  |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | OpenCode V1               |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | OpenClaw                  |  ✅   |        | ✅  |          |           |   ✅   |       |             |        |
+| OpenBitFun                |       |        |     |          |    ✅     |   ✅   |  ✅   |             |        |
 | MiMo Code                 |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | GitLab Duo CLI            |  ✅   |        | ✅  |    ✅    |           |   ✅   |  ✅   |     ✅      |   ✅   |
 | Cline                     |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |

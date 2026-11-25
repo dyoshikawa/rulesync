@@ -421,6 +421,7 @@ rulesync.local.jsonc
 **/.takt/facets/knowledge/
 **/.trae/skills/
 **/.vibe/skills/
+**/.openbitfun/skills/
 **/.xum/skills/
 **/.zcode/skills/
 **/.dsh/skills/
@@ -457,6 +458,7 @@ rulesync.local.jsonc
 **/.tabnine/agent/agents/
 **/.takt/facets/personas/
 **/.vibe/agents/
+**/.openbitfun/agents/
 **/.xum/agents/
 **/.zcode/agents/
 **/.ai/mcp/mcp.json
@@ -491,6 +493,7 @@ rulesync.local.jsonc
 **/.firebender/hooks.json
 **/.codewhale/hooks.toml
 **/.codex/hooks.json
+**/.openbitfun/config/hooks.json
 **/.github/hooks/copilot-hooks.json
 **/.github/hooks/copilotcli-hooks.json
 **/.kilo/plugins/rulesync-hooks.js

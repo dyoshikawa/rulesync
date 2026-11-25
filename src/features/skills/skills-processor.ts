@@ -77,6 +77,7 @@ import { LettacodeSkill } from "./lettacode-skill.js";
 import { MimocodeSkill } from "./mimocode-skill.js";
 import { MusecodeSkill } from "./musecode-skill.js";
 import { OmpSkill } from "./omp-skill.js";
+import { OpenbitfunSkill } from "./openbitfun-skill.js";
 import { OpenclawSkill } from "./openclaw-skill.js";
 import { OpenCodeSkill } from "./opencode-skill.js";
 import { Opencodev1Skill } from "./opencodev1-skill.js";
@@ -813,6 +814,17 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     "warp",
     {
       class: WarpSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "openbitfun",
+    {
+      // OpenBitFun skills are directories (`<name>/SKILL.md`) under
+      // `.openbitfun/skills/` (project) / the OS-dependent user skills dir
+      // (`~/.local/share/openbitfun/skills` on Linux).
+      // https://github.com/openBitFun/OpenBitFun/blob/main/docs/interactive-capabilities/capabilities/feature.skills.md
+      class: OpenbitfunSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],

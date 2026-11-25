@@ -1231,6 +1231,7 @@ export const HooksConfigSchema = z.looseObject({
   amp: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   factorydroid: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   codexcli: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  openbitfun: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   goose: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   deepagents: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   kiro: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
@@ -1974,6 +1975,39 @@ export const CODEXCLI_HOOK_EVENTS: readonly HookEvent[] = eventsOf(
  */
 export const CODEXCLI_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
   CANONICAL_TO_CODEXCLI_EVENT_NAMES,
+);
+
+/**
+ * Map canonical camelCase event names to OpenBitFun PascalCase. OpenBitFun
+ * implements the Codex hook contract with Codex's event names, minus the
+ * events it does not dispatch (`Interrupt`, `PreModelRequest`,
+ * `PostModelRequest`).
+ * @see https://github.com/openBitFun/OpenBitFun/blob/main/docs/features/agent-hooks.md
+ */
+export const CANONICAL_TO_OPENBITFUN_EVENT_NAMES: Record<string, string> = {
+  sessionStart: "SessionStart",
+  sessionEnd: "SessionEnd",
+  preToolUse: "PreToolUse",
+  postToolUse: "PostToolUse",
+  beforeSubmitPrompt: "UserPromptSubmit",
+  stop: "Stop",
+  permissionRequest: "PermissionRequest",
+  subagentStart: "SubagentStart",
+  subagentStop: "SubagentStop",
+  preCompact: "PreCompact",
+  postCompact: "PostCompact",
+} satisfies Partial<Record<HookEvent, string>>;
+
+/** Hook events supported by OpenBitFun. */
+export const OPENBITFUN_HOOK_EVENTS: readonly HookEvent[] = eventsOf(
+  CANONICAL_TO_OPENBITFUN_EVENT_NAMES,
+);
+
+/**
+ * Map OpenBitFun PascalCase event names to canonical camelCase.
+ */
+export const OPENBITFUN_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
+  CANONICAL_TO_OPENBITFUN_EVENT_NAMES,
 );
 
 /**

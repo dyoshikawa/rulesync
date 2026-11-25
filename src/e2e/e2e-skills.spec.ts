@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 
 import { describe, expect, it } from "vite-plus/test";
 
+import { openbitfunGlobalSkillsDir } from "../constants/openbitfun-paths.js";
 import {
   RULESYNC_HOOKS_RELATIVE_FILE_PATH,
   RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH,
@@ -62,6 +63,10 @@ const skillsGenerateTargets = [
   {
     target: "xum",
     outputPath: join(".xum", "skills", "test-skill", "SKILL.md"),
+  },
+  {
+    target: "openbitfun",
+    outputPath: join(".openbitfun", "skills", "test-skill", "SKILL.md"),
   },
   {
     target: "androidstudio",
@@ -435,6 +440,7 @@ This is the test skill body content.
     },
     { target: "qoder", orphanPath: join(".qoder", "skills", "orphan-skill", "SKILL.md") },
     { target: "xum", orphanPath: join(".xum", "skills", "orphan-skill", "SKILL.md") },
+    { target: "openbitfun", orphanPath: join(".openbitfun", "skills", "orphan-skill", "SKILL.md") },
     {
       target: "androidstudio",
       orphanPath: join(".android-studio", "skills", "orphan-skill", "SKILL.md"),
@@ -549,6 +555,7 @@ describe("E2E: skills (import)", () => {
     },
     { target: "qoder", sourcePath: join(".qoder", "skills", "test-skill", "SKILL.md") },
     { target: "xum", sourcePath: join(".xum", "skills", "test-skill", "SKILL.md") },
+    { target: "openbitfun", sourcePath: join(".openbitfun", "skills", "test-skill", "SKILL.md") },
     {
       target: "androidstudio",
       sourcePath: join(".android-studio", "skills", "test-skill", "SKILL.md"),
@@ -1191,6 +1198,10 @@ const skillsGlobalTargets = [
   {
     target: "xum",
     outputPath: join(".xum", "skills", "test-skill", "SKILL.md"),
+  },
+  {
+    target: "openbitfun",
+    outputPath: join(openbitfunGlobalSkillsDir(), "test-skill", "SKILL.md"),
   },
   {
     target: "androidstudio",
