@@ -187,8 +187,10 @@ unprocessed, actionable issues remain (for example, ones filed while this
 skill was running), process them too. Stop when the only open issues left are
 the inconclusive ones you already reported, or when none remain.
 
-Set a hard safety cap of **20** issues processed in a single run. If the cap is
-reached, stop and report the remaining work instead of continuing.
+Set a hard safety cap of **20** issues processed in a single run, unless the
+caller passes a different cap (for example the `goal-issues-and-release` skill
+raises it to **50**). If the cap is reached, stop and report the remaining work
+instead of continuing.
 
 Because each actionable issue gets its own branch, PR, and the `goal-pr` skill cycle —
 and the `goal-pr` skill merges and cleans up the branch, returning you to `main` — always
