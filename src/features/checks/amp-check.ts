@@ -50,7 +50,7 @@ type AmpCheckParams = {
  * scoped to the project (`.agents/checks/`) and user-wide (`~/.config/amp/checks/`;
  * Amp also reads `~/.config/agents/checks/`, which rulesync does not write).
  * Amp has since removed `amp review` and deprecated project-defined checks
- * in `.agents/checks/`, together with the `@amp/review-checks` plugin that ran
+ * in `.agents/checks/`, together with the `@amp/review-checks` plugin that runs
  * them. rulesync keeps writing this format because Goose discovers the same
  * `.agents/checks/` directory and existing setups may still load the plugin.
  * @see https://ampcode.com/docs/review

@@ -107,7 +107,7 @@ export const toolCheckFactories = new Map<ChecksProcessorToolTarget, ToolCheckFa
       // Amp reads code review checks from `.agents/checks/` (project) and
       // `~/.config/amp/checks/` (global) as Markdown files with YAML frontmatter.
       // Amp has deprecated these checks and the `@amp/review-checks` plugin
-      // that ran them; the output is kept because Goose discovers the same
+      // that runs them; the output is kept because Goose discovers the same
       // `.agents/checks/` directory.
       // https://ampcode.com/docs/review
       class: AmpCheck,
