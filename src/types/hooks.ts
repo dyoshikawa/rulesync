@@ -1060,17 +1060,18 @@ export const CONTINUE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertR
  * observers, `gateway_platform_event` and `transform_api_error_classification`.
  * Shell hooks are gated on the same set.
  *
- * Verified against the tag `v0.23.2`: `VALID_HOOKS` holds 48 entries, grown
+ * Verified against the tag `v0.23.4`: `VALID_HOOKS` holds 50 entries, grown
  * from 23 at `v2026.8.3` (v0.20.0) and 37 at `v2026.8.16` (v0.20.2) — v0.21
  * added `agent_loop_stopped` and `on_room_member_activity`, v0.21.5 added
  * `pre_auxiliary_call` and `post_auxiliary_call`, v0.21.6 added
  * `post_gateway_admission`, `on_human_input_request` and
  * `on_human_input_resolved`, v0.22.3 added `on_session_delete` and
- * `post_compaction`, and v0.23.1 added `on_session_open` and
- * `post_curator_run`. This list holds 47 of them — see
+ * `post_compaction`, v0.23.1 added `on_session_open` and
+ * `post_curator_run`, and v0.23.4 added `on_session_prompt` and
+ * `on_session_prompt_settled`. This list holds 49 of them — see
  * {@link HERMESAGENT_SHELL_UNSUPPORTED_HOOK_EVENTS} for the exclusion.
  *
- * @see https://github.com/NousResearch/hermes-agent/blob/v0.23.2/hermes_cli/plugins.py
+ * @see https://github.com/NousResearch/hermes-agent/blob/v0.23.4/hermes_cli/plugins.py
  */
 export const HERMESAGENT_NATIVE_HOOK_EVENTS = [
   "pre_tool_call",
@@ -1096,6 +1097,8 @@ export const HERMESAGENT_NATIVE_HOOK_EVENTS = [
   "on_session_reset",
   "on_session_delete",
   "on_session_open",
+  "on_session_prompt",
+  "on_session_prompt_settled",
   "on_skill_lifecycle",
   "subagent_start",
   "subagent_stop",
@@ -1132,8 +1135,8 @@ export const HERMESAGENT_NATIVE_HOOK_EVENTS = [
  * rulesync only ever writes shell hooks, so these are excluded from
  * {@link HERMESAGENT_NATIVE_HOOK_EVENTS} and warned about with their own message.
  *
- * @see https://github.com/NousResearch/hermes-agent/blob/v0.23.2/hermes_cli/plugins.py — `SHELL_UNSUPPORTED_HOOKS`
- * @see https://github.com/NousResearch/hermes-agent/blob/v0.23.2/agent/shell_hooks.py — `_parse_hooks_block`
+ * @see https://github.com/NousResearch/hermes-agent/blob/v0.23.4/hermes_cli/plugins.py — `SHELL_UNSUPPORTED_HOOKS`
+ * @see https://github.com/NousResearch/hermes-agent/blob/v0.23.4/agent/shell_hooks.py — `_parse_hooks_block`
  */
 export const HERMESAGENT_SHELL_UNSUPPORTED_HOOK_EVENTS = [
   "transform_api_error_classification",
@@ -1157,8 +1160,8 @@ export const CANONICAL_TO_HERMESAGENT_EVENT_NAMES: Record<string, string> = {
 /**
  * Hook events supported by Hermes Agent's native Shell Hooks system.
  *
- * Hermes validates hook events against a fixed `VALID_HOOKS` set — 48 entries as
- * of v0.23.2 (tag `v0.23.2`); see {@link HERMESAGENT_NATIVE_HOOK_EVENTS} for the
+ * Hermes validates hook events against a fixed `VALID_HOOKS` set — 50 entries as
+ * of v0.23.4 (tag `v0.23.4`); see {@link HERMESAGENT_NATIVE_HOOK_EVENTS} for the
  * full list. Only the events with a clean 1:1 canonical equivalent are mapped
  * here. All other native events round-trip through `hermesagent.hooks`.
  * @see https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/features/hooks.md
