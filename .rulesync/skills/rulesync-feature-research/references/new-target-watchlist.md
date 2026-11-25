@@ -32,12 +32,12 @@ latest re-check section.
 | Kun (`KunAgent/Kun`)                          | 2026-10-27 | Official docs pin a file-based project layout (rules / MCP / skills paths); today it is a GUI+TUI workbench (6,327 stars, v0.4.3 2026-10-27, PolyForm NC licence) whose MCP / skills / extensions are managed from the sidebar UI                                                                                                                                                                                                                                                                            |
 | avante.nvim (`avante-corp/avante.nvim`)       | 2026-10-31 | It stops falling back to covered files (first of `AGENTS.md` / `CLAUDE.md` / `OPENCODE.md` / `.cursorrules` / `.windsurfrules` / `.github/copilot-instructions.md`, plus `.cursor/rules/*.mdc`) or gains a file-based project MCP / skills / commands surface; today 18,183 stars, v0.4.8 (2026-10-28), own files are `avante.md` (configurable `instructions_file`) and `.avante/rules/*.{mode}.avanterules` Jinja system-prompt templates, MCP via `mcphub.nvim`, everything else Lua setup                |
 | FuXi (`fuxicodex/Fuxi`)                       | 2026-10-31 | The "checked-in project settings file (permissions, hooks)" gets a documented path and schema, and a release passes ~5k asset downloads; today proprietary, 3,199 stars, v0.1.8 (2026-09-22), installs from its own CDN, documented config is global-only (`~/.fuxi/config.yaml`, MCP via `--mcp-config` / `fuxi mcp`)                                                                                                                                                                                       |
-| OpenCursor (`PawanOsman/OpenCursor`)          | 2026-11-03 | It gains a file-based surface of its own beyond `.opencursor/skills` / `~/.opencursor/{skills,plugins}`, or Marketplace installs pass ~10k; today 6,049 stars, v0.2.1 (2026-10-26), 966 Marketplace installs, and it reads covered files (`AGENTS.md`, `.cursor/rules/*.md[c]`, `.agents/skills`, `.codex/skills`, `.cursor/skills`)                                                                                                                                                                         |
 | Docker Agent (`docker/docker-agent`)          | 2026-11-03 | It reads repo-convention config (rules / skills / MCP files a project carries) instead of only stand-alone `agent.yaml` agent definitions run with `docker agent run <file>`; today 4,648 stars, v1.156.2 (2026-11-02)                                                                                                                                                                                                                                                                                       |
 | zerostack (`gi-dellav/zerostack`)             | 2026-11-08 | Stars reach ~5k or a release passes ~5k asset downloads; today 1,746 stars, GPL-3.0, v1.8.5 (2026-10-10) at 447 asset downloads (v1.8.4 at 664). It already has a file surface: project `.zerostack/config.toml` (`mcp_servers`, permissions, hooks, merged over the global `~/.config/zerostack/config.toml`), `.zerostack/prompts/`, `.zerostack/settings.json`, and it reads `AGENTS.md` / `CLAUDE.md`                                                                                                    |
 | Octomind (`Muvon/octomind`)                   | 2026-11-08 | Stars reach ~3k or a release passes ~3k asset downloads, and the `.agents/guardrails.toml` schema settles (guards = PreToolUse deny, hooks = PostToolUse, validators = Stop); today 608 stars, Apache-2.0, 0.69.0 (2026-11-03) at 383 asset downloads, with `AGENTS.md`, `SKILL.md` folders and a single TOML config (models, roles, MCP, budgets)                                                                                                                                                           |
 | tau (`huggingface/tau`, Hugging Face)         | 2026-11-08 | PyPI `tau-ai` reaches ~5k downloads/week, or it gains MCP / hooks / extension files a project carries; today 3,029 stars, v0.4.9 (2026-11-03), ~590 downloads/week, and it is a Python port of Pi that reads `AGENTS.md`, `.tau/skills` + `.agents/skills` (covered by `agentsskills`) and `.tau/prompts` + `.agents/prompts`                                                                                                                                                                                |
 | Omnirush CLI (`omnirush`)                     | 2026-11-19 | The CLI documents a project config surface of its own (e.g. a `.omnirush/` tree); today it is an OpenCode distribution (npm `omnirush` 3.0.6, ~5k downloads/week) that reads `.opencode/`, `opencode.json` and `.claude/skills` (covered), with other MCP managed in the app UI and account                                                                                                                                                                                                                  |
+| VT Code (`vinhnx/vtcode`)                     | 2026-11-25 | Stars reach ~3k or crates.io `vtcode` passes ~5k recent (90-day) downloads; today 917 stars, Apache-2.0, 0.185.2 (2026-11-24, near-daily releases at <100 asset downloads each), 2,073 recent crate downloads. It already has a file surface: project `vtcode.toml` (`[mcp]` providers / allowlist, hooks), `.vtcode/hooks/*.sh`, `.vtcode/mcp/`, and it reads `AGENTS.md` and `.agents/skills` (covered)                                                                                                    |
 
 ## Zoo Code CLI — `apps/cli` in the Zoo-Code repo
 
@@ -448,7 +448,50 @@ discovery pass.
 - Omnirush CLI:
   `https://github.com/omnirush-ai/omnirush-gui/blob/main/docs/skills-and-mcp.md`.
 
+## Re-check on 2026-11-25
+
+Every row above was re-checked on 2026-11-25. One was retired, none promoted:
+
+- OpenCursor: retired — still no release since 0.2.1 and no push since 2026-10-26, a month idle, as flagged on 2026-11-19. Stars flat at 6,048; its only own surface was `.opencursor/skills`.
+- Zoo Code CLI (`@roo-code/cli`): unmet. `apps/cli/package.json` is still 0.1.17 with `private: true`, and npm returns 404. Zoo Code v3.98.2 (2026-11-23).
+- ForgeCode (`tailcallhq/forgecode`): unmet but closest. `@antinomyhq/forge` has 1,703 downloads/week (up from 1,410; the bar is ~2k) and is still 2.13.21 on npm (GitHub has v2.14.0, 2026-10-01). 7,638 stars. `forgecode.dev/docs`, `/docs/commands` and `/docs/custom-commands` still return 404.
+- Verdent (VS Code extension + Verdent Deck): unmet. The settings docs still list only `~/.verdent/{VERDENT.md,plan_rules.md,subagents/}`.
+- Baidu Comate / Zulu CLI (`@comate/zulu`): unmet. 1.7.21, 1,800 downloads/week, no English project-layout docs.
+- Warp Factories (definitions-as-code): unmet. The docs sidebar still badges Factories "Early Access".
+- fx (`vercel-labs/fx`): unmet. 3,986 stars, v0.0.17. Project `.fx.json` still applies only its "project-safe" keys (`settings_entries.zig`). `.fx/skills` exists but is not one of the listed dimensions.
+- Zencoder (IDE extension + Zenflow): unmet. The docs are fetchable again (`llms-full.txt`). The new project `.zencoder/settings.json` carries custom model `providers` only. Skills moved to `.agents/skills` (covered) and `.zencoder/skills/` is deprecated. MCP is still the `zencoder.mcpServers` setting.
+- Nanocoder (`Nano-Collective/nanocoder`): unmet. 2,469 downloads/week (down), 2,586 stars, v1.32.0.
+- Open Interpreter (Rust Codex distribution): unmet. No new release. `rust-v0.0.61` is at 19,996 asset downloads, but `rust-v0.0.60` has 3,123 and `rust-v0.0.59` 7,617, so the count is still not consistent across releases. 68,960 stars.
+- MiniMax Code (`MiniMax-AI/minimax-code`): unmet. npm 0.7.9, 25,622 downloads/week (up), 2,276 stars. Still no project `.minimax/` layout; hooks are plugin-registered (`docs/hooks.md`).
+- Prime Agent (`PrimeIntellect-ai/prime-agent`): unmet. v0.10.5, 22,901 stars. `docs/` still holds only MCP connector guides.
+- Claurst (`Kuberwastaken/claurst`): unmet, no longer idle. Commits landed 2026-11-21/22 (model pricing fix), so do not retire. Still no release after v0.2.1 (now 1,046 asset downloads). npm `claurst` 86/week, 10,346 stars.
+- Kiro Crew (`kirodotdev/KiroCrew`): unmet. v0.13.1 (2026-11-22), 5,065 stars. Still has no project surface of its own.
+- Kimchi (`getkimchi/kimchi`): unmet. v1.40.0 (2026-11-24), 2,288 stars, releases under 700 asset downloads.
+- JetBrains ThinkRail (`JetBrains/thinkrail`): unmet. v0.5.0-nightly.12, 8,428 stars.
+- Databricks Genie Code: unmet. Skills docs still describe workspace `.assistant/skills/` only.
+- Kun (`KunAgent/Kun`): unmet. v0.4.6 (2026-11-23), 6,383 stars. `llms.txt` lists no project file layout.
+- avante.nvim (`avante-corp/avante.nvim`): unmet. v0.5.0, 18,209 stars.
+- FuXi (`fuxicodex/Fuxi`): unmet, no longer idle. A commit on 2026-11-24 added a composite GitHub Action, so do not retire. Still no release since v0.1.8 and no documented project settings file. 3,183 stars.
+- Docker Agent (`docker/docker-agent`): unmet. v1.165.0 (2026-11-24), 4,709 stars, still runs stand-alone `agent.yaml` files.
+- zerostack (`gi-dellav/zerostack`): unmet. 1,761 stars, v1.8.6 at 88 asset downloads.
+- Octomind (`Muvon/octomind`): unmet. 655 stars, 0.73.2 (2026-11-24), each release under 100 asset downloads.
+- tau (`huggingface/tau`, Hugging Face): unmet. PyPI `tau-ai` 740/week, 3,078 stars, v0.4.12.
+- Omnirush CLI (`omnirush`): unmet. npm 3.0.9, 3,173 downloads/week. Still an OpenCode distribution: `docs/skills-and-mcp.md` describes `.opencode/skills` and `opencode.json`, and app-added MCP lives in the runtime DB. The desktop repo has 5,098 stars (v3.9.1).
+
+Proposed as a target the same day: OpenBitFun (#3956), directly from the
+discovery pass.
+
+## Watchlist candidates recorded on 2026-11-25
+
+- VT Code: `https://github.com/vinhnx/vtcode` (`vtcode.toml`, `.vtcode/hooks/`).
+
 ## Promoted entries
+
+- **OpenBitFun** (formerly BitFun) — `.openbitfun/agents/*.md`,
+  `.openbitfun/skills/`, `.openbitfun/config/hooks.json` (Codex-style) and
+  `tool_permissions.json`, reading covered `AGENTS.md` / `CLAUDE.md` rules.
+  Proposed as #3956 on 2026-11-25 directly from the discovery pass. Do not
+  re-add it — track the proposal on that issue.
 
 - **OpenClaude** (`Twigpine/openclaude`) — `.openclaude/` tree (`CLAUDE.md`,
   `rules/`, `commands/`, `agents/`, `skills/`, `settings.json` hooks and
