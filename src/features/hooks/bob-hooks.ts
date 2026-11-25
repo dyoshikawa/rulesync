@@ -5,6 +5,8 @@ import {
 } from "../../constants/bob-paths.js";
 import {
   BOB_HOOK_EVENTS,
+  BOB_MATCHER_HOOK_EVENTS,
+  BOB_NATIVE_HOOK_EVENTS,
   BOB_TO_CANONICAL_EVENT_NAMES,
   CANONICAL_TO_BOB_EVENT_NAMES,
 } from "../../types/hooks.js";
@@ -12,12 +14,15 @@ import { SettingsJsonHooks, type SettingsJsonHooksSpec } from "./settings-json-h
 import type { ToolHooksConverterConfig } from "./tool-hooks-converter.js";
 import type { ToolHooksSettablePaths } from "./tool-hooks.js";
 
-// Bob honours `matcher` (a regex) on PreToolUse / PostToolUse (tool name),
-// SessionStart (`source`: startup | resume | compact) and PreCompact /
-// PostCompact (`trigger`: manual | auto); UserPromptSubmit and Stop ignore it.
+// Bob honours `matcher` (a regex) on every event but UserPromptSubmit and Stop
+// (see BOB_MATCHER_HOOK_EVENTS). The Bob Shell 2.1.0 events authored under
+// `bob.hooks` by their native name are not in this set, so their matcher
+// (`reason`, tool name, `notification_type`) is kept.
 // https://bob.ibm.com/docs/shell/configuration/lifecycle-hooks
 // https://bob.ibm.com/docs/ide/configuration/lifecycle-hooks
-const BOB_NO_MATCHER_EVENTS: ReadonlySet<string> = new Set(["beforeSubmitPrompt", "stop"]);
+const BOB_NO_MATCHER_EVENTS: ReadonlySet<string> = new Set(
+  BOB_HOOK_EVENTS.filter((event) => !BOB_MATCHER_HOOK_EVENTS.includes(event)),
+);
 
 // `projectDirVar` is empty: Bob documents no inline project-directory
 // substitution for hook commands, so commands are emitted verbatim.
@@ -42,6 +47,10 @@ const BOB_SPEC: SettingsJsonHooksSpec = {
   displayName: "Bob",
   overrideKey: "bob",
   converterConfig: BOB_CONVERTER_CONFIG,
+  // Bob's hooks schema is strict: one unknown key (a typo, or a canonical
+  // name such as `sessionEnd`) makes Bob ignore the file's whole hooks block,
+  // so only Bob's own event names are written from the `bob.hooks` override.
+  knownOverrideEvents: BOB_NATIVE_HOOK_EVENTS,
 };
 
 /**

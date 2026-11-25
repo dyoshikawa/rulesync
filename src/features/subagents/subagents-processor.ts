@@ -142,6 +142,10 @@ type ToolSubagentFactory = {
       outputRoot: string;
       relativeDirPath: string;
       relativeFilePath: string;
+      /** True when enumerating orphans for deletion rather than importing. */
+      forDeletion?: boolean;
+      /** Receives a warning when a file is left out of an import. */
+      logger?: Logger;
     }): Promise<boolean>;
   };
   meta: {
@@ -1460,6 +1464,8 @@ export class SubagentsProcessor extends FeatureProcessor {
               outputRoot: rootOutputRoot,
               relativeDirPath: dirPath,
               relativeFilePath: toRelativeFilePath(path),
+              forDeletion,
+              logger: this.logger,
             }),
           ),
         );

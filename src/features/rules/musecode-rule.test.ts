@@ -30,7 +30,7 @@ describe("MusecodeRule", () => {
       expect(paths.nonRoot).toBeUndefined();
     });
 
-    it("should ignore the global flag (Muse Code global rules path is undocumented)", () => {
+    it("should ignore the global flag (Muse Code user rules are the claudecode global output)", () => {
       const paths = MusecodeRule.getSettablePaths({ global: true });
       expect(paths.root.relativeDirPath).toBe(".");
       expect(paths.root.relativeFilePath).toBe("AGENTS.md");

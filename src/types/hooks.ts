@@ -664,20 +664,62 @@ export const CANONICAL_TO_BOB_EVENT_NAMES: Record<string, string> = {
 } satisfies Partial<Record<HookEvent, string>>;
 
 /**
- * Hook events supported by IBM Bob's lifecycle hooks.
+ * Hook events rulesync emits for IBM Bob from the shared `hooks` block.
  *
  * Bob reads `hooks` from `.bob/settings.json` (project) and
  * `~/.bob/settings/settings.json` (user) in the Claude-Code shape and fires
- * seven events: SessionStart, UserPromptSubmit, PreToolUse, PostToolUse,
- * PreCompact, PostCompact and Stop (Bob IDE and Bob Shell list the same
- * seven). Handlers are `command` or `http` hooks. `matcher` is a regex matched
- * against the tool name on PreToolUse / PostToolUse, `source` on SessionStart
- * and `trigger` on PreCompact / PostCompact; the other events ignore it.
+ * seven documented events: SessionStart, UserPromptSubmit, PreToolUse,
+ * PostToolUse, PreCompact, PostCompact and Stop (Bob IDE and Bob Shell list
+ * the same seven). Handlers are `command` or `http` hooks. Bob Shell 2.1.0
+ * adds more events; see {@link BOB_OPT_IN_HOOK_EVENTS} for why they are not
+ * emitted from the shared block.
  *
  * @see https://bob.ibm.com/docs/shell/configuration/lifecycle-hooks
  * @see https://bob.ibm.com/docs/ide/configuration/lifecycle-hooks
  */
 export const BOB_HOOK_EVENTS: readonly HookEvent[] = eventsOf(CANONICAL_TO_BOB_EVENT_NAMES);
+
+/**
+ * The {@link BOB_HOOK_EVENTS} whose `matcher` regex Bob applies: the tool name
+ * on PreToolUse / PostToolUse, `source` on SessionStart and `trigger` on
+ * PreCompact / PostCompact. UserPromptSubmit and Stop have no matchable value.
+ */
+export const BOB_MATCHER_HOOK_EVENTS: readonly HookEvent[] = BOB_HOOK_EVENTS.filter(
+  (event) => event !== "beforeSubmitPrompt" && event !== "stop",
+);
+
+/**
+ * Canonical events that Bob Shell 2.1.0 (`@ibm/bob` on npm, 2026-11-09) can
+ * fire under the native name given here, next to the override-only
+ * `PermissionResolved`. They are not on the lifecycle-hooks pages yet.
+ *
+ * They are deliberately not emitted from the shared `hooks` block: Bob Shell
+ * before 2.1.0 validates the `hooks` object strictly against the seven
+ * documented keys, and on any unknown key it ignores that settings file's
+ * whole `hooks` block (PreToolUse guards included). Writing them must
+ * therefore be an explicit opt-in under the `bob.hooks` override block, by
+ * their native name, which is emitted verbatim and imported back there.
+ *
+ * @see https://registry.npmjs.org/@ibm/bob/-/bob-2.1.0.tgz
+ */
+export const BOB_OPT_IN_HOOK_EVENTS: Readonly<Partial<Record<HookEvent, string>>> = {
+  sessionEnd: "SessionEnd",
+  permissionRequest: "PermissionRequest",
+  notification: "Notification",
+};
+
+/**
+ * Every native event key Bob Shell 2.1.0's strict hooks schema accepts: the
+ * seven documented events, the three opt-in ones and `PermissionResolved`,
+ * which has no canonical counterpart. Any other key under `bob.hooks` is
+ * dropped on generate, because one unknown key makes Bob ignore the file's
+ * whole hooks block.
+ */
+export const BOB_NATIVE_HOOK_EVENTS: readonly string[] = [
+  ...Object.values(CANONICAL_TO_BOB_EVENT_NAMES),
+  ...Object.values(BOB_OPT_IN_HOOK_EVENTS),
+  "PermissionResolved",
+];
 
 export const BOB_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
   CANONICAL_TO_BOB_EVENT_NAMES,
@@ -1018,17 +1060,18 @@ export const CONTINUE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertR
  * observers, `gateway_platform_event` and `transform_api_error_classification`.
  * Shell hooks are gated on the same set.
  *
- * Verified against the tag `v0.23.2`: `VALID_HOOKS` holds 48 entries, grown
+ * Verified against the tag `v0.23.4`: `VALID_HOOKS` holds 50 entries, grown
  * from 23 at `v2026.8.3` (v0.20.0) and 37 at `v2026.8.16` (v0.20.2) — v0.21
  * added `agent_loop_stopped` and `on_room_member_activity`, v0.21.5 added
  * `pre_auxiliary_call` and `post_auxiliary_call`, v0.21.6 added
  * `post_gateway_admission`, `on_human_input_request` and
  * `on_human_input_resolved`, v0.22.3 added `on_session_delete` and
- * `post_compaction`, and v0.23.1 added `on_session_open` and
- * `post_curator_run`. This list holds 47 of them — see
+ * `post_compaction`, v0.23.1 added `on_session_open` and
+ * `post_curator_run`, and v0.23.4 added `on_session_prompt` and
+ * `on_session_prompt_settled`. This list holds 49 of them — see
  * {@link HERMESAGENT_SHELL_UNSUPPORTED_HOOK_EVENTS} for the exclusion.
  *
- * @see https://github.com/NousResearch/hermes-agent/blob/v0.23.2/hermes_cli/plugins.py
+ * @see https://github.com/NousResearch/hermes-agent/blob/v0.23.4/hermes_cli/plugins.py
  */
 export const HERMESAGENT_NATIVE_HOOK_EVENTS = [
   "pre_tool_call",
@@ -1054,6 +1097,8 @@ export const HERMESAGENT_NATIVE_HOOK_EVENTS = [
   "on_session_reset",
   "on_session_delete",
   "on_session_open",
+  "on_session_prompt",
+  "on_session_prompt_settled",
   "on_skill_lifecycle",
   "subagent_start",
   "subagent_stop",
@@ -1090,8 +1135,8 @@ export const HERMESAGENT_NATIVE_HOOK_EVENTS = [
  * rulesync only ever writes shell hooks, so these are excluded from
  * {@link HERMESAGENT_NATIVE_HOOK_EVENTS} and warned about with their own message.
  *
- * @see https://github.com/NousResearch/hermes-agent/blob/v0.23.2/hermes_cli/plugins.py — `SHELL_UNSUPPORTED_HOOKS`
- * @see https://github.com/NousResearch/hermes-agent/blob/v0.23.2/agent/shell_hooks.py — `_parse_hooks_block`
+ * @see https://github.com/NousResearch/hermes-agent/blob/v0.23.4/hermes_cli/plugins.py — `SHELL_UNSUPPORTED_HOOKS`
+ * @see https://github.com/NousResearch/hermes-agent/blob/v0.23.4/agent/shell_hooks.py — `_parse_hooks_block`
  */
 export const HERMESAGENT_SHELL_UNSUPPORTED_HOOK_EVENTS = [
   "transform_api_error_classification",
@@ -1115,8 +1160,8 @@ export const CANONICAL_TO_HERMESAGENT_EVENT_NAMES: Record<string, string> = {
 /**
  * Hook events supported by Hermes Agent's native Shell Hooks system.
  *
- * Hermes validates hook events against a fixed `VALID_HOOKS` set — 48 entries as
- * of v0.23.2 (tag `v0.23.2`); see {@link HERMESAGENT_NATIVE_HOOK_EVENTS} for the
+ * Hermes validates hook events against a fixed `VALID_HOOKS` set — 50 entries as
+ * of v0.23.4 (tag `v0.23.4`); see {@link HERMESAGENT_NATIVE_HOOK_EVENTS} for the
  * full list. Only the events with a clean 1:1 canonical equivalent are mapped
  * here. All other native events round-trip through `hermesagent.hooks`.
  * @see https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/features/hooks.md
