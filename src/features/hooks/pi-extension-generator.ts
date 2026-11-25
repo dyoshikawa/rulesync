@@ -117,7 +117,113 @@ type PiExtensionDialect = {
    * uses Claude Code's `old_string` / `new_string`, which are then kept.
    */
   editTextKeys: { old: string; new: string };
+  /** Body of `absoluteToolPath`, mirroring how the host resolves a tool `path`. */
+  pathResolverLines: readonly string[];
 };
+
+/**
+ * Pi's `resolveToCwd` (`core/tools/path-utils.ts`), which calls
+ * `resolvePath(path, cwd, { normalizeUnicodeSpaces: true, stripAtPrefix: true })`
+ * from `utils/paths.ts`: Unicode spaces become plain spaces, a leading `@` is
+ * dropped, on Windows Git Bash / WSL drive paths are converted, `~` is
+ * expanded, a `file://` URL is converted, and the result is resolved against
+ * cwd. Pi has no URL passthrough, so any other `scheme://` text is a relative
+ * path too.
+ *
+ * @see https://github.com/earendil-works/pi/blob/v1.6.0/packages/coding-agent/src/utils/paths.ts
+ */
+// cspell:ignore cygdrive
+const PI_PATH_RESOLVER_LINES = [
+  "function absoluteToolPath(path: unknown, cwd: string): unknown {",
+  '  if (typeof path !== "string") return path;',
+  '  let normalized = path.replace(/[\\u00A0\\u2000-\\u200A\\u202F\\u205F\\u3000]/g, " ");',
+  '  if (normalized.startsWith("@")) normalized = normalized.slice(1);',
+  '  if (process.platform === "win32" && normalized.startsWith("/") && !normalized.startsWith("//") && !normalized.includes("\\\\")) {',
+  "    const drive = normalized.match(/^\\/(?:mnt\\/|cygdrive\\/)?([a-z])(?:\\/(.*))?$/i);",
+  '    if (drive?.[1]) normalized = `${drive[1].toUpperCase()}:\\\\${drive[2]?.replaceAll("/", "\\\\") ?? ""}`;',
+  "  }",
+  '  if (normalized === "~") normalized = homedir();',
+  '  else if (normalized.startsWith("~/") || (process.platform === "win32" && normalized.startsWith("~\\\\"))) {',
+  "    normalized = joinPath(homedir(), normalized.slice(2));",
+  "  } else if (/^file:\\/\\//.test(normalized)) {",
+  "    try {",
+  "      normalized = fileURLToPath(normalized);",
+  "    } catch {",
+  "      return path;",
+  "    }",
+  "  }",
+  "  return resolvePath(cwd, normalized);",
+  "}",
+];
+
+/**
+ * The internal URL schemes oh-my-pi's `InternalUrlRouter` registers itself
+ * (`internal-urls/router.ts`). A `path` naming one is routed to its protocol
+ * handler instead of the filesystem, so it is left as written. A host
+ * embedding oh-my-pi can register more, which this list cannot know about.
+ *
+ * @see https://github.com/can1357/oh-my-pi/blob/76b7d843d59bc83cc40cd5decadc89dc808a14e6/packages/coding-agent/src/internal-urls/router.ts
+ */
+const OMP_INTERNAL_URL_SCHEMES = [
+  "skill",
+  "rule",
+  "memory",
+  "out",
+  "agent",
+  "history",
+  "local",
+  "proc",
+  "cfg",
+  "ssh",
+  "security",
+  "vault",
+  "issue",
+  "pr",
+  "mr",
+  "mcp",
+  "omp",
+  "help",
+  "attachment",
+  "conflict",
+];
+
+/**
+ * oh-my-pi's `resolveToCwd` (`tools/path-utils.ts`): `expandPath` strips a
+ * stray leading `:` before a path shape, strips a leading `@` only before an
+ * absolute path, `~` or an internal URL, turns Unicode spaces into plain
+ * spaces, converts a `file://` URL and expands `~`; an internal URL is not a
+ * filesystem path, a bare root (`/`) is the workspace root, and anything else
+ * is resolved against cwd. Windows drive-alias handling is not mirrored.
+ *
+ * @see https://github.com/can1357/oh-my-pi/blob/76b7d843d59bc83cc40cd5decadc89dc808a14e6/packages/coding-agent/src/tools/path-utils.ts
+ */
+const OMP_PATH_RESOLVER_LINES = [
+  `const INTERNAL_URL_SCHEME = /^(?:${OMP_INTERNAL_URL_SCHEMES.join("|")}):\\/\\/?/i;`,
+  "",
+  "function absoluteToolPath(path: unknown, cwd: string): unknown {",
+  '  if (typeof path !== "string") return path;',
+  "  let normalized = /^:(?=[/\\\\~]|\\.\\.?[/\\\\]|[A-Za-z]:)/.test(path) ? path.slice(1) : path;",
+  '  if (normalized.startsWith("@")) {',
+  "    const rest = normalized.slice(1);",
+  '    if (rest.startsWith("/") || rest === "~" || rest.startsWith("~/") || win32Path.isAbsolute(rest) || INTERNAL_URL_SCHEME.test(rest)) {',
+  "      normalized = rest;",
+  "    }",
+  "  }",
+  '  normalized = normalized.replace(/[\\u00A0\\u2000-\\u200A\\u202F\\u205F\\u3000]/g, " ");',
+  '  if (normalized.toLowerCase().startsWith("file://")) {',
+  "    try {",
+  "      normalized = fileURLToPath(normalized);",
+  "    } catch {",
+  "      // oh-my-pi keeps an unconvertible `file://` text as written.",
+  "    }",
+  "  }",
+  '  if (normalized === "~") normalized = homedir();',
+  '  else if (normalized.startsWith("~/")) normalized = joinPath(homedir(), normalized.slice(2));',
+  "  if (INTERNAL_URL_SCHEME.test(normalized)) return normalized;",
+  "  if (/^\\/+$/.test(normalized)) return resolvePath(cwd);",
+  "  return resolvePath(cwd, normalized);",
+  "}",
+];
 
 /**
  * Tool names both Pi and oh-my-pi share with a canonical counterpart. Pi's
@@ -140,6 +246,7 @@ const PI_EXTENSION_DIALECT: PiExtensionDialect = {
   // Pi's `find` takes a glob `pattern`, like Claude Code's `Glob`.
   toolNames: { ...SHARED_CANONICAL_TOOL_NAMES, find: "Glob" },
   editTextKeys: { old: "oldText", new: "newText" },
+  pathResolverLines: PI_PATH_RESOLVER_LINES,
 };
 
 /**
@@ -162,6 +269,7 @@ export const OMP_EXTENSION_DIALECT: PiExtensionDialect = {
   // patch, which is passed through as is.
   // https://github.com/can1357/oh-my-pi/blob/main/packages/coding-agent/src/edit/schemas.ts
   editTextKeys: { old: "old_string", new: "new_string" },
+  pathResolverLines: OMP_PATH_RESOLVER_LINES,
 };
 
 /**
@@ -258,19 +366,7 @@ function buildToolPayloadHelperLines(dialect: PiExtensionDialect): string[] {
     "  return matcher.test(toolName) || matcher.test(claudeToolName(toolName));",
     "}",
     "",
-    "// Pi's `resolveToCwd`: Unicode spaces become plain spaces, a leading `@` is",
-    "// dropped, `~` is expanded and `file://` URLs are converted. Other URLs and",
-    "// internal URIs (which oh-my-pi's read accepts) are left as written.",
-    "function absoluteToolPath(path: unknown, cwd: string): unknown {",
-    '  if (typeof path !== "string") return path;',
-    '  let normalized = path.replace(/[\\u00A0\\u2000-\\u200A\\u202F\\u205F\\u3000]/g, " ");',
-    '  if (normalized.startsWith("@")) normalized = normalized.slice(1);',
-    '  if (normalized === "~") normalized = homedir();',
-    '  else if (normalized.startsWith("~/")) normalized = joinPath(homedir(), normalized.slice(2));',
-    "  if (/^file:\\/\\//.test(normalized)) return fileURLToPath(normalized);",
-    "  if (/^[a-z][a-z0-9+.-]*:\\/\\//i.test(normalized)) return normalized;",
-    "  return resolvePath(cwd, normalized);",
-    "}",
+    ...dialect.pathResolverLines,
     "",
     `const EDIT_TEXT_KEYS = ${JSON.stringify(dialect.editTextKeys)};`,
     'const CLAUDE_EDIT_TEXT_KEYS = EDIT_TEXT_KEYS.old === "old_string";',
@@ -302,7 +398,8 @@ function buildToolPayloadHelperLines(dialect: PiExtensionDialect): string[] {
     "    delete rest.old_string;",
     "    delete rest.new_string;",
     "  }",
-    "  const claudeInput: Record<string, unknown> = { ...rest, file_path: absoluteToolPath(path, cwd) };",
+    "  // The raw `path` stays, so a guard can check what the model wrote too.",
+    "  const claudeInput: Record<string, unknown> = { ...rest, path, file_path: absoluteToolPath(path, cwd) };",
     "  if (!Array.isArray(rest.edits)) return claudeInput;",
     "  const edits = rest.edits.map(claudeEditEntry);",
     "  return {",
@@ -420,8 +517,9 @@ const TOOL_DECISION_HELPER_LINES = [
  * A detached group does not get the terminal's Ctrl+C, so the extension
  * kills every command still running on `session_shutdown`, after the other
  * handlers (including a `sessionEnd` hook's) have run: Pi awaits them in
- * registration order. A Pi process killed outright never fires it, and its
- * commands then run until their own timeout.
+ * registration order. A Pi process killed outright never fires it, and since
+ * the timeout timer lives in that process too, its commands then keep running
+ * with no deadline until they exit on their own.
  */
 const RUN_HELPER_LINES = [
   "const MAX_HOOK_OUTPUT_LENGTH = 1024 * 1024;",
@@ -922,7 +1020,11 @@ export function generatePiExtensionCode({
   lines.push('import { spawn } from "node:child_process";');
   if (needsToolHelpers) {
     lines.push('import { homedir } from "node:os";');
-    lines.push('import { join as joinPath, resolve as resolvePath } from "node:path";');
+    lines.push(
+      dialect.pathResolverLines === OMP_PATH_RESOLVER_LINES
+        ? 'import { join as joinPath, resolve as resolvePath, win32 as win32Path } from "node:path";'
+        : 'import { join as joinPath, resolve as resolvePath } from "node:path";',
+    );
     lines.push('import { fileURLToPath } from "node:url";');
   }
   lines.push("");

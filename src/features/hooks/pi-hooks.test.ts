@@ -1016,6 +1016,12 @@ describe("PiHooks", () => {
       expect(await filePathFor("my\u00a0notes.md")).toBe(join(testDir, "my notes.md"));
       expect(await filePathFor("file:///etc/hosts")).toBe("/etc/hosts");
       expect(await filePathFor("~")).toBe(homedir());
+      // Pi has no URL passthrough: it writes `<cwd>/.env` here, so the guard
+      // must see that path, not the URL-looking text.
+      expect(await filePathFor("a://../.env")).toBe(join(testDir, ".env"));
+      expect(await filePathFor("@/etc/hosts")).toBe("/etc/hosts");
+      // The raw `path` is kept next to the resolved one.
+      expect(JSON.parse(await readFileContent(payloadPath)).tool_input.path).toBe("@/etc/hosts");
     });
 
     it("should kill hook commands still running when the session shuts down", async () => {
@@ -1069,6 +1075,7 @@ describe("PiHooks", () => {
         },
       });
       expect(edit.tool_input).toEqual({
+        path: ".env",
         file_path: join(testDir, ".env"),
         edits: [{ old_string: "a", new_string: "SECRET" }],
         old_string: "a",

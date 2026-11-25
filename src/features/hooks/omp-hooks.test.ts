@@ -256,6 +256,7 @@ describe("OmpHooks", () => {
           file_path: "README.md",
         }),
       ).toEqual({
+        path: "src/a.ts",
         file_path: join(testDir, "src/a.ts"),
         old_string: "a",
         new_string: "b",
@@ -271,6 +272,7 @@ describe("OmpHooks", () => {
           ],
         }),
       ).toEqual({
+        path: "src/a.ts",
         file_path: join(testDir, "src/a.ts"),
         edits: [
           { old_string: "a", new_string: "b" },
@@ -282,6 +284,36 @@ describe("OmpHooks", () => {
       // Patch modes carry the target inside the patch, passed through as is.
       const patch = "*** Begin Patch\n*** Update File: src/a.ts\n*** End Patch";
       expect(await payloadFor({ input: patch })).toEqual({ input: patch });
+    });
+
+    it("should resolve file paths the way oh-my-pi does", async () => {
+      const payloadPath = join(testDir, "payload.json");
+      const { handlerFor } = await loadOmpExtension({
+        testDir,
+        config: {
+          version: 1,
+          hooks: {
+            preToolUse: [{ type: "command", command: `cat > ${JSON.stringify(payloadPath)}` }],
+          },
+        },
+      });
+      const ctx = { cwd: testDir, sessionManager: { getSessionId: () => "session-1" } };
+      const filePathFor = async (path: string) => {
+        await handlerFor("tool_call")({ toolName: "write", input: { path, content: "" } }, ctx);
+        return JSON.parse(await readFileContent(payloadPath)).tool_input.file_path;
+      };
+
+      // A stray leading `:` before a path shape is stripped.
+      expect(await filePathFor(":../escape.txt")).toBe(join(testDir, "..", "escape.txt"));
+      // `@` is only a shorthand before an absolute path, `~` or an internal URL.
+      expect(await filePathFor("@/etc/hosts")).toBe("/etc/hosts");
+      expect(await filePathFor("@my-file.txt")).toBe(join(testDir, "@my-file.txt"));
+      // Registered internal schemes are not filesystem paths.
+      expect(await filePathFor("local://notes.md")).toBe("local://notes.md");
+      // Any other scheme-looking text is a relative path.
+      expect(await filePathFor("a://../.env")).toBe(join(testDir, ".env"));
+      // A bare root is the workspace root.
+      expect(await filePathFor("/")).toBe(testDir);
     });
 
     it("should map oh-my-pi's glob tool to Glob but leave its find tool alone", async () => {
