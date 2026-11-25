@@ -306,6 +306,9 @@ describe("VibeSubagent", () => {
           bypass_tool_permissions: true,
           enabled_agents: ["explore"],
           active_model: "devstral",
+          base_disabled: ["bash"],
+          disabled_tools: ["grep"],
+          disabled_tool: ["typo"],
           tools: {
             bash: { permission: "always", default_timeout: 30, allowlist: ["ls"] },
             write_file: { permission: "never" },
@@ -330,6 +333,11 @@ describe("VibeSubagent", () => {
       display_name: "Builder",
       description: "Build agent",
       active_model: "devstral",
+      // Folded the way Vibe's `migrate_agent_profile_config` does.
+      disabled_tools: ["grep", "bash"],
+      // Unknown keys stay, as in Vibe, so a typo is reported rather than
+      // silently lifting a restriction.
+      disabled_tool: ["typo"],
       tools: {
         bash: { default_timeout: 30 },
         write_file: { permission: "never" },
@@ -348,6 +356,87 @@ describe("VibeSubagent", () => {
     ]) {
       expect(message).toContain(key);
     }
+  });
+
+  it("should fold base_disabled into disabled_tools on an agent profile without disabled_tools", () => {
+    const rulesyncSubagent = new RulesyncSubagent({
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+      relativeFilePath: "legacy.md",
+      frontmatter: {
+        targets: ["vibe"],
+        name: "Legacy",
+        vibe: { agent_type: "agent", base_disabled: ["bash"] },
+      },
+      body: "",
+    });
+    const logger = createMockLogger();
+
+    const vibeSubagent = VibeSubagent.fromRulesyncSubagent({
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+      rulesyncSubagent,
+      logger,
+    }) as VibeSubagent;
+    const parsed = smolToml.parse(vibeSubagent.getBody()) as any;
+
+    expect(parsed.disabled_tools).toEqual(["bash"]);
+    expect(parsed.base_disabled).toBeUndefined();
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  it.each(["ask.toml", "accept-edits.toml", "smart-approve.toml", "auto-approve.toml"])(
+    "should never delete the approval-policy override %s, nor import it",
+    async (relativeFilePath) => {
+      const logger = createMockLogger();
+
+      expect(
+        VibeSubagent.forDeletion({
+          outputRoot: testDir,
+          relativeDirPath: join(".vibe", "agents"),
+          relativeFilePath,
+          global: true,
+        }).isDeletable(),
+      ).toBe(false);
+      expect(
+        await VibeSubagent.isFileOwned({
+          outputRoot: testDir,
+          relativeDirPath: join(".vibe", "agents"),
+          relativeFilePath,
+          forDeletion: true,
+          logger,
+        }),
+      ).toBe(false);
+      expect(logger.warn).not.toHaveBeenCalled();
+      expect(
+        await VibeSubagent.isFileOwned({
+          outputRoot: testDir,
+          relativeDirPath: join(".vibe", "agents"),
+          relativeFilePath,
+          logger,
+        }),
+      ).toBe(false);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("is a Vibe approval policy name"),
+      );
+    },
+  );
+
+  it("should keep other agent files deletable and owned", async () => {
+    expect(
+      VibeSubagent.forDeletion({
+        outputRoot: testDir,
+        relativeDirPath: join(".vibe", "agents"),
+        relativeFilePath: "reviewer.toml",
+      }).isDeletable(),
+    ).toBe(true);
+    expect(
+      await VibeSubagent.isFileOwned({
+        outputRoot: testDir,
+        relativeDirPath: join(".vibe", "agents"),
+        relativeFilePath: "Ask.toml",
+      }),
+    ).toBe(true);
   });
 
   it("should keep safety and always permissions on an agent_type subagent profile", () => {
