@@ -32,6 +32,7 @@ import { CursorPermissions } from "./cursor-permissions.js";
 import { DeepagentsPermissions } from "./deepagents-permissions.js";
 import { DevinPermissions } from "./devin-permissions.js";
 import { FactorydroidPermissions } from "./factorydroid-permissions.js";
+import { GitlabduoPermissions } from "./gitlabduo-permissions.js";
 import { GoosePermissions } from "./goose-permissions.js";
 import { GrokcliPermissions } from "./grokcli-permissions.js";
 import { HermesagentPermissions } from "./hermesagent-permissions.js";
@@ -336,6 +337,20 @@ export const toolPermissionsFactories = new Map<
         // `.factory/settings.json` (project) and `~/.factory/settings.json`
         // (global).
         supportsProject: true,
+        supportsGlobal: true,
+      },
+    },
+  ],
+  [
+    "gitlabduo",
+    {
+      class: GitlabduoPermissions,
+      meta: {
+        // GitLab Duo CLI (10.5.0+) reads the `permissions` setting only from the
+        // managed file and the user `~/.gitlab/duo/settings.json`; the project
+        // settings files are deliberately excluded until upstream adds a
+        // project-trust opt-in, so there is no project scope to write.
+        supportsProject: false,
         supportsGlobal: true,
       },
     },

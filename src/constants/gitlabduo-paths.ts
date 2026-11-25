@@ -19,6 +19,15 @@ export const GITLABDUO_RULE_FILE_NAME = "chat-rules.md";
 /** MCP servers. @see https://docs.gitlab.com/user/gitlab_duo/model_context_protocol/mcp_clients/ */
 export const GITLABDUO_MCP_FILE_NAME = "mcp.json";
 
+/**
+ * Settings. Only the user file `~/.gitlab/duo/settings.json` carries the
+ * `permissions` setting rulesync writes; the project files are deliberately not
+ * read for it.
+ *
+ * @see https://gitlab.com/gitlab-org/editor-extensions/gitlab-lsp/-/blob/v10.5.0/packages/core/settings/src/definitions.ts
+ */
+export const GITLABDUO_SETTINGS_FILE_NAME = "settings.json";
+
 /** Lifecycle hooks (experiment). @see https://docs.gitlab.com/user/gitlab_duo_cli/customize/ */
 export const GITLABDUO_HOOKS_FILE_NAME = "hooks.json";
 

@@ -1886,6 +1886,7 @@ export const PermissionsConfigSchema = z.looseObject({
   commandcode: z.optional(CommandcodePermissionsOverrideSchema),
   lettacode: z.optional(CanonicalPermissionsOverrideSchema),
   crush: z.optional(CanonicalPermissionsOverrideSchema),
+  gitlabduo: z.optional(CanonicalPermissionsOverrideSchema),
   goose: z.optional(CanonicalPermissionsOverrideSchema),
   omp: z.optional(OmpPermissionsOverrideSchema),
   pool: z.optional(CanonicalPermissionsOverrideSchema),
