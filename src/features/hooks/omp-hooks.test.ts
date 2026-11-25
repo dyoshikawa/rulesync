@@ -228,6 +228,21 @@ describe("OmpHooks", () => {
       expect(await handler({ toolName: "read", input: {} })).toBeUndefined();
     });
 
+    it("should map oh-my-pi's glob tool to Glob but leave its find tool alone", async () => {
+      const { handlerFor } = await loadOmpExtension({
+        testDir,
+        config: {
+          version: 1,
+          hooks: { preToolUse: [{ matcher: "Glob", command: "exit 1" }] },
+        },
+      });
+      const handler = handlerFor("tool_call");
+
+      expect(await handler({ toolName: "glob", input: {} })).toMatchObject({ block: true });
+      // oh-my-pi's `find` is a search tool, not Claude Code's `Glob`.
+      expect(await handler({ toolName: "find", input: {} })).toBeUndefined();
+    });
+
     it("should cancel the prompt with { handled: true } when the command fails", async () => {
       const gate = await loadPromptGate({ testDir, command: "exit 3" });
 

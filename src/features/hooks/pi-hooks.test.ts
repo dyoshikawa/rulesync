@@ -289,10 +289,10 @@ describe("PiHooks", () => {
       expect(content).toContain("function toBlockReason(error: unknown): string {");
       expect(content).toContain("      try {");
       expect(content).toContain(
-        '        const denial = toolDenialReason((await run("guard.sh", { input: preToolUseInput(), seconds: 600 })).stdout);',
+        '        const decision = toolHookDecision((await run("guard.sh", { input: preToolUseInput(), seconds: 600 })).stdout);',
       );
       expect(content).toContain(
-        "        if (denial !== undefined) return { block: true, reason: denial };",
+        "        if (decision && !(await allowsToolCall(decision, ctx))) return { block: true, reason: decision.reason };",
       );
       expect(content).toContain("      } catch (error) {");
       expect(content).toContain("        return { block: true, reason: toBlockReason(error) };");
@@ -935,11 +935,32 @@ describe("PiHooks", () => {
         }),
       ).toMatchObject({
         tool_name: "Edit",
+        // Claude Code always sends an absolute `file_path`.
         tool_input: {
-          file_path: "src/a.ts",
+          file_path: join(testDir, "src/a.ts"),
           edits: [{ old_string: "a", new_string: "b" }],
           old_string: "a",
           new_string: "b",
+        },
+      });
+      // Every edit's text reaches the top-level fields a Claude `Edit` guard reads.
+      expect(
+        await payloadFor({
+          toolName: "edit",
+          toolCallId: "call-2b",
+          input: {
+            path: "@src/a.ts",
+            edits: [
+              { oldText: "a", newText: "b" },
+              { oldText: "c", newText: "SECRET=1" },
+            ],
+          },
+        }),
+      ).toMatchObject({
+        tool_input: {
+          file_path: join(testDir, "src/a.ts"),
+          old_string: "a\nc",
+          new_string: "b\nSECRET=1",
         },
       });
       expect(
@@ -948,7 +969,17 @@ describe("PiHooks", () => {
           toolCallId: "call-3",
           input: { path: "b.txt", content: "hi" },
         }),
-      ).toMatchObject({ tool_name: "Write", tool_input: { file_path: "b.txt", content: "hi" } });
+      ).toMatchObject({
+        tool_name: "Write",
+        tool_input: { file_path: join(testDir, "b.txt"), content: "hi" },
+      });
+      expect(
+        await payloadFor({
+          toolName: "read",
+          toolCallId: "call-3b",
+          input: { path: "/etc/hosts" },
+        }),
+      ).toMatchObject({ tool_name: "Read", tool_input: { file_path: "/etc/hosts" } });
       expect(
         await payloadFor({ toolName: "find", toolCallId: "call-4", input: { pattern: "*.ts" } }),
       ).toMatchObject({ tool_name: "Glob", tool_input: { pattern: "*.ts" } });
@@ -960,6 +991,47 @@ describe("PiHooks", () => {
           input: { q: "x" },
         }),
       ).toMatchObject({ tool_name: "mcp__docs__search", tool_input: { q: "x" } });
+    });
+
+    it("should not let extra model-supplied keys override the mapped arguments", async () => {
+      const payloadPath = join(testDir, "payload.json");
+      const { handlerFor } = await loadPiExtension({
+        testDir,
+        config: {
+          version: 1,
+          hooks: {
+            preToolUse: [{ type: "command", command: `cat > ${JSON.stringify(payloadPath)}` }],
+          },
+        },
+      });
+      const toolCall = handlerFor("tool_call");
+      const payloadFor = async (event: unknown) => {
+        await toolCall(event, piContext());
+        return JSON.parse(await readFileContent(payloadPath));
+      };
+
+      // Pi writes `.env`, so the guard must see `.env`, not the decoy.
+      expect(
+        await payloadFor({
+          toolName: "write",
+          input: { path: ".env", content: "x", file_path: "README.md" },
+        }),
+      ).toMatchObject({ tool_input: { file_path: join(testDir, ".env") } });
+      const edit = await payloadFor({
+        toolName: "edit",
+        input: {
+          path: ".env",
+          old_string: "decoy",
+          new_string: "decoy",
+          edits: [{ oldText: "a", newText: "SECRET", old_string: "x", new_string: "y" }],
+        },
+      });
+      expect(edit.tool_input).toEqual({
+        file_path: join(testDir, ".env"),
+        edits: [{ old_string: "a", new_string: "SECRET" }],
+        old_string: "a",
+        new_string: "SECRET",
+      });
     });
 
     it("should keep matching a matcher written with Pi's own tool name", async () => {
@@ -1032,6 +1104,69 @@ describe("PiHooks", () => {
         block: { block: true, reason: "blocked" },
         allow: undefined,
       });
+    });
+
+    it("should confirm a permissionDecision of ask with the user, and deny without a UI", async () => {
+      const ask = JSON.stringify({
+        hookSpecificOutput: {
+          permissionDecision: "ask",
+          permissionDecisionReason: "Push to main?",
+        },
+      });
+      const { handlerFor } = await loadPiExtension({
+        testDir,
+        config: {
+          version: 1,
+          hooks: { preToolUse: [{ type: "command", command: `echo '${ask}'` }] },
+        },
+      });
+      const toolCall = handlerFor("tool_call");
+      const withUI = (confirm: ReturnType<typeof vi.fn>, hasUI = true) => ({
+        ...piContext(),
+        hasUI,
+        ui: { confirm },
+      });
+
+      const approve = vi.fn().mockResolvedValue(true);
+      expect(await toolCall({ toolName: "bash", input: {} }, withUI(approve))).toBeUndefined();
+      expect(approve).toHaveBeenCalledWith("Allow this tool call?", "Push to main?");
+
+      const refuse = vi.fn().mockResolvedValue(false);
+      expect(await toolCall({ toolName: "bash", input: {} }, withUI(refuse))).toEqual({
+        block: true,
+        reason: "Push to main?",
+      });
+
+      const broken = vi.fn().mockRejectedValue(new Error("RPC channel closed"));
+      expect(await toolCall({ toolName: "bash", input: {} }, withUI(broken))).toMatchObject({
+        block: true,
+      });
+
+      const unused = vi.fn();
+      expect(await toolCall({ toolName: "bash", input: {} }, withUI(unused, false))).toEqual({
+        block: true,
+        reason: "Push to main?",
+      });
+      expect(unused).not.toHaveBeenCalled();
+    });
+
+    it("should not wait for a descendant that keeps the output open after a timeout", async () => {
+      const { handlerFor } = await loadPiExtension({
+        testDir,
+        config: {
+          version: 1,
+          hooks: {
+            preToolUse: [{ type: "command", command: "sleep 30 & sleep 30; wait", timeout: 0.2 }],
+          },
+        },
+      });
+
+      const started = Date.now();
+      expect(await handlerFor("tool_call")({ toolName: "bash", input: {} }, piContext())).toEqual({
+        block: true,
+        reason: "Hook command timed out after 0.2 seconds.",
+      });
+      expect(Date.now() - started).toBeLessThan(5000);
     });
 
     it("should block a tool call whose hook times out unless failClosed is false", async () => {

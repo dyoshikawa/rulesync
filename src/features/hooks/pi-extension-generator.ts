@@ -109,13 +109,30 @@ type PiExtensionDialect = {
   promptPassLine: string;
   /** Statement that cancels a prompt at the `input` gate. */
   promptCancelLine: string;
+  /** Built-in tool names mapped to the canonical Claude Code names. */
+  toolNames: Readonly<Record<string, string>>;
 };
+
+/**
+ * Tool names both Pi and oh-my-pi share with a canonical counterpart. Pi's
+ * `powershell` tool is deliberately left out: Rulesync has no canonical name
+ * for it, so it keeps its own.
+ */
+const SHARED_CANONICAL_TOOL_NAMES = {
+  bash: "Bash",
+  read: "Read",
+  write: "Write",
+  edit: "Edit",
+  grep: "Grep",
+} as const;
 
 const PI_EXTENSION_DIALECT: PiExtensionDialect = {
   overrideKey: "pi",
   typesPackage: "@earendil-works/pi-coding-agent",
   promptPassLine: 'return { action: "continue" };',
   promptCancelLine: 'return { action: "handled" };',
+  // Pi's `find` takes a glob `pattern`, like Claude Code's `Glob`.
+  toolNames: { ...SHARED_CANONICAL_TOOL_NAMES, find: "Glob" },
 };
 
 /**
@@ -129,6 +146,9 @@ export const OMP_EXTENSION_DIALECT: PiExtensionDialect = {
   typesPackage: "@oh-my-pi/pi-coding-agent",
   promptPassLine: "return {};",
   promptCancelLine: "return { handled: true };",
+  // oh-my-pi's glob tool is `glob`; its `find` is a different (search) tool,
+  // so it is not mapped.
+  toolNames: { ...SHARED_CANONICAL_TOOL_NAMES, glob: "Glob" },
 };
 
 /**
@@ -197,101 +217,128 @@ const STDIN_PAYLOAD_EXTRA_FIELDS: Record<string, string> = {
 /**
  * Helpers emitted when a handler receives a stdin payload or tests a matcher.
  *
- * `claudeToolName` maps Pi's (and oh-my-pi's) built-in tool names to the
- * canonical Claude Code names Rulesync uses elsewhere (`bash` → `Bash`,
- * `find` / `glob` → `Glob`, ...). MCP tools are already named
- * `mcp__<server>__<tool>` by Pi, and other tools keep their own name.
+ * `claudeToolName` maps the dialect's built-in tool names to the canonical
+ * Claude Code names Rulesync uses elsewhere (`bash` → `Bash`, ...). MCP tools
+ * are already named `mcp__<server>__<tool>` by Pi, and other tools keep their
+ * own name.
  *
- * `claudeToolInput` passes the tool's arguments through, except that the file
- * tools' `path` becomes Claude Code's `file_path` and each `edits` entry's
- * `oldText` / `newText` becomes `old_string` / `new_string` (a single edit is
- * also spelled at the top level, as Claude Code's `Edit` input is).
+ * `claudeToolInput` passes the tool's arguments through, except for the file
+ * tools: `path` becomes Claude Code's absolute `file_path`, resolved against
+ * the session cwd the way Pi resolves it (a leading `@` stripped, `~`
+ * expanded), and each `edits` entry's `oldText` / `newText` becomes
+ * `old_string` / `new_string`, with every edit's text also joined into the
+ * top-level `old_string` / `new_string` Claude Code's `Edit` input carries, so
+ * a guard reading those sees every change. The mapped keys are written last
+ * and any same-named key the model added is dropped, so an extra argument
+ * (Pi's schemas allow them) cannot make a guard check a different file or
+ * text than the one the tool acts on.
  */
-const TOOL_PAYLOAD_HELPER_LINES = [
-  "const CLAUDE_TOOL_NAMES: Record<string, string> = {",
-  '  bash: "Bash",',
-  '  read: "Read",',
-  '  write: "Write",',
-  '  edit: "Edit",',
-  '  grep: "Grep",',
-  '  find: "Glob",',
-  '  glob: "Glob",',
-  "};",
-  "",
-  "function claudeToolName(toolName: string): string {",
-  "  return Object.hasOwn(CLAUDE_TOOL_NAMES, toolName) ? (CLAUDE_TOOL_NAMES[toolName] ?? toolName) : toolName;",
-  "}",
-  "",
-  "function matchesTool(matcher: RegExp, toolName: string): boolean {",
-  "  return matcher.test(toolName) || matcher.test(claudeToolName(toolName));",
-  "}",
-  "",
-  "function claudeToolInput(toolName: string, input: unknown): unknown {",
-  '  if (!["read", "write", "edit"].includes(toolName)) return input;',
-  '  if (!input || typeof input !== "object" || Array.isArray(input)) return input;',
-  "  const { path, edits, ...rest } = input as Record<string, unknown>;",
-  "  const claudeInput: Record<string, unknown> = { file_path: path, ...rest };",
-  "  if (!Array.isArray(edits)) {",
-  "    if (edits !== undefined) claudeInput.edits = edits;",
-  "    return claudeInput;",
-  "  }",
-  "  const claudeEdits = edits.map((edit: unknown) => {",
-  '    if (!edit || typeof edit !== "object") return edit;',
-  "    const { oldText, newText, ...others } = edit as Record<string, unknown>;",
-  "    return { old_string: oldText, new_string: newText, ...others };",
-  "  });",
-  "  claudeInput.edits = claudeEdits;",
-  "  const [only] = claudeEdits;",
-  '  if (claudeEdits.length === 1 && only && typeof only === "object") {',
-  "    const { old_string, new_string } = only as Record<string, unknown>;",
-  "    Object.assign(claudeInput, { old_string, new_string });",
-  "  }",
-  "  return claudeInput;",
-  "}",
-  "",
-  "function toolResultText(content: unknown): string {",
-  '  if (!Array.isArray(content)) return "";',
-  "  return content",
-  "    .map((block: unknown) => {",
-  "      const part = block as { type?: unknown; text?: unknown } | null;",
-  '      return part?.type === "text" && typeof part.text === "string" ? part.text : "";',
-  "    })",
-  "    .filter(Boolean)",
-  '    .join("\\n");',
-  "}",
-  "",
-  "type ToolHookEvent = { toolName: string; toolCallId?: string; input?: unknown };",
-  "",
-  "function toolHookInput(",
-  "  hookEventName: string,",
-  "  event: ToolHookEvent,",
-  "  ctx: ExtensionContext | undefined,",
-  "  extra: Record<string, unknown> = {},",
-  "): string {",
-  "  return JSON.stringify({",
-  "    session_id: ctx?.sessionManager?.getSessionId?.(),",
-  "    cwd: ctx?.cwd ?? process.cwd(),",
-  "    hook_event_name: hookEventName,",
-  "    tool_name: claudeToolName(event.toolName),",
-  "    tool_input: claudeToolInput(event.toolName, event.input),",
-  "    tool_use_id: event.toolCallId,",
-  "    ...extra,",
-  "  });",
-  "}",
-];
+function buildToolPayloadHelperLines(dialect: PiExtensionDialect): string[] {
+  return [
+    `const CLAUDE_TOOL_NAMES: Record<string, string> = ${JSON.stringify(dialect.toolNames)};`,
+    "",
+    "function claudeToolName(toolName: string): string {",
+    "  return Object.hasOwn(CLAUDE_TOOL_NAMES, toolName) ? (CLAUDE_TOOL_NAMES[toolName] ?? toolName) : toolName;",
+    "}",
+    "",
+    "function matchesTool(matcher: RegExp, toolName: string): boolean {",
+    "  return matcher.test(toolName) || matcher.test(claudeToolName(toolName));",
+    "}",
+    "",
+    "function absoluteToolPath(path: unknown, cwd: string): unknown {",
+    '  if (typeof path !== "string") return path;',
+    '  const bare = path.startsWith("@") ? path.slice(1) : path;',
+    '  const expanded = bare === "~" || bare.startsWith("~/") ? homedir() + bare.slice(1) : bare;',
+    "  return resolvePath(cwd, expanded);",
+    "}",
+    "",
+    "function claudeToolInput(toolName: string, input: unknown, cwd: string): unknown {",
+    '  if (!["read", "write", "edit"].includes(toolName)) return input;',
+    '  if (!input || typeof input !== "object" || Array.isArray(input)) return input;',
+    "  const {",
+    "    path,",
+    "    edits,",
+    "    file_path: _filePath,",
+    "    old_string: _oldString,",
+    "    new_string: _newString,",
+    "    ...rest",
+    "  } = input as Record<string, unknown>;",
+    "  const claudeInput: Record<string, unknown> = { ...rest, file_path: absoluteToolPath(path, cwd) };",
+    "  if (!Array.isArray(edits)) {",
+    "    if (edits !== undefined) claudeInput.edits = edits;",
+    "    return claudeInput;",
+    "  }",
+    "  const claudeEdits = edits.map((edit: unknown) => {",
+    '    if (!edit || typeof edit !== "object") return edit;',
+    "    const {",
+    "      oldText,",
+    "      newText,",
+    "      old_string: _old,",
+    "      new_string: _new,",
+    "      ...others",
+    "    } = edit as Record<string, unknown>;",
+    "    return { ...others, old_string: oldText, new_string: newText };",
+    "  });",
+    "  const joined = (key: string) =>",
+    "    claudeEdits",
+    "      .map((edit: unknown) => (edit as Record<string, unknown> | null)?.[key])",
+    '      .filter((text): text is string => typeof text === "string")',
+    '      .join("\\n");',
+    '  return { ...claudeInput, edits: claudeEdits, old_string: joined("old_string"), new_string: joined("new_string") };',
+    "}",
+    "",
+    "function toolResultText(content: unknown): string {",
+    '  if (!Array.isArray(content)) return "";',
+    "  return content",
+    "    .map((block: unknown) => {",
+    "      const part = block as { type?: unknown; text?: unknown } | null;",
+    '      return part?.type === "text" && typeof part.text === "string" ? part.text : "";',
+    "    })",
+    "    .filter(Boolean)",
+    '    .join("\\n");',
+    "}",
+    "",
+    "type ToolHookEvent = { toolName: string; toolCallId?: string; input?: unknown };",
+    "",
+    "function toolHookInput(",
+    "  hookEventName: string,",
+    "  event: ToolHookEvent,",
+    "  ctx: ExtensionContext | undefined,",
+    "  extra: Record<string, unknown> = {},",
+    "): string {",
+    "  const cwd = ctx?.cwd ?? process.cwd();",
+    "  return JSON.stringify({",
+    "    session_id: ctx?.sessionManager?.getSessionId?.(),",
+    "    cwd,",
+    "    hook_event_name: hookEventName,",
+    "    tool_name: claudeToolName(event.toolName),",
+    "    tool_input: claudeToolInput(event.toolName, event.input, cwd),",
+    "    tool_use_id: event.toolCallId,",
+    "    ...extra,",
+    "  });",
+    "}",
+  ];
+}
 
 /**
- * Helper emitted alongside `tool_call` handlers. A command that exits 0 may
- * still deny the call the way Claude Code reads a `PreToolUse` hook's JSON
- * stdout: `hookSpecificOutput.permissionDecision: "deny"` (with
+ * Helpers emitted alongside `tool_call` handlers. A command that exits 0 may
+ * still decide the call the way Claude Code reads a `PreToolUse` hook's JSON
+ * stdout: `hookSpecificOutput.permissionDecision` `"deny"` or `"ask"` (with
  * `permissionDecisionReason`) or, when no `permissionDecision` is given, the
  * deprecated top-level `decision: "block"` (with `reason`). Output that is not
- * such JSON allows the call, so hooks that print plain text keep working. This
- * is the OpenCode-style plugin's `__rulesyncEnforcePreToolUseResult` contract,
- * plus the deprecated form Claude Code still honors.
+ * such JSON allows the call, so hooks that print plain text keep working. The
+ * deny side is the OpenCode-style plugin's `__rulesyncEnforcePreToolUseResult`
+ * contract, plus the deprecated form Claude Code still honors.
+ *
+ * Pi has no permission prompt of its own, so `"ask"` is put to the user with
+ * `ctx.ui.confirm` when a UI is attached, and denies the call when none is (print
+ * and JSON modes) or the dialog fails: a hook asking for a human must not pass
+ * silently.
  */
-const TOOL_DENIAL_HELPER_LINES = [
-  "function toolDenialReason(stdout: string): string | undefined {",
+const TOOL_DECISION_HELPER_LINES = [
+  'type ToolHookDecision = { kind: "deny" | "ask"; reason: string };',
+  "",
+  "function toolHookDecision(stdout: string): ToolHookDecision | undefined {",
   "  let parsed: unknown;",
   "  try {",
   "    parsed = JSON.parse(stdout);",
@@ -305,10 +352,27 @@ const TOOL_DENIAL_HELPER_LINES = [
   "    | null",
   "    | undefined;",
   '  const hasDecision = typeof specific === "object" && specific !== null && specific.permissionDecision !== undefined;',
+  '  const decision = hasDecision ? specific?.permissionDecision : output.decision === "block" ? "deny" : undefined;',
+  '  if (decision !== "deny" && decision !== "ask") return undefined;',
   "  const reason = hasDecision ? specific?.permissionDecisionReason : output.reason;",
-  '  const denied = hasDecision ? specific?.permissionDecision === "deny" : output.decision === "block";',
-  "  if (!denied) return undefined;",
-  '  return (typeof reason === "string" && sanitizeBlockReason(reason)) || "Blocked by a preToolUse hook.";',
+  "  return {",
+  "    kind: decision,",
+  "    reason:",
+  '      (typeof reason === "string" && sanitizeBlockReason(reason)) ||',
+  '      (decision === "ask" ? "A preToolUse hook asked for confirmation." : "Blocked by a preToolUse hook."),',
+  "  };",
+  "}",
+  "",
+  "async function allowsToolCall(",
+  "  decision: ToolHookDecision,",
+  "  ctx: ExtensionContext | undefined,",
+  "): Promise<boolean> {",
+  '  if (decision.kind !== "ask" || !ctx?.hasUI) return false;',
+  "  try {",
+  '    return await ctx.ui.confirm("Allow this tool call?", decision.reason);',
+  "  } catch {",
+  "    return false;",
+  "  }",
   "}",
 ];
 
@@ -316,36 +380,81 @@ const TOOL_DENIAL_HELPER_LINES = [
  * Runs a hook command through the platform shell with `input` as its stdin
  * (empty when the event has no payload, so a command that reads stdin never
  * waits on Pi's own), bounded by the hook's `timeout` in seconds (Claude
- * Code's default of 600 when unset, as in the OpenCode-style plugin). A command
- * past its timeout is killed and rejects with a `HookTimeoutError`; a stdin
+ * Code's default of 600 when unset, as in the OpenCode-style plugin). A stdin
  * the command never reads is not an error.
+ *
+ * The command runs in its own process group (except on Windows), so a command
+ * past its timeout is killed together with everything it started, and the
+ * call rejects with a `HookTimeoutError` right away rather than waiting for a
+ * descendant still holding its output open. Like `promisify(exec)`, which
+ * earlier versions used, a non-zero exit rejects with an error carrying
+ * `code`, `stdout` and `stderr`, and more than 1 MiB on either stream rejects
+ * and kills the command.
  */
 const RUN_HELPER_LINES = [
-  "const execAsync = promisify(exec);",
+  "const MAX_HOOK_OUTPUT_LENGTH = 1024 * 1024;",
   "",
   "class HookTimeoutError extends Error {}",
   "",
-  "async function run(",
+  "function run(",
   "  command: string,",
   '  { input = "", seconds }: { input?: string; seconds: number },',
   "): Promise<{ stdout: string; stderr: string }> {",
-  "  const pending = execAsync(command, { timeout: seconds * 1000 });",
-  '  pending.child.stdin?.on("error", () => {});',
-  "  pending.child.stdin?.end(input);",
-  "  try {",
-  "    return await pending;",
-  "  } catch (error) {",
-  "    const result = error as { killed?: unknown; code?: unknown } | null;",
-  '    if (result?.killed === true && result.code !== "ERR_CHILD_PROCESS_STDIO_MAXBUFFER") {',
-  "      throw new HookTimeoutError(`Hook command timed out after ${seconds} seconds.`);",
+  "  return new Promise((resolve, reject) => {",
+  '    const detached = process.platform !== "win32";',
+  "    const child = spawn(command, { shell: true, detached, windowsHide: true });",
+  '    const output = { stdout: "", stderr: "" };',
+  "    let settled = false;",
+  "    const finish = (error?: Error) => {",
+  "      if (settled) return;",
+  "      settled = true;",
+  "      clearTimeout(timer);",
+  "      if (error) reject(error);",
+  "      else resolve(output);",
+  "    };",
+  "    const killTree = () => {",
+  "      try {",
+  '        if (detached && child.pid !== undefined) process.kill(-child.pid, "SIGKILL");',
+  '        else child.kill("SIGKILL");',
+  "      } catch {",
+  "        // Already gone.",
+  "      }",
+  "      child.stdout?.destroy();",
+  "      child.stderr?.destroy();",
+  "    };",
+  "    const timer = setTimeout(() => {",
+  "      killTree();",
+  "      finish(new HookTimeoutError(`Hook command timed out after ${seconds} seconds.`));",
+  "    }, seconds * 1000);",
+  '    for (const stream of ["stdout", "stderr"] as const) {',
+  '      child[stream]?.setEncoding("utf8");',
+  '      child[stream]?.on("data", (chunk: string) => {',
+  "        output[stream] += chunk;",
+  "        if (output[stream].length <= MAX_HOOK_OUTPUT_LENGTH) return;",
+  "        killTree();",
+  "        finish(new Error(`Hook command wrote more than 1 MiB to ${stream}.`));",
+  "      });",
   "    }",
-  "    throw error;",
-  "  }",
+  '    child.on("error", (error) => finish(error));',
+  '    child.on("close", (code, signal) => {',
+  "      if (code === 0) return finish();",
+  "      finish(",
+  "        Object.assign(new Error(`Command failed: ${command}`), {",
+  "          code,",
+  "          signal,",
+  "          stdout: output.stdout,",
+  "          stderr: output.stderr,",
+  "        }),",
+  "      );",
+  "    });",
+  '    child.stdin?.on("error", () => {});',
+  "    child.stdin?.end(input);",
+  "  });",
   "}",
 ];
 
 /**
- * Helper emitted alongside blocking handlers. `promisify(exec)` rejects on a
+ * Helper emitted alongside blocking handlers. `run` rejects on a
  * non-zero exit with an error carrying `stdout` / `stderr` / `code`, so the
  * reason is derived from the rejection rather than from a resolved exit code.
  * A command that could not be run at all (spawn failure, `maxBuffer` overflow)
@@ -529,8 +638,10 @@ function buildCommandLines({
   const onFailure = failureLinesByMode(dialect)[blocking];
   if (blocking === "tool") {
     lines.push(`${indent}try {`);
-    lines.push(`${indent}  const denial = toolDenialReason((await ${runCall}).stdout);`);
-    lines.push(`${indent}  if (denial !== undefined) return { block: true, reason: denial };`);
+    lines.push(`${indent}  const decision = toolHookDecision((await ${runCall}).stdout);`);
+    lines.push(
+      `${indent}  if (decision && !(await allowsToolCall(decision, ctx))) return { block: true, reason: decision.reason };`,
+    );
     lines.push(`${indent}} catch (error) {`);
     if (handler.failClosed === false) {
       // The OpenCode-style plugin's `failClosed: false` contract: only a
@@ -757,10 +868,7 @@ export function generatePiExtensionCode({
   );
   const hasToolGate = Boolean(handlerGroups[PI_BLOCKING_EVENT]);
   const needsBlockReasonHelper =
-    Boolean(handlerGroups[PI_BLOCKING_EVENT]) ||
-    hasPromptGate ||
-    hasSettleGate ||
-    hasSessionStopGate;
+    hasToolGate || hasPromptGate || hasSettleGate || hasSessionStopGate;
 
   const lines: string[] = ["// Generated by rulesync. Do not edit manually."];
   if (subscriptionLines.length === 0) {
@@ -774,36 +882,25 @@ export function generatePiExtensionCode({
     "ExtensionAPI",
     ...(hasPromptGate || needsToolHelpers ? ["ExtensionContext"] : []),
   ].join(", ");
-  lines.push('import { exec } from "node:child_process";');
-  lines.push('import { promisify } from "node:util";');
+  lines.push('import { spawn } from "node:child_process";');
+  if (needsToolHelpers) {
+    lines.push('import { homedir } from "node:os";');
+    lines.push('import { resolve as resolvePath } from "node:path";');
+  }
   lines.push("");
   lines.push(`import type { ${importedTypes} } from ${JSON.stringify(dialect.typesPackage)};`);
   lines.push("");
-  lines.push(...RUN_HELPER_LINES);
-  lines.push("");
-  if (needsBlockReasonHelper) {
-    lines.push(...BLOCK_REASON_HELPER_LINES);
-    lines.push("");
-  }
-  if (hasToolGate) {
-    lines.push(...TOOL_DENIAL_HELPER_LINES);
-    lines.push("");
-  }
-  if (needsToolHelpers) {
-    lines.push(...TOOL_PAYLOAD_HELPER_LINES);
-    lines.push("");
-  }
-  if (hasPromptGate) {
-    lines.push(...PROMPT_GATE_HELPER_LINES);
-    lines.push("");
-  }
-  if (hasSettleGate || hasSessionStopGate) {
-    lines.push(...STOP_HOOK_BLOCK_HELPER_LINES);
-    lines.push("");
-  }
-  if (hasSettleGate) {
-    lines.push(...STOP_HOOK_HELPER_LINES);
-    lines.push("");
+  const helperBlocks: ReadonlyArray<readonly [boolean, readonly string[]]> = [
+    [true, RUN_HELPER_LINES],
+    [needsBlockReasonHelper, BLOCK_REASON_HELPER_LINES],
+    [hasToolGate, TOOL_DECISION_HELPER_LINES],
+    [needsToolHelpers, needsToolHelpers ? buildToolPayloadHelperLines(dialect) : []],
+    [hasPromptGate, PROMPT_GATE_HELPER_LINES],
+    [hasSettleGate || hasSessionStopGate, STOP_HOOK_BLOCK_HELPER_LINES],
+    [hasSettleGate, STOP_HOOK_HELPER_LINES],
+  ];
+  for (const [included, block] of helperBlocks) {
+    if (included) lines.push(...block, "");
   }
   lines.push("export default function (pi: ExtensionAPI) {");
   if (hasSettleGate) {
