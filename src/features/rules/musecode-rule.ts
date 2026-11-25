@@ -16,8 +16,10 @@ import { ToolRuleRootOnlySettablePaths } from "./tool-rule.js";
  * writes in global mode, so no global scope is supported here: emitting the
  * same file from two targets would make the result depend on target order.
  * `rulesync generate --targets claudecode --global` feeds Muse Code's user
- * rules instead. (Verified against the official docs:
- * https://dev.meta.ai/docs/muse-code/configuration.md and
+ * rules instead, but only for the root rule (global non-root rules go to
+ * `~/.claude/rules/*.md`, which Muse Code is not documented to read) and only
+ * for rules that target `claudecode`. (Verified against the official docs:
+ * https://dev.meta.ai/docs/muse-code/configuration and
  * https://dev.meta.ai/docs/muse-code/changelog)
  *
  * rulesync's topic-based non-root rules have no project subdirectory to map

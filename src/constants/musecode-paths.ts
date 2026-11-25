@@ -14,7 +14,7 @@ import { AGENTSMD_SKILLS_DIR_PATH, AGENTSMD_SUBAGENTS_DIR_PATH } from "./agentsm
 // unnamed rules file in Muse's own config directory). That file is the
 // `claudecode` target's global rules output, so musecode emits no global rules
 // location of its own: writing it from both targets would collide.
-// https://dev.meta.ai/docs/muse-code/configuration.md
+// https://dev.meta.ai/docs/muse-code/configuration
 // https://dev.meta.ai/docs/muse-code/changelog
 export const MUSECODE_RULE_FILE_NAME = "AGENTS.md";
 
