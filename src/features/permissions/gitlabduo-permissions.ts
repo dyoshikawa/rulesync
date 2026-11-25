@@ -100,8 +100,8 @@ type DuoPermissionStatement = {
  * @see https://gitlab.com/gitlab-org/gitlab/-/blob/master/ee/app/models/ai/duo_workflows/command_pattern_matcher.rb
  *
  * On generate, the statements rulesync owns — those for `run_command` — are
- * replaced, and every other statement and key of the file is kept, comments
- * included. On import, `run_command` statements come back under `bash`; an
+ * replaced, and every other statement and key of the file is kept, with the
+ * comments outside the `permissions` array (the array is rewritten whole). On import, `run_command` statements come back under `bash`; an
  * allow whose resource holds a glob is skipped, since the canonical glob would
  * read it more widely than Duo does.
  */
@@ -221,14 +221,21 @@ export class GitlabduoPermissions extends ToolPermissions {
     }
 
     const bash: Record<string, PermissionAction> = {};
-    const skippedGlobAllows: string[] = [];
+    const skippedAllows: string[] = [];
     for (const statement of statements) {
       if (!isDuoPermissionStatement(statement) || statement.action !== COMMAND_TOOL_NAME) {
         continue;
       }
       const { resource, effect } = statement;
-      if (effect === "allow" && GLOB_CHARACTERS.test(resource)) {
-        skippedGlobAllows.push(resource);
+      // An allow is imported only when it is a plain command the server would
+      // accept as written: a glob reads more widely as a canonical pattern, and
+      // a resource the server refuses (`ls; rm -rf ~`) approves nothing in Duo
+      // but would approve it for every other tool.
+      if (
+        effect === "allow" &&
+        (GLOB_CHARACTERS.test(resource) || toGitlabduoCommandResource(resource) !== resource)
+      ) {
+        skippedAllows.push(resource);
         continue;
       }
       // The stricter effect wins when one resource is listed twice.
@@ -237,13 +244,13 @@ export class GitlabduoPermissions extends ToolPermissions {
         bash[resource] = effect;
       }
     }
-    if (skippedGlobAllows.length > 0) {
+    if (skippedAllows.length > 0) {
       warnWithFallback(
         undefined,
-        `${TOOL_LABEL} matches '*' as one argument that is not a flag, while the canonical ` +
-          `glob matches any characters, so the run_command allow statement(s) for ` +
-          `${uniq(skippedGlobAllows).join(", ")} in ${selfPath} were not imported: they would ` +
-          `allow more than Duo does.`,
+        `The run_command allow statement(s) for ${uniq(skippedAllows).join(", ")} in ` +
+          `${selfPath} were not imported: a glob matches more as a canonical pattern than in ` +
+          `${TOOL_LABEL} (where '*' is one argument that is not a flag), and a pattern the ` +
+          `GitLab server refuses approves nothing in Duo but would for other tools.`,
       );
     }
 
@@ -297,21 +304,30 @@ function parseSettings({
 }
 
 /**
+ * A canonical command pattern as Duo's token matcher reads it: trimmed, runs
+ * of whitespace collapsed to one space (Duo splits a command into words, so
+ * `git  push` and `git push` are one command), and a trailing `:*` ("any
+ * arguments") spelled ` *`.
+ */
+export function normalizeGitlabduoCommandPattern(pattern: string): string {
+  let normalized = pattern.trim();
+  if (TRAILING_ARGUMENT_WILDCARD.test(normalized)) {
+    normalized = `${normalized.slice(0, -2)} *`;
+  }
+  return normalized.trim().split(/\s+/).join(" ");
+}
+
+/**
  * The Duo `resource` for a canonical `bash` allow pattern, or `null` when the
  * server would refuse it or read it differently from what it says. The result
  * never matches a command the canonical pattern does not match.
  */
 export function toGitlabduoCommandResource(pattern: string): string | null {
-  let resource = pattern.trim();
-  if (TRAILING_ARGUMENT_WILDCARD.test(resource)) {
-    resource = `${resource.slice(0, -2).trimEnd()} *`;
-  }
-  if (resource === "" || resource.length > MAX_PATTERN_LENGTH) return null;
+  const resource = normalizeGitlabduoCommandPattern(pattern);
+  if (resource === "" || resource === "*" || resource.length > MAX_PATTERN_LENGTH) return null;
   if (UNSUPPORTED_PATTERN_CHARACTERS.test(resource)) return null;
   if (resource.includes("**")) return null;
-  const tokens = resource.split(/\s+/);
-  if (tokens.length === 1 && tokens[0] === "*") return null;
-  return tokens.join(" ");
+  return resource;
 }
 
 /**
@@ -328,7 +344,16 @@ export function convertRulesyncToGitlabduoStatements({
   const { rules, foreignRestrictingCategories, ignoredAllToolsAllowPatterns } =
     collectShellCommandRules(config.permission);
 
-  const restrictions = rules.filter(({ action }) => action !== "allow");
+  // Each restriction is compared both as written and as Duo's matcher reads
+  // it (see `normalizeGitlabduoCommandPattern`), so a `git push:*` ask or a
+  // `git  push` deny still withholds an allow Duo would apply to those
+  // commands. Adding readings only ever adds overlaps.
+  const restrictions = uniq(
+    rules
+      .filter(({ action }) => action !== "allow")
+      .flatMap(({ pattern }) => [pattern, normalizeGitlabduoCommandPattern(pattern)])
+      .filter((pattern) => pattern !== ""),
+  ).map((pattern) => ({ pattern, fromAllToolsCategory: false }));
   const budget = createIntersectionBudget();
   const shadowingRestrictions = createShadowingRestrictionsTest(restrictions, { budget });
 
@@ -337,15 +362,15 @@ export function convertRulesyncToGitlabduoStatements({
   const unsupportedPatterns: string[] = [];
   for (const { pattern, action } of rules) {
     if (action !== "allow") continue;
-    // Compared as the canonical pattern, which matches at least every command
-    // the written Duo pattern does, so an overlap is never missed.
-    if (shadowingRestrictions(pattern).length > 0) {
-      shadowedAllowPatterns.push(pattern);
-      continue;
-    }
     const resource = toGitlabduoCommandResource(pattern);
     if (resource === null) {
       unsupportedPatterns.push(pattern);
+      continue;
+    }
+    // Compared as the resource actually written: Duo matches it token by
+    // token, never more widely than the glob it reads as here.
+    if (shadowingRestrictions(resource).length > 0) {
+      shadowedAllowPatterns.push(pattern);
       continue;
     }
     resources.push(resource);

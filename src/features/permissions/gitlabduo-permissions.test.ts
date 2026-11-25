@@ -119,6 +119,32 @@ describe("GitlabduoPermissions", () => {
       expect(warnings(logger)).toContain("was not given the allow rule(s) for git *");
     });
 
+    it.each([
+      {
+        name: "a ':*' allow beside a literal deny",
+        bash: { "git:*": "allow", "git push": "deny" },
+      },
+      {
+        name: "a literal allow beside a ':*' ask",
+        bash: { "git push --force": "allow", "git push:*": "ask" },
+      },
+      { name: "a double-spaced allow", bash: { "git  push": "allow", "git push": "deny" } },
+      { name: "a double-spaced deny", bash: { "git push": "allow", "git  push": "deny" } },
+      { name: "a tab and leading space", bash: { " git\tpush": "allow", "git push": "ask" } },
+    ])("withholds $name as Duo would match it", async ({ bash }) => {
+      const content = await generate({ config: { permission: { bash } } });
+      expect(parseJsonc(content)).toEqual({});
+    });
+
+    it("withholds an allow that an all-tools ':*' deny overlaps", async () => {
+      const content = await generate({
+        config: {
+          permission: { "*": { "git push:*": "deny" }, bash: { "git push --force": "allow" } },
+        },
+      });
+      expect(parseJsonc(content)).toEqual({});
+    });
+
     it("withholds an allow that an all-tools '*' deny overlaps", async () => {
       const content = await generate({
         config: { permission: { "*": { "rm *": "deny" }, bash: { "rm *": "allow", ls: "allow" } } },
@@ -207,6 +233,8 @@ describe("GitlabduoPermissions", () => {
           permissions: [
             allow("git status"),
             allow("git checkout *"),
+            allow("ls; rm -rf ~"),
+            allow("git  log"),
             { action: "run_command", resource: "rm *", effect: "deny" },
             { action: "run_command", resource: "git status", effect: "ask" },
             { action: "read_file", resource: "*", effect: "allow" },
@@ -232,11 +260,15 @@ describe("toGitlabduoCommandResource", () => {
     ["git checkout feature-*", "git checkout feature-*"],
     ["npm run:*", "npm run *"],
     ["* --version", "* --version"],
+    ["\tgit\t push ", "git push"],
   ])("writes %j as %j", (pattern, expected) => {
     expect(toGitlabduoCommandResource(pattern)).toBe(expected);
   });
 
-  it.each(["*", "", "git ** push", "a|b", "a\\b", "x".repeat(257)])("refuses %j", (pattern) => {
-    expect(toGitlabduoCommandResource(pattern)).toBeNull();
-  });
+  it.each(["*", "", ":*", " :* ", "git ** push", "a|b", "a\\b", "x".repeat(257)])(
+    "refuses %j",
+    (pattern) => {
+      expect(toGitlabduoCommandResource(pattern)).toBeNull();
+    },
+  );
 });
