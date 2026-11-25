@@ -6,6 +6,7 @@ import {
 import {
   BOB_HOOK_EVENTS,
   BOB_MATCHER_HOOK_EVENTS,
+  BOB_NATIVE_HOOK_EVENTS,
   BOB_TO_CANONICAL_EVENT_NAMES,
   CANONICAL_TO_BOB_EVENT_NAMES,
 } from "../../types/hooks.js";
@@ -46,6 +47,10 @@ const BOB_SPEC: SettingsJsonHooksSpec = {
   displayName: "Bob",
   overrideKey: "bob",
   converterConfig: BOB_CONVERTER_CONFIG,
+  // Bob's hooks schema is strict: one unknown key (a typo, or a canonical
+  // name such as `sessionEnd`) makes Bob ignore the file's whole hooks block,
+  // so only Bob's own event names are written from the `bob.hooks` override.
+  knownOverrideEvents: BOB_NATIVE_HOOK_EVENTS,
 };
 
 /**

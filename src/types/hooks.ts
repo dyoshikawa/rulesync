@@ -708,6 +708,19 @@ export const BOB_OPT_IN_HOOK_EVENTS: Readonly<Partial<Record<HookEvent, string>>
   notification: "Notification",
 };
 
+/**
+ * Every native event key Bob Shell 2.1.0's strict hooks schema accepts: the
+ * seven documented events, the three opt-in ones and `PermissionResolved`,
+ * which has no canonical counterpart. Any other key under `bob.hooks` is
+ * dropped on generate, because one unknown key makes Bob ignore the file's
+ * whole hooks block.
+ */
+export const BOB_NATIVE_HOOK_EVENTS: readonly string[] = [
+  ...Object.values(CANONICAL_TO_BOB_EVENT_NAMES),
+  ...Object.values(BOB_OPT_IN_HOOK_EVENTS),
+  "PermissionResolved",
+];
+
 export const BOB_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
   CANONICAL_TO_BOB_EVENT_NAMES,
 );

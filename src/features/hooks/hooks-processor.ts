@@ -9,6 +9,7 @@ import {
   AMP_HOOK_EVENTS,
   AMP_OVERRIDE_ONLY_HOOK_EVENTS,
   BOB_MATCHER_HOOK_EVENTS,
+  BOB_NATIVE_HOOK_EVENTS,
   BOB_OPT_IN_HOOK_EVENTS,
   CODEBUDDY_MATCHER_HOOK_EVENTS,
   CODEWHALE_HOOK_EVENTS,
@@ -990,6 +991,8 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       ...converterCapabilities(BobHooks.getConverterConfig()),
       supportsMatcher: true,
       matcherEvents: BOB_MATCHER_HOOK_EVENTS,
+      dropsUnknownOverrideEvents: true,
+      overrideOnlyEvents: BOB_NATIVE_HOOK_EVENTS,
       overrideOptIn: {
         events: BOB_OPT_IN_HOOK_EVENTS,
         note: "They need Bob Shell 2.1.0 or later, and an older Bob Shell ignores the whole hooks block of a settings file that names them.",
@@ -1509,24 +1512,32 @@ export class HooksProcessor extends FeatureProcessor {
     // Warn about unsupported events
     {
       const optInEvents = factory.overrideOptIn?.events ?? {};
+      const isOptIn = (e: string): e is HookEvent => Object.hasOwn(optInEvents, e);
+      const overrideKeys = new Set(Object.keys(overrideHooks));
       const skippedEvents = unsupportedEventNames({ factory, sharedHooks, effectiveHooks });
-      const optIn = skippedEvents.filter((e) => Object.hasOwn(optInEvents, e));
-      const skipped = skippedEvents.filter((e) => !Object.hasOwn(optInEvents, e));
+      const skipped = skippedEvents.filter((e) => !isOptIn(e));
+      // A shared-block opt-in event, unless the override already authors it
+      // under its native name.
+      const optIn = skippedEvents
+        .filter(isOptIn)
+        .filter((e) => Object.hasOwn(sharedHooks, e) && !overrideKeys.has(optInEvents[e] ?? ""));
+      // An opt-in event authored in the override under its canonical name.
+      const misnamed = skippedEvents.filter(isOptIn).filter((e) => overrideKeys.has(e));
       if (skipped.length > 0) {
         this.logger.warn(
           `Skipped hook event(s) for ${this.toolTarget} (not supported): ${skipped.join(", ")}`,
         );
       }
       if (optIn.length > 0) {
-        const nativeNames = optIn.map((e) => optInEvents[e as HookEvent]).join(", ");
+        const nativeNames = optIn.map((e) => optInEvents[e]).join(", ");
         this.logger.warn(
           `Skipped hook event(s) for ${this.toolTarget}: ${optIn.join(", ")}. ${factory.overrideOptIn?.note} To opt in, author them under the "${overrideKey}.hooks" override with the native name(s) ${nativeNames}.`,
         );
       }
-      const misnamed = Object.keys(overrideHooks).filter((e) => Object.hasOwn(optInEvents, e));
       if (misnamed.length > 0) {
+        const nativeNames = misnamed.map((e) => optInEvents[e]).join(", ");
         this.logger.warn(
-          `"${overrideKey}.hooks" key(s) ${misnamed.join(", ")} are written as-is, which ${this.toolTarget} does not recognize; use the native name(s) ${misnamed.map((e) => optInEvents[e as HookEvent]).join(", ")} instead.`,
+          `Skipped "${overrideKey}.hooks" key(s) for ${this.toolTarget}: ${misnamed.join(", ")}. Use the native name(s) ${nativeNames} instead.`,
         );
       }
     }
