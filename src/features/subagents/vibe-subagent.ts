@@ -41,12 +41,120 @@ type VibeSubagentsFromRulesyncSubagentsParams = {
  */
 const VIBE_RESERVED_AGENT_NAME = "main";
 
+/**
+ * The approval policies Vibe ships since v3.1.4. `AgentRegistry._discover`
+ * never loads an agents-directory file named after one as an agent, whatever
+ * its `agent_type`: from a project's `.vibe/agents/` the file is ignored with
+ * an `approval_policy.project_override_ignored` config issue, and from
+ * `~/.vibe/agents/` it redefines that approval policy for every session. Vibe
+ * compares the file stem exactly (`agent.name in BUILTIN_APPROVAL_POLICIES`).
+ * @see https://github.com/mistralai/mistral-vibe/blob/v3.1.5/vibe/core/agents/registry.py
+ * @see https://github.com/mistralai/mistral-vibe/blob/v3.1.5/vibe/core/agents/models.py
+ */
+const VIBE_APPROVAL_POLICY_NAMES: ReadonlySet<string> = new Set([
+  "ask",
+  "accept-edits",
+  "smart-approve",
+  "auto-approve",
+]);
+
+function vibeAgentFileStem(relativeFilePath: string): string {
+  return basename(relativeFilePath).replace(/\.(md|toml)$/, "");
+}
+
 function isReservedVibeAgentFileName(relativeFilePath: string): boolean {
-  return (
-    basename(relativeFilePath)
-      .replace(/\.(md|toml)$/, "")
-      .toLowerCase() === VIBE_RESERVED_AGENT_NAME
-  );
+  return vibeAgentFileStem(relativeFilePath).toLowerCase() === VIBE_RESERVED_AGENT_NAME;
+}
+
+function isVibeApprovalPolicyFileName(relativeFilePath: string): boolean {
+  return VIBE_APPROVAL_POLICY_NAMES.has(vibeAgentFileStem(relativeFilePath));
+}
+
+/**
+ * What a custom `agent_type = "agent"` profile may set since Vibe v3.1.4:
+ * Vibe's `_AGENT_KEYS`, plus the profile metadata `AgentProfile.from_toml`
+ * reads before filtering. Any other key — `safety`, `approval_policy`,
+ * `bypass_tool_permissions`, `enabled_agents`, `enable_auto_approve`,
+ * `compaction_prompt_id`, ... — is ignored by Vibe and reported as a config
+ * issue (or as an unused setting), because what runs without asking belongs to
+ * the approval policy, not to the agent.
+ * @see https://github.com/mistralai/mistral-vibe/blob/v3.1.5/vibe/core/agents/models.py
+ */
+const VIBE_AGENT_PROFILE_KEYS: ReadonlySet<string> = new Set([
+  "agent_type",
+  "display_name",
+  "description",
+  "instructions",
+  "active_model",
+  "models",
+  "providers",
+  "allowed_models",
+  "compaction_model",
+  "vision_model",
+  "auto_compact_threshold",
+  "enabled_tools",
+  "disabled_tools",
+  "enabled_skills",
+  "disabled_skills",
+  "skill_paths",
+  "system_prompt_id",
+  "system_prompt_behavior",
+  "tools",
+]);
+
+/** Per tool, an agent keeps only the shell timeouts and a narrowing `permission`. */
+const VIBE_AGENT_TOOL_KEYS: ReadonlySet<string> = new Set([
+  "default_timeout",
+  "max_timeout_seconds",
+]);
+const VIBE_AGENT_NARROWING_PERMISSIONS: ReadonlySet<unknown> = new Set(["ask", "never"]);
+
+/**
+ * Drop the settings Vibe ignores on an `agent_type = "agent"` profile, so the
+ * generated file does not pretend to grant what Vibe refuses. Returns the kept
+ * TOML object and the dotted keys that were dropped.
+ */
+function stripVibeAgentIgnoredSettings(tomlObj: Record<string, unknown>): {
+  kept: Record<string, unknown>;
+  dropped: string[];
+} {
+  const kept: Record<string, unknown> = {};
+  const dropped: string[] = [];
+  for (const [key, value] of Object.entries(tomlObj)) {
+    if (!VIBE_AGENT_PROFILE_KEYS.has(key)) {
+      dropped.push(key);
+      continue;
+    }
+    if (key !== "tools" || typeof value !== "object" || value === null || Array.isArray(value)) {
+      kept[key] = value;
+      continue;
+    }
+    const tools: Record<string, unknown> = {};
+    for (const [tool, settings] of Object.entries(value)) {
+      if (typeof settings !== "object" || settings === null || Array.isArray(settings)) {
+        dropped.push(`tools.${tool}`);
+        continue;
+      }
+      const own: Record<string, unknown> = {};
+      for (const [setting, settingValue] of Object.entries(settings)) {
+        if (
+          VIBE_AGENT_TOOL_KEYS.has(setting) ||
+          (setting === "permission" && VIBE_AGENT_NARROWING_PERMISSIONS.has(settingValue))
+        ) {
+          own[setting] = settingValue;
+        } else {
+          dropped.push(`tools.${tool}.${setting}`);
+        }
+      }
+      if (Object.keys(own).length > 0) {
+        tools[tool] = own;
+      }
+    }
+    if (Object.keys(tools).length > 0) {
+      kept.tools = tools;
+    }
+  }
+  return { kept, dropped: dropped.toSorted() };
 }
 
 /**
@@ -174,6 +282,7 @@ export class VibeSubagent extends ToolSubagent {
     rulesyncSubagent,
     validate = true,
     global = false,
+    logger,
   }: ToolSubagentFromRulesyncSubagentParams): ToolSubagent {
     const frontmatter = rulesyncSubagent.getFrontmatter();
     const rawSection: Record<string, unknown> = frontmatter.vibe ?? {};
@@ -204,7 +313,21 @@ export class VibeSubagent extends ToolSubagent {
       ...(promptBody ? { system_prompt_id: slug } : {}),
     };
 
-    const body = smolToml.stringify(tomlObj);
+    let finalToml: Record<string, unknown> = tomlObj;
+    if (tomlObj.agent_type === "agent") {
+      const { kept, dropped } = stripVibeAgentIgnoredSettings(tomlObj);
+      if (dropped.length > 0) {
+        logger?.warn(
+          `Vibe subagent ${rulesyncSubagent.getRelativeFilePath()}: dropped ` +
+            `${dropped.map((key) => `'${key}'`).join(", ")}, which an agent_type = "agent" ` +
+            "profile may not set (Vibe v3.1.4+ ignores it). What runs without asking belongs " +
+            'to the approval policy: set default_approval_policy and [tools.*] in config.toml, or use agent_type = "subagent".',
+        );
+      }
+      finalToml = kept;
+    }
+
+    const body = smolToml.stringify(finalToml);
     const paths = this.getSettablePaths({ global });
     const relativeFilePath = rulesyncSubagent.getRelativeFilePath().replace(/\.md$/, ".toml");
 
@@ -227,7 +350,10 @@ export class VibeSubagent extends ToolSubagent {
    * with a warning.
    *
    * A subagent named `main` is skipped with a warning: Vibe reserves that name
-   * for hook matching and does not load an agent file called `main.toml`.
+   * for hook matching and does not load an agent file called `main.toml`. So is
+   * one named after an approval policy (`ask`, `accept-edits`, `smart-approve`,
+   * `auto-approve`): Vibe ignores such a file in a project and treats it as a
+   * redefinition of that policy in `~/.vibe/agents/`, never as an agent.
    */
   static fromRulesyncSubagents({
     rulesyncSubagents,
@@ -245,11 +371,22 @@ export class VibeSubagent extends ToolSubagent {
         );
         return [];
       }
+      if (isVibeApprovalPolicyFileName(sourcePath)) {
+        const policy = vibeAgentFileStem(sourcePath);
+        logger?.warn(
+          `Skipping Vibe subagent ${sourcePath}: '${policy}' is a Vibe approval policy name ` +
+            "(v3.1.4+), so Vibe never loads an agent file of that name — a project's " +
+            ".vibe/agents/ file is ignored and a ~/.vibe/agents/ file redefines the approval " +
+            "policy instead. Rename the subagent file.",
+        );
+        return [];
+      }
       const agentFile = VibeSubagent.fromRulesyncSubagent({
         outputRoot,
         relativeDirPath: VibeSubagent.getSettablePaths({ global }).relativeDirPath,
         rulesyncSubagent,
         global,
+        logger,
       }) as VibeSubagent;
 
       const promptBody = rulesyncSubagent.getBody();

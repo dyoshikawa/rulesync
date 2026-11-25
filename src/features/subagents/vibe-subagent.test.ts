@@ -227,6 +227,157 @@ describe("VibeSubagent", () => {
     expect(parsed.tools.bash.permission).toBe("ask");
   });
 
+  it.each([
+    { relativeFilePath: "ask.md", global: false },
+    { relativeFilePath: "accept-edits.md", global: false },
+    { relativeFilePath: "smart-approve.md", global: true },
+    { relativeFilePath: "auto-approve.md", global: true },
+  ])(
+    "should skip a subagent file named $relativeFilePath (global: $global) with a warning, since it is a Vibe approval policy name",
+    ({ relativeFilePath, global }) => {
+      const policy = new RulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath,
+        frontmatter: {
+          targets: ["vibe"],
+          name: "Policy",
+          description: "Collides with an approval policy",
+          vibe: { agent_type: "agent", safety: "yolo" },
+        },
+        body: "Do things.",
+      });
+      const kept = new RulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "ask-reviewer.md",
+        frontmatter: { targets: ["vibe"], name: "Ask reviewer", description: "Not a policy" },
+        body: "",
+      });
+      const logger = createMockLogger();
+
+      const files = VibeSubagent.fromRulesyncSubagents({
+        outputRoot: testDir,
+        rulesyncSubagents: [policy, kept],
+        global,
+        logger,
+      });
+
+      expect(files.map((file) => file.getRelativeFilePath())).toEqual(["ask-reviewer.toml"]);
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("is a Vibe approval policy name"),
+      );
+    },
+  );
+
+  it("should keep a subagent whose name only differs in case from an approval policy, as Vibe compares stems exactly", () => {
+    const subagent = new RulesyncSubagent({
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+      relativeFilePath: "Ask.md",
+      frontmatter: { targets: ["vibe"], name: "Ask", description: "Agent" },
+      body: "",
+    });
+    const logger = createMockLogger();
+
+    const files = VibeSubagent.fromRulesyncSubagents({
+      outputRoot: testDir,
+      rulesyncSubagents: [subagent],
+      logger,
+    });
+
+    expect(files.map((file) => file.getRelativeFilePath())).toEqual(["Ask.toml"]);
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  it("should drop and warn about settings Vibe ignores on an agent_type agent profile", () => {
+    const rulesyncSubagent = new RulesyncSubagent({
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+      relativeFilePath: "builder.md",
+      frontmatter: {
+        targets: ["vibe"],
+        name: "Builder",
+        description: "Build agent",
+        vibe: {
+          agent_type: "agent",
+          safety: "yolo",
+          bypass_tool_permissions: true,
+          enabled_agents: ["explore"],
+          active_model: "devstral",
+          tools: {
+            bash: { permission: "always", default_timeout: 30, allowlist: ["ls"] },
+            write_file: { permission: "never" },
+            edit: { permission: "always" },
+          },
+        },
+      },
+      body: "Build things.",
+    });
+    const logger = createMockLogger();
+
+    const vibeSubagent = VibeSubagent.fromRulesyncSubagent({
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+      rulesyncSubagent,
+      logger,
+    }) as VibeSubagent;
+    const parsed = smolToml.parse(vibeSubagent.getBody()) as any;
+
+    expect(parsed).toEqual({
+      agent_type: "agent",
+      display_name: "Builder",
+      description: "Build agent",
+      active_model: "devstral",
+      tools: {
+        bash: { default_timeout: 30 },
+        write_file: { permission: "never" },
+      },
+      system_prompt_id: "builder",
+    });
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+    const message = logger.warn.mock.calls[0]?.[0] as string;
+    for (const key of [
+      "'bypass_tool_permissions'",
+      "'enabled_agents'",
+      "'safety'",
+      "'tools.bash.allowlist'",
+      "'tools.bash.permission'",
+      "'tools.edit.permission'",
+    ]) {
+      expect(message).toContain(key);
+    }
+  });
+
+  it("should keep safety and always permissions on an agent_type subagent profile", () => {
+    const rulesyncSubagent = new RulesyncSubagent({
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+      relativeFilePath: "helper.md",
+      frontmatter: {
+        targets: ["vibe"],
+        name: "Helper",
+        vibe: { safety: "yolo", tools: { bash: { permission: "always" } } },
+      },
+      body: "",
+    });
+    const logger = createMockLogger();
+
+    const vibeSubagent = VibeSubagent.fromRulesyncSubagent({
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+      rulesyncSubagent,
+      logger,
+    }) as VibeSubagent;
+    const parsed = smolToml.parse(vibeSubagent.getBody()) as any;
+
+    expect(parsed.agent_type).toBe("subagent");
+    expect(parsed.safety).toBe("yolo");
+    expect(parsed.tools.bash.permission).toBe("always");
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
   it("should import Vibe TOML agents into rulesync subagents with a vibe section", () => {
     const toml = [
       'agent_type = "agent"',
