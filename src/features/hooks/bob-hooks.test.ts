@@ -50,7 +50,7 @@ describe("BobHooks", () => {
   });
 
   describe("fromRulesyncHooks", () => {
-    it("should emit the seven supported events in Bob's PascalCase shape and drop the rest", async () => {
+    it("should emit the supported events in Bob's PascalCase shape and drop the rest", async () => {
       const rulesyncHooks = buildRulesyncHooks(testDir, {
         version: 1,
         hooks: {
@@ -63,9 +63,12 @@ describe("BobHooks", () => {
           preCompact: [{ type: "command", command: ".rulesync/hooks/pre-compact.sh" }],
           postCompact: [{ type: "command", command: ".rulesync/hooks/post-compact.sh" }],
           stop: [{ type: "command", command: ".rulesync/hooks/audit.sh" }],
-          // Bob has no session-end or permission events.
+          // Bob Shell 2.1.0 events.
           sessionEnd: [{ type: "command", command: ".rulesync/hooks/session-end.sh" }],
           permissionRequest: [{ type: "command", command: ".rulesync/hooks/permission.sh" }],
+          notification: [{ type: "command", command: ".rulesync/hooks/notify.sh" }],
+          // Bob has no subagent events.
+          subagentStop: [{ type: "command", command: ".rulesync/hooks/subagent-stop.sh" }],
         },
       });
 
@@ -79,10 +82,13 @@ describe("BobHooks", () => {
       expect(bobHooks.getRelativeFilePath()).toBe("settings.json");
       const parsed = JSON.parse(bobHooks.getFileContent());
       expect(Object.keys(parsed.hooks).toSorted()).toEqual([
+        "Notification",
+        "PermissionRequest",
         "PostCompact",
         "PostToolUse",
         "PreCompact",
         "PreToolUse",
+        "SessionEnd",
         "SessionStart",
         "Stop",
         "UserPromptSubmit",
@@ -95,8 +101,12 @@ describe("BobHooks", () => {
       });
       expect(parsed.hooks.PreToolUse[0].matcher).toBe("Bash");
       expect(parsed.hooks.PreToolUse[0].hooks[0].command).toBe(".rulesync/hooks/pre-tool.sh");
-      expect(parsed.hooks.SessionEnd).toBeUndefined();
-      expect(parsed.hooks.PermissionRequest).toBeUndefined();
+      expect(parsed.hooks.SessionEnd[0].hooks[0].command).toBe(".rulesync/hooks/session-end.sh");
+      expect(parsed.hooks.PermissionRequest[0].hooks[0].command).toBe(
+        ".rulesync/hooks/permission.sh",
+      );
+      expect(parsed.hooks.Notification[0].hooks[0].command).toBe(".rulesync/hooks/notify.sh");
+      expect(parsed.hooks.SubagentStop).toBeUndefined();
     });
 
     it("should carry over the timeout on command hooks", async () => {
@@ -174,6 +184,39 @@ describe("BobHooks", () => {
       ]);
       expect(imported.hooks.preCompact?.[0]?.matcher).toBe("auto");
       expect(imported.hooks.postCompact?.[0]?.matcher).toBe("manual");
+    });
+
+    it("should keep matchers on SessionEnd, PermissionRequest and Notification (issue #3074)", async () => {
+      const rulesyncHooks = buildRulesyncHooks(testDir, {
+        version: 1,
+        hooks: {
+          sessionEnd: [{ command: "end.sh", matcher: "logout" }],
+          permissionRequest: [{ command: "permission.sh", matcher: "Bash" }],
+          notification: [{ command: "notify.sh", matcher: "idle_prompt" }],
+        },
+      });
+
+      const logger = createMockLogger();
+      const warnSpy = vi.spyOn(logger, "warn");
+      const bobHooks = await BobHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+        logger,
+      });
+
+      const parsed = JSON.parse(bobHooks.getFileContent());
+      expect(parsed.hooks.SessionEnd[0].matcher).toBe("logout");
+      expect(parsed.hooks.PermissionRequest[0].matcher).toBe("Bash");
+      expect(parsed.hooks.Notification[0].matcher).toBe("idle_prompt");
+      expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("will be ignored"));
+
+      const imported = bobHooks.toRulesyncHooks().getJson();
+      expect(imported.hooks.sessionEnd).toEqual([
+        { type: "command", command: "end.sh", matcher: "logout" },
+      ]);
+      expect(imported.hooks.permissionRequest?.[0]?.matcher).toBe("Bash");
+      expect(imported.hooks.notification?.[0]?.matcher).toBe("idle_prompt");
     });
 
     it("should emit a canonical '*' matcher as no matcher", async () => {
@@ -299,6 +342,8 @@ describe("BobHooks", () => {
         bob: {
           hooks: {
             sessionStart: [{ command: ".rulesync/hooks/bob-only.sh" }],
+            // No canonical name: written under Bob's own event key.
+            PermissionResolved: [{ command: ".rulesync/hooks/resolved.sh", matcher: "Bash" }],
           },
         },
       });
@@ -311,6 +356,10 @@ describe("BobHooks", () => {
 
       const parsed = JSON.parse(bobHooks.getFileContent());
       expect(JSON.stringify(parsed.hooks.SessionStart)).toContain(".rulesync/hooks/bob-only.sh");
+      expect(parsed.hooks.PermissionResolved[0].matcher).toBe("Bash");
+      expect(parsed.hooks.PermissionResolved[0].hooks[0].command).toBe(
+        ".rulesync/hooks/resolved.sh",
+      );
     });
 
     it("should write to .bob/settings/settings.json in global mode", async () => {
@@ -461,7 +510,7 @@ describe("BobHooks", () => {
         fileContent: JSON.stringify({
           hooks: {
             SessionStart: [{ hooks: [{ type: "command", command: "a.sh" }] }],
-            Notification: [{ hooks: [{ type: "command", command: "b.sh" }] }],
+            PermissionResolved: [{ hooks: [{ type: "command", command: "b.sh" }] }],
           },
         }),
         validate: false,
@@ -470,7 +519,7 @@ describe("BobHooks", () => {
       const json = bobHooks.toRulesyncHooks().getJson();
 
       expect(json.hooks.sessionStart).toHaveLength(1);
-      expect(json.bob?.hooks?.Notification).toHaveLength(1);
+      expect(json.bob?.hooks?.PermissionResolved).toHaveLength(1);
     });
 
     it("should tolerate a settings file without a hooks key", () => {

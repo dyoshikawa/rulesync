@@ -1749,7 +1749,16 @@ describe("toolHooksFactories capability table", () => {
         supportedEvents: BOB_HOOK_EVENTS,
         supportedHookTypes: ["command", "http"],
         supportsMatcher: true,
-        matcherEvents: ["preToolUse", "postToolUse"],
+        matcherEvents: [
+          "sessionStart",
+          "sessionEnd",
+          "preToolUse",
+          "postToolUse",
+          "permissionRequest",
+          "notification",
+          "preCompact",
+          "postCompact",
+        ],
       },
     ],
     [

@@ -655,9 +655,12 @@ export const ZCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertReco
 
 export const CANONICAL_TO_BOB_EVENT_NAMES: Record<string, string> = {
   sessionStart: "SessionStart",
+  sessionEnd: "SessionEnd",
   beforeSubmitPrompt: "UserPromptSubmit",
   preToolUse: "PreToolUse",
   postToolUse: "PostToolUse",
+  permissionRequest: "PermissionRequest",
+  notification: "Notification",
   preCompact: "PreCompact",
   postCompact: "PostCompact",
   stop: "Stop",
@@ -667,17 +670,31 @@ export const CANONICAL_TO_BOB_EVENT_NAMES: Record<string, string> = {
  * Hook events supported by IBM Bob's lifecycle hooks.
  *
  * Bob reads `hooks` from `.bob/settings.json` (project) and
- * `~/.bob/settings/settings.json` (user) in the Claude-Code shape and fires
- * seven events: SessionStart, UserPromptSubmit, PreToolUse, PostToolUse,
- * PreCompact, PostCompact and Stop (Bob IDE and Bob Shell list the same
- * seven). Handlers are `command` or `http` hooks. `matcher` is a regex matched
- * against the tool name on PreToolUse / PostToolUse, `source` on SessionStart
- * and `trigger` on PreCompact / PostCompact; the other events ignore it.
+ * `~/.bob/settings/settings.json` (user) in the Claude-Code shape. The
+ * lifecycle-hooks pages document seven events: SessionStart,
+ * UserPromptSubmit, PreToolUse, PostToolUse, PreCompact, PostCompact and Stop.
+ * Bob Shell 2.1.0 (`@ibm/bob` on npm, 2026-11-09) adds SessionEnd,
+ * PermissionRequest, PermissionResolved and Notification to its hook runner
+ * and settings schema; none of the four can block. PermissionResolved has no
+ * canonical counterpart, so it is authored through the `bob.hooks` override
+ * block. Handlers are `command` or `http` hooks.
  *
  * @see https://bob.ibm.com/docs/shell/configuration/lifecycle-hooks
  * @see https://bob.ibm.com/docs/ide/configuration/lifecycle-hooks
+ * @see https://registry.npmjs.org/@ibm/bob/-/bob-2.1.0.tgz
  */
 export const BOB_HOOK_EVENTS: readonly HookEvent[] = eventsOf(CANONICAL_TO_BOB_EVENT_NAMES);
+
+/**
+ * The {@link BOB_HOOK_EVENTS} whose `matcher` regex Bob applies: the tool name
+ * on PreToolUse / PostToolUse / PermissionRequest, `source` on SessionStart,
+ * `trigger` on PreCompact / PostCompact, `reason` on SessionEnd and
+ * `notification_type` on Notification. UserPromptSubmit and Stop have no
+ * matchable value.
+ */
+export const BOB_MATCHER_HOOK_EVENTS: readonly HookEvent[] = BOB_HOOK_EVENTS.filter(
+  (event) => event !== "beforeSubmitPrompt" && event !== "stop",
+);
 
 export const BOB_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
   CANONICAL_TO_BOB_EVENT_NAMES,

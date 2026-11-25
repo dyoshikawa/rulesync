@@ -5,6 +5,7 @@ import {
 } from "../../constants/bob-paths.js";
 import {
   BOB_HOOK_EVENTS,
+  BOB_MATCHER_HOOK_EVENTS,
   BOB_TO_CANONICAL_EVENT_NAMES,
   CANONICAL_TO_BOB_EVENT_NAMES,
 } from "../../types/hooks.js";
@@ -12,12 +13,15 @@ import { SettingsJsonHooks, type SettingsJsonHooksSpec } from "./settings-json-h
 import type { ToolHooksConverterConfig } from "./tool-hooks-converter.js";
 import type { ToolHooksSettablePaths } from "./tool-hooks.js";
 
-// Bob honours `matcher` (a regex) on PreToolUse / PostToolUse (tool name),
-// SessionStart (`source`: startup | resume | compact) and PreCompact /
-// PostCompact (`trigger`: manual | auto); UserPromptSubmit and Stop ignore it.
+// Bob honours `matcher` (a regex) on every event but UserPromptSubmit and Stop
+// (see BOB_MATCHER_HOOK_EVENTS): the tool name on PreToolUse / PostToolUse /
+// PermissionRequest, `source` on SessionStart, `trigger` on PreCompact /
+// PostCompact, `reason` on SessionEnd and `notification_type` on Notification.
 // https://bob.ibm.com/docs/shell/configuration/lifecycle-hooks
 // https://bob.ibm.com/docs/ide/configuration/lifecycle-hooks
-const BOB_NO_MATCHER_EVENTS: ReadonlySet<string> = new Set(["beforeSubmitPrompt", "stop"]);
+const BOB_NO_MATCHER_EVENTS: ReadonlySet<string> = new Set(
+  BOB_HOOK_EVENTS.filter((event) => !BOB_MATCHER_HOOK_EVENTS.includes(event)),
+);
 
 // `projectDirVar` is empty: Bob documents no inline project-directory
 // substitution for hook commands, so commands are emitted verbatim.

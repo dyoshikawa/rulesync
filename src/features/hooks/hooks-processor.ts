@@ -8,6 +8,7 @@ import { FeatureProcessor } from "../../types/feature-processor.js";
 import {
   AMP_HOOK_EVENTS,
   AMP_OVERRIDE_ONLY_HOOK_EVENTS,
+  BOB_MATCHER_HOOK_EVENTS,
   CODEBUDDY_MATCHER_HOOK_EVENTS,
   CODEWHALE_HOOK_EVENTS,
   CODEWHALE_MATCHER_HOOK_EVENTS,
@@ -967,8 +968,8 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
         // IBM Bob hooks live under the top-level `hooks` key of the shared
         // settings file `.bob/settings.json` (project) /
         // `~/.bob/settings/settings.json` (global). Command hooks and http
-        // hooks (written as Bob's `https` handler) are supported, and a
-        // matcher applies only to the tool events.
+        // hooks are supported, and a matcher applies to every event but
+        // UserPromptSubmit and Stop.
         // https://bob.ibm.com/docs/ide/configuration/lifecycle-hooks
         supportsProject: true,
         supportsGlobal: true,
@@ -976,7 +977,7 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       },
       ...converterCapabilities(BobHooks.getConverterConfig()),
       supportsMatcher: true,
-      matcherEvents: ["preToolUse", "postToolUse"],
+      matcherEvents: BOB_MATCHER_HOOK_EVENTS,
     },
   ],
   [
