@@ -1346,6 +1346,44 @@ Body from inputRoots[0]`;
     });
   });
 
+  describe("loadVibeSubagents", () => {
+    const writeVibeAgent = async (name: string): Promise<void> => {
+      const agentsDir = join(testDir, ".vibe", "agents");
+      await ensureDir(agentsDir);
+      await writeFileContent(
+        join(agentsDir, `${name}.toml`),
+        `agent_type = "agent"\ndisplay_name = "${name}"\n`,
+      );
+    };
+
+    it.each([false, true])(
+      "should neither import nor delete approval-policy override files (global: %s)",
+      async (global) => {
+        await writeVibeAgent("reviewer");
+        for (const policy of ["ask", "accept-edits", "smart-approve", "auto-approve"]) {
+          await writeVibeAgent(policy);
+        }
+        const logger = createMockLogger();
+        const processor = new SubagentsProcessor({
+          logger,
+          outputRoot: testDir,
+          toolTarget: "vibe",
+          global,
+        });
+
+        const imported = await processor.loadToolFiles();
+        const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
+
+        expect(imported.map((file) => file.getRelativeFilePath())).toEqual(["reviewer.toml"]);
+        expect(filesToDelete.map((file) => file.getRelativeFilePath())).toEqual(["reviewer.toml"]);
+        expect(logger.warn).toHaveBeenCalledTimes(4);
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining("is a Vibe approval policy name"),
+        );
+      },
+    );
+  });
+
   describe("loadJunieSubagents", () => {
     let processor: SubagentsProcessor;
 

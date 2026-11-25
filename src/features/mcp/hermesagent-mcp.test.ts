@@ -506,6 +506,64 @@ describe("HermesagentMcp", () => {
       expect(servers.streamable?.transport).toBeUndefined();
     });
 
+    it("writes and imports the v0.23.3 single_instance key (issue #2414)", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            datastore: { command: "uvx", args: ["datastore-mcp"], single_instance: true },
+            invalid: { command: "uvx", args: ["other"], single_instance: "yes" },
+          },
+        }),
+      });
+
+      const mcp = await HermesagentMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+      const servers = getMcpServers(mcp.getFileContent());
+
+      expect(servers.datastore?.single_instance).toBe(true);
+      // Only booleans are copied, the same as `skip_preflight`.
+      expect(servers.invalid?.single_instance).toBeUndefined();
+
+      // A hand-written value in config.yaml survives import, so a regenerate
+      // from the imported canonical config keeps it.
+      const imported = JSON.parse(
+        new HermesagentMcp({
+          outputRoot: testDir,
+          relativeDirPath: HERMES_DIR,
+          relativeFilePath: HERMES_FILE,
+          validate: false,
+          fileContent: [
+            "mcp_servers:",
+            "  datastore:",
+            "    command: uvx",
+            "    single_instance: true",
+            "",
+          ].join("\n"),
+          global: true,
+        })
+          .toRulesyncMcp()
+          .getFileContent(),
+      );
+      expect(imported.mcpServers.datastore.single_instance).toBeUndefined();
+      expect(imported.hermesagent.mcpServers.datastore.single_instance).toBe(true);
+
+      const regenerated = await HermesagentMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp: new RulesyncMcp({
+          relativeDirPath: ".rulesync",
+          relativeFilePath: ".mcp.json",
+          fileContent: JSON.stringify(imported),
+        }).forTarget({ toolTarget: "hermesagent" }),
+        global: true,
+      });
+      expect(getMcpServers(regenerated.getFileContent()).datastore?.single_instance).toBe(true);
+    });
+
     it("writes and imports the v0.22.3 tool_costs/spend_limit/cost_unit keys (issue #2414)", async () => {
       const rulesyncMcp = new RulesyncMcp({
         relativeDirPath: ".rulesync",

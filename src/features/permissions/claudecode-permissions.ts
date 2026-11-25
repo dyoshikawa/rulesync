@@ -812,6 +812,7 @@ const CLAUDECODE_UNHONORED_KEY_SOURCES: Readonly<Record<string, string>> = {
   disableMobileSimulatorTools: "managed settings",
   disableRemotePreviewScripts: "managed settings",
   disableSideloadFlags: "managed settings",
+  enforceAnthropicSignIn: "managed settings",
   externalEditorContext: "~/.claude.json",
   forceRemoteSettingsRefresh: "managed settings",
   gatewayInternalNetworks: "managed settings",
@@ -999,12 +1000,15 @@ const CLAUDECODE_ENV_IGNORED_IN_EVERY_FILE: ReadonlySet<string> = new Set([
   "CLAUDE_CODE_DISABLE_MOUNTED_DRIVE_RM_PROMPT",
   "CLAUDE_CODE_DISABLE_POWERSHELL_CMD_RM_DENY",
   "CLAUDE_CODE_DISABLE_SUBSTITUTION_RM_PROMPT",
+  // cspell:disable-next-line
+  "CLAUDE_CODE_DISABLE_ULTRAREVIEW_TRUST_CHECK",
   "CLAUDE_CODE_EVEN_MORE_DANGEROUSLY_SKIP_PERMISSIONS",
   "CLAUDE_CODE_MESSAGING_SOCKET",
   "CLAUDE_CODE_MESSAGING_TOKEN",
   "CLAUDE_CODE_PROJECT_DIR_NAME",
   "CLAUDE_CODE_REMOTE",
   "CLAUDE_CODE_RESTRICTED",
+  "CLAUDE_CODE_STRICT_INLINE_SHELL_RM_PROMPT",
   "CLAUDE_CODE_WARN_DISK_FREE_GIB",
   "CLAUDE_CODE_WARN_MEMORY_FREE_GIB",
 ]);
@@ -1016,6 +1020,13 @@ const CLAUDECODE_ENV_IGNORED_IN_EVERY_FILE: ReadonlySet<string> = new Set([
  * starts or syncs, which claude.ai sign-in it uses, the timers on an unanswered
  * dialog, and whether it processes attachments or expands `@` file mentions,
  * and the screen reader (`CLAUDE_AX_*`) variables. Claude Code drops them there, so they are skipped at project scope and emitted only under `--global`.
+ *
+ * `OTEL_RESOURCE_INCLUDE_HOST` (Claude Code v2.1.326+) adds the machine's name
+ * and ID to telemetry, so it sits with the telemetry group. The reference lists
+ * `CLAUDE_CODE_EXPERIMENTAL_CODE_MODE` separately: Code Mode follows it only
+ * from the shell, user settings or a `--settings` file, and a project `0` does
+ * not keep Code Mode off either, so any project value is skipped while user
+ * settings (`--global`) still honor it.
  *
  * Only the names the settings reference lists are covered; its directory,
  * Windows and sign-in groups are introduced with "such as", so an unlisted member of those
@@ -1035,6 +1046,7 @@ const CLAUDECODE_ENV_PROJECT_IGNORED_NAMES: ReadonlySet<string> = new Set([
   "CLAUDE_CODE_DISABLE_FILE_MENTIONS",
   "CLAUDE_CODE_ENABLE_TELEMETRY",
   "CLAUDE_CODE_ENHANCED_TELEMETRY_BETA",
+  "CLAUDE_CODE_EXPERIMENTAL_CODE_MODE",
   "CLAUDE_CODE_OAUTH_REFRESH_TOKEN",
   "CLAUDE_CODE_OAUTH_SCOPES",
   "CLAUDE_CODE_OAUTH_TOKEN",
@@ -1053,6 +1065,7 @@ const CLAUDECODE_ENV_PROJECT_IGNORED_NAMES: ReadonlySet<string> = new Set([
   "OTEL_EXPORTER_PROMETHEUS_PORT",
   "OTEL_LOG_ASSISTANT_RESPONSES",
   "OTEL_LOG_RAW_API_BODIES",
+  "OTEL_RESOURCE_INCLUDE_HOST",
   "TEMP",
   "TMP",
   "TMPDIR",
