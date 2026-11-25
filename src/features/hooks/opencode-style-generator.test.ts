@@ -329,12 +329,28 @@ describe("generateOpencodeStylePluginCode", () => {
       ).rejects.toThrow("Re-check the destination first");
     });
 
+    it("should deny on exit 0 with the deprecated decision of block", async () => {
+      const decision = JSON.stringify({ decision: "block", reason: "Use the wrapper script" });
+      const { $ } = createFakeShell(() => ok(decision));
+      const before = await loadBeforeHook({
+        code: generate({ preToolUse: [{ type: "command", command: "guard.sh" }] }),
+        exportStyle: "named",
+        $,
+      });
+
+      await expect(
+        before({ tool: "bash", sessionID: "s", callID: "c" }, { args: {} }),
+      ).rejects.toThrow("Use the wrapper script");
+    });
+
     it("should allow on exit 0 with non-JSON, empty or non-deny output", async () => {
       for (const stdout of [
         "",
         "plain text\n",
         "null",
         JSON.stringify({ hookSpecificOutput: { permissionDecision: "allow" } }),
+        // `permissionDecision` takes precedence over the deprecated `decision`.
+        JSON.stringify({ decision: "block", hookSpecificOutput: { permissionDecision: "allow" } }),
       ]) {
         const { $ } = createFakeShell(() => ok(stdout));
         const before = await loadBeforeHook({

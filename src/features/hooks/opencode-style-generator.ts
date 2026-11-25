@@ -338,7 +338,9 @@ function buildRunHelperLinesFor(cwdExpression: string): string[] {
  * hook denies it:
  * - exit code 2 → deny, with the command's stderr as the reason;
  * - exit code 0 with JSON stdout whose `hookSpecificOutput.permissionDecision`
- *   is `"deny"` → deny, with `permissionDecisionReason` as the reason;
+ *   is `"deny"` → deny, with `permissionDecisionReason` as the reason; when it
+ *   sets no `permissionDecision`, the deprecated top-level `decision: "block"`
+ *   that Claude Code still honors denies too, with `reason` as the reason;
  * - exit code 0 otherwise → allow;
  * - any other non-zero exit → deny too, with stderr or the exit code;
  * - more than 1 MiB of stdout → deny, without parsing it;
@@ -374,12 +376,13 @@ const PRE_TOOL_USE_RESULT_HELPER_LINES: readonly string[] = [
   "    } catch {",
   "      return;",
   "    }",
-  '    const specific = parsed && typeof parsed === "object" ? parsed.hookSpecificOutput : undefined;',
-  '    if (specific && typeof specific === "object" && specific.permissionDecision === "deny") {',
+  '    if (!parsed || typeof parsed !== "object") return;',
+  "    const specific = parsed.hookSpecificOutput;",
+  '    const hasDecision = typeof specific === "object" && specific !== null && specific.permissionDecision !== undefined;',
+  "    const reason = hasDecision ? specific.permissionDecisionReason : parsed.reason;",
+  '    if (hasDecision ? specific.permissionDecision === "deny" : parsed.decision === "block") {',
   "      throw new Error(",
-  '        (typeof specific.permissionDecisionReason === "string" &&',
-  "          sanitizeBlockReason(specific.permissionDecisionReason)) ||",
-  '          "Blocked by a preToolUse hook.",',
+  '        (typeof reason === "string" && sanitizeBlockReason(reason)) || "Blocked by a preToolUse hook.",',
   "      );",
   "    }",
   "    return;",

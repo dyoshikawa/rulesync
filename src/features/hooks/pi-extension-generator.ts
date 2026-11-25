@@ -1,6 +1,7 @@
 import { HooksConfig } from "../../types/hooks.js";
 import { buildBlockReasonSanitizerLines } from "./hook-block-reason.js";
 import { sanitizeMatcherRegex } from "./hook-matcher-regex.js";
+import { hookTimingOf } from "./opencode-style-generator.js";
 
 /**
  * Pi extension events fired per tool invocation; handlers for these receive
@@ -165,6 +166,185 @@ function failureLinesByMode(dialect: PiExtensionDialect): Record<BlockingMode, r
 }
 
 /**
+ * Canonical events whose command receives Claude Code's JSON input for the
+ * event on stdin, mapped to its `hook_event_name`; every other command gets an
+ * empty stdin, as in the OpenCode-style plugin (`STDIN_PAYLOADS` in
+ * `opencode-style-generator.ts`). All three ride on Pi's tool events, whose
+ * `event.toolName`, `event.toolCallId` and `event.input` the payload is built
+ * from. A payload is serialized lazily, once per invocation, by the first
+ * handler that runs.
+ *
+ * @see https://github.com/earendil-works/pi/blob/v1.6.0/packages/coding-agent/docs/extensions.md#tool_call
+ * @see https://code.claude.com/docs/en/hooks
+ */
+const STDIN_PAYLOAD_EVENTS: Record<string, string> = {
+  preToolUse: "PreToolUse",
+  postToolUse: "PostToolUse",
+  postToolUseFailure: "PostToolUseFailure",
+};
+
+/**
+ * The fields each payload adds to the tool call's own (`session_id`, `cwd`,
+ * `hook_event_name`, `tool_name`, `tool_input`, `tool_use_id`), as TypeScript
+ * object entries evaluated against the `tool_result` event.
+ */
+const STDIN_PAYLOAD_EXTRA_FIELDS: Record<string, string> = {
+  PreToolUse: "",
+  PostToolUse: "tool_response: { content: event.content, details: event.details }",
+  PostToolUseFailure: "error: toolResultText(event.content)",
+};
+
+/**
+ * Helpers emitted when a handler receives a stdin payload or tests a matcher.
+ *
+ * `claudeToolName` maps Pi's (and oh-my-pi's) built-in tool names to the
+ * canonical Claude Code names Rulesync uses elsewhere (`bash` → `Bash`,
+ * `find` / `glob` → `Glob`, ...). MCP tools are already named
+ * `mcp__<server>__<tool>` by Pi, and other tools keep their own name.
+ *
+ * `claudeToolInput` passes the tool's arguments through, except that the file
+ * tools' `path` becomes Claude Code's `file_path` and each `edits` entry's
+ * `oldText` / `newText` becomes `old_string` / `new_string` (a single edit is
+ * also spelled at the top level, as Claude Code's `Edit` input is).
+ */
+const TOOL_PAYLOAD_HELPER_LINES = [
+  "const CLAUDE_TOOL_NAMES: Record<string, string> = {",
+  '  bash: "Bash",',
+  '  read: "Read",',
+  '  write: "Write",',
+  '  edit: "Edit",',
+  '  grep: "Grep",',
+  '  find: "Glob",',
+  '  glob: "Glob",',
+  "};",
+  "",
+  "function claudeToolName(toolName: string): string {",
+  "  return Object.hasOwn(CLAUDE_TOOL_NAMES, toolName) ? (CLAUDE_TOOL_NAMES[toolName] ?? toolName) : toolName;",
+  "}",
+  "",
+  "function matchesTool(matcher: RegExp, toolName: string): boolean {",
+  "  return matcher.test(toolName) || matcher.test(claudeToolName(toolName));",
+  "}",
+  "",
+  "function claudeToolInput(toolName: string, input: unknown): unknown {",
+  '  if (!["read", "write", "edit"].includes(toolName)) return input;',
+  '  if (!input || typeof input !== "object" || Array.isArray(input)) return input;',
+  "  const { path, edits, ...rest } = input as Record<string, unknown>;",
+  "  const claudeInput: Record<string, unknown> = { file_path: path, ...rest };",
+  "  if (!Array.isArray(edits)) {",
+  "    if (edits !== undefined) claudeInput.edits = edits;",
+  "    return claudeInput;",
+  "  }",
+  "  const claudeEdits = edits.map((edit: unknown) => {",
+  '    if (!edit || typeof edit !== "object") return edit;',
+  "    const { oldText, newText, ...others } = edit as Record<string, unknown>;",
+  "    return { old_string: oldText, new_string: newText, ...others };",
+  "  });",
+  "  claudeInput.edits = claudeEdits;",
+  "  const [only] = claudeEdits;",
+  '  if (claudeEdits.length === 1 && only && typeof only === "object") {',
+  "    const { old_string, new_string } = only as Record<string, unknown>;",
+  "    Object.assign(claudeInput, { old_string, new_string });",
+  "  }",
+  "  return claudeInput;",
+  "}",
+  "",
+  "function toolResultText(content: unknown): string {",
+  '  if (!Array.isArray(content)) return "";',
+  "  return content",
+  "    .map((block: unknown) => {",
+  "      const part = block as { type?: unknown; text?: unknown } | null;",
+  '      return part?.type === "text" && typeof part.text === "string" ? part.text : "";',
+  "    })",
+  "    .filter(Boolean)",
+  '    .join("\\n");',
+  "}",
+  "",
+  "type ToolHookEvent = { toolName: string; toolCallId?: string; input?: unknown };",
+  "",
+  "function toolHookInput(",
+  "  hookEventName: string,",
+  "  event: ToolHookEvent,",
+  "  ctx: ExtensionContext | undefined,",
+  "  extra: Record<string, unknown> = {},",
+  "): string {",
+  "  return JSON.stringify({",
+  "    session_id: ctx?.sessionManager?.getSessionId?.(),",
+  "    cwd: ctx?.cwd ?? process.cwd(),",
+  "    hook_event_name: hookEventName,",
+  "    tool_name: claudeToolName(event.toolName),",
+  "    tool_input: claudeToolInput(event.toolName, event.input),",
+  "    tool_use_id: event.toolCallId,",
+  "    ...extra,",
+  "  });",
+  "}",
+];
+
+/**
+ * Helper emitted alongside `tool_call` handlers. A command that exits 0 may
+ * still deny the call the way Claude Code reads a `PreToolUse` hook's JSON
+ * stdout: `hookSpecificOutput.permissionDecision: "deny"` (with
+ * `permissionDecisionReason`) or, when no `permissionDecision` is given, the
+ * deprecated top-level `decision: "block"` (with `reason`). Output that is not
+ * such JSON allows the call, so hooks that print plain text keep working. This
+ * is the OpenCode-style plugin's `__rulesyncEnforcePreToolUseResult` contract,
+ * plus the deprecated form Claude Code still honors.
+ */
+const TOOL_DENIAL_HELPER_LINES = [
+  "function toolDenialReason(stdout: string): string | undefined {",
+  "  let parsed: unknown;",
+  "  try {",
+  "    parsed = JSON.parse(stdout);",
+  "  } catch {",
+  "    return undefined;",
+  "  }",
+  '  if (!parsed || typeof parsed !== "object") return undefined;',
+  "  const output = parsed as { decision?: unknown; reason?: unknown; hookSpecificOutput?: unknown };",
+  "  const specific = output.hookSpecificOutput as",
+  "    | { permissionDecision?: unknown; permissionDecisionReason?: unknown }",
+  "    | null",
+  "    | undefined;",
+  '  const hasDecision = typeof specific === "object" && specific !== null && specific.permissionDecision !== undefined;',
+  "  const reason = hasDecision ? specific?.permissionDecisionReason : output.reason;",
+  '  const denied = hasDecision ? specific?.permissionDecision === "deny" : output.decision === "block";',
+  "  if (!denied) return undefined;",
+  '  return (typeof reason === "string" && sanitizeBlockReason(reason)) || "Blocked by a preToolUse hook.";',
+  "}",
+];
+
+/**
+ * Runs a hook command through the platform shell with `input` as its stdin
+ * (empty when the event has no payload, so a command that reads stdin never
+ * waits on Pi's own), bounded by the hook's `timeout` in seconds (Claude
+ * Code's default of 600 when unset, as in the OpenCode-style plugin). A command
+ * past its timeout is killed and rejects with a `HookTimeoutError`; a stdin
+ * the command never reads is not an error.
+ */
+const RUN_HELPER_LINES = [
+  "const execAsync = promisify(exec);",
+  "",
+  "class HookTimeoutError extends Error {}",
+  "",
+  "async function run(",
+  "  command: string,",
+  '  { input = "", seconds }: { input?: string; seconds: number },',
+  "): Promise<{ stdout: string; stderr: string }> {",
+  "  const pending = execAsync(command, { timeout: seconds * 1000 });",
+  '  pending.child.stdin?.on("error", () => {});',
+  "  pending.child.stdin?.end(input);",
+  "  try {",
+  "    return await pending;",
+  "  } catch (error) {",
+  "    const result = error as { killed?: unknown; code?: unknown } | null;",
+  '    if (result?.killed === true && result.code !== "ERR_CHILD_PROCESS_STDIO_MAXBUFFER") {',
+  "      throw new HookTimeoutError(`Hook command timed out after ${seconds} seconds.`);",
+  "    }",
+  "    throw error;",
+  "  }",
+  "}",
+];
+
+/**
  * Helper emitted alongside blocking handlers. `promisify(exec)` rejects on a
  * non-zero exit with an error carrying `stdout` / `stderr` / `code`, so the
  * reason is derived from the rejection rather than from a resolved exit code.
@@ -262,7 +442,17 @@ function matcherToEmbeddedLiteral(matcher: string): string {
   return JSON.stringify(sanitizeMatcherRegex(matcher));
 }
 
-type Handler = { command: string; matcher?: string; onlyOnError: boolean };
+type Handler = {
+  command: string;
+  matcher?: string;
+  onlyOnError: boolean;
+  /** Seconds before the command is killed. */
+  timeout: number;
+  /** Only `false` lets a timed-out `preToolUse` command allow the call. */
+  failClosed: boolean | undefined;
+  /** The `hook_event_name` of the stdin payload, when the event has one. */
+  payload?: string;
+};
 type HandlerGroup = Record<string, Handler[]>;
 
 function collectPiHandlers({
@@ -285,6 +475,10 @@ function collectPiHandlers({
         command: def.command,
         matcher: def.matcher ? def.matcher : undefined,
         onlyOnError: PI_ERROR_GATED_CANONICAL_EVENTS.has(canonicalEvent),
+        ...hookTimingOf(def),
+        ...(PI_TOOL_EVENTS.has(piEvent) && STDIN_PAYLOAD_EVENTS[canonicalEvent]
+          ? { payload: STDIN_PAYLOAD_EVENTS[canonicalEvent] }
+          : {}),
       });
     }
 
@@ -318,33 +512,98 @@ function buildCommandLines({
   }
   if (usesToolName && handler.matcher) {
     conditions.push(
-      `new RegExp(${matcherToEmbeddedLiteral(handler.matcher)}).test(event.toolName)`,
+      `matchesTool(new RegExp(${matcherToEmbeddedLiteral(handler.matcher)}), event.toolName)`,
     );
   }
   const gated = conditions.length > 0;
   const indent = gated ? "      " : "    ";
-  const embeddedCommand = JSON.stringify(handler.command);
+  const options = [
+    ...(handler.payload ? [`input: ${payloadAccessorName(handler.payload)}()`] : []),
+    `seconds: ${handler.timeout}`,
+  ];
+  const runCall = `run(${JSON.stringify(handler.command)}, { ${options.join(", ")} })`;
   if (gated) {
     lines.push(`    if (${conditions.join(" && ")}) {`);
   }
 
   const onFailure = failureLinesByMode(dialect)[blocking];
-  if (onFailure.length > 0) {
+  if (blocking === "tool") {
     lines.push(`${indent}try {`);
-    lines.push(`${indent}  await run(${embeddedCommand});`);
+    lines.push(`${indent}  const denial = toolDenialReason((await ${runCall}).stdout);`);
+    lines.push(`${indent}  if (denial !== undefined) return { block: true, reason: denial };`);
+    lines.push(`${indent}} catch (error) {`);
+    if (handler.failClosed === false) {
+      // The OpenCode-style plugin's `failClosed: false` contract: only a
+      // timeout is let through, and it is logged.
+      lines.push(`${indent}  if (error instanceof HookTimeoutError) {`);
+      lines.push(`${indent}    console.error("[rulesync-hooks] preToolUse hook timed out");`);
+      lines.push(`${indent}  } else {`);
+      for (const line of onFailure) {
+        lines.push(`${indent}    ${line}`);
+      }
+      lines.push(`${indent}  }`);
+    } else {
+      for (const line of onFailure) {
+        lines.push(`${indent}  ${line}`);
+      }
+    }
+    lines.push(`${indent}}`);
+  } else if (onFailure.length > 0) {
+    lines.push(`${indent}try {`);
+    lines.push(`${indent}  await ${runCall};`);
     lines.push(`${indent}} catch (error) {`);
     for (const line of onFailure) {
       lines.push(`${indent}  ${line}`);
     }
     lines.push(`${indent}}`);
   } else {
-    lines.push(`${indent}await run(${embeddedCommand});`);
+    lines.push(`${indent}await ${runCall};`);
   }
 
   if (gated) {
     lines.push("    }");
   }
   return lines;
+}
+
+/** The per-invocation closure a handler calls for its serialized payload. */
+function payloadAccessorName(hookEventName: string): string {
+  return `${hookEventName.charAt(0).toLowerCase()}${hookEventName.slice(1)}Input`;
+}
+
+/** Lazily serialized payloads the handlers of one subscription use. */
+function buildPayloadLines(handlers: Handler[]): string[] {
+  const payloads = [...new Set(handlers.flatMap((h) => (h.payload ? [h.payload] : [])))];
+  const lines: string[] = [];
+  for (const payload of payloads) {
+    const accessor = payloadAccessorName(payload);
+    const extra = STDIN_PAYLOAD_EXTRA_FIELDS[payload] ?? "";
+    const extraArgument = extra ? `, { ${extra} }` : "";
+    lines.push(`    let ${accessor}Cache: string | undefined;`);
+    lines.push(
+      `    const ${accessor} = () => (${accessor}Cache ??= toolHookInput(${JSON.stringify(payload)}, event, ctx${extraArgument}));`,
+    );
+  }
+  return lines;
+}
+
+/**
+ * The handler's parameter list. `ctx` is the second handler argument, so the
+ * prompt gate and the payload builders (which read the session id and cwd)
+ * name both.
+ */
+function handlerParams({
+  handlers,
+  readsEvent,
+  isPromptGate,
+}: {
+  handlers: Handler[];
+  readsEvent: boolean;
+  isPromptGate: boolean;
+}): string {
+  const usesPayload = handlers.some((h) => h.payload);
+  if (isPromptGate || usesPayload) return "event, ctx";
+  return readsEvent || handlers.some((h) => h.onlyOnError) ? "event" : "";
 }
 
 function buildSubscriptionLines(
@@ -359,12 +618,12 @@ function buildSubscriptionLines(
     const isSessionStopGate = blocking === "sessionStop";
     const collectsStopFailures = isSettleGate || isSessionStopGate;
     const usesToolName = PI_TOOL_EVENTS.has(piEvent) && handlers.some((h) => h.matcher);
-    const usesErrorFlag = handlers.some((h) => h.onlyOnError);
     const gatesOnAssistant = PI_ASSISTANT_MESSAGE_EVENTS.has(piEvent);
-    const usesEvent =
-      usesToolName || usesErrorFlag || gatesOnAssistant || isPromptGate || collectsStopFailures;
-    // `ctx` is the second handler argument, so the prompt gate names both.
-    const params = isPromptGate ? "event, ctx" : usesEvent ? "event" : "";
+    const params = handlerParams({
+      handlers,
+      readsEvent: usesToolName || gatesOnAssistant || collectsStopFailures,
+      isPromptGate,
+    });
     lines.push(`  pi.on(${JSON.stringify(piEvent)}, async (${params}) => {`);
     if (gatesOnAssistant) {
       lines.push(`    if (event.message.role !== "assistant") return;`);
@@ -378,6 +637,7 @@ function buildSubscriptionLines(
     if (collectsStopFailures) {
       lines.push("    const stopHookFailures: unknown[] = [];");
     }
+    lines.push(...buildPayloadLines(handlers));
     for (const handler of handlers) {
       lines.push(
         ...buildCommandLines({
@@ -437,6 +697,13 @@ function buildSubscriptionLines(
   return lines;
 }
 
+/** Whether a handler belongs to a tool event, where its matcher is tested. */
+function handlerGroupHasToolEvent(handlerGroups: HandlerGroup, handler: Handler): boolean {
+  return Object.entries(handlerGroups).some(
+    ([piEvent, handlers]) => PI_TOOL_EVENTS.has(piEvent) && handlers.includes(handler),
+  );
+}
+
 /**
  * Generate the rulesync-owned Pi extension (a TypeScript module with a
  * default-export factory receiving Pi's ExtensionAPI) that subscribes to the
@@ -451,6 +718,12 @@ function buildSubscriptionLines(
  * command's output as feedback.
  * `postToolUse` and `postToolUseFailure` share Pi's `tool_result` event; the
  * latter's commands run only when `event.isError` is set.
+ * Commands on the tool events receive Claude Code's hook input on stdin (see
+ * `STDIN_PAYLOAD_EVENTS`), and a tool matcher is tested against both Pi's tool
+ * name and its canonical Claude Code name. On `tool_call`, a command that exits
+ * 0 with a JSON deny decision also denies the call, and one past its `timeout`
+ * denies it unless the hook sets `failClosed: false`, mirroring the
+ * OpenCode-style plugin.
  *
  * @see https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/extensions.md
  */
@@ -478,6 +751,11 @@ export function generatePiExtensionCode({
   const hasPromptGate = Boolean(handlerGroups[PI_PROMPT_BLOCKING_EVENT]);
   const hasSettleGate = Boolean(handlerGroups[PI_SETTLE_BLOCKING_EVENT]);
   const hasSessionStopGate = Boolean(handlerGroups[OMP_SESSION_STOP_BLOCKING_EVENT]);
+  const allHandlers = Object.values(handlerGroups).flat();
+  const needsToolHelpers = allHandlers.some(
+    (h) => h.payload || (h.matcher && handlerGroupHasToolEvent(handlerGroups, h)),
+  );
+  const hasToolGate = Boolean(handlerGroups[PI_BLOCKING_EVENT]);
   const needsBlockReasonHelper =
     Boolean(handlerGroups[PI_BLOCKING_EVENT]) ||
     hasPromptGate ||
@@ -494,17 +772,25 @@ export function generatePiExtensionCode({
   const importedTypes = [
     ...(hasSettleGate ? ["AgentBeforeSettleEvent", "AgentBeforeSettleEventResult"] : []),
     "ExtensionAPI",
-    ...(hasPromptGate ? ["ExtensionContext"] : []),
+    ...(hasPromptGate || needsToolHelpers ? ["ExtensionContext"] : []),
   ].join(", ");
   lines.push('import { exec } from "node:child_process";');
   lines.push('import { promisify } from "node:util";');
   lines.push("");
   lines.push(`import type { ${importedTypes} } from ${JSON.stringify(dialect.typesPackage)};`);
   lines.push("");
-  lines.push("const run = promisify(exec);");
+  lines.push(...RUN_HELPER_LINES);
   lines.push("");
   if (needsBlockReasonHelper) {
     lines.push(...BLOCK_REASON_HELPER_LINES);
+    lines.push("");
+  }
+  if (hasToolGate) {
+    lines.push(...TOOL_DENIAL_HELPER_LINES);
+    lines.push("");
+  }
+  if (needsToolHelpers) {
+    lines.push(...TOOL_PAYLOAD_HELPER_LINES);
     lines.push("");
   }
   if (hasPromptGate) {

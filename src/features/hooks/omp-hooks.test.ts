@@ -203,7 +203,7 @@ describe("OmpHooks", () => {
         },
       });
 
-      expect(content).toContain('await run("echo omp");');
+      expect(content).toContain('await run("echo omp", { seconds: 600 });');
       expect(content).not.toContain("echo shared");
       expect(content).not.toContain("echo pi");
     });

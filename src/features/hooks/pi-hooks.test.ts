@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { ensureDir, fileExists, writeFileContent } from "../../utils/file.js";
+import { ensureDir, fileExists, readFileContent, writeFileContent } from "../../utils/file.js";
 import { PiHooks } from "./pi-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
 
@@ -89,6 +89,10 @@ function settleEvent({
     context: { canContinue: false },
     outcome,
   };
+}
+
+function piContext() {
+  return { cwd: process.cwd(), sessionManager: { getSessionId: () => "session-1" } };
 }
 
 function uiContext({
@@ -224,16 +228,22 @@ describe("PiHooks", () => {
       // Both canonical events share Pi's `tool_result`, so there is exactly one
       // subscription, and it takes the event because the failure gate reads it.
       expect(content.match(/pi\.on\("tool_result"/g)).toHaveLength(1);
-      expect(content).toContain('pi.on("tool_result", async (event) => {');
+      expect(content).toContain('pi.on("tool_result", async (event, ctx) => {');
       // `postToolUse` is not gated: Pi fires `tool_result` for failed calls
       // too, and that is what the mapping has always meant.
-      expect(content).toContain('    await run("post-tool.sh");');
-      expect(content).toContain("    if (event.isError) {");
-      expect(content).toContain('      await run("on-failure.sh");');
       expect(content).toContain(
-        '    if (event.isError && new RegExp("Bash").test(event.toolName)) {',
+        '    await run("post-tool.sh", { input: postToolUseInput(), seconds: 600 });',
       );
-      expect(content).toContain('      await run("on-bash-failure.sh");');
+      expect(content).toContain("    if (event.isError) {");
+      expect(content).toContain(
+        '      await run("on-failure.sh", { input: postToolUseFailureInput(), seconds: 600 });',
+      );
+      expect(content).toContain(
+        '    if (event.isError && matchesTool(new RegExp("Bash"), event.toolName)) {',
+      );
+      expect(content).toContain(
+        '      await run("on-bash-failure.sh", { input: postToolUseFailureInput(), seconds: 600 });',
+      );
     });
 
     it("should generate tool event handlers honoring matchers against event.toolName", () => {
@@ -251,11 +261,11 @@ describe("PiHooks", () => {
       });
 
       const content = piHooks.getFileContent();
-      expect(content).toContain('pi.on("tool_call", async (event) => {');
-      expect(content).toContain('if (new RegExp("Write|Edit").test(event.toolName)) {');
+      expect(content).toContain('pi.on("tool_call", async (event, ctx) => {');
+      expect(content).toContain('if (matchesTool(new RegExp("Write|Edit"), event.toolName)) {');
       expect(content).toContain("lint.sh");
-      // postToolUse has no matcher, so the handler ignores the event payload
-      expect(content).toContain('pi.on("tool_result", async () => {');
+      // postToolUse has no matcher, but its command still gets the payload.
+      expect(content).toContain('pi.on("tool_result", async (event, ctx) => {');
       expect(content).toContain("post-tool.sh");
     });
 
@@ -278,13 +288,20 @@ describe("PiHooks", () => {
       // the call instead of letting it run.
       expect(content).toContain("function toBlockReason(error: unknown): string {");
       expect(content).toContain("      try {");
-      expect(content).toContain('        await run("guard.sh");');
+      expect(content).toContain(
+        '        const denial = toolDenialReason((await run("guard.sh", { input: preToolUseInput(), seconds: 600 })).stdout);',
+      );
+      expect(content).toContain(
+        "        if (denial !== undefined) return { block: true, reason: denial };",
+      );
       expect(content).toContain("      } catch (error) {");
       expect(content).toContain("        return { block: true, reason: toBlockReason(error) };");
       // A denied call hands control back to the model rather than ending the turn.
       expect(content).not.toContain("terminate");
       // `tool_result` cannot block, so it stays observe-only.
-      expect(content).toContain('    await run("post-tool.sh");');
+      expect(content).toContain(
+        '    await run("post-tool.sh", { input: postToolUseInput(), seconds: 600 });',
+      );
     });
 
     it("should cancel the prompt when a beforeSubmitPrompt hook command fails", () => {
@@ -307,7 +324,7 @@ describe("PiHooks", () => {
       expect(content).toContain("function toBlockReason(error: unknown): string {");
       expect(content).toContain('pi.on("input", async (event, ctx) => {');
       expect(content).toContain("    try {");
-      expect(content).toContain('      await run("gate.sh");');
+      expect(content).toContain('      await run("gate.sh", { seconds: 600 });');
       expect(content).toContain("    } catch (error) {");
       // `handled` carries no reason field, so the reason goes through the UI.
       expect(content).toContain("      reportPromptGateFailure(ctx, toBlockReason(error));");
@@ -338,10 +355,7 @@ describe("PiHooks", () => {
       expect(content).not.toContain("toBlockReason");
       expect(content).not.toContain("block: true");
       expect(content).not.toContain("reportPromptGateFailure");
-      // `ExtensionContext` is only needed by the prompt gate.
-      expect(content).toContain(
-        'import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";',
-      );
+      expect(content).not.toContain("toolDenialReason");
     });
 
     it("should emit the block-reason helper for a beforeSubmitPrompt-only config", () => {
@@ -383,8 +397,8 @@ describe("PiHooks", () => {
       const content = piHooks.getFileContent();
       // Each command gets its own try/catch, so the first failure returns
       // before the next one runs.
-      expect(content.indexOf('await run("gate-one.sh")')).toBeLessThan(
-        content.indexOf('await run("gate-two.sh")'),
+      expect(content.indexOf('await run("gate-one.sh"')).toBeLessThan(
+        content.indexOf('await run("gate-two.sh"'),
       );
       expect(content.match(/return \{ action: "handled" \};/g)).toHaveLength(2);
     });
@@ -492,7 +506,9 @@ describe("PiHooks", () => {
       });
 
       const content = piHooks.getFileContent();
-      expect(content).toContain(`await run(${JSON.stringify('echo "C:\\temp" `date` ${HOME}')});`);
+      expect(content).toContain(
+        `await run(${JSON.stringify('echo "C:\\temp" `date` ${HOME}')}, { seconds: 600 });`,
+      );
     });
 
     it("should throw on invalid regex in matcher", () => {
@@ -861,6 +877,238 @@ describe("PiHooks", () => {
       await expect(handler({ toolName: "bash", isError: true })).rejects.toMatchObject({
         code: 3,
       });
+    });
+
+    it("should send a Claude Code PreToolUse payload on stdin with canonical tool names", async () => {
+      const payloadPath = join(testDir, "payload.json");
+      const { handlerFor } = await loadPiExtension({
+        testDir,
+        config: {
+          version: 1,
+          hooks: {
+            preToolUse: [
+              { type: "command", command: `cat > ${JSON.stringify(payloadPath)}`, matcher: "Bash" },
+            ],
+          },
+        },
+      });
+
+      // The canonical `Bash` matcher matches Pi's `bash` tool.
+      expect(
+        await handlerFor("tool_call")(
+          { toolName: "bash", toolCallId: "call-1", input: { command: "rm -rf ./tmp" } },
+          piContext(),
+        ),
+      ).toBeUndefined();
+      expect(JSON.parse(await readFileContent(payloadPath))).toEqual({
+        session_id: "session-1",
+        cwd: testDir,
+        hook_event_name: "PreToolUse",
+        tool_name: "Bash",
+        tool_input: { command: "rm -rf ./tmp" },
+        tool_use_id: "call-1",
+      });
+    });
+
+    it("should map Pi's file tool arguments to Claude Code's spelling", async () => {
+      const payloadPath = join(testDir, "payload.json");
+      const { handlerFor } = await loadPiExtension({
+        testDir,
+        config: {
+          version: 1,
+          hooks: {
+            preToolUse: [{ type: "command", command: `cat > ${JSON.stringify(payloadPath)}` }],
+          },
+        },
+      });
+      const toolCall = handlerFor("tool_call");
+      const payloadFor = async (event: unknown) => {
+        await toolCall(event, piContext());
+        return JSON.parse(await readFileContent(payloadPath));
+      };
+
+      expect(
+        await payloadFor({
+          toolName: "edit",
+          toolCallId: "call-2",
+          input: { path: "src/a.ts", edits: [{ oldText: "a", newText: "b" }] },
+        }),
+      ).toMatchObject({
+        tool_name: "Edit",
+        tool_input: {
+          file_path: "src/a.ts",
+          edits: [{ old_string: "a", new_string: "b" }],
+          old_string: "a",
+          new_string: "b",
+        },
+      });
+      expect(
+        await payloadFor({
+          toolName: "write",
+          toolCallId: "call-3",
+          input: { path: "b.txt", content: "hi" },
+        }),
+      ).toMatchObject({ tool_name: "Write", tool_input: { file_path: "b.txt", content: "hi" } });
+      expect(
+        await payloadFor({ toolName: "find", toolCallId: "call-4", input: { pattern: "*.ts" } }),
+      ).toMatchObject({ tool_name: "Glob", tool_input: { pattern: "*.ts" } });
+      // MCP tools are already named `mcp__<server>__<tool>` by Pi.
+      expect(
+        await payloadFor({
+          toolName: "mcp__docs__search",
+          toolCallId: "call-5",
+          input: { q: "x" },
+        }),
+      ).toMatchObject({ tool_name: "mcp__docs__search", tool_input: { q: "x" } });
+    });
+
+    it("should keep matching a matcher written with Pi's own tool name", async () => {
+      const { handlerFor } = await loadPiExtension({
+        testDir,
+        config: {
+          version: 1,
+          hooks: { preToolUse: [{ type: "command", command: "exit 1", matcher: "^bash$" }] },
+        },
+      });
+      const toolCall = handlerFor("tool_call");
+
+      expect(await toolCall({ toolName: "bash", input: {} }, piContext())).toMatchObject({
+        block: true,
+      });
+      expect(await toolCall({ toolName: "read", input: {} }, piContext())).toBeUndefined();
+    });
+
+    it("should let a Claude Code style guard block on exit code 2", async () => {
+      const { handlerFor } = await loadPiExtension({
+        testDir,
+        config: {
+          version: 1,
+          hooks: {
+            preToolUse: [
+              {
+                type: "command",
+                command: "if grep -q 'rm -rf'; then echo 'rm -rf is not allowed' >&2; exit 2; fi",
+                matcher: "Bash",
+              },
+            ],
+          },
+        },
+      });
+      const toolCall = handlerFor("tool_call");
+
+      expect(
+        await toolCall({ toolName: "bash", input: { command: "rm -rf ./tmp" } }, piContext()),
+      ).toEqual({ block: true, reason: "rm -rf is not allowed" });
+      expect(
+        await toolCall({ toolName: "bash", input: { command: "ls" } }, piContext()),
+      ).toBeUndefined();
+    });
+
+    it("should block on a JSON deny decision printed with exit code 0", async () => {
+      const outputs = {
+        deny: {
+          hookSpecificOutput: { permissionDecision: "deny", permissionDecisionReason: "no" },
+        },
+        block: { decision: "block", reason: "blocked" },
+        // `permissionDecision` takes precedence over the deprecated `decision`.
+        allow: { decision: "block", hookSpecificOutput: { permissionDecision: "allow" } },
+      };
+      const results: Record<string, unknown> = {};
+      for (const [name, output] of Object.entries(outputs)) {
+        const { handlerFor } = await loadPiExtension({
+          testDir,
+          config: {
+            version: 1,
+            hooks: {
+              preToolUse: [{ type: "command", command: `echo '${JSON.stringify(output)}'` }],
+            },
+          },
+        });
+        results[name] = await handlerFor("tool_call")({ toolName: "bash", input: {} }, piContext());
+      }
+
+      expect(results).toEqual({
+        deny: { block: true, reason: "no" },
+        block: { block: true, reason: "blocked" },
+        allow: undefined,
+      });
+    });
+
+    it("should block a tool call whose hook times out unless failClosed is false", async () => {
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const { handlerFor } = await loadPiExtension({
+        testDir,
+        config: {
+          version: 1,
+          hooks: {
+            preToolUse: [
+              { type: "command", command: "sleep 5", timeout: 0.2, matcher: "Bash" },
+              {
+                type: "command",
+                command: "sleep 5",
+                timeout: 0.2,
+                matcher: "Read",
+                failClosed: false,
+              },
+            ],
+          },
+        },
+      });
+      const toolCall = handlerFor("tool_call");
+
+      expect(await toolCall({ toolName: "bash", input: {} }, piContext())).toEqual({
+        block: true,
+        reason: "Hook command timed out after 0.2 seconds.",
+      });
+      expect(await toolCall({ toolName: "read", input: {} }, piContext())).toBeUndefined();
+      expect(errorSpy).toHaveBeenCalledWith("[rulesync-hooks] preToolUse hook timed out");
+    });
+
+    it("should send PostToolUse and PostToolUseFailure payloads from tool_result", async () => {
+      const postPath = join(testDir, "post.json");
+      const failurePath = join(testDir, "failure.json");
+      const { handlerFor } = await loadPiExtension({
+        testDir,
+        config: {
+          version: 1,
+          hooks: {
+            postToolUse: [{ type: "command", command: `cat > ${JSON.stringify(postPath)}` }],
+            postToolUseFailure: [
+              { type: "command", command: `cat > ${JSON.stringify(failurePath)}` },
+            ],
+          },
+        },
+      });
+      const content = [{ type: "text", text: "command not found" }];
+
+      await handlerFor("tool_result")(
+        {
+          toolName: "bash",
+          toolCallId: "call-6",
+          input: { command: "nope" },
+          content,
+          isError: true,
+        },
+        piContext(),
+      );
+      expect(JSON.parse(await readFileContent(postPath))).toMatchObject({
+        hook_event_name: "PostToolUse",
+        tool_name: "Bash",
+        tool_response: { content },
+      });
+      expect(JSON.parse(await readFileContent(failurePath))).toMatchObject({
+        hook_event_name: "PostToolUseFailure",
+        tool_name: "Bash",
+        error: "command not found",
+      });
+    });
+
+    it("should give commands without a payload an empty stdin", async () => {
+      // `cat` would wait forever on a stdin that is never closed.
+      const gate = await loadPromptGate({ testDir, command: 'test -z "$(cat)"' });
+
+      const notify = vi.fn();
+      expect(await gate(userPrompt(), uiContext({ notify }))).toEqual({ action: "continue" });
     });
 
     it("should generate an input handler that continues when the command succeeds", async () => {
