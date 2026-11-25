@@ -1,6 +1,6 @@
 // cspell:ignore gitdir -- the pointer written by a worktree's .git file
 
-import { symlink } from "node:fs/promises";
+import { chmod, mkdir, symlink } from "node:fs/promises";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
@@ -1865,6 +1865,33 @@ describe("RulesProcessor", () => {
 
       expect(paths).toContain(join("packages", "api", "AGENTS.md"));
     });
+
+    it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+      "should import nested AGENTS.md when a directory in the project cannot be read",
+      async () => {
+        // A Docker volume owned by root is the usual case: the walk has to
+        // step over it instead of failing the whole import with EACCES.
+        await writeFileContent(join(testDir, "AGENTS.md"), "# Root");
+        await writeFileContent(join(testDir, "packages", "api", "AGENTS.md"), "# API");
+        const lockedDir = join(testDir, "volumes", "postgres");
+        await mkdir(lockedDir, { recursive: true });
+        await chmod(lockedDir, 0o000);
+        try {
+          const processor = new RulesProcessor({
+            logger,
+            outputRoot: testDir,
+            toolTarget: "agentsmd",
+          });
+          const paths = (await processor.loadToolFiles()).map((file) =>
+            join(file.getRelativeDirPath(), file.getRelativeFilePath()),
+          );
+
+          expect(paths).toContain(join("packages", "api", "AGENTS.md"));
+        } finally {
+          await chmod(lockedDir, 0o755);
+        }
+      },
+    );
 
     it("should still find nested files when .gitignore excludes the generated file name", async () => {
       // `rulesync gitignore` writes `**/AGENTS.md` for its own output, so a

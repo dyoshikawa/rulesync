@@ -586,6 +586,34 @@ This is the rule content
       expect(rule.getFrontmatter().globs).toBe("**/*.ts");
     });
 
+    it("should read globs written as a YAML list", async () => {
+      const filePath = join(testDir, ".cursor/rules", "list.mdc");
+      await writeFileContent(
+        filePath,
+        '---\ndescription: Deprecations\nglobs:\n  - "**/deprecations/**"\n  - src/**/*.{ts,tsx}\nalwaysApply: false\n---\nBody\n',
+      );
+
+      const rule = await CursorRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "list.mdc",
+      });
+
+      expect(rule.getFrontmatter().globs).toBe("**/deprecations/**,src/**/*.{ts,tsx}");
+      expect(rule.toRulesyncRule().getFrontmatter().globs).toEqual([
+        "**/deprecations/**",
+        "src/**/*.{ts,tsx}",
+      ]);
+    });
+
+    it("should name the file's full path when its frontmatter is invalid", async () => {
+      const filePath = join(testDir, ".cursor/rules", "bad.mdc");
+      await writeFileContent(filePath, "---\nalwaysApply: maybe\n---\nBody\n");
+
+      await expect(
+        CursorRule.fromFile({ outputRoot: testDir, relativeFilePath: "bad.mdc" }),
+      ).rejects.toThrow(filePath);
+    });
+
     it("should keep text after a space and hash in an unquoted description", async () => {
       const filePath = join(testDir, ".cursor/rules", "hash.mdc");
       await writeFileContent(

@@ -215,7 +215,15 @@ export class CursorRule extends ToolRule {
     const preprocessedContent =
       fileContent.slice(0, blockStart) + block + fileContent.slice(blockEnd);
 
-    return parseFrontmatter(preprocessedContent, filePath);
+    const parsed = parseFrontmatter(preprocessedContent, filePath);
+    // A `globs:` key followed by `- pattern` lines is a YAML list, which
+    // hand-written rules use. Joined, it reads like the comma-separated text
+    // Cursor writes, and `splitBraceAwareList` takes it apart again.
+    const { globs } = parsed.frontmatter;
+    if (Array.isArray(globs) && globs.every((glob) => typeof glob === "string")) {
+      return { ...parsed, frontmatter: { ...parsed.frontmatter, globs: globs.join(",") } };
+    }
+    return parsed;
   }
 
   toRulesyncRule(): RulesyncRule {
@@ -369,9 +377,7 @@ export class CursorRule extends ToolRule {
     // Validate frontmatter using CursorRuleFrontmatterSchema
     const result = CursorRuleFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {
-      throw new Error(
-        `Invalid frontmatter in ${join(outputRoot, relativeFilePath)}: ${formatError(result.error)}`,
-      );
+      throw new Error(`Invalid frontmatter in ${filePath}: ${formatError(result.error)}`);
     }
 
     return new CursorRule({

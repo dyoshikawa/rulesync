@@ -369,15 +369,20 @@ export async function ensureDir(dirPath: string): Promise<void> {
  * ignores those directories themselves (`**\/.trae/rules/`), so the last
  * segment of the last such match and everything below it are not tested; its
  * parents (`<dir>/.trae`) still are, so a user's own ignore rule there holds.
+ *
+ * `suppressErrors` skips directories the `.gitignore` scan cannot read, as
+ * `findFilesByGlobs` does; pass it when the paths came from such a walk.
  */
 export function filterOutPathsInGitIgnoredDirectories({
   rootDir,
   filePaths,
   ownedDirPath,
+  suppressErrors = false,
 }: {
   rootDir: string;
   filePaths: string[];
   ownedDirPath?: string;
+  suppressErrors?: boolean;
 }): string[] {
   if (filePaths.length === 0) {
     // Building the matcher scans the tree for `.gitignore` files, which is not
@@ -385,7 +390,7 @@ export function filterOutPathsInGitIgnoredDirectories({
     return filePaths;
   }
 
-  const isIgnored = isGitIgnoredSync({ cwd: rootDir });
+  const isIgnored = isGitIgnoredSync({ cwd: rootDir, suppressErrors });
   const resolvedRoot = resolve(rootDir);
   const cache = new Map<string, boolean>();
 
@@ -1337,9 +1342,25 @@ export async function findFilesByGlobs(
      * @see https://agentskills.io/specification
      */
     dot?: boolean;
+    /**
+     * Skip directories the walk cannot read (`EACCES`, `EPERM`) instead of
+     * failing, passed to fast-glob's `suppressErrors`. For walks over a tree
+     * the user does not control, such as a whole project folder that holds a
+     * Docker volume owned by root: nothing in an unreadable directory could be
+     * imported anyway. Off by default so a scan of a tool's own directory still
+     * reports a permission problem.
+     */
+    suppressErrors?: boolean;
   } = {},
 ): Promise<string[]> {
-  const { cwd, type = "all", followSymbolicLinks = true, ignore, dot = false } = options;
+  const {
+    cwd,
+    type = "all",
+    followSymbolicLinks = true,
+    ignore,
+    dot = false,
+    suppressErrors = false,
+  } = options;
   const globbyOptions =
     type === "file"
       ? { onlyFiles: true, onlyDirectories: false }
@@ -1382,6 +1403,7 @@ export async function findFilesByGlobs(
             { fs: { readdirSync: createCycleSafeReaddirSync(), statSync } }
           : {}),
         dot,
+        suppressErrors,
         ...(ignore ? { ignore: ignore.map((pattern) => pattern.replaceAll("\\", "/")) } : {}),
         ...globbyOptions,
       }),

@@ -432,6 +432,24 @@ Body content`;
       expect(subagent.getRelativeFilePath()).toBe("subdir/nested-agent.md");
     });
 
+    it("should read an unquoted description containing a colon-space", async () => {
+      await writeFileContent(
+        join(testDir, ".cursor", "agents", "prober.md"),
+        "---\nname: prober\ndescription: Calls every endpoint: happy path, auth and not found.\n---\nBody\n",
+      );
+
+      const subagent = await CursorSubagent.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "prober.md",
+        validate: true,
+      });
+
+      expect(subagent.getFrontmatter().description).toBe(
+        "Calls every endpoint: happy path, auth and not found.",
+      );
+      expect(subagent.getBody()).toBe("Body");
+    });
+
     it("should throw error when file does not exist", async () => {
       await expect(
         CursorSubagent.fromFile({

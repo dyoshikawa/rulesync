@@ -2057,12 +2057,15 @@ As this project's AI coding tool, you must follow the additional conventions bel
     // the whole project tree, so a symlink committed to a repository could
     // otherwise pull a file from outside the project (a key, a dotfile) into
     // version-controlled `.rulesync/rules/`. Not following them also keeps a
-    // pair of directory symlinks from exploding the traversal.
+    // pair of directory symlinks from exploding the traversal. A directory the
+    // user cannot read, such as a Docker volume owned by root, is skipped:
+    // it holds nothing to import, and failing on it would drop every rule.
     const matchedPaths = await findFilesByGlobs(patterns.include, {
       cwd: this.outputRoot,
       type: "file",
       followSymbolicLinks: false,
       ignore: patterns.ignore,
+      suppressErrors: true,
     });
 
     // A `.git` boundary stops the walk: a workspace folder can hold other
@@ -2093,6 +2096,7 @@ As this project's AI coding tool, you must follow the additional conventions bel
       rootDir: this.outputRoot,
       filePaths: outsideOtherRepositories,
       ownedDirPath: patterns.ownedDirPath,
+      suppressErrors: true,
     });
 
     return await this.buildImportRules({ factory, filePaths: filePaths });

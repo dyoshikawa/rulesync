@@ -8,7 +8,7 @@ import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
 import {
-  parseFrontmatter,
+  parseFrontmatterWithYamlRepair,
   stringifyFrontmatter,
   validateFrontmatterSchema,
 } from "../../utils/frontmatter.js";
@@ -156,7 +156,9 @@ export class CursorSubagent extends ToolSubagent {
     const paths = this.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(filePath);
-    const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
+    // Cursor reads `description: Calls every endpoint: happy path, auth` as
+    // text, so an unquoted `: ` inside a value is repaired, not refused.
+    const { frontmatter, body: content } = parseFrontmatterWithYamlRepair(fileContent, filePath);
 
     const result = CursorSubagentFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {
