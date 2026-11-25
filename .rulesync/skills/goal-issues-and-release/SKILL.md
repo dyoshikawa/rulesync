@@ -87,9 +87,9 @@ the end. No decision made here may override them:
 
 ## Step 1: Clear the Issue Backlog
 
-Use the `batch-all-issues` skill with no arguments. It builds the work list from
-every open issue, handles them newest-first one at a time, and caps itself at
-**20** issues per run.
+Use the `batch-all-issues` skill with its safety cap raised to **50** issues
+for this run (its default is 20). It builds the work list from every open
+issue and handles them newest-first one at a time, stopping after 50.
 
 Apply the autonomy rule to its decision points:
 
@@ -109,7 +109,7 @@ Apply the autonomy rule to its decision points:
   inconclusive, with nothing quoted back into GitHub.
 
 If the `batch-all-issues` skill reports that there are no open issues, or
-stops at its 20-issue cap, that ends Step 1 only — continue with Step 2.
+stops at the 50-issue cap, that ends Step 1 only — continue with Step 2.
 
 Capture the `batch-all-issues` skill's per-issue report — it becomes the first
 half of this skill's final report.
