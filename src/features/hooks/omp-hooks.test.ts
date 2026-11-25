@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { ensureDir, fileExists, writeFileContent } from "../../utils/file.js";
+import { ensureDir, fileExists, readFileContent, writeFileContent } from "../../utils/file.js";
 import { OmpHooks } from "./omp-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
 
@@ -203,7 +203,7 @@ describe("OmpHooks", () => {
         },
       });
 
-      expect(content).toContain('await run("echo omp");');
+      expect(content).toContain('await run("echo omp", { seconds: 600 });');
       expect(content).not.toContain("echo shared");
       expect(content).not.toContain("echo pi");
     });
@@ -218,7 +218,7 @@ describe("OmpHooks", () => {
           hooks: { preToolUse: [{ matcher: "bash", command: "echo denied >&2; exit 2" }] },
         },
       });
-      expect(registeredEvents).toEqual(["tool_call"]);
+      expect(registeredEvents).toEqual(["tool_call", "session_shutdown"]);
       const handler = handlerFor("tool_call");
 
       expect(await handler({ toolName: "bash", input: {} })).toEqual({
@@ -226,6 +226,109 @@ describe("OmpHooks", () => {
         reason: "denied",
       });
       expect(await handler({ toolName: "read", input: {} })).toBeUndefined();
+    });
+
+    it("should keep oh-my-pi's own old_string / new_string in the edit payload", async () => {
+      const payloadPath = join(testDir, "payload.json");
+      const { handlerFor } = await loadOmpExtension({
+        testDir,
+        config: {
+          version: 1,
+          hooks: {
+            preToolUse: [{ type: "command", command: `cat > ${JSON.stringify(payloadPath)}` }],
+          },
+        },
+      });
+      const toolCall = handlerFor("tool_call");
+      const ctx = { cwd: testDir, sessionManager: { getSessionId: () => "session-1" } };
+      const payloadFor = async (input: unknown) => {
+        await toolCall({ toolName: "edit", toolCallId: "call-1", input }, ctx);
+        return JSON.parse(await readFileContent(payloadPath)).tool_input;
+      };
+
+      // `edit.mode: "replace"`; a decoy `file_path` is still dropped.
+      expect(
+        await payloadFor({
+          path: "src/a.ts",
+          old_string: "a",
+          new_string: "b",
+          replace_all: true,
+          file_path: "README.md",
+        }),
+      ).toEqual({
+        path: "src/a.ts",
+        file_path: join(testDir, "src/a.ts"),
+        old_string: "a",
+        new_string: "b",
+        replace_all: true,
+      });
+      // The internal batch form keeps its entries and joins their text.
+      expect(
+        await payloadFor({
+          path: "src/a.ts",
+          edits: [
+            { old_string: "a", new_string: "b" },
+            { old_string: "c", new_string: "d" },
+          ],
+        }),
+      ).toEqual({
+        path: "src/a.ts",
+        file_path: join(testDir, "src/a.ts"),
+        edits: [
+          { old_string: "a", new_string: "b" },
+          { old_string: "c", new_string: "d" },
+        ],
+        old_string: "a\nc",
+        new_string: "b\nd",
+      });
+      // Patch modes carry the target inside the patch, passed through as is.
+      const patch = "*** Begin Patch\n*** Update File: src/a.ts\n*** End Patch";
+      expect(await payloadFor({ input: patch })).toEqual({ input: patch });
+    });
+
+    it("should resolve file paths the way oh-my-pi does", async () => {
+      const payloadPath = join(testDir, "payload.json");
+      const { handlerFor } = await loadOmpExtension({
+        testDir,
+        config: {
+          version: 1,
+          hooks: {
+            preToolUse: [{ type: "command", command: `cat > ${JSON.stringify(payloadPath)}` }],
+          },
+        },
+      });
+      const ctx = { cwd: testDir, sessionManager: { getSessionId: () => "session-1" } };
+      const filePathFor = async (path: string) => {
+        await handlerFor("tool_call")({ toolName: "write", input: { path, content: "" } }, ctx);
+        return JSON.parse(await readFileContent(payloadPath)).tool_input.file_path;
+      };
+
+      // A stray leading `:` before a path shape is stripped.
+      expect(await filePathFor(":../escape.txt")).toBe(join(testDir, "..", "escape.txt"));
+      // `@` is only a shorthand before an absolute path, `~` or an internal URL.
+      expect(await filePathFor("@/etc/hosts")).toBe("/etc/hosts");
+      expect(await filePathFor("@my-file.txt")).toBe(join(testDir, "@my-file.txt"));
+      // Registered internal schemes are not filesystem paths.
+      expect(await filePathFor("local://notes.md")).toBe("local://notes.md");
+      // Any other scheme-looking text is a relative path.
+      expect(await filePathFor("a://../.env")).toBe(join(testDir, ".env"));
+      // A bare root is the workspace root.
+      expect(await filePathFor("/")).toBe(testDir);
+    });
+
+    it("should map oh-my-pi's glob tool to Glob but leave its find tool alone", async () => {
+      const { handlerFor } = await loadOmpExtension({
+        testDir,
+        config: {
+          version: 1,
+          hooks: { preToolUse: [{ matcher: "Glob", command: "exit 1" }] },
+        },
+      });
+      const handler = handlerFor("tool_call");
+
+      expect(await handler({ toolName: "glob", input: {} })).toMatchObject({ block: true });
+      // oh-my-pi's `find` is a search tool, not Claude Code's `Glob`.
+      expect(await handler({ toolName: "find", input: {} })).toBeUndefined();
     });
 
     it("should cancel the prompt with { handled: true } when the command fails", async () => {
@@ -284,7 +387,7 @@ describe("OmpHooks", () => {
       });
       const stop = handlerFor("session_stop");
 
-      expect(registeredEvents).toEqual(["session_stop"]);
+      expect(registeredEvents).toEqual(["session_stop", "session_shutdown"]);
       expect(await stop(stopEvent())).toEqual({
         continue: true,
         additionalContext: "Stop hook feedback:\ntests are failing",
