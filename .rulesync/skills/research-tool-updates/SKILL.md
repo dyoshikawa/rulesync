@@ -49,6 +49,11 @@ in-scope tool:
 Do not hardcode the tool list from memory — re-read the matrix each run so the
 skill stays in sync with the README.
 
+Skip a target whose product has shut down and whose note under "Target and
+deprecation notes" in the README says it will be removed (currently
+`firebender`): nothing upstream will move again, so do not research it or file
+issues for it.
+
 Then read `references/new-target-watchlist.md` in the `rulesync-feature-research`
 skill. It records products that are not targets yet but were worth re-checking,
 each with the condition that would change that. Evaluate every entry in the same

@@ -34,7 +34,7 @@ export const TOOL_DISPLAY: ReadonlyArray<ToolDisplayEntry> = [
   { key: "cursor", label: "Cursor", group: "ai" },
   { key: "deepagents", label: "deepagents-cli", group: "ai" },
   { key: "factorydroid", label: "Factory Droid", group: "ai" },
-  { key: "firebender", label: "Firebender", group: "ai" },
+  { key: "firebender", label: "Firebender ⚠️", group: "ai" },
   { key: "opencode", label: "OpenCode", group: "ai" },
   { key: "opencodev1", label: "OpenCode V1", group: "ai" },
   { key: "openclaw", label: "OpenClaw", group: "ai" },
