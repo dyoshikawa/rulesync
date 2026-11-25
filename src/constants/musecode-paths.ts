@@ -9,9 +9,13 @@ import { AGENTSMD_SKILLS_DIR_PATH, AGENTSMD_SUBAGENTS_DIR_PATH } from "./agentsm
 // Muse Code walks up from the working directory to the `.git` boundary and
 // loads one instruction file per directory level, preferring `AGENTS.md` over
 // `CLAUDE.md` when both exist. rulesync emits only the project-root `AGENTS.md`
-// (shared with the agentsmd/codexcli targets). User/global rules exist in Muse
-// Code, but the docs do not state their path, so no global rules location is
-// emitted. https://dev.meta.ai/docs/muse-code/configuration.md
+// (shared with the agentsmd/codexcli targets). Muse Code also loads a user
+// rules file: since 1.4.23 the changelog names `~/.claude/CLAUDE.md` (or an
+// unnamed rules file in Muse's own config directory). That file is the
+// `claudecode` target's global rules output, so musecode emits no global rules
+// location of its own: writing it from both targets would collide.
+// https://dev.meta.ai/docs/muse-code/configuration.md
+// https://dev.meta.ai/docs/muse-code/changelog
 export const MUSECODE_RULE_FILE_NAME = "AGENTS.md";
 
 // Project skills follow the Agent Skills layout at
