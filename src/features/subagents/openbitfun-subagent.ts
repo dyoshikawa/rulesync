@@ -15,6 +15,7 @@ import {
   stringifyFrontmatter,
   validateFrontmatterSchema,
 } from "../../utils/frontmatter.js";
+import { warnOpenbitfunXdgOverride } from "../../utils/openbitfun.js";
 import { RulesyncSubagent, RulesyncSubagentFrontmatter } from "./rulesync-subagent.js";
 import {
   parseGeneratedSubagentFrontmatter,
@@ -138,7 +139,11 @@ export class OpenbitfunSubagent extends ToolSubagent {
     rulesyncSubagent,
     validate = true,
     global = false,
+    logger,
   }: ToolSubagentFromRulesyncSubagentParams): ToolSubagent {
+    if (global) {
+      warnOpenbitfunXdgOverride({ kind: "config", logger });
+    }
     const rulesyncFrontmatter = rulesyncSubagent.getFrontmatter();
     const openbitfunSection = this.filterToolSpecificSection(rulesyncFrontmatter.openbitfun ?? {}, [
       "name",

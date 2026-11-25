@@ -9,11 +9,14 @@ import {
   OPENBITFUN_TO_CANONICAL_EVENT_NAMES,
 } from "../../types/hooks.js";
 import type { Logger } from "../../utils/logger.js";
+import { warnOpenbitfunXdgOverride } from "../../utils/openbitfun.js";
+import { quoteValueForWarning } from "../../utils/quote-value.js";
 import {
   buildCodexStyleHooksFile,
   CODEXCLI_CONVERTER_CONFIG,
   codexStyleHooksToRulesyncContent,
 } from "./codexcli-hooks.js";
+import { capitalizedMatcherNames, replaceMatcherNames } from "./hook-matcher-tool-names.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import type { ToolHooksConverterConfig } from "./tool-hooks-converter.js";
 import {
@@ -23,14 +26,119 @@ import {
 } from "./tool-hooks.js";
 
 /**
+ * Canonical (Claude Code) tool names whose OpenBitFun runtime name differs.
+ * OpenBitFun's shell tool is `ExecCommand`; its own Claude-dialect skill hook
+ * adapter maps `Bash` onto it, with the shell command in `tool_input.cmd`.
+ * `Read`, `Write`, `Edit`, `Glob`, `Grep`, `WebFetch`, `WebSearch`, `Skill` and
+ * `LS` share their names, so they need no entry.
+ * @see https://github.com/openBitFun/OpenBitFun/blob/main/src/crates/execution/agent-runtime/src/skills/hooks.rs
+ */
+const CANONICAL_TO_OPENBITFUN_TOOL_NAMES: Readonly<Record<string, string>> = {
+  Bash: "ExecCommand",
+};
+
+const OPENBITFUN_TO_CANONICAL_TOOL_NAMES: Readonly<Record<string, string>> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_OPENBITFUN_TOOL_NAMES).map(([canonical, tool]) => [tool, canonical]),
+);
+
+/**
+ * OpenBitFun's built-in tool names (the default custom-agent tool sets in
+ * `custom_agent.rs`, plus `LS`). Capitalized matcher names outside this set
+ * are warned about on events that gate a tool call.
+ * @see https://github.com/openBitFun/OpenBitFun/blob/main/src/crates/execution/agent-runtime/src/custom_agent.rs
+ */
+const OPENBITFUN_TOOL_NAMES: ReadonlySet<string> = new Set([
+  "Read",
+  "Glob",
+  "Grep",
+  "LS",
+  "Write",
+  "Edit",
+  "Delete",
+  "ExecCommand",
+  "WriteStdin",
+  "ExecControl",
+  "AgentSpawn",
+  "AgentFork",
+  "AgentSendInput",
+  "AgentControl",
+  "AgentList",
+  "AgentWait",
+  "ListModels",
+  "Skill",
+  "WebSearch",
+  "WebFetch",
+]);
+
+/**
+ * Events whose hooks can deny a tool call, so a matcher that never matches
+ * makes the guard fail open. The keys are canonical names, or OpenBitFun's own
+ * names when the hook comes from the `openbitfun.hooks` override block.
+ */
+const TOOL_GATING_EVENTS: ReadonlySet<string> = new Set([
+  "preToolUse",
+  "permissionRequest",
+  "PreToolUse",
+  "PermissionRequest",
+]);
+
+function canonicalToOpenbitfunMatcher({
+  matcher,
+  eventName,
+  warn,
+}: {
+  matcher: string;
+  eventName: string;
+  warn: (message: string) => void;
+}): string {
+  const translated = replaceMatcherNames(matcher, CANONICAL_TO_OPENBITFUN_TOOL_NAMES);
+  if (TOOL_GATING_EVENTS.has(eventName)) {
+    const unknown = capitalizedMatcherNames(translated).filter(
+      (name) => !OPENBITFUN_TOOL_NAMES.has(name),
+    );
+    if (unknown.length > 0) {
+      warn(
+        `${unknown.map((name) => quoteValueForWarning(name)).join(", ")} in the "${eventName}" ` +
+          `matcher ${quoteValueForWarning(matcher)} is not an OpenBitFun built-in tool, so it is ` +
+          `written as-is and will likely never match there, and the hook will not run for that tool.`,
+      );
+    }
+  }
+  return translated;
+}
+
+function openbitfunToCanonicalMatcher(matcher: string): string {
+  return replaceMatcherNames(matcher, OPENBITFUN_TO_CANONICAL_TOOL_NAMES);
+}
+
+/**
+ * Why OpenBitFun would skip a generated handler, or `undefined` when it runs
+ * it. OpenBitFun's `parse_handler` treats a command handler whose `timeout` is
+ * not a positive integer as invalid and skips that handler.
+ * @see https://github.com/openBitFun/OpenBitFun/blob/main/src/crates/execution/agent-runtime/src/native_hooks/settings.rs
+ */
+function describeRejectedOpenbitfunHandler(handler: Record<string, unknown>): string | undefined {
+  const { timeout } = handler;
+  if (
+    timeout !== undefined &&
+    (typeof timeout !== "number" || !Number.isSafeInteger(timeout) || timeout <= 0)
+  ) {
+    return `its "timeout" ${JSON.stringify(timeout) ?? String(timeout)} is not a positive integer, so OpenBitFun would skip it as invalid`;
+  }
+  return undefined;
+}
+
+/**
  * OpenBitFun implements the Codex hook contract: the same `hooks.json`
- * document, handler fields and matcher semantics. It differs in the events it
- * dispatches and in running only `type: "command"` handlers (`prompt` and
- * `agent` handlers are parsed but skipped). `commandWindows` and
- * `statusMessage` carry over; Codex's `async` and `additionalContextLimit` are
- * not documented for OpenBitFun (which truncates hook context on its own), so
- * they are not forwarded.
+ * document, handler fields and matcher semantics (regexes anchored to the
+ * whole tool name). It differs in the events it dispatches, in running only
+ * `type: "command"` handlers (`prompt` and `agent` handlers are parsed but
+ * skipped), in its runtime tool names (`ExecCommand` for `Bash`), and in the
+ * handler fields it reads: `command`, `commandWindows`, `timeout` and
+ * `statusMessage` only, so Codex's `async` and `additionalContextLimit` are
+ * not forwarded.
  * @see https://github.com/openBitFun/OpenBitFun/blob/main/docs/features/agent-hooks.md
+ * @see https://github.com/openBitFun/OpenBitFun/blob/main/src/crates/execution/agent-runtime/src/native_hooks/settings.rs
  */
 export const OPENBITFUN_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   ...CODEXCLI_CONVERTER_CONFIG,
@@ -40,6 +148,10 @@ export const OPENBITFUN_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   supportedHookTypes: new Set(["command"]),
   numberPassthroughFields: [],
   booleanPassthroughFields: [],
+  matcherTranslation: {
+    toTool: canonicalToOpenbitfunMatcher,
+    toCanonical: openbitfunToCanonicalMatcher,
+  },
 };
 
 /**
@@ -71,6 +183,9 @@ export class OpenbitfunHooks extends ToolHooks {
     global?: boolean;
     logger?: Logger;
   }): Promise<OpenbitfunHooks> {
+    if (global) {
+      warnOpenbitfunXdgOverride({ kind: "config", logger });
+    }
     const paths = OpenbitfunHooks.getSettablePaths({ global });
     const { fileContent, owned } = await buildCodexStyleHooksFile({
       outputRoot,
@@ -80,6 +195,7 @@ export class OpenbitfunHooks extends ToolHooks {
       toolOverrideHooks: rulesyncHooks.getJson().openbitfun?.hooks,
       converterConfig: OPENBITFUN_CONVERTER_CONFIG,
       toolLabel: "OpenBitFun",
+      describeRejected: describeRejectedOpenbitfunHandler,
       preserveUnowned,
       logger,
     });

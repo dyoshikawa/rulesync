@@ -87,9 +87,7 @@ function containsNull(value: unknown): boolean {
   return false;
 }
 
-function wholeFileFailure(toolLabel: string): string {
-  return `${toolLabel} fails to load the whole hooks file on such a handler`;
-}
+const WHOLE_FILE_FAILURE = "Codex fails to load the whole hooks file on such a handler";
 
 /**
  * Why this generated handler must not be written, or `undefined` when Codex
@@ -100,11 +98,7 @@ function wholeFileFailure(toolLabel: string): string {
  * `server` / `tool` string still loads but can never resolve to a tool.
  * https://github.com/openai/codex/blob/main/codex-rs/config/src/hook_config.rs
  */
-function describeRejectedHandler(
-  handler: Record<string, unknown>,
-  toolLabel: string,
-): string | undefined {
-  const WHOLE_FILE_FAILURE = wholeFileFailure(toolLabel);
+function describeRejectedHandler(handler: Record<string, unknown>): string | undefined {
   const { timeout } = handler;
   if (
     timeout !== undefined &&
@@ -139,10 +133,12 @@ function describeRejectedHandler(
 function filterCodexHandlers({
   hooks,
   toolLabel,
+  describeRejected,
   logger,
 }: {
   hooks: Record<string, unknown[]>;
   toolLabel: string;
+  describeRejected: (handler: Record<string, unknown>) => string | undefined;
   logger?: Logger;
 }): Record<string, unknown[]> {
   const result: Record<string, unknown[]> = {};
@@ -156,7 +152,7 @@ function filterCodexHandlers({
         continue;
       }
       const handlers = entry.hooks.filter((handler: Record<string, unknown>) => {
-        const reason = describeRejectedHandler(handler, toolLabel);
+        const reason = describeRejected(handler);
         if (reason !== undefined) {
           logger?.warn(
             `Skipping a "${String(handler.type)}" hook on ${toolLabel} "${eventName}": ${reason}.`,
@@ -178,7 +174,7 @@ function filterCodexHandlers({
   }
   if (skippedSessionEndTools.length > 0) {
     logger?.warn(
-      `${toolLabel} skips "mcp_tool" hooks on "SessionEnd" with a startup warning, so these are written but will not run: ${skippedSessionEndTools.join(", ")}.`,
+      `Codex CLI skips "mcp_tool" hooks on "SessionEnd" with a startup warning, so these are written but will not run: ${skippedSessionEndTools.join(", ")}.`,
     );
   }
   return result;
@@ -199,6 +195,7 @@ export async function buildCodexStyleHooksFile({
   toolOverrideHooks,
   converterConfig,
   toolLabel,
+  describeRejected = describeRejectedHandler,
   preserveUnowned,
   logger,
 }: {
@@ -209,6 +206,12 @@ export async function buildCodexStyleHooksFile({
   toolOverrideHooks: HooksConfig["hooks"] | undefined;
   converterConfig: ToolHooksConverterConfig;
   toolLabel: string;
+  /**
+   * Why the tool would refuse to load (or could never run) a generated
+   * handler, or `undefined` when it is fine; such handlers are dropped with a
+   * warning. Defaults to Codex CLI's rules.
+   */
+  describeRejected?: (handler: Record<string, unknown>) => string | undefined;
   preserveUnowned: boolean;
   logger?: Logger;
 }): Promise<{ fileContent: string; owned: ReturnType<typeof mergeGeneratedHookLists>["owned"] }> {
@@ -222,6 +225,7 @@ export async function buildCodexStyleHooksFile({
       logger,
     }),
     toolLabel,
+    describeRejected,
     logger,
   });
   const previouslyOwned = preserveUnowned

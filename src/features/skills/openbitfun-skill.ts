@@ -2,8 +2,9 @@ import {
   OPENBITFUN_SKILLS_DIR_PATH,
   openbitfunGlobalSkillsDir,
 } from "../../constants/openbitfun-paths.js";
+import { warnOpenbitfunXdgOverride } from "../../utils/openbitfun.js";
 import { AgentsSkillsSkill } from "./agentsskills-skill.js";
-import { ToolSkillSettablePaths } from "./tool-skill.js";
+import { ToolSkillFromRulesyncSkillParams, ToolSkillSettablePaths } from "./tool-skill.js";
 
 /**
  * OpenBitFun skills follow the Agent Skills layout (`<name>/SKILL.md` with
@@ -20,6 +21,13 @@ export class OpenbitfunSkill extends AgentsSkillsSkill {
     global = false,
   }: { global?: boolean } = {}): ToolSkillSettablePaths {
     return { relativeDirPath: global ? openbitfunGlobalSkillsDir() : OPENBITFUN_SKILLS_DIR_PATH };
+  }
+
+  static override fromRulesyncSkill(params: ToolSkillFromRulesyncSkillParams): AgentsSkillsSkill {
+    if (params.global) {
+      warnOpenbitfunXdgOverride({ kind: "data", logger: params.logger });
+    }
+    return super.fromRulesyncSkill(params);
   }
 
   protected static override readonly toolTarget = "openbitfun";

@@ -98,6 +98,73 @@ describe("OpenbitfunHooks", () => {
       });
     });
 
+    it("should translate a Bash matcher to OpenBitFun's ExecCommand tool", async () => {
+      const logger = createMockLogger();
+      const hooks = await OpenbitfunHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        logger,
+        rulesyncHooks: makeRulesyncHooks({
+          hooks: {
+            preToolUse: [
+              { command: "./guard.sh", matcher: "Bash" },
+              { command: "./edit-guard.sh", matcher: "^(Bash|Edit)$" },
+            ],
+            permissionRequest: [{ command: "./ask.sh", matcher: "Bash" }],
+          },
+        }),
+      });
+
+      const parsed = JSON.parse(hooks.getFileContent());
+      expect(parsed.hooks.PreToolUse.map((group: { matcher: string }) => group.matcher)).toEqual([
+        "ExecCommand",
+        "^(ExecCommand|Edit)$",
+      ]);
+      expect(parsed.hooks.PermissionRequest[0].matcher).toBe("ExecCommand");
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("should warn about tool-gating matchers naming tools OpenBitFun lacks", async () => {
+      const logger = createMockLogger();
+      const hooks = await OpenbitfunHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        logger,
+        rulesyncHooks: makeRulesyncHooks({
+          hooks: {
+            preToolUse: [{ command: "./guard.sh", matcher: "MultiEdit|Write" }],
+            postToolUse: [{ command: "./log.sh", matcher: "NotebookEdit" }],
+          },
+        }),
+      });
+
+      const parsed = JSON.parse(hooks.getFileContent());
+      expect(parsed.hooks.PreToolUse[0].matcher).toBe("MultiEdit|Write");
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn.mock.calls[0]?.[0]).toContain('"MultiEdit"');
+    });
+
+    it("should skip a handler whose timeout OpenBitFun treats as invalid", async () => {
+      const logger = createMockLogger();
+      const hooks = await OpenbitfunHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        logger,
+        rulesyncHooks: makeRulesyncHooks({
+          hooks: {
+            stop: [
+              { command: "echo zero", timeout: 0 },
+              { command: "echo ok", timeout: 5 },
+            ],
+          },
+        }),
+      });
+
+      expect(JSON.parse(hooks.getFileContent())).toEqual({
+        hooks: { Stop: [{ hooks: [{ type: "command", command: "echo ok", timeout: 5 }] }] },
+      });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("is not a positive integer"),
+      );
+    });
+
     it("should merge hooks from the openbitfun override section", async () => {
       const hooks = await OpenbitfunHooks.fromRulesyncHooks({
         outputRoot: testDir,
@@ -124,6 +191,7 @@ describe("OpenbitfunHooks", () => {
           hooks: {
             PreToolUse: [
               { matcher: "Read", hooks: [{ type: "command", command: "echo read", timeout: 5 }] },
+              { matcher: "^ExecCommand$", hooks: [{ type: "command", command: "echo shell" }] },
             ],
             SubagentStop: [{ hooks: [{ type: "command", command: "echo done" }] }],
           },
@@ -133,6 +201,7 @@ describe("OpenbitfunHooks", () => {
       const json = hooks.toRulesyncHooks().getJson();
       expect(json.hooks.preToolUse).toEqual([
         { type: "command", command: "echo read", timeout: 5, matcher: "Read" },
+        { type: "command", command: "echo shell", matcher: "^Bash$" },
       ]);
       expect(json.hooks.subagentStop).toEqual([{ type: "command", command: "echo done" }]);
     });

@@ -45,7 +45,8 @@ const OPENBITFUN_DATA_NAMESPACE = "openbitfun";
  * - Linux and others: `~/.config/openbitfun`
  *
  * `$XDG_CONFIG_HOME` and OpenBitFun's `OPENBITFUN_USER_ROOT` override are not
- * followed; the default locations are assumed.
+ * followed; the default locations are assumed (a non-default `$XDG_CONFIG_HOME`
+ * is warned about, see `warnOpenbitfunXdgOverride`).
  */
 export function openbitfunGlobalRootDir(): string {
   switch (process.platform) {
@@ -81,7 +82,8 @@ export function openbitfunGlobalConfigDir(): string {
  * - Windows: `%APPDATA%\openbitfun\skills`
  * - Linux and others: `~/.local/share/openbitfun/skills`
  *
- * `$XDG_DATA_HOME` is not followed; the default location is assumed.
+ * `$XDG_DATA_HOME` is not followed; the default location is assumed (a
+ * non-default value is warned about, see `warnOpenbitfunXdgOverride`).
  */
 export function openbitfunGlobalSkillsDir(): string {
   switch (process.platform) {
