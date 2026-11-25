@@ -664,20 +664,62 @@ export const CANONICAL_TO_BOB_EVENT_NAMES: Record<string, string> = {
 } satisfies Partial<Record<HookEvent, string>>;
 
 /**
- * Hook events supported by IBM Bob's lifecycle hooks.
+ * Hook events rulesync emits for IBM Bob from the shared `hooks` block.
  *
  * Bob reads `hooks` from `.bob/settings.json` (project) and
  * `~/.bob/settings/settings.json` (user) in the Claude-Code shape and fires
- * seven events: SessionStart, UserPromptSubmit, PreToolUse, PostToolUse,
- * PreCompact, PostCompact and Stop (Bob IDE and Bob Shell list the same
- * seven). Handlers are `command` or `http` hooks. `matcher` is a regex matched
- * against the tool name on PreToolUse / PostToolUse, `source` on SessionStart
- * and `trigger` on PreCompact / PostCompact; the other events ignore it.
+ * seven documented events: SessionStart, UserPromptSubmit, PreToolUse,
+ * PostToolUse, PreCompact, PostCompact and Stop (Bob IDE and Bob Shell list
+ * the same seven). Handlers are `command` or `http` hooks. Bob Shell 2.1.0
+ * adds more events; see {@link BOB_OPT_IN_HOOK_EVENTS} for why they are not
+ * emitted from the shared block.
  *
  * @see https://bob.ibm.com/docs/shell/configuration/lifecycle-hooks
  * @see https://bob.ibm.com/docs/ide/configuration/lifecycle-hooks
  */
 export const BOB_HOOK_EVENTS: readonly HookEvent[] = eventsOf(CANONICAL_TO_BOB_EVENT_NAMES);
+
+/**
+ * The {@link BOB_HOOK_EVENTS} whose `matcher` regex Bob applies: the tool name
+ * on PreToolUse / PostToolUse, `source` on SessionStart and `trigger` on
+ * PreCompact / PostCompact. UserPromptSubmit and Stop have no matchable value.
+ */
+export const BOB_MATCHER_HOOK_EVENTS: readonly HookEvent[] = BOB_HOOK_EVENTS.filter(
+  (event) => event !== "beforeSubmitPrompt" && event !== "stop",
+);
+
+/**
+ * Canonical events that Bob Shell 2.1.0 (`@ibm/bob` on npm, 2026-11-09) can
+ * fire under the native name given here, next to the override-only
+ * `PermissionResolved`. They are not on the lifecycle-hooks pages yet.
+ *
+ * They are deliberately not emitted from the shared `hooks` block: Bob Shell
+ * before 2.1.0 validates the `hooks` object strictly against the seven
+ * documented keys, and on any unknown key it ignores that settings file's
+ * whole `hooks` block (PreToolUse guards included). Writing them must
+ * therefore be an explicit opt-in under the `bob.hooks` override block, by
+ * their native name, which is emitted verbatim and imported back there.
+ *
+ * @see https://registry.npmjs.org/@ibm/bob/-/bob-2.1.0.tgz
+ */
+export const BOB_OPT_IN_HOOK_EVENTS: Readonly<Partial<Record<HookEvent, string>>> = {
+  sessionEnd: "SessionEnd",
+  permissionRequest: "PermissionRequest",
+  notification: "Notification",
+};
+
+/**
+ * Every native event key Bob Shell 2.1.0's strict hooks schema accepts: the
+ * seven documented events, the three opt-in ones and `PermissionResolved`,
+ * which has no canonical counterpart. Any other key under `bob.hooks` is
+ * dropped on generate, because one unknown key makes Bob ignore the file's
+ * whole hooks block.
+ */
+export const BOB_NATIVE_HOOK_EVENTS: readonly string[] = [
+  ...Object.values(CANONICAL_TO_BOB_EVENT_NAMES),
+  ...Object.values(BOB_OPT_IN_HOOK_EVENTS),
+  "PermissionResolved",
+];
 
 export const BOB_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
   CANONICAL_TO_BOB_EVENT_NAMES,

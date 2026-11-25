@@ -595,6 +595,102 @@ describe("HooksProcessor", () => {
       expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("http-type"));
     });
 
+    it("should skip the Bob Shell 2.1.0 events from the shared block and point to the bob override (issue #3074)", async () => {
+      const config = {
+        version: 1,
+        hooks: {
+          sessionEnd: [{ command: "end.sh" }],
+          notification: [{ command: "notify.sh", matcher: "idle_prompt" }],
+          permissionRequest: [{ command: "permission.sh", matcher: "Bash" }],
+          subagentStop: [{ command: "subagent.sh" }],
+          preToolUse: [{ command: "guard.sh", matcher: "Bash" }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const processor = new HooksProcessor({ logger, outputRoot: testDir, toolTarget: "bob" });
+      const toolFiles = await processor.convertRulesyncFilesToToolFiles([rulesyncHooks]);
+
+      const parsed = JSON.parse(toolFiles[0]?.getFileContent() ?? "{}");
+      expect(Object.keys(parsed.hooks)).toEqual(["PreToolUse"]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        "Skipped hook event(s) for bob (not supported): subagentStop",
+      );
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringMatching(
+          /^Skipped hook event\(s\) for bob: sessionEnd, notification, permissionRequest\. They need Bob Shell 2\.1\.0 or later.*"bob\.hooks" override with the native name\(s\) SessionEnd, Notification, PermissionRequest\.$/,
+        ),
+      );
+    });
+
+    it("should skip bob.hooks keys Bob does not know, canonical opt-in names and typos included (issue #3074)", async () => {
+      const config = {
+        version: 1,
+        hooks: { preToolUse: [{ command: "guard.sh", matcher: "Bash" }] },
+        bob: {
+          hooks: {
+            sessionEnd: [{ command: "end.sh" }],
+            SessionEnded: [{ command: "typo.sh" }],
+            SessionEnd: [{ command: "ok.sh" }],
+            PermissionResolved: [{ command: "resolved.sh" }],
+          },
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const processor = new HooksProcessor({ logger, outputRoot: testDir, toolTarget: "bob" });
+      const toolFiles = await processor.convertRulesyncFilesToToolFiles([rulesyncHooks]);
+
+      const parsed = JSON.parse(toolFiles[0]?.getFileContent() ?? "{}");
+      expect(Object.keys(parsed.hooks).toSorted()).toEqual([
+        "PermissionResolved",
+        "PreToolUse",
+        "SessionEnd",
+      ]);
+      expect(parsed.hooks.SessionEnd[0].hooks[0].command).toBe("ok.sh");
+      expect(logger.warn).toHaveBeenCalledWith(
+        "Skipped hook event(s) for bob (not supported): SessionEnded",
+      );
+      expect(logger.warn).toHaveBeenCalledWith(
+        'Skipped "bob.hooks" key(s) for bob: sessionEnd. Use the native name(s) SessionEnd instead.',
+      );
+    });
+
+    it("should not point to the bob override for an opt-in event it already authors natively (issue #3074)", async () => {
+      const config = {
+        version: 1,
+        hooks: { sessionEnd: [{ command: "end.sh" }], notification: [{ command: "n.sh" }] },
+        bob: { hooks: { SessionEnd: [{ command: "bob-end.sh" }] } },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const processor = new HooksProcessor({ logger, outputRoot: testDir, toolTarget: "bob" });
+      await processor.convertRulesyncFilesToToolFiles([rulesyncHooks]);
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringMatching(/^Skipped hook event\(s\) for bob: notification\. /),
+      );
+      expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("sessionEnd"));
+    });
+
     it("should warn that a confirm prompt is dropped outside kiro-cli / kiro-ide", async () => {
       const config = {
         version: 1,
@@ -1749,7 +1845,29 @@ describe("toolHooksFactories capability table", () => {
         supportedEvents: BOB_HOOK_EVENTS,
         supportedHookTypes: ["command", "http"],
         supportsMatcher: true,
-        matcherEvents: ["preToolUse", "postToolUse"],
+        matcherEvents: ["sessionStart", "preToolUse", "postToolUse", "preCompact", "postCompact"],
+        dropsUnknownOverrideEvents: true,
+        overrideOnlyEvents: [
+          "SessionStart",
+          "UserPromptSubmit",
+          "PreToolUse",
+          "PostToolUse",
+          "PreCompact",
+          "PostCompact",
+          "Stop",
+          "SessionEnd",
+          "PermissionRequest",
+          "Notification",
+          "PermissionResolved",
+        ],
+        overrideOptIn: {
+          events: {
+            sessionEnd: "SessionEnd",
+            permissionRequest: "PermissionRequest",
+            notification: "Notification",
+          },
+          note: "They need Bob Shell 2.1.0 or later, and an older Bob Shell ignores the whole hooks block of a settings file that names them.",
+        },
       },
     ],
     [
