@@ -136,6 +136,7 @@ describe("PermissionsProcessor", () => {
         "deepagents",
         "devin",
         "factorydroid",
+        "gitlabduo",
         "goose",
         "grokcli",
         "hermesagent",
