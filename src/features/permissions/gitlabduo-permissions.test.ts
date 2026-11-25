@@ -130,6 +130,12 @@ describe("GitlabduoPermissions", () => {
       },
       { name: "a double-spaced allow", bash: { "git  push": "allow", "git push": "deny" } },
       { name: "a double-spaced deny", bash: { "git push": "allow", "git  push": "deny" } },
+      { name: "a single-quoted deny", bash: { "git push": "allow", "git 'push'": "deny" } },
+      {
+        name: "a double-quoted deny",
+        bash: { "git commit -m x": "allow", 'git commit -m "x"': "deny" },
+      },
+      { name: "a backslash-escaped ask", bash: { "git push": "allow", "git pu\\sh": "ask" } },
       { name: "a tab and leading space", bash: { " git\tpush": "allow", "git push": "ask" } },
     ])("withholds $name as Duo would match it", async ({ bash }) => {
       const content = await generate({ config: { permission: { bash } } });

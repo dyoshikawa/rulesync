@@ -51,6 +51,9 @@ const MAX_PATTERN_LENGTH = 256;
  */
 const UNSUPPORTED_PATTERN_CHARACTERS = /[;&|<>$`(){}\n\r'"\\[\]]/;
 
+/** Quotes and the backslash escape, which a shell-style word split takes off. */
+const SHELL_QUOTING_CHARACTERS = /['"\\]/g;
+
 /** A canonical pattern may spell "any arguments" as a trailing `:*` (`git:*`). */
 const TRAILING_ARGUMENT_WILDCARD = /:\*$/;
 
@@ -101,9 +104,11 @@ type DuoPermissionStatement = {
  *
  * On generate, the statements rulesync owns — those for `run_command` — are
  * replaced, and every other statement and key of the file is kept, with the
- * comments outside the `permissions` array (the array is rewritten whole). On import, `run_command` statements come back under `bash`; an
- * allow whose resource holds a glob is skipped, since the canonical glob would
- * read it more widely than Duo does.
+ * comments outside the `permissions` array (the array is rewritten whole).
+ * On import, `run_command` statements come back under `bash`. An allow is
+ * skipped when its resource holds a glob, which the canonical glob would read
+ * more widely than Duo does, or when the server would refuse it, since it
+ * approves nothing in Duo but would approve the command for other tools.
  */
 export class GitlabduoPermissions extends ToolPermissions {
   constructor(params: AiFileParams) {
@@ -344,14 +349,19 @@ export function convertRulesyncToGitlabduoStatements({
   const { rules, foreignRestrictingCategories, ignoredAllToolsAllowPatterns } =
     collectShellCommandRules(config.permission);
 
-  // Each restriction is compared both as written and as Duo's matcher reads
-  // it (see `normalizeGitlabduoCommandPattern`), so a `git push:*` ask or a
-  // `git  push` deny still withholds an allow Duo would apply to those
-  // commands. Adding readings only ever adds overlaps.
+  // Each restriction is compared as written, as Duo's matcher reads it (see
+  // `normalizeGitlabduoCommandPattern`), and with shell quotes and backslashes
+  // taken off as well, since Duo splits commands shell-style: a `git push:*`
+  // ask, a `git  push` deny or a `git 'push'` deny still withholds an allow Duo
+  // would apply to those commands. Adding readings only ever adds overlaps.
   const restrictions = uniq(
     rules
       .filter(({ action }) => action !== "allow")
-      .flatMap(({ pattern }) => [pattern, normalizeGitlabduoCommandPattern(pattern)])
+      .flatMap(({ pattern }) => [
+        pattern,
+        normalizeGitlabduoCommandPattern(pattern),
+        normalizeGitlabduoCommandPattern(pattern.replaceAll(SHELL_QUOTING_CHARACTERS, "")),
+      ])
       .filter((pattern) => pattern !== ""),
   ).map((pattern) => ({ pattern, fromAllToolsCategory: false }));
   const budget = createIntersectionBudget();
