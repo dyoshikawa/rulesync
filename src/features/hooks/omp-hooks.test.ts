@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { ensureDir, fileExists, writeFileContent } from "../../utils/file.js";
+import { ensureDir, fileExists, readFileContent, writeFileContent } from "../../utils/file.js";
 import { OmpHooks } from "./omp-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
 
@@ -218,7 +218,7 @@ describe("OmpHooks", () => {
           hooks: { preToolUse: [{ matcher: "bash", command: "echo denied >&2; exit 2" }] },
         },
       });
-      expect(registeredEvents).toEqual(["tool_call"]);
+      expect(registeredEvents).toEqual(["tool_call", "session_shutdown"]);
       const handler = handlerFor("tool_call");
 
       expect(await handler({ toolName: "bash", input: {} })).toEqual({
@@ -226,6 +226,62 @@ describe("OmpHooks", () => {
         reason: "denied",
       });
       expect(await handler({ toolName: "read", input: {} })).toBeUndefined();
+    });
+
+    it("should keep oh-my-pi's own old_string / new_string in the edit payload", async () => {
+      const payloadPath = join(testDir, "payload.json");
+      const { handlerFor } = await loadOmpExtension({
+        testDir,
+        config: {
+          version: 1,
+          hooks: {
+            preToolUse: [{ type: "command", command: `cat > ${JSON.stringify(payloadPath)}` }],
+          },
+        },
+      });
+      const toolCall = handlerFor("tool_call");
+      const ctx = { cwd: testDir, sessionManager: { getSessionId: () => "session-1" } };
+      const payloadFor = async (input: unknown) => {
+        await toolCall({ toolName: "edit", toolCallId: "call-1", input }, ctx);
+        return JSON.parse(await readFileContent(payloadPath)).tool_input;
+      };
+
+      // `edit.mode: "replace"`; a decoy `file_path` is still dropped.
+      expect(
+        await payloadFor({
+          path: "src/a.ts",
+          old_string: "a",
+          new_string: "b",
+          replace_all: true,
+          file_path: "README.md",
+        }),
+      ).toEqual({
+        file_path: join(testDir, "src/a.ts"),
+        old_string: "a",
+        new_string: "b",
+        replace_all: true,
+      });
+      // The internal batch form keeps its entries and joins their text.
+      expect(
+        await payloadFor({
+          path: "src/a.ts",
+          edits: [
+            { old_string: "a", new_string: "b" },
+            { old_string: "c", new_string: "d" },
+          ],
+        }),
+      ).toEqual({
+        file_path: join(testDir, "src/a.ts"),
+        edits: [
+          { old_string: "a", new_string: "b" },
+          { old_string: "c", new_string: "d" },
+        ],
+        old_string: "a\nc",
+        new_string: "b\nd",
+      });
+      // Patch modes carry the target inside the patch, passed through as is.
+      const patch = "*** Begin Patch\n*** Update File: src/a.ts\n*** End Patch";
+      expect(await payloadFor({ input: patch })).toEqual({ input: patch });
     });
 
     it("should map oh-my-pi's glob tool to Glob but leave its find tool alone", async () => {
@@ -299,7 +355,7 @@ describe("OmpHooks", () => {
       });
       const stop = handlerFor("session_stop");
 
-      expect(registeredEvents).toEqual(["session_stop"]);
+      expect(registeredEvents).toEqual(["session_stop", "session_shutdown"]);
       expect(await stop(stopEvent())).toEqual({
         continue: true,
         additionalContext: "Stop hook feedback:\ntests are failing",

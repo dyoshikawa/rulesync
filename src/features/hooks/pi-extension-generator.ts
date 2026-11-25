@@ -111,6 +111,12 @@ type PiExtensionDialect = {
   promptCancelLine: string;
   /** Built-in tool names mapped to the canonical Claude Code names. */
   toolNames: Readonly<Record<string, string>>;
+  /**
+   * The keys the edit tool's input holds its old and new text under. Pi spells
+   * them `oldText` / `newText` inside `edits`; oh-my-pi's replace mode already
+   * uses Claude Code's `old_string` / `new_string`, which are then kept.
+   */
+  editTextKeys: { old: string; new: string };
 };
 
 /**
@@ -133,6 +139,7 @@ const PI_EXTENSION_DIALECT: PiExtensionDialect = {
   promptCancelLine: 'return { action: "handled" };',
   // Pi's `find` takes a glob `pattern`, like Claude Code's `Glob`.
   toolNames: { ...SHARED_CANONICAL_TOOL_NAMES, find: "Glob" },
+  editTextKeys: { old: "oldText", new: "newText" },
 };
 
 /**
@@ -149,6 +156,12 @@ export const OMP_EXTENSION_DIALECT: PiExtensionDialect = {
   // oh-my-pi's glob tool is `glob`; its `find` is a different (search) tool,
   // so it is not mapped.
   toolNames: { ...SHARED_CANONICAL_TOOL_NAMES, glob: "Glob" },
+  // `edit.mode: "replace"` takes `{ path, old_string, new_string, replace_all? }`
+  // (and an internal batch form with those keys inside `edits`). The patch
+  // modes (the default among them) take a single `input` string holding the
+  // patch, which is passed through as is.
+  // https://github.com/can1357/oh-my-pi/blob/main/packages/coding-agent/src/edit/schemas.ts
+  editTextKeys: { old: "old_string", new: "new_string" },
 };
 
 /**
@@ -224,14 +237,14 @@ const STDIN_PAYLOAD_EXTRA_FIELDS: Record<string, string> = {
  *
  * `claudeToolInput` passes the tool's arguments through, except for the file
  * tools: `path` becomes Claude Code's absolute `file_path`, resolved against
- * the session cwd the way Pi resolves it (a leading `@` stripped, `~`
- * expanded), and each `edits` entry's `oldText` / `newText` becomes
- * `old_string` / `new_string`, with every edit's text also joined into the
- * top-level `old_string` / `new_string` Claude Code's `Edit` input carries, so
- * a guard reading those sees every change. The mapped keys are written last
- * and any same-named key the model added is dropped, so an extra argument
- * (Pi's schemas allow them) cannot make a guard check a different file or
- * text than the one the tool acts on.
+ * the session cwd the way Pi's `resolveToCwd` does, and on Pi each `edits`
+ * entry's `oldText` / `newText` becomes `old_string` / `new_string` (oh-my-pi
+ * already uses those, see `editTextKeys`). When the call has no top-level
+ * `old_string` / `new_string`, every edit's text is joined into them, as
+ * Claude Code's `Edit` input carries, so a guard reading those sees every
+ * change. The mapped keys are written last and any same-named key the model
+ * added is dropped, so an extra argument (Pi's schemas allow them) cannot make
+ * a guard check a different file or text than the one the tool acts on.
  */
 function buildToolPayloadHelperLines(dialect: PiExtensionDialect): string[] {
   return [
@@ -245,46 +258,59 @@ function buildToolPayloadHelperLines(dialect: PiExtensionDialect): string[] {
     "  return matcher.test(toolName) || matcher.test(claudeToolName(toolName));",
     "}",
     "",
+    "// Pi's `resolveToCwd`: Unicode spaces become plain spaces, a leading `@` is",
+    "// dropped, `~` is expanded and `file://` URLs are converted. Other URLs and",
+    "// internal URIs (which oh-my-pi's read accepts) are left as written.",
     "function absoluteToolPath(path: unknown, cwd: string): unknown {",
     '  if (typeof path !== "string") return path;',
-    '  const bare = path.startsWith("@") ? path.slice(1) : path;',
-    '  const expanded = bare === "~" || bare.startsWith("~/") ? homedir() + bare.slice(1) : bare;',
-    "  return resolvePath(cwd, expanded);",
+    '  let normalized = path.replace(/[\\u00A0\\u2000-\\u200A\\u202F\\u205F\\u3000]/g, " ");',
+    '  if (normalized.startsWith("@")) normalized = normalized.slice(1);',
+    '  if (normalized === "~") normalized = homedir();',
+    '  else if (normalized.startsWith("~/")) normalized = joinPath(homedir(), normalized.slice(2));',
+    "  if (/^file:\\/\\//.test(normalized)) return fileURLToPath(normalized);",
+    "  if (/^[a-z][a-z0-9+.-]*:\\/\\//i.test(normalized)) return normalized;",
+    "  return resolvePath(cwd, normalized);",
+    "}",
+    "",
+    `const EDIT_TEXT_KEYS = ${JSON.stringify(dialect.editTextKeys)};`,
+    'const CLAUDE_EDIT_TEXT_KEYS = EDIT_TEXT_KEYS.old === "old_string";',
+    "",
+    "function claudeEditEntry(edit: unknown): unknown {",
+    '  if (CLAUDE_EDIT_TEXT_KEYS || !edit || typeof edit !== "object") return edit;',
+    "  const {",
+    "    [EDIT_TEXT_KEYS.old]: oldText,",
+    "    [EDIT_TEXT_KEYS.new]: newText,",
+    "    old_string: _old,",
+    "    new_string: _new,",
+    "    ...others",
+    "  } = edit as Record<string, unknown>;",
+    "  return { ...others, old_string: oldText, new_string: newText };",
+    "}",
+    "",
+    "function joinedEditText(edits: unknown[], key: string): string | undefined {",
+    "  const texts = edits",
+    "    .map((edit: unknown) => (edit as Record<string, unknown> | null)?.[key])",
+    '    .filter((text): text is string => typeof text === "string");',
+    '  return texts.length > 0 ? texts.join("\\n") : undefined;',
     "}",
     "",
     "function claudeToolInput(toolName: string, input: unknown, cwd: string): unknown {",
     '  if (!["read", "write", "edit"].includes(toolName)) return input;',
     '  if (!input || typeof input !== "object" || Array.isArray(input)) return input;',
-    "  const {",
-    "    path,",
-    "    edits,",
-    "    file_path: _filePath,",
-    "    old_string: _oldString,",
-    "    new_string: _newString,",
-    "    ...rest",
-    "  } = input as Record<string, unknown>;",
-    "  const claudeInput: Record<string, unknown> = { ...rest, file_path: absoluteToolPath(path, cwd) };",
-    "  if (!Array.isArray(edits)) {",
-    "    if (edits !== undefined) claudeInput.edits = edits;",
-    "    return claudeInput;",
+    "  const { path, file_path: _filePath, ...rest } = input as Record<string, unknown>;",
+    "  if (!CLAUDE_EDIT_TEXT_KEYS) {",
+    "    delete rest.old_string;",
+    "    delete rest.new_string;",
     "  }",
-    "  const claudeEdits = edits.map((edit: unknown) => {",
-    '    if (!edit || typeof edit !== "object") return edit;',
-    "    const {",
-    "      oldText,",
-    "      newText,",
-    "      old_string: _old,",
-    "      new_string: _new,",
-    "      ...others",
-    "    } = edit as Record<string, unknown>;",
-    "    return { ...others, old_string: oldText, new_string: newText };",
-    "  });",
-    "  const joined = (key: string) =>",
-    "    claudeEdits",
-    "      .map((edit: unknown) => (edit as Record<string, unknown> | null)?.[key])",
-    '      .filter((text): text is string => typeof text === "string")',
-    '      .join("\\n");',
-    '  return { ...claudeInput, edits: claudeEdits, old_string: joined("old_string"), new_string: joined("new_string") };',
+    "  const claudeInput: Record<string, unknown> = { ...rest, file_path: absoluteToolPath(path, cwd) };",
+    "  if (!Array.isArray(rest.edits)) return claudeInput;",
+    "  const edits = rest.edits.map(claudeEditEntry);",
+    "  return {",
+    "    ...claudeInput,",
+    "    edits,",
+    '    old_string: claudeInput.old_string ?? joinedEditText(edits, "old_string"),',
+    '    new_string: claudeInput.new_string ?? joinedEditText(edits, "new_string"),',
+    "  };",
     "}",
     "",
     "function toolResultText(content: unknown): string {",
@@ -390,11 +416,20 @@ const TOOL_DECISION_HELPER_LINES = [
  * earlier versions used, a non-zero exit rejects with an error carrying
  * `code`, `stdout` and `stderr`, and more than 1 MiB on either stream rejects
  * and kills the command.
+ *
+ * A detached group does not get the terminal's Ctrl+C, so the extension
+ * kills every command still running on `session_shutdown`, after the other
+ * handlers (including a `sessionEnd` hook's) have run: Pi awaits them in
+ * registration order. A Pi process killed outright never fires it, and its
+ * commands then run until their own timeout.
  */
 const RUN_HELPER_LINES = [
   "const MAX_HOOK_OUTPUT_LENGTH = 1024 * 1024;",
   "",
   "class HookTimeoutError extends Error {}",
+  "",
+  "// Kills of the commands still running, for `session_shutdown`.",
+  "const runningHookCommands = new Set<() => void>();",
   "",
   "function run(",
   "  command: string,",
@@ -409,6 +444,7 @@ const RUN_HELPER_LINES = [
   "      if (settled) return;",
   "      settled = true;",
   "      clearTimeout(timer);",
+  "      runningHookCommands.delete(killTree);",
   "      if (error) reject(error);",
   "      else resolve(output);",
   "    };",
@@ -422,6 +458,7 @@ const RUN_HELPER_LINES = [
   "      child.stdout?.destroy();",
   "      child.stderr?.destroy();",
   "    };",
+  "    runningHookCommands.add(killTree);",
   "    const timer = setTimeout(() => {",
   "      killTree();",
   "      finish(new HookTimeoutError(`Hook command timed out after ${seconds} seconds.`));",
@@ -885,7 +922,8 @@ export function generatePiExtensionCode({
   lines.push('import { spawn } from "node:child_process";');
   if (needsToolHelpers) {
     lines.push('import { homedir } from "node:os";');
-    lines.push('import { resolve as resolvePath } from "node:path";');
+    lines.push('import { join as joinPath, resolve as resolvePath } from "node:path";');
+    lines.push('import { fileURLToPath } from "node:url";');
   }
   lines.push("");
   lines.push(`import type { ${importedTypes} } from ${JSON.stringify(dialect.typesPackage)};`);
@@ -908,6 +946,9 @@ export function generatePiExtensionCode({
     lines.push("  let stopHookContinued = false;");
   }
   lines.push(...subscriptionLines);
+  lines.push('  pi.on("session_shutdown", async () => {');
+  lines.push("    for (const kill of [...runningHookCommands]) kill();");
+  lines.push("  });");
   lines.push("}");
   lines.push("");
   return lines.join("\n");

@@ -1,3 +1,4 @@
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -564,6 +565,8 @@ describe("PiHooks", () => {
         "tool_call",
         "agent_before_settle",
         "agent_settled",
+        // Kills hook commands still running when the session is torn down.
+        "session_shutdown",
       ]);
       expect(handlerFor("session_start")).toBeTypeOf("function");
     });
@@ -870,7 +873,7 @@ describe("PiHooks", () => {
           hooks: { postToolUseFailure: [{ type: "command", command: "exit 3" }] },
         },
       });
-      expect(registeredEvents).toEqual(["tool_result"]);
+      expect(registeredEvents).toEqual(["tool_result", "session_shutdown"]);
       const handler = handlerFor("tool_result");
 
       await expect(handler({ toolName: "bash", isError: false })).resolves.toBeUndefined();
@@ -991,6 +994,45 @@ describe("PiHooks", () => {
           input: { q: "x" },
         }),
       ).toMatchObject({ tool_name: "mcp__docs__search", tool_input: { q: "x" } });
+    });
+
+    it("should resolve file paths the way Pi does", async () => {
+      const payloadPath = join(testDir, "payload.json");
+      const { handlerFor } = await loadPiExtension({
+        testDir,
+        config: {
+          version: 1,
+          hooks: {
+            preToolUse: [{ type: "command", command: `cat > ${JSON.stringify(payloadPath)}` }],
+          },
+        },
+      });
+      const filePathFor = async (path: string) => {
+        await handlerFor("tool_call")({ toolName: "read", input: { path } }, piContext());
+        return JSON.parse(await readFileContent(payloadPath)).tool_input.file_path;
+      };
+
+      // Pi turns Unicode spaces into plain ones before touching the file.
+      expect(await filePathFor("my\u00a0notes.md")).toBe(join(testDir, "my notes.md"));
+      expect(await filePathFor("file:///etc/hosts")).toBe("/etc/hosts");
+      expect(await filePathFor("~")).toBe(homedir());
+    });
+
+    it("should kill hook commands still running when the session shuts down", async () => {
+      const { handlerFor } = await loadPiExtension({
+        testDir,
+        config: {
+          version: 1,
+          hooks: { preToolUse: [{ type: "command", command: "sleep 30 & sleep 30; wait" }] },
+        },
+      });
+
+      const started = Date.now();
+      const pending = handlerFor("tool_call")({ toolName: "bash", input: {} }, piContext());
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      await handlerFor("session_shutdown")();
+      expect(await pending).toMatchObject({ block: true });
+      expect(Date.now() - started).toBeLessThan(5000);
     });
 
     it("should not let extra model-supplied keys override the mapped arguments", async () => {
