@@ -5,6 +5,7 @@ import * as smolToml from "smol-toml";
 import { describe, expect, it } from "vite-plus/test";
 
 import { CLAUDECODE_SETTINGS_SCHEMA_URL } from "../constants/claudecode-paths.js";
+import { openbitfunGlobalConfigDir } from "../constants/openbitfun-paths.js";
 import {
   RULESYNC_HOOKS_RELATIVE_FILE_PATH,
   RULESYNC_RELATIVE_DIR_PATH,
@@ -196,6 +197,7 @@ const hooksGenerateTargets = [
   { target: "pi", outputPath: join(".pi", "extensions", "rulesync-hooks.ts") },
   { target: "omp", outputPath: join(".omp", "extensions", "rulesync-hooks.ts") },
   { target: "codexcli", outputPath: join(".codex", "hooks.json") },
+  { target: "openbitfun", outputPath: join(".openbitfun", "config", "hooks.json") },
   { target: "qwencode", outputPath: join(".qwen", "settings.json") },
   {
     target: "goose",
@@ -935,6 +937,7 @@ describe("E2E: hooks", () => {
     { target: "pi", orphanPath: join(".pi", "extensions", "rulesync-hooks.ts") },
     { target: "omp", orphanPath: join(".omp", "extensions", "rulesync-hooks.ts") },
     { target: "codexcli", orphanPath: join(".codex", "hooks.json") },
+    { target: "openbitfun", orphanPath: join(".openbitfun", "config", "hooks.json") },
     { target: "copilot", orphanPath: join(".github", "hooks", "copilot-hooks.json") },
     { target: "factorydroid", orphanPath: join(".factory", "hooks.json") },
     { target: "gitlabduo", orphanPath: join(".gitlab", "duo", "hooks.json") },
@@ -1029,6 +1032,15 @@ describe("E2E: hooks (import)", () => {
           sessionStart: [
             { matcher: "", hooks: [{ type: "command", command: "echo session started" }] },
           ],
+        },
+      },
+    },
+    {
+      target: "openbitfun",
+      sourcePath: join(".openbitfun", "config", "hooks.json"),
+      sourceContent: {
+        hooks: {
+          SessionStart: [{ hooks: [{ type: "command", command: "echo session started" }] }],
         },
       },
     },
@@ -1320,6 +1332,7 @@ const hooksGlobalTargets = [
   { target: "amp", outputPath: join(".config", "amp", "plugins", "rulesync-hooks.ts") },
   { target: "claudecode", outputPath: join(".claude", "settings.json") },
   { target: "codexcli", outputPath: join(".codex", "hooks.json") },
+  { target: "openbitfun", outputPath: join(openbitfunGlobalConfigDir(), "hooks.json") },
   { target: "qwencode", outputPath: join(".qwen", "settings.json") },
   {
     target: "goose",

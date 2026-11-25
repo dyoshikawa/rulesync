@@ -64,6 +64,7 @@ import { LettacodeSubagent } from "./lettacode-subagent.js";
 import { MimocodeSubagent } from "./mimocode-subagent.js";
 import { MusecodeSubagent } from "./musecode-subagent.js";
 import { OmpSubagent } from "./omp-subagent.js";
+import { OpenbitfunSubagent } from "./openbitfun-subagent.js";
 import { OpenCodeSubagent } from "./opencode-subagent.js";
 import { Opencodev1Subagent } from "./opencodev1-subagent.js";
 import { PoolSubagent } from "./pool-subagent.js";
@@ -970,6 +971,21 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsSimulated: false,
         supportsGlobal: false,
         filePattern: "*.toml",
+      },
+    },
+  ],
+  [
+    "openbitfun",
+    {
+      // OpenBitFun custom agents are Markdown + YAML frontmatter under
+      // `.openbitfun/agents/` (project) and `<user root>/agents/` (global).
+      // https://github.com/openBitFun/OpenBitFun/blob/main/src/crates/execution/agent-runtime/src/custom_agent.rs
+      class: OpenbitfunSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.md",
       },
     },
   ],

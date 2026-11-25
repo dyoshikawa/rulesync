@@ -10,6 +10,7 @@ import {
 import type { SharedWritePath } from "../../lib/shared-file-derive.js";
 import type { ValidationResult } from "../../types/ai-file.js";
 import {
+  type HooksConfig,
   CODEXCLI_HOOK_EVENTS,
   CODEXCLI_TO_CANONICAL_EVENT_NAMES,
   CANONICAL_TO_CODEXCLI_EVENT_NAMES,
@@ -86,7 +87,9 @@ function containsNull(value: unknown): boolean {
   return false;
 }
 
-const WHOLE_FILE_FAILURE = "Codex fails to load the whole hooks file on such a handler";
+function wholeFileFailure(toolLabel: string): string {
+  return `${toolLabel} fails to load the whole hooks file on such a handler`;
+}
 
 /**
  * Why this generated handler must not be written, or `undefined` when Codex
@@ -97,7 +100,11 @@ const WHOLE_FILE_FAILURE = "Codex fails to load the whole hooks file on such a h
  * `server` / `tool` string still loads but can never resolve to a tool.
  * https://github.com/openai/codex/blob/main/codex-rs/config/src/hook_config.rs
  */
-function describeRejectedHandler(handler: Record<string, unknown>): string | undefined {
+function describeRejectedHandler(
+  handler: Record<string, unknown>,
+  toolLabel: string,
+): string | undefined {
+  const WHOLE_FILE_FAILURE = wholeFileFailure(toolLabel);
   const { timeout } = handler;
   if (
     timeout !== undefined &&
@@ -131,9 +138,11 @@ function describeRejectedHandler(handler: Record<string, unknown>): string | und
  */
 function filterCodexHandlers({
   hooks,
+  toolLabel,
   logger,
 }: {
   hooks: Record<string, unknown[]>;
+  toolLabel: string;
   logger?: Logger;
 }): Record<string, unknown[]> {
   const result: Record<string, unknown[]> = {};
@@ -147,10 +156,10 @@ function filterCodexHandlers({
         continue;
       }
       const handlers = entry.hooks.filter((handler: Record<string, unknown>) => {
-        const reason = describeRejectedHandler(handler);
+        const reason = describeRejectedHandler(handler, toolLabel);
         if (reason !== undefined) {
           logger?.warn(
-            `Skipping a "${String(handler.type)}" hook on Codex CLI "${eventName}": ${reason}.`,
+            `Skipping a "${String(handler.type)}" hook on ${toolLabel} "${eventName}": ${reason}.`,
           );
           return false;
         }
@@ -169,10 +178,83 @@ function filterCodexHandlers({
   }
   if (skippedSessionEndTools.length > 0) {
     logger?.warn(
-      `Codex CLI skips "mcp_tool" hooks on "SessionEnd" with a startup warning, so these are written but will not run: ${skippedSessionEndTools.join(", ")}.`,
+      `${toolLabel} skips "mcp_tool" hooks on "SessionEnd" with a startup warning, so these are written but will not run: ${skippedSessionEndTools.join(", ")}.`,
     );
   }
   return result;
+}
+
+/**
+ * Generate the content of a Codex-shaped `hooks.json` (`{ hooks: { <Event>:
+ * [matcher groups] } }`) at `relativeDirPath/relativeFilePath`. Shared by the
+ * Codex CLI target and tools that read the same document (OpenBitFun), which
+ * differ only in where the file lives, which events and handler types they
+ * run, and which rulesync override section they read.
+ */
+export async function buildCodexStyleHooksFile({
+  outputRoot,
+  relativeDirPath,
+  relativeFilePath,
+  rulesyncHooks,
+  toolOverrideHooks,
+  converterConfig,
+  toolLabel,
+  preserveUnowned,
+  logger,
+}: {
+  outputRoot: string;
+  relativeDirPath: string;
+  relativeFilePath: string;
+  rulesyncHooks: RulesyncHooks;
+  toolOverrideHooks: HooksConfig["hooks"] | undefined;
+  converterConfig: ToolHooksConverterConfig;
+  toolLabel: string;
+  preserveUnowned: boolean;
+  logger?: Logger;
+}): Promise<{ fileContent: string; owned: ReturnType<typeof mergeGeneratedHookLists>["owned"] }> {
+  const filePath = join(outputRoot, relativeDirPath, relativeFilePath);
+  const existingContent = (await readFileContentOrNull(filePath)) ?? "";
+  const toolHooks = filterCodexHandlers({
+    hooks: canonicalToToolHooks({
+      config: rulesyncHooks.getJson(),
+      toolOverrideHooks,
+      converterConfig,
+      logger,
+    }),
+    toolLabel,
+    logger,
+  });
+  const previouslyOwned = preserveUnowned
+    ? await readPreviouslyOwnedHooks({ outputRoot, relativeDirPath })
+    : undefined;
+  const merged = mergeGeneratedHookLists({
+    existingContent,
+    generatedHooks: toolHooks,
+    shape: "matcher-groups",
+    preserveUnowned,
+    previouslyOwned,
+    logger,
+  });
+  return { fileContent: JSON.stringify({ hooks: merged.hooks }, null, 2), owned: merged.owned };
+}
+
+/**
+ * Convert the parsed content of a Codex-shaped `hooks.json` back to the
+ * rulesync hooks JSON, with tool-only hooks under `overrideKey`.
+ */
+export function codexStyleHooksToRulesyncContent({
+  parsed,
+  converterConfig,
+  overrideKey,
+  logger,
+}: {
+  parsed: { hooks?: unknown };
+  converterConfig: ToolHooksConverterConfig;
+  overrideKey: string;
+  logger?: Logger;
+}): string {
+  const hooks = toolHooksToCanonical({ hooks: parsed.hooks, converterConfig, logger });
+  return JSON.stringify(buildImportedHooksConfig({ logger, hooks, overrideKey }), null, 2);
 }
 
 /**
@@ -266,37 +348,24 @@ export class CodexcliHooks extends ToolHooks {
     logger?: Logger;
   }): Promise<CodexcliHooks> {
     const paths = CodexcliHooks.getSettablePaths({ global });
-    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    const existingContent = (await readFileContentOrNull(filePath)) ?? "";
-    const config = rulesyncHooks.getJson();
-    const codexHooks = filterCodexHandlers({
-      hooks: canonicalToToolHooks({
-        config,
-        toolOverrideHooks: config.codexcli?.hooks,
-        converterConfig: CODEXCLI_CONVERTER_CONFIG,
-        logger,
-      }),
-      logger,
-    });
-    const previouslyOwned = preserveUnowned
-      ? await readPreviouslyOwnedHooks({ outputRoot, relativeDirPath: paths.relativeDirPath })
-      : undefined;
-    const merged = mergeGeneratedHookLists({
-      existingContent,
-      generatedHooks: codexHooks,
-      shape: "matcher-groups",
+    const { fileContent, owned } = await buildCodexStyleHooksFile({
+      outputRoot,
+      relativeDirPath: paths.relativeDirPath,
+      relativeFilePath: paths.relativeFilePath,
+      rulesyncHooks,
+      toolOverrideHooks: rulesyncHooks.getJson().codexcli?.hooks,
+      converterConfig: CODEXCLI_CONVERTER_CONFIG,
+      toolLabel: "Codex CLI",
       preserveUnowned,
-      previouslyOwned,
       logger,
     });
-    const fileContent = JSON.stringify({ hooks: merged.hooks }, null, 2);
 
     return new CodexcliHooks({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
       fileContent,
-      ownedHookRefs: preserveUnowned ? merged.owned : undefined,
+      ownedHookRefs: preserveUnowned ? owned : undefined,
       validate,
     });
   }
@@ -306,17 +375,13 @@ export class CodexcliHooks extends ToolHooks {
       displayName: "Codex CLI",
       parse: (fileContent) => JSON.parse(fileContent),
     });
-    const hooks = toolHooksToCanonical({
-      hooks: parsed.hooks,
-      converterConfig: CODEXCLI_CONVERTER_CONFIG,
-      logger,
-    });
     return this.toRulesyncHooksDefault({
-      fileContent: JSON.stringify(
-        buildImportedHooksConfig({ logger, hooks, overrideKey: "codexcli" }),
-        null,
-        2,
-      ),
+      fileContent: codexStyleHooksToRulesyncContent({
+        parsed,
+        converterConfig: CODEXCLI_CONVERTER_CONFIG,
+        overrideKey: "codexcli",
+        logger,
+      }),
     });
   }
 

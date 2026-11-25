@@ -2130,6 +2130,7 @@ Second global content`;
         "tabnine",
         "takt",
         "vibe",
+        "openbitfun",
         "xum",
         "zcode",
       ]);
@@ -2201,6 +2202,7 @@ Second global content`;
           "musecode",
           "omp",
           "opencode",
+          "openbitfun",
           "opencodev1",
           "pool",
           "qoder",

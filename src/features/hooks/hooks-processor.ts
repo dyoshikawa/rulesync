@@ -97,6 +97,7 @@ import { KIRO_HOOKS_OVERRIDE_KEY, KiroIdeHooks } from "./kiro-ide-hooks.js";
 import { LETTACODE_CONVERTER_CONFIG, LettacodeHooks } from "./lettacode-hooks.js";
 import { MimocodeHooks } from "./mimocode-hooks.js";
 import { OmpHooks } from "./omp-hooks.js";
+import { OPENBITFUN_CONVERTER_CONFIG, OpenbitfunHooks } from "./openbitfun-hooks.js";
 import { OpencodeHooks } from "./opencode-hooks.js";
 import { Opencodev1Hooks } from "./opencodev1-hooks.js";
 import { PiHooks } from "./pi-hooks.js";
@@ -545,6 +546,23 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
         supportsImport: true,
       },
       ...converterCapabilities(CODEXCLI_CONVERTER_CONFIG),
+      supportsMatcher: true,
+    },
+  ],
+  [
+    "openbitfun",
+    {
+      class: OpenbitfunHooks,
+      meta: {
+        // Codex-shaped `hooks.json` at `.openbitfun/config/hooks.json`
+        // (project; honored only when `app.hooks.project_hooks_enabled` is on)
+        // and `<user root>/config/hooks.json` (global). Only command handlers run.
+        // https://github.com/openBitFun/OpenBitFun/blob/main/docs/features/agent-hooks.md
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+      ...converterCapabilities(OPENBITFUN_CONVERTER_CONFIG),
       supportsMatcher: true,
     },
   ],

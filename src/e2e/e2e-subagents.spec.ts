@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vite-plus/test";
 
+import { openbitfunGlobalAgentsDir } from "../constants/openbitfun-paths.js";
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
 import {
@@ -107,6 +108,10 @@ const subagentsGenerateTargets = [
   {
     target: "xum",
     outputPath: join(".xum", "agents", "planner.md"),
+  },
+  {
+    target: "openbitfun",
+    outputPath: join(".openbitfun", "agents", "planner.md"),
   },
   {
     target: "codexcli",
@@ -241,6 +246,7 @@ const subagentsGlobalTargets = [
   { target: "commandcode", outputPath: join(".commandcode", "agents", "planner.md") },
   { target: "qoder", outputPath: join(".qoder", "agents", "planner.md") },
   { target: "xum", outputPath: join(".xum", "agents", "planner.md") },
+  { target: "openbitfun", outputPath: join(openbitfunGlobalAgentsDir(), "planner.md") },
   { target: "copilot", outputPath: join(".copilot", "agents", "planner.agent.md") },
   { target: "copilotcli", outputPath: join(".copilot", "agents", "planner.agent.md") },
   { target: "cursor", outputPath: join(".cursor", "agents", "planner.md") },
@@ -478,6 +484,7 @@ You are a subagent-only helper.
     { target: "commandcode", orphanPath: join(".commandcode", "agents", "orphan.md") },
     { target: "qoder", orphanPath: join(".qoder", "agents", "orphan.md") },
     { target: "xum", orphanPath: join(".xum", "agents", "orphan.md") },
+    { target: "openbitfun", orphanPath: join(".openbitfun", "agents", "orphan.md") },
     { target: "codexcli", orphanPath: join(".codex", "agents", "orphan.toml") },
     { target: "copilot", orphanPath: join(".github", "agents", "orphan.md") },
     { target: "deepagents", orphanPath: join(".deepagents", "agents", "orphan", "AGENTS.md") },
@@ -824,6 +831,7 @@ describe("E2E: subagents (import)", () => {
     { target: "commandcode", sourcePath: join(".commandcode", "agents", "planner.md") },
     { target: "qoder", sourcePath: join(".qoder", "agents", "planner.md") },
     { target: "xum", sourcePath: join(".xum", "agents", "planner.md") },
+    { target: "openbitfun", sourcePath: join(".openbitfun", "agents", "planner.md") },
     { target: "lettacode", sourcePath: join(".letta", "agents", "planner.md") },
     { target: "copilot", sourcePath: join(".github", "agents", "planner.md") },
     { target: "kimi-code", sourcePath: join(".kimi-code", "agents", "planner.md") },

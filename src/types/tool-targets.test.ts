@@ -87,6 +87,7 @@ describe("tool targets", () => {
         "vibe-plugin",
         "warpcli",
         "zcode-plugin",
+        "openbitfun",
         "agentsskills",
       ];
 
