@@ -429,6 +429,7 @@ export const permissionsProcessorToolTargetTuple = [
   "deepagents",
   "devin",
   "factorydroid",
+  "gitlabduo",
   "goose",
   "grokcli",
   "hermesagent",

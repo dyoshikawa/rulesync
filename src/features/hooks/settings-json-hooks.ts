@@ -43,6 +43,15 @@ export type SettingsJsonHooksSpec = {
    */
   readonly overrideKey: string;
   readonly converterConfig: ToolHooksConverterConfig;
+  /**
+   * Native event names the tool accepts in the override block, next to the
+   * canonical `supportedEvents`. When set, any other override key is dropped
+   * on generate instead of being written verbatim (the processor reports it
+   * through `dropsUnknownOverrideEvents`), for tools whose settings schema
+   * rejects the whole hooks block over one unknown key. When unset, every
+   * override key is written.
+   */
+  readonly knownOverrideEvents?: readonly string[];
 };
 
 /**
@@ -112,7 +121,10 @@ export abstract class SettingsJsonHooks extends ToolHooks {
     const config = rulesyncHooks.getJson();
     const generatedHooks = canonicalToToolHooks({
       config,
-      toolOverrideHooks: overrideHooksOf({ config, overrideKey: this.getSpec().overrideKey }),
+      toolOverrideHooks: knownOverrideHooks({
+        hooks: overrideHooksOf({ config, overrideKey: this.getSpec().overrideKey }),
+        spec: this.getSpec(),
+      }),
       converterConfig: this.getConverterConfig(),
       logger,
     });
@@ -181,6 +193,28 @@ export abstract class SettingsJsonHooks extends ToolHooks {
       ),
     });
   }
+}
+
+/**
+ * The override hooks the tool can take: all of them, unless the spec lists
+ * {@link SettingsJsonHooksSpec.knownOverrideEvents}, in which case only those
+ * native names and the canonical supported events are kept.
+ */
+function knownOverrideHooks({
+  hooks,
+  spec,
+}: {
+  hooks: HooksConfig["hooks"] | undefined;
+  spec: SettingsJsonHooksSpec;
+}): HooksConfig["hooks"] | undefined {
+  if (hooks === undefined || spec.knownOverrideEvents === undefined) {
+    return hooks;
+  }
+  const known: Set<string> = new Set([
+    ...spec.converterConfig.supportedEvents,
+    ...spec.knownOverrideEvents,
+  ]);
+  return Object.fromEntries(Object.entries(hooks).filter(([event]) => known.has(event)));
 }
 
 /**

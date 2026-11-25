@@ -97,6 +97,7 @@ const permissionsGlobalTargets = [
   "warp",
   "warpcli",
   "deepagents",
+  "gitlabduo",
   "zed",
   "amp",
   "vibe",
@@ -3987,6 +3988,44 @@ describe("E2E: permissions (global mode)", () => {
     expect(shell.allow_list).toEqual(["git", "ls"]);
     expect(generated.startup).toEqual({ mode: "auto" });
     expect(generated.mcp).toEqual({ disabled_project_servers: ["filesystem"] });
+  });
+
+  it("should generate gitlabduo permissions in home directory with --global", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "git status": "allow", "npm run *": "allow", "rm -rf *": "deny" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({
+      target: "gitlabduo",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    // GitLab Duo CLI reads the `permissions` setting only from the user
+    // settings file and enforces only `allow` statements, so the deny rule is
+    // reported rather than written.
+    const generated = JSON.parse(
+      await readFileContent(join(homeDir, ".gitlab", "duo", "settings.json")),
+    );
+    expect(generated).toEqual({
+      permissions: [
+        { action: "run_command", resource: "git status", effect: "allow" },
+        { action: "run_command", resource: "npm run *", effect: "allow" },
+      ],
+    });
   });
 
   it("should generate zed permissions in home directory with --global", async () => {
