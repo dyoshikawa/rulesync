@@ -1174,6 +1174,7 @@ describe("ClaudecodePermissions", () => {
         leftArrowOpensAgents: "~/.claude.json",
         prStatusFooterEnabled: "~/.claude.json",
         disableRemotePreviewScripts: "managed settings",
+        enforceAnthropicSignIn: "managed settings",
       };
       const rulesyncPermissions = new RulesyncPermissions({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -1197,6 +1198,7 @@ describe("ClaudecodePermissions", () => {
             leftArrowOpensAgents: true,
             prStatusFooterEnabled: false,
             disableRemotePreviewScripts: true,
+            enforceAnthropicSignIn: true,
           },
         }),
       });
@@ -2294,7 +2296,7 @@ describe("ClaudecodePermissions", () => {
         expect(JSON.parse(globalInstance.getFileContent()).env).toEqual(ignored);
       });
 
-      it("drops the claude.ai sign-in and v2.1.285 Windows variables at project scope", async () => {
+      it("drops the claude.ai sign-in, v2.1.285 Windows, host telemetry and Code Mode variables at project scope", async () => {
         const mockLogger = createMockLogger();
         const warnSpy = vi.spyOn(mockLogger, "warn");
         const ignored = {
@@ -2306,6 +2308,9 @@ describe("ClaudecodePermissions", () => {
           CommonProgramFiles: "C:\\Program Files\\Common Files",
           "CommonProgramFiles(x86)": "C:\\Program Files (x86)\\Common Files",
           CommonProgramW6432: "C:\\Program Files\\Common Files",
+          OTEL_RESOURCE_INCLUDE_HOST: "1",
+          // Code Mode ignores any project value, a `0` included.
+          CLAUDE_CODE_EXPERIMENTAL_CODE_MODE: "0",
           // Windows variable names are case-insensitive.
           systemdrive: "D:",
           "COMMONPROGRAMFILES(X86)": "D:\\Common Files",
@@ -2411,6 +2416,9 @@ describe("ClaudecodePermissions", () => {
               CLAUDE_CODE_WARN_MEMORY_FREE_GIB: "2",
               CLAUDE_CODE_DISABLE_MOUNTED_DRIVE_RM_PROMPT: "1",
               CLAUDE_CODE_EVEN_MORE_DANGEROUSLY_SKIP_PERMISSIONS: "1",
+              CLAUDE_CODE_STRICT_INLINE_SHELL_RM_PROMPT: "1",
+              // cspell:disable-next-line
+              CLAUDE_CODE_DISABLE_ULTRAREVIEW_TRUST_CHECK: "1",
               MY_VAR: "1",
             }),
             global,
@@ -2421,7 +2429,8 @@ describe("ClaudecodePermissions", () => {
           expect(content.env).toEqual({ MY_VAR: "1" });
           expect(warnSpy).toHaveBeenCalledWith(
             expect.stringContaining(
-              "'env.CLAUDE_CODE_REMOTE', 'env.CLAUDE_CODE_PROJECT_DIR_NAME', 'env.CLAUDE_CODE_WARN_DISK_FREE_GIB', 'env.CLAUDE_CODE_WARN_MEMORY_FREE_GIB', 'env.CLAUDE_CODE_DISABLE_MOUNTED_DRIVE_RM_PROMPT', 'env.CLAUDE_CODE_EVEN_MORE_DANGEROUSLY_SKIP_PERMISSIONS' in every settings file",
+              // cspell:disable-next-line
+              "'env.CLAUDE_CODE_REMOTE', 'env.CLAUDE_CODE_PROJECT_DIR_NAME', 'env.CLAUDE_CODE_WARN_DISK_FREE_GIB', 'env.CLAUDE_CODE_WARN_MEMORY_FREE_GIB', 'env.CLAUDE_CODE_DISABLE_MOUNTED_DRIVE_RM_PROMPT', 'env.CLAUDE_CODE_EVEN_MORE_DANGEROUSLY_SKIP_PERMISSIONS', 'env.CLAUDE_CODE_STRICT_INLINE_SHELL_RM_PROMPT', 'env.CLAUDE_CODE_DISABLE_ULTRAREVIEW_TRUST_CHECK' in every settings file",
             ),
           );
         },
