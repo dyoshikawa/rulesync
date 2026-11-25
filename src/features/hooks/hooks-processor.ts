@@ -9,6 +9,7 @@ import {
   AMP_HOOK_EVENTS,
   AMP_OVERRIDE_ONLY_HOOK_EVENTS,
   BOB_MATCHER_HOOK_EVENTS,
+  BOB_OPT_IN_HOOK_EVENTS,
   CODEBUDDY_MATCHER_HOOK_EVENTS,
   CODEWHALE_HOOK_EVENTS,
   CODEWHALE_MATCHER_HOOK_EVENTS,
@@ -175,6 +176,16 @@ type ToolHooksFactory = {
    * schema level.
    */
   overrideOnlyEvents?: readonly string[];
+  /**
+   * Canonical events the tool can run but that are only written on explicit
+   * opt-in through the override block, keyed to the native name to author
+   * there, with a note on why. A shared-block hook on one of them is skipped
+   * with that note instead of the generic "not supported" warning.
+   */
+  overrideOptIn?: {
+    events: Readonly<Partial<Record<HookEvent, string>>>;
+    note: string;
+  };
   /**
    * Whether the target's hooks format carries a per-hook on-disk enable flag,
    * so `enabled: false` is written rather than dropped with a warning.
@@ -969,7 +980,8 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
         // settings file `.bob/settings.json` (project) /
         // `~/.bob/settings/settings.json` (global). Command hooks and http
         // hooks are supported, and a matcher applies to every event but
-        // UserPromptSubmit and Stop.
+        // UserPromptSubmit and Stop. The Bob Shell 2.1.0 events are written
+        // only from the `bob.hooks` override (see BOB_OPT_IN_HOOK_EVENTS).
         // https://bob.ibm.com/docs/ide/configuration/lifecycle-hooks
         supportsProject: true,
         supportsGlobal: true,
@@ -978,6 +990,10 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       ...converterCapabilities(BobHooks.getConverterConfig()),
       supportsMatcher: true,
       matcherEvents: BOB_MATCHER_HOOK_EVENTS,
+      overrideOptIn: {
+        events: BOB_OPT_IN_HOOK_EVENTS,
+        note: "They need Bob Shell 2.1.0 or later, and an older Bob Shell ignores the whole hooks block of a settings file that names them.",
+      },
     },
   ],
   [
@@ -1492,10 +1508,25 @@ export class HooksProcessor extends FeatureProcessor {
 
     // Warn about unsupported events
     {
-      const skipped = unsupportedEventNames({ factory, sharedHooks, effectiveHooks });
+      const optInEvents = factory.overrideOptIn?.events ?? {};
+      const skippedEvents = unsupportedEventNames({ factory, sharedHooks, effectiveHooks });
+      const optIn = skippedEvents.filter((e) => Object.hasOwn(optInEvents, e));
+      const skipped = skippedEvents.filter((e) => !Object.hasOwn(optInEvents, e));
       if (skipped.length > 0) {
         this.logger.warn(
           `Skipped hook event(s) for ${this.toolTarget} (not supported): ${skipped.join(", ")}`,
+        );
+      }
+      if (optIn.length > 0) {
+        const nativeNames = optIn.map((e) => optInEvents[e as HookEvent]).join(", ");
+        this.logger.warn(
+          `Skipped hook event(s) for ${this.toolTarget}: ${optIn.join(", ")}. ${factory.overrideOptIn?.note} To opt in, author them under the "${overrideKey}.hooks" override with the native name(s) ${nativeNames}.`,
+        );
+      }
+      const misnamed = Object.keys(overrideHooks).filter((e) => Object.hasOwn(optInEvents, e));
+      if (misnamed.length > 0) {
+        this.logger.warn(
+          `"${overrideKey}.hooks" key(s) ${misnamed.join(", ")} are written as-is, which ${this.toolTarget} does not recognize; use the native name(s) ${misnamed.map((e) => optInEvents[e as HookEvent]).join(", ")} instead.`,
         );
       }
     }

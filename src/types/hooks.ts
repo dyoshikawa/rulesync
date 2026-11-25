@@ -655,46 +655,58 @@ export const ZCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertReco
 
 export const CANONICAL_TO_BOB_EVENT_NAMES: Record<string, string> = {
   sessionStart: "SessionStart",
-  sessionEnd: "SessionEnd",
   beforeSubmitPrompt: "UserPromptSubmit",
   preToolUse: "PreToolUse",
   postToolUse: "PostToolUse",
-  permissionRequest: "PermissionRequest",
-  notification: "Notification",
   preCompact: "PreCompact",
   postCompact: "PostCompact",
   stop: "Stop",
 } satisfies Partial<Record<HookEvent, string>>;
 
 /**
- * Hook events supported by IBM Bob's lifecycle hooks.
+ * Hook events rulesync emits for IBM Bob from the shared `hooks` block.
  *
  * Bob reads `hooks` from `.bob/settings.json` (project) and
- * `~/.bob/settings/settings.json` (user) in the Claude-Code shape. The
- * lifecycle-hooks pages document seven events: SessionStart,
- * UserPromptSubmit, PreToolUse, PostToolUse, PreCompact, PostCompact and Stop.
- * Bob Shell 2.1.0 (`@ibm/bob` on npm, 2026-11-09) adds SessionEnd,
- * PermissionRequest, PermissionResolved and Notification to its hook runner
- * and settings schema; none of the four can block. PermissionResolved has no
- * canonical counterpart, so it is authored through the `bob.hooks` override
- * block. Handlers are `command` or `http` hooks.
+ * `~/.bob/settings/settings.json` (user) in the Claude-Code shape and fires
+ * seven documented events: SessionStart, UserPromptSubmit, PreToolUse,
+ * PostToolUse, PreCompact, PostCompact and Stop (Bob IDE and Bob Shell list
+ * the same seven). Handlers are `command` or `http` hooks. Bob Shell 2.1.0
+ * adds more events; see {@link BOB_OPT_IN_HOOK_EVENTS} for why they are not
+ * emitted from the shared block.
  *
  * @see https://bob.ibm.com/docs/shell/configuration/lifecycle-hooks
  * @see https://bob.ibm.com/docs/ide/configuration/lifecycle-hooks
- * @see https://registry.npmjs.org/@ibm/bob/-/bob-2.1.0.tgz
  */
 export const BOB_HOOK_EVENTS: readonly HookEvent[] = eventsOf(CANONICAL_TO_BOB_EVENT_NAMES);
 
 /**
  * The {@link BOB_HOOK_EVENTS} whose `matcher` regex Bob applies: the tool name
- * on PreToolUse / PostToolUse / PermissionRequest, `source` on SessionStart,
- * `trigger` on PreCompact / PostCompact, `reason` on SessionEnd and
- * `notification_type` on Notification. UserPromptSubmit and Stop have no
- * matchable value.
+ * on PreToolUse / PostToolUse, `source` on SessionStart and `trigger` on
+ * PreCompact / PostCompact. UserPromptSubmit and Stop have no matchable value.
  */
 export const BOB_MATCHER_HOOK_EVENTS: readonly HookEvent[] = BOB_HOOK_EVENTS.filter(
   (event) => event !== "beforeSubmitPrompt" && event !== "stop",
 );
+
+/**
+ * Canonical events that Bob Shell 2.1.0 (`@ibm/bob` on npm, 2026-11-09) can
+ * fire under the native name given here, next to the override-only
+ * `PermissionResolved`. They are not on the lifecycle-hooks pages yet.
+ *
+ * They are deliberately not emitted from the shared `hooks` block: Bob Shell
+ * before 2.1.0 validates the `hooks` object strictly against the seven
+ * documented keys, and on any unknown key it ignores that settings file's
+ * whole `hooks` block (PreToolUse guards included). Writing them must
+ * therefore be an explicit opt-in under the `bob.hooks` override block, by
+ * their native name, which is emitted verbatim and imported back there.
+ *
+ * @see https://registry.npmjs.org/@ibm/bob/-/bob-2.1.0.tgz
+ */
+export const BOB_OPT_IN_HOOK_EVENTS: Readonly<Partial<Record<HookEvent, string>>> = {
+  sessionEnd: "SessionEnd",
+  permissionRequest: "PermissionRequest",
+  notification: "Notification",
+};
 
 export const BOB_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
   CANONICAL_TO_BOB_EVENT_NAMES,

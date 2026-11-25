@@ -63,11 +63,10 @@ describe("BobHooks", () => {
           preCompact: [{ type: "command", command: ".rulesync/hooks/pre-compact.sh" }],
           postCompact: [{ type: "command", command: ".rulesync/hooks/post-compact.sh" }],
           stop: [{ type: "command", command: ".rulesync/hooks/audit.sh" }],
-          // Bob Shell 2.1.0 events.
+          // Bob Shell 2.1.0 events are opt-in through the bob override block.
           sessionEnd: [{ type: "command", command: ".rulesync/hooks/session-end.sh" }],
           permissionRequest: [{ type: "command", command: ".rulesync/hooks/permission.sh" }],
           notification: [{ type: "command", command: ".rulesync/hooks/notify.sh" }],
-          // Bob has no subagent events.
           subagentStop: [{ type: "command", command: ".rulesync/hooks/subagent-stop.sh" }],
         },
       });
@@ -82,13 +81,10 @@ describe("BobHooks", () => {
       expect(bobHooks.getRelativeFilePath()).toBe("settings.json");
       const parsed = JSON.parse(bobHooks.getFileContent());
       expect(Object.keys(parsed.hooks).toSorted()).toEqual([
-        "Notification",
-        "PermissionRequest",
         "PostCompact",
         "PostToolUse",
         "PreCompact",
         "PreToolUse",
-        "SessionEnd",
         "SessionStart",
         "Stop",
         "UserPromptSubmit",
@@ -101,11 +97,9 @@ describe("BobHooks", () => {
       });
       expect(parsed.hooks.PreToolUse[0].matcher).toBe("Bash");
       expect(parsed.hooks.PreToolUse[0].hooks[0].command).toBe(".rulesync/hooks/pre-tool.sh");
-      expect(parsed.hooks.SessionEnd[0].hooks[0].command).toBe(".rulesync/hooks/session-end.sh");
-      expect(parsed.hooks.PermissionRequest[0].hooks[0].command).toBe(
-        ".rulesync/hooks/permission.sh",
-      );
-      expect(parsed.hooks.Notification[0].hooks[0].command).toBe(".rulesync/hooks/notify.sh");
+      expect(parsed.hooks.SessionEnd).toBeUndefined();
+      expect(parsed.hooks.PermissionRequest).toBeUndefined();
+      expect(parsed.hooks.Notification).toBeUndefined();
       expect(parsed.hooks.SubagentStop).toBeUndefined();
     });
 
@@ -186,13 +180,17 @@ describe("BobHooks", () => {
       expect(imported.hooks.postCompact?.[0]?.matcher).toBe("manual");
     });
 
-    it("should keep matchers on SessionEnd, PermissionRequest and Notification (issue #3074)", async () => {
+    it("should emit the Bob Shell 2.1.0 events from the bob override block with their matchers (issue #3074)", async () => {
       const rulesyncHooks = buildRulesyncHooks(testDir, {
         version: 1,
-        hooks: {
-          sessionEnd: [{ command: "end.sh", matcher: "logout" }],
-          permissionRequest: [{ command: "permission.sh", matcher: "Bash" }],
-          notification: [{ command: "notify.sh", matcher: "idle_prompt" }],
+        hooks: {},
+        bob: {
+          hooks: {
+            SessionEnd: [{ command: "end.sh", matcher: "prompt_input_exit" }],
+            PermissionRequest: [{ command: "permission.sh", matcher: "Bash" }],
+            PermissionResolved: [{ command: "resolved.sh", matcher: "Bash" }],
+            Notification: [{ command: "notify.sh", matcher: "idle_prompt" }],
+          },
         },
       });
 
@@ -206,17 +204,22 @@ describe("BobHooks", () => {
       });
 
       const parsed = JSON.parse(bobHooks.getFileContent());
-      expect(parsed.hooks.SessionEnd[0].matcher).toBe("logout");
+      expect(parsed.hooks.SessionEnd[0].matcher).toBe("prompt_input_exit");
       expect(parsed.hooks.PermissionRequest[0].matcher).toBe("Bash");
+      expect(parsed.hooks.PermissionResolved[0].matcher).toBe("Bash");
       expect(parsed.hooks.Notification[0].matcher).toBe("idle_prompt");
       expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("will be ignored"));
 
+      // Import files them back under the override block, not the shared one,
+      // so the next generate keeps them opt-in.
       const imported = bobHooks.toRulesyncHooks().getJson();
-      expect(imported.hooks.sessionEnd).toEqual([
-        { type: "command", command: "end.sh", matcher: "logout" },
+      expect(imported.hooks).toEqual({});
+      expect(imported.bob?.hooks?.SessionEnd).toEqual([
+        { type: "command", command: "end.sh", matcher: "prompt_input_exit" },
       ]);
-      expect(imported.hooks.permissionRequest?.[0]?.matcher).toBe("Bash");
-      expect(imported.hooks.notification?.[0]?.matcher).toBe("idle_prompt");
+      expect(imported.bob?.hooks?.PermissionRequest?.[0]?.matcher).toBe("Bash");
+      expect(imported.bob?.hooks?.PermissionResolved?.[0]?.matcher).toBe("Bash");
+      expect(imported.bob?.hooks?.Notification?.[0]?.matcher).toBe("idle_prompt");
     });
 
     it("should emit a canonical '*' matcher as no matcher", async () => {

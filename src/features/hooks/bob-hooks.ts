@@ -14,9 +14,9 @@ import type { ToolHooksConverterConfig } from "./tool-hooks-converter.js";
 import type { ToolHooksSettablePaths } from "./tool-hooks.js";
 
 // Bob honours `matcher` (a regex) on every event but UserPromptSubmit and Stop
-// (see BOB_MATCHER_HOOK_EVENTS): the tool name on PreToolUse / PostToolUse /
-// PermissionRequest, `source` on SessionStart, `trigger` on PreCompact /
-// PostCompact, `reason` on SessionEnd and `notification_type` on Notification.
+// (see BOB_MATCHER_HOOK_EVENTS). The Bob Shell 2.1.0 events authored under
+// `bob.hooks` by their native name are not in this set, so their matcher
+// (`reason`, tool name, `notification_type`) is kept.
 // https://bob.ibm.com/docs/shell/configuration/lifecycle-hooks
 // https://bob.ibm.com/docs/ide/configuration/lifecycle-hooks
 const BOB_NO_MATCHER_EVENTS: ReadonlySet<string> = new Set(
