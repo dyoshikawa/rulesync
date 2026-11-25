@@ -258,7 +258,8 @@ const HERMES_OPAQUE_MAPPING_KEYS = [
  * alias — `auth` (`oauth` for OAuth 2.1/PKCE), mTLS `client_cert` (string PEM
  * path, or `[cert, key]`/`[cert, key, password]` list) and `client_key`,
  * `connect_timeout` (seconds), `supports_parallel_tool_calls`, `protocol`,
- * `lazy`, `events` (see {@link copyHermesBoolLikeFields}), `keepalive_interval`,
+ * `lazy`, `events` (see {@link copyHermesBoolLikeFields}), `single_instance`,
+ * `keepalive_interval`,
  * `elicitation`, `trust`, `identity_header`, and
  * the cost keys (see {@link copyHermesCostFields}) —
  * verbatim from `source` to `target`. Field names are identical on both sides
@@ -316,6 +317,12 @@ function copyHermesAdvancedFields(
   // Bypasses the fail-fast content-type probe for HTTP servers (v0.19.0).
   if (typeof source.skip_preflight === "boolean") {
     target.skip_preflight = source.skip_preflight;
+    copied = true;
+  }
+  // Only one live child process system-wide for a stdio server (v0.23.3), for
+  // a single-writer datastore.
+  if (typeof source.single_instance === "boolean") {
+    target.single_instance = source.single_instance;
     copied = true;
   }
   // Liveness ping cadence in seconds (v0.20.0; default 180, floored at 5).
