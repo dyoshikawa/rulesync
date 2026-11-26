@@ -139,7 +139,7 @@ export const HAND_MAINTAINED_GITIGNORE_ENTRIES: ReadonlyArray<GitignoreEntryTag>
   // Factory Droid's personal settings overlay. Rulesync reads it when importing
   // permissions and hooks, so a repository is likely to have one, but Factory
   // documents it as machine-local and rulesync never writes it.
-  // https://docs.factory.ai/droid-cli/settings
+  // https://docs.factory.com/droid-cli/settings
   {
     target: "factorydroid",
     feature: "general",

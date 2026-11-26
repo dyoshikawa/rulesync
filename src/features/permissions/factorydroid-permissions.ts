@@ -30,7 +30,7 @@ import {
  * Factory Droid's `settings.json` shape (only the keys this adapter manages are
  * modeled; all other keys are preserved verbatim on round-trip).
  *
- * @see https://docs.factory.ai/cli/configuration/settings
+ * @see https://docs.factory.com/droid-cli/settings
  */
 type FactorydroidSettingsJson = {
   commandAllowlist?: string[];
