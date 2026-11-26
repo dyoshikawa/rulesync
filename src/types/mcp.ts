@@ -179,6 +179,10 @@ export const McpServerSchema = z.looseObject({
   // Any object is accepted here: `zcode-mcp.ts` drops one that names no ZCode
   // flow with a warning instead of failing the whole file.
   zcodeOauth: z.optional(z.looseObject({})),
+  // Zero-specific: the per-server `oauth` block of `.zero/config.json`. Written
+  // as `oauth` by `zero-mcp.ts` and stripped by `RulesyncMcp.getMcpServers()`,
+  // like `zcodeOauth`, so it never reaches another tool's config.
+  zeroOauth: z.optional(z.looseObject({})),
   // Pool-specific: the per-server `allow` list of tool-name glob patterns Pool's
   // approval layer auto-approves (`deny` wins over it). Written as `allow` by
   // `pool-mcp.ts` and stripped by `RulesyncMcp.getMcpServers()`, like
