@@ -1596,8 +1596,10 @@ export const CANONICAL_TO_KILO_EVENT_NAMES: Record<string, string> =
  * Session finishes model work with no pending input, just before it goes idle,
  * and lets a plugin admit input that continues the same execution. That makes
  * it an actionable stop boundary like Pi's `agent_before_settle`: a stop
- * command exiting with code 2 continues the agent once. Earlier versions
- * mapped `stop` to the observe-only `session.execution.succeeded` event.
+ * command exiting with code 2 continues the agent once. Before 2.2.1 the hook
+ * never runs, so the generated plugin falls back to the observe-only
+ * `session.execution.succeeded` event earlier versions mapped `stop` to, until
+ * the idle hook has run once (see `opencode-v2-plugin-generator.ts`).
  *
  * @see https://opencode.ai/v2/docs/build/plugins/
  * @see https://github.com/anomalyco/opencode/blob/v2.4.2/packages/plugin/src/README.md

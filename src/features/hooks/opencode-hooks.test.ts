@@ -168,13 +168,12 @@ describe("OpencodeHooks (OpenCode V2)", () => {
       expect(content).toContain(
         [
           "for await (const event of ctx.event.subscribe({",
-          '        types: ["session.created", "session.deleted", "session.compaction.ended", "session.execution.failed", "permission.asked", "permission.replied"],',
+          '        types: ["session.created", "session.deleted", "session.compaction.ended", "session.execution.failed", "permission.asked", "permission.replied", "session.execution.succeeded", "session.execution.interrupted"],',
           "        signal: __rulesyncEvents.signal,",
           "      })) {",
         ].join("\n"),
       );
       expect(content).toContain("__rulesyncEvents.abort();");
-      expect(content).not.toContain("session.execution.succeeded");
       execFileSync("node", ["--input-type=module", "--check"], {
         input: content,
       });
@@ -542,7 +541,13 @@ describe("OpencodeHooks (OpenCode V2)", () => {
         "ok",
         "ok",
       ]);
-      expect(types).toEqual([]);
+      expect(types).toEqual([
+        [
+          "session.execution.succeeded",
+          "session.execution.failed",
+          "session.execution.interrupted",
+        ],
+      ]);
       const byName = Object.fromEntries(records.map((record) => [record.name, record]));
       expect(payloadOf(byName.pre)).toEqual({
         hook_event_name: "PreToolUse",
@@ -655,28 +660,76 @@ describe("OpencodeHooks (OpenCode V2)", () => {
       expect(records.map((record) => record.name)).toEqual(["block"]);
     }, 60_000);
 
-    it("still loads its other hooks when the host has no experimental.idle hook", async () => {
+    it("falls back to observing session.execution.succeeded until the idle hook runs", async () => {
+      // Before OpenCode 2.2.1 the host stores the unknown `experimental.idle` registration
+      // and never triggers it, as this mock does until the test calls it.
       const content = generate({
-        hooks: {
-          preToolUse: [{ command: "node hook.cjs pre 2" }],
-          stop: [{ command: "node hook.cjs stop 0" }],
-        },
+        hooks: { stop: [{ command: "node hook.cjs stop 2" }] },
       });
-      const { out } = await runUnderBun({
+      const { out, types, records } = await runUnderBun({
         content,
         prelude: [
-          "console.error = (message) => out.push('error: ' + message);",
-          "const hook = ctx.session.hook;",
-          "ctx.session.hook = async (name, handler) => { if (name === 'experimental.idle') throw new Error('unknown hook'); return hook(name, handler); };",
+          QUEUED_EVENTS_PRELUDE,
+          "ctx.session.synthetic = async ({ sessionID }) => out.push('synthetic ' + sessionID);",
+          "ctx.session.get = async ({ sessionID }) => (sessionID === 'child' ? { parentID: 's1' } : { id: sessionID });",
           "await mod.default.setup(ctx);",
         ].join("\n"),
-        body: "await call(() => hooks['tool:execute.before']({ tool: 'shell', input: {} }));",
+        body: [
+          "const recorded = async () => (await Bun.file(directory + '/rec.jsonl').text()).split('\\n').filter(Boolean).length;",
+          "const settle = async (count) => { for (let i = 0; i < 400 && (await recorded()) < count; i++) await Bun.sleep(25); await Bun.sleep(200); };",
+          // A subagent's execution never runs stop commands.
+          "push({ type: 'session.execution.succeeded', data: { sessionID: 'child' } });",
+          "push({ type: 'session.execution.succeeded', data: { sessionID: 's1' } });",
+          "await settle(1);",
+          // Once the idle hook runs, the fallback stands down: one run per execution.
+          "await call(() => hooks['session:experimental.idle']({ sessionID: 's1', background: [] }));",
+          "push({ type: 'session.execution.succeeded', data: { sessionID: 's1' } });",
+          "await settle(2);",
+        ].join("\n"),
       });
 
-      expect(out).toEqual([
-        "error: [rulesync-hooks] could not register the experimental.idle hook (OpenCode 2.2.1 or later); stop hooks do not run:",
-        "threw: Blocked by a preToolUse hook.",
+      // The fallback only observes: exit code 2 does not continue the agent there.
+      expect(out).toEqual(["synthetic s1", "ok"]);
+      expect(types).toEqual([
+        [
+          "session.execution.succeeded",
+          "session.execution.failed",
+          "session.execution.interrupted",
+        ],
       ]);
+      expect(records.map((record) => payloadOf(record))).toEqual([
+        { hook_event_name: "Stop", session_id: "s1", stop_hook_active: false, cwd: testDir },
+        { hook_event_name: "Stop", session_id: "s1", stop_hook_active: false, cwd: testDir },
+      ]);
+    }, 60_000);
+
+    it("skips subagent sessions and clears the continue-once guard when a run fails", async () => {
+      const content = generate({
+        hooks: { stop: [{ command: "node hook.cjs stop 2" }] },
+      });
+      const { out, records } = await runUnderBun({
+        content,
+        prelude: [
+          QUEUED_EVENTS_PRELUDE,
+          "ctx.session.synthetic = async ({ sessionID }) => out.push('synthetic ' + sessionID);",
+          "ctx.session.get = async ({ sessionID }) => (sessionID === 'child' ? { parentID: 's1' } : { id: sessionID });",
+          "await mod.default.setup(ctx);",
+        ].join("\n"),
+        body: [
+          "const idle = (sessionID) => call(() => hooks['session:experimental.idle']({ sessionID, background: [] }));",
+          "await idle('child');",
+          "await idle('s1');",
+          // The continued run fails, so the idle hook does not run again in it.
+          "push({ type: 'session.execution.failed', data: { sessionID: 's1' } });",
+          "await Bun.sleep(200);",
+          "await idle('s1');",
+        ].join("\n"),
+      });
+
+      expect(out).toEqual(["ok", "synthetic s1", "ok", "synthetic s1", "ok"]);
+      expect(
+        records.map((record) => (payloadOf(record) as { session_id: string }).session_id),
+      ).toEqual(["s1", "s1"]);
     }, 60_000);
 
     it("keeps the event subscription going when a handler's gate throws", async () => {

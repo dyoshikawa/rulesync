@@ -195,15 +195,23 @@ function buildHookRegistrationLines(hookPoint: string, handlers: V2Handler[]): s
  * session's pending context is registered before that session's first model
  * request asks for it. Handlers still queued at dispose are skipped.
  */
-function buildEventLoopLines(
-  eventHandlers: Map<string, V2Handler[]>,
-  usesContext: boolean,
-): string[] {
+function buildEventLoopLines({
+  eventHandlers,
+  usesContext,
+  usesStop,
+}: {
+  eventHandlers: Map<string, V2Handler[]>;
+  usesContext: boolean;
+  usesStop: boolean;
+}): string[] {
   const lines: string[] = [];
   // Event types come from the internal event map, never from user input. A
   // deleted session's `sessionStart` context is dropped, so its event is read too.
   const eventTypes = new Set(eventHandlers.keys());
   if (usesContext) eventTypes.add("session.deleted");
+  if (usesStop) {
+    for (const eventType of STOP_GUARD_RESET_EVENTS) eventTypes.add(eventType);
+  }
   const types = [...eventTypes].map((eventType) => JSON.stringify(eventType)).join(", ");
   lines.push("const __rulesyncEvents = new AbortController();");
   lines.push("let __rulesyncEventQueue = Promise.resolve();");
@@ -215,6 +223,14 @@ function buildEventLoopLines(
   if (usesContext) {
     lines.push(
       `    if (event.type === "session.deleted") __rulesyncSessionContexts.delete(${V2_SESSION_ID_EXPRESSION});`,
+    );
+  }
+  if (usesStop) {
+    const condition = STOP_GUARD_RESET_EVENTS.map((type) => `event.type === "${type}"`).join(
+      " || ",
+    );
+    lines.push(
+      `    if (${condition}) __rulesyncStopHookContinued.delete(${V2_SESSION_ID_EXPRESSION});`,
     );
   }
   let isFirst = true;
@@ -259,6 +275,52 @@ function buildEventLoopLines(
 const OPENCODE_V2_IDLE_HOOK_POINT = "session:experimental.idle";
 
 /**
+ * The event `stop` falls back to on OpenCode 2.x before 2.2.1, where the host
+ * stores a hook registration under an unknown name without complaint and never
+ * triggers it. OpenCode publishes it when an execution ends, after the drain
+ * loop that runs `experimental.idle` (`session/execution.ts`), so once the idle
+ * hook has run the host is known to support it and the fallback stands down.
+ */
+const OPENCODE_V2_STOP_FALLBACK_EVENT = "session.execution.succeeded";
+
+/**
+ * Events after which a continued session will not reach `experimental.idle`
+ * again in that execution (it failed or was interrupted), so its continue-once
+ * guard is cleared; otherwise the next turn's first stop would be told
+ * `stop_hook_active` and could not continue.
+ */
+const STOP_GUARD_RESET_EVENTS: readonly string[] = [
+  "session.execution.failed",
+  "session.execution.interrupted",
+];
+
+/**
+ * Helpers the generated plugin defines when a `stop` handler is present: the
+ * state the idle hook and the fallback share, and a check for a subagent
+ * session (one with a `parentID`). Claude Code's `Stop` does not fire for
+ * subagents (that is `SubagentStop`), but OpenCode runs `experimental.idle`
+ * for child sessions too, so stop commands skip them. A host whose
+ * `ctx.session.get` fails is treated as a main session.
+ */
+const STOP_STATE_LINES: readonly string[] = [
+  "const __rulesyncStopHookContinued = new Set();",
+  "let __rulesyncIdleSupported = false;",
+  "const __rulesyncIsSubagentSession = async (sessionID) => {",
+  "  try {",
+  "    return Boolean((await ctx.session.get({ sessionID }))?.parentID);",
+  "  } catch {",
+  "    return false;",
+  "  }",
+  "};",
+];
+
+/** The stdin payload of a fallback (observe-only) stop command. */
+const STOP_FALLBACK_PAYLOAD: StdinPayload = {
+  name: "Stop",
+  fields: [`session_id: ${V2_SESSION_ID_EXPRESSION}`, "stop_hook_active: false"],
+};
+
+/**
  * Helper the generated plugin defines when a `stop` handler is present. It runs
  * one stop command and returns the reason to continue the agent with when the
  * command exits with code 2 (its stderr, else its stdout, sanitized), like a
@@ -294,19 +356,22 @@ const STOP_HOOK_HELPER_LINES: readonly string[] = [
  *   execution. The hook runs again after that input, so a session that was just
  *   continued is not continued again: its commands run with `stop_hook_active`
  *   set and the session goes idle. The next idle after that may continue again.
+ * - Subagent sessions are skipped (see `STOP_STATE_LINES`).
  * - A hook that throws fails the execution, so every failure is logged instead.
- * - A host that cannot register the hook (before 2.2.1) logs an error, and the
- *   plugin's other hooks still load.
+ * - Before 2.2.1 the hook never runs, and the observe-only fallback on
+ *   `session.execution.succeeded` runs the commands instead (see
+ *   `OPENCODE_V2_STOP_FALLBACK_EVENT`). A host that throws on the registration
+ *   is logged, and the plugin's other hooks still load.
  */
 function buildIdleHookLines(handlers: V2Handler[]): string[] {
   const separator = OPENCODE_V2_IDLE_HOOK_POINT.indexOf(":");
   const name = OPENCODE_V2_IDLE_HOOK_POINT.slice(separator + 1);
   const lines: string[] = [];
-  lines.push("const __rulesyncStopHookContinued = new Set();");
   lines.push("try {");
   lines.push("  __rulesyncRegistrations.push(");
   lines.push(`    await ctx.session.hook("${name}", async (event) => {`);
   lines.push("      try {");
+  lines.push("        __rulesyncIdleSupported = true;");
   lines.push("        const sessionID = event?.sessionID;");
   lines.push(
     "        const background = Array.isArray(event?.background) ? event.background : [];",
@@ -314,6 +379,7 @@ function buildIdleHookLines(handlers: V2Handler[]): string[] {
   lines.push(
     '        if (background.some((work) => work?.kind !== "shell" && work?.sessionID === sessionID)) return;',
   );
+  lines.push("        if (await __rulesyncIsSubagentSession(sessionID)) return;");
   lines.push("        const stopHookActive = __rulesyncStopHookContinued.delete(sessionID);");
   lines.push(
     ...buildPayloadClosureLines({ handlers, cwdExpression: "directory" }).map(
@@ -345,7 +411,7 @@ function buildIdleHookLines(handlers: V2Handler[]): string[] {
   lines.push("  );");
   lines.push("} catch (error) {");
   lines.push(
-    '  console.error("[rulesync-hooks] could not register the experimental.idle hook (OpenCode 2.2.1 or later); stop hooks do not run:", error);',
+    '  console.error("[rulesync-hooks] could not register the experimental.idle hook; stop hooks only observe:", error);',
   );
   lines.push("}");
   return lines;
@@ -443,10 +509,26 @@ function buildSetupBodyLines({
       body.push(...buildHookRegistrationLines(hookPoint, handlers));
     }
     if (usesContext) body.push(...SESSION_CONTEXT_HOOK_LINES);
-    if (stopHandlers.length > 0) body.push(...buildIdleHookLines(stopHandlers));
+    if (stopHandlers.length > 0)
+      body.push(...STOP_STATE_LINES, ...buildIdleHookLines(stopHandlers));
+  }
+  const usesStop = stopHandlers.length > 0;
+  if (usesStop) {
+    // The fallback runs the same commands, observe-only, while the idle hook is
+    // not known to be supported, and never for a subagent session.
+    const gate = `!__rulesyncIdleSupported && !(await __rulesyncIsSubagentSession(${V2_SESSION_ID_EXPRESSION}))`;
+    eventHandlers.set(OPENCODE_V2_STOP_FALLBACK_EVENT, [
+      ...(eventHandlers.get(OPENCODE_V2_STOP_FALLBACK_EVENT) ?? []),
+      ...stopHandlers.map((handler) => ({
+        ...handler,
+        blocking: false,
+        gate,
+        payload: STOP_FALLBACK_PAYLOAD,
+      })),
+    ]);
   }
   if (eventHandlers.size > 0) {
-    body.push("", ...buildEventLoopLines(eventHandlers, usesContext));
+    body.push("", ...buildEventLoopLines({ eventHandlers, usesContext, usesStop }));
     cleanup.push("  __rulesyncEvents.abort();");
   }
   if (registers) {
