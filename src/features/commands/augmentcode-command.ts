@@ -8,7 +8,7 @@ import {
 } from "../../constants/augmentcode-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
-import { findFilesByGlobs, readFileContent } from "../../utils/file.js";
+import { fileExists, findFilesByGlobs, readFileContent } from "../../utils/file.js";
 import {
   parseFrontmatter,
   stringifyFrontmatter,
@@ -220,6 +220,123 @@ export class AugmentcodeCommand extends ToolCommand {
     global?: boolean;
     logger?: Logger;
   } = {}): Promise<AugmentcodeCommand[]> {
+    // `.txt` commands live in the primary root, so they claim their names
+    // before the shared `.agents/commands/` root does.
+    const textCommands = await this.loadTextCommandFiles({ outputRoot, global, logger });
+    const agentsCommands = await this.loadAgentsCommandFiles({ outputRoot, global, logger });
+    return [...textCommands, ...agentsCommands];
+  }
+
+  /**
+   * Import-only: Auggie 1.x also loads plain-text `.txt` commands from
+   * `.augment/commands/` (project) / `~/.augment/commands/` (global), named
+   * after the file like a `.md` one. Each becomes a `.md` rulesync command.
+   * Generation writes `.md` only and the orphan sweep matches `.md` only, so a
+   * `.txt` file is never written, overwritten or deleted by rulesync.
+   *
+   * @see https://docs.augmentcode.com/cli/custom-commands
+   */
+  private static async loadTextCommandFiles({
+    outputRoot,
+    global,
+    logger,
+  }: {
+    outputRoot: string;
+    global: boolean;
+    logger?: Logger;
+  }): Promise<AugmentcodeCommand[]> {
+    const rootDir = join(outputRoot, AUGMENTCODE_COMMANDS_DIR_PATH);
+    const filePaths = await findFilesByGlobs("**/*.txt", { cwd: rootDir });
+
+    const commands = await Promise.all(
+      filePaths.map(async (filePath) => {
+        const relativePath = relative(rootDir, filePath);
+        if (relativePath.startsWith("..") || isAbsolute(relativePath)) {
+          logger?.warn(`Skipping ${filePath}: it resolves outside ${rootDir}.`);
+          return undefined;
+        }
+        const markdownRelativePath = relativePath.replace(/\.txt$/, ".md");
+        if (await fileExists(join(rootDir, markdownRelativePath))) {
+          // Auggie would see two commands of the same name; the `.md` one is
+          // what rulesync generates, so it is the one imported.
+          logger?.warn(
+            `Skipping ${filePath}: ${join(rootDir, markdownRelativePath)} defines the same ` +
+              `AugmentCode command and is imported instead. Merge any content only the .txt ` +
+              `file has into it and delete the .txt file.`,
+          );
+          return undefined;
+        }
+        // A plain-text command may well start with a `---` line that is not
+        // YAML; one such file must not take the whole import down.
+        const parsed = await this.parseImportOnlyCommandFile({
+          filePath,
+          invalidReason: "its frontmatter is not valid AugmentCode command frontmatter",
+          logger,
+        });
+        if (parsed === undefined) {
+          return undefined;
+        }
+        return new AugmentcodeCommand({
+          outputRoot,
+          relativeDirPath: AUGMENTCODE_COMMANDS_DIR_PATH,
+          relativeFilePath: markdownRelativePath,
+          frontmatter: parsed.frontmatter,
+          body: parsed.body,
+          global,
+        });
+      }),
+    );
+    const imported = commands.filter((command) => command !== undefined);
+    if (imported.length > 0) {
+      logger?.warn(
+        `Importing ${imported.length} AugmentCode .txt command(s) from ` +
+          `${AUGMENTCODE_COMMANDS_DIR_PATH} as .md rulesync command(s). Generation writes .md ` +
+          `files only and never deletes the .txt originals, so delete them by hand after the ` +
+          `next generate, or Auggie sees each command twice.`,
+      );
+    }
+    return imported;
+  }
+
+  /**
+   * Read an import-only command file, or warn and return `undefined` when its
+   * frontmatter does not parse as YAML or does not fit the schema, so one bad
+   * file in an import-only source never aborts the whole import.
+   */
+  private static async parseImportOnlyCommandFile({
+    filePath,
+    invalidReason,
+    logger,
+  }: {
+    filePath: string;
+    invalidReason: string;
+    logger?: Logger;
+  }): Promise<{ frontmatter: AugmentcodeCommandFrontmatter; body: string } | undefined> {
+    const fileContent = await readFileContent(filePath);
+    let parsed: ReturnType<typeof parseFrontmatter>;
+    try {
+      parsed = parseFrontmatter(fileContent, filePath);
+    } catch (error) {
+      logger?.warn(`Skipping ${filePath}: ${invalidReason} (${formatError(error)}).`);
+      return undefined;
+    }
+    const result = AugmentcodeCommandFrontmatterSchema.safeParse(parsed.frontmatter);
+    if (!result.success) {
+      logger?.warn(`Skipping ${filePath}: ${invalidReason} (${formatError(result.error)}).`);
+      return undefined;
+    }
+    return { frontmatter: result.data, body: parsed.body.trim() };
+  }
+
+  private static async loadAgentsCommandFiles({
+    outputRoot,
+    global,
+    logger,
+  }: {
+    outputRoot: string;
+    global: boolean;
+    logger?: Logger;
+  }): Promise<AugmentcodeCommand[]> {
     const rootDir = join(outputRoot, AUGMENTCODE_AGENTS_COMMANDS_DIR_PATH);
     const filePaths = await findFilesByGlobs("**/*.md", { cwd: rootDir });
 
@@ -232,17 +349,15 @@ export class AugmentcodeCommand extends ToolCommand {
           logger?.warn(`Skipping ${filePath}: it resolves outside ${rootDir}.`);
           return undefined;
         }
-        const fileContent = await readFileContent(filePath);
-        const { frontmatter, body } = parseFrontmatter(fileContent, filePath);
-        const result = AugmentcodeCommandFrontmatterSchema.safeParse(frontmatter);
-        if (!result.success) {
-          // This root is shared with other tools, whose frontmatter conventions
-          // differ (Claude Code writes `argument-hint: [message]`, a list). One
-          // such file must not take the whole import down.
-          logger?.warn(
-            `Skipping ${filePath}: it does not carry AugmentCode command frontmatter ` +
-              `(${formatError(result.error)}).`,
-          );
+        // This root is shared with other tools, whose frontmatter conventions
+        // differ (Claude Code writes `argument-hint: [message]`, a list). One
+        // such file must not take the whole import down.
+        const parsed = await this.parseImportOnlyCommandFile({
+          filePath,
+          invalidReason: "it does not carry AugmentCode command frontmatter",
+          logger,
+        });
+        if (parsed === undefined) {
           return undefined;
         }
         return new AugmentcodeCommand({
@@ -254,8 +369,8 @@ export class AugmentcodeCommand extends ToolCommand {
           // produces — the duplicate check compares these strings, and a posix
           // path would miss a collision on Windows.
           relativeFilePath: relativePath,
-          frontmatter: result.data,
-          body: body.trim(),
+          frontmatter: parsed.frontmatter,
+          body: parsed.body,
           global,
         });
       }),
