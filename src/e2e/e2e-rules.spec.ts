@@ -78,6 +78,7 @@ const rulesRootTargets = [
   { target: "continue", outputPath: "AGENTS.md" },
   { target: "pool", outputPath: "AGENTS.md" },
   { target: "dsh", outputPath: "AGENTS.md" },
+  { target: "deepcode", outputPath: "AGENTS.md" },
   { target: "firebender", outputPath: join(".firebender", "AGENTS.md") },
 ] as const;
 
@@ -1838,6 +1839,7 @@ describe("E2E: rules (import)", () => {
     { target: "codewhale", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "continue", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "dsh", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
+    { target: "deepcode", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "vibe", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     {
       target: "cline",
@@ -2133,6 +2135,7 @@ const rulesGlobalTargets = [
   { target: "continue", outputPath: join(".continue", "rules", "AGENTS.md") },
   { target: "pool", outputPath: join(".config", "poolside", "AGENTS.md") },
   { target: "dsh", outputPath: join(".dsh", "AGENTS.md") },
+  { target: "deepcode", outputPath: join(".deepcode", "AGENTS.md") },
   { target: "firebender", outputPath: join(".firebender", "AGENTS.md") },
 ] as const;
 

@@ -617,6 +617,8 @@ export const KIMI_CODE_CONFIG_SHARED_FILE_KEY = ".kimi-code/config.toml";
 const KIMI_CODE_HOME_CONFIG_SHARED_FILE_KEY = "config.toml";
 const REASONIX_PROJECT_CONFIG_SHARED_FILE_KEY = "reasonix.toml";
 const REASONIX_GLOBAL_CONFIG_SHARED_FILE_KEY = ".reasonix/config.toml";
+const DEEPCODE_PROJECT_CONFIG_SHARED_FILE_KEY = "deepcode_config.json";
+const DEEPCODE_GLOBAL_CONFIG_SHARED_FILE_KEY = ".deepcode/deepcode_config.json";
 export const ROVODEV_CONFIG_SHARED_FILE_KEY = ".rovodev/config.yml";
 const OPENCLAW_CONFIG_SHARED_FILE_KEY = ".openclaw/openclaw.json";
 const POOL_PROJECT_SETTINGS_SHARED_FILE_KEY = ".poolside/settings.yaml";
@@ -919,6 +921,26 @@ const REASONIX_CONFIG_DECLARATION: SharedConfigFileDeclaration = {
       kind: "replace-owned-keys",
       ownedKeys: ["permissions", "sandbox", "agent", "tools"],
     },
+  },
+};
+
+/**
+ * DeepCode's `deepcode_config.json`, shared by the project
+ * (`./deepcode_config.json`) and user (`~/.deepcode/deepcode_config.json`)
+ * spellings. It is the user's primary DeepCode config (access preset, model
+ * defaults, egress, skills, dictation, ...), so an unparseable root fails
+ * closed. mcp owns `mcpServers`; permissions owns `security`. Both writers
+ * recompute their key from the existing file before applying it: the MCP
+ * writer keeps the native-only keys of a server it rewrites, and the
+ * permissions writer replaces only `security.permissions`, carrying
+ * `accessPreset`, `sandbox` and every other `security` key over.
+ */
+const DEEPCODE_CONFIG_DECLARATION: SharedConfigFileDeclaration = {
+  format: "json",
+  invalidRootPolicy: "error",
+  features: {
+    mcp: { kind: "replace-owned-keys", ownedKeys: ["mcpServers"] },
+    permissions: { kind: "replace-owned-keys", ownedKeys: ["security"] },
   },
 };
 
@@ -1546,6 +1568,8 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
   [KIMI_CODE_HOME_CONFIG_SHARED_FILE_KEY]: KIMI_CODE_CONFIG_DECLARATION,
   [REASONIX_PROJECT_CONFIG_SHARED_FILE_KEY]: REASONIX_CONFIG_DECLARATION,
   [REASONIX_GLOBAL_CONFIG_SHARED_FILE_KEY]: REASONIX_CONFIG_DECLARATION,
+  [DEEPCODE_PROJECT_CONFIG_SHARED_FILE_KEY]: DEEPCODE_CONFIG_DECLARATION,
+  [DEEPCODE_GLOBAL_CONFIG_SHARED_FILE_KEY]: DEEPCODE_CONFIG_DECLARATION,
   [ROVODEV_CONFIG_SHARED_FILE_KEY]: {
     format: "yaml",
     features: {

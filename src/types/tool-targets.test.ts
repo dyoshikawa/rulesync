@@ -81,6 +81,7 @@ describe("tool targets", () => {
         "zed",
         "zoocode",
         "dsh",
+        "deepcode",
         "androidstudio",
         "lettacode",
         "claudecode-plugin",

@@ -85,4 +85,5 @@ export const TOOL_DISPLAY: ReadonlyArray<ToolDisplayEntry> = [
   { key: "zcode-plugin", label: "ZCode plugin", group: "ai" },
   { key: "pool", label: "Pool (Poolside)", group: "ai" },
   { key: "dsh", label: "DeepSeek Harness", group: "ai" },
+  { key: "deepcode", label: "DeepCode", group: "ai" },
 ];

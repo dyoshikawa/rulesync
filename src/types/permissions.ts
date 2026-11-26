@@ -1906,6 +1906,7 @@ export const PermissionsConfigSchema = z.looseObject({
   rovodev: z.optional(CanonicalPermissionsOverrideSchema),
   trae: z.optional(CanonicalPermissionsOverrideSchema),
   zoocode: z.optional(CanonicalPermissionsOverrideSchema),
+  deepcode: z.optional(CanonicalPermissionsOverrideSchema),
 });
 export type PermissionsConfig = z.infer<typeof PermissionsConfigSchema>;
 

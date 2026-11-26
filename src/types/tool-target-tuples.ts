@@ -67,6 +67,7 @@ export const rulesProcessorToolTargetTuple = [
   "zed",
   "zoocode",
   "dsh",
+  "deepcode",
 ] as const;
 
 export const ignoreProcessorToolTargetTuple = [
@@ -169,6 +170,7 @@ export const mcpProcessorToolTargetTuple = [
   "zcode-plugin",
   "zed",
   "zoocode",
+  "deepcode",
 ] as const;
 
 export const commandsProcessorToolTargetTuple = [
@@ -284,6 +286,7 @@ export const subagentsProcessorToolTargetTuple = [
   "xum",
   "zcode",
   "zcode-plugin",
+  "deepcode",
 ] as const;
 
 export const skillsProcessorToolTargetTuple = [
@@ -356,6 +359,7 @@ export const skillsProcessorToolTargetTuple = [
   "dsh",
   "lettacode",
   "openclaw",
+  "deepcode",
 ] as const;
 
 export const hooksProcessorToolTargetTuple = [
@@ -463,6 +467,7 @@ export const permissionsProcessorToolTargetTuple = [
   "warpcli",
   "zed",
   "zoocode",
+  "deepcode",
 ] as const;
 
 export const checksProcessorToolTargetTuple = [

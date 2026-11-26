@@ -43,6 +43,7 @@ import { CortexcodeRule } from "./cortexcode-rule.js";
 import { CrushRule } from "./crush-rule.js";
 import { CursorRule } from "./cursor-rule.js";
 import { DeepagentsRule } from "./deepagents-rule.js";
+import { DeepcodeRule } from "./deepcode-rule.js";
 import { DevinPluginRule } from "./devin-plugin-rule.js";
 import { DevinRule } from "./devin-rule.js";
 import { DshRule } from "./dsh-rule.js";
@@ -1408,6 +1409,25 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         // neither user-global root has a local overlay.
         localRootMode: "separate-local-file",
         localRootFileName: "AGENTS.local.md",
+      },
+    },
+  ],
+  [
+    "deepcode",
+    {
+      class: DeepcodeRule,
+      meta: {
+        // DeepCode reads the project-root AGENTS.md plus per-package AGENTS.md
+        // files (the one closer to the working directory wins on conflicts) and
+        // a personal `~/.deepcode/AGENTS.md`. There is no modular rules
+        // directory, so topic rules fold into the root file, while
+        // directory-scoped rules (`agentsmd.subprojectPath`) are emitted as
+        // nested `<dir>/AGENTS.md` files (mirrors dsh/warp).
+        // https://github.com/HKUDS/DeepCode/blob/main/docs/guide/skills-and-memory.md
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
+        collisionPolicy: "fold",
       },
     },
   ],

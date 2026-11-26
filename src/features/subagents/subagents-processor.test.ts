@@ -2169,6 +2169,7 @@ Second global content`;
         "openbitfun",
         "xum",
         "zcode",
+        "deepcode",
       ]);
     });
 
@@ -2255,6 +2256,7 @@ Second global content`;
           "xum",
           "zcode",
           "zcode-plugin",
+          "deepcode",
         ]),
       );
       expect(Array.isArray(subagentsProcessorToolTargets)).toBe(true);

@@ -84,6 +84,7 @@ const mcpGenerateTargets = [
   { target: "reasonix", outputPath: "reasonix.toml" },
   { target: "rovodev", outputPath: join(".rovodev", "mcp.json") },
   { target: "zcode", outputPath: join(".zcode", "config.json") },
+  { target: "deepcode", outputPath: "deepcode_config.json" },
 ] as const;
 
 describe("E2E: mcp", () => {
@@ -988,6 +989,21 @@ describe("E2E: mcp (import)", () => {
     // Legacy pre-v3000.3 location: import must fall back to config.json's
     // mcpServers key when no mcp_config.json exists.
     { target: "devin", sourcePath: join(".devin", "config.json") },
+    // DeepCode requires an explicit `type` on every server.
+    {
+      target: "deepcode",
+      sourcePath: "deepcode_config.json",
+      sourceContent: JSON.stringify(
+        {
+          security: { accessPreset: "ask" },
+          mcpServers: {
+            "test-server": { type: "stdio", command: "echo", args: ["hello"] },
+          },
+        },
+        null,
+        2,
+      ),
+    },
   ])("should import $target mcp", async ({ target, sourcePath, sourceContent }) => {
     const testDir = getTestDir();
 
@@ -1171,6 +1187,7 @@ const mcpGlobalTargets = [
   { target: "kiro-ide", outputPath: join(".kiro", "settings", "mcp.json") },
   { target: "zcode", outputPath: join(".zcode", "cli", "config.json") },
   { target: "dsh", outputPath: join(".dsh", "cordis.patch.yml") },
+  { target: "deepcode", outputPath: join(".deepcode", "deepcode_config.json") },
 ] as const;
 
 describe("E2E: mcp (global mode)", () => {

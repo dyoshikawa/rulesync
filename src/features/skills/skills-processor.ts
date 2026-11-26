@@ -57,6 +57,7 @@ import { CortexcodeSkill } from "./cortexcode-skill.js";
 import { CrushSkill } from "./crush-skill.js";
 import { CursorSkill } from "./cursor-skill.js";
 import { DeepagentsSkill } from "./deepagents-skill.js";
+import { DeepcodeSkill } from "./deepcode-skill.js";
 import { DevinPluginSkill } from "./devin-plugin-skill.js";
 import { DevinSkill } from "./devin-skill.js";
 import { DshSkill } from "./dsh-skill.js";
@@ -890,6 +891,16 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
       // the managed/local `~/.openclaw/skills/` root (global).
       // https://docs.openclaw.ai/tools/skills
       class: OpenclawSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "deepcode",
+    {
+      // DeepCode skills are directories (`<name>/SKILL.md`) under the
+      // cross-tool `.agents/skills/` (project) / `~/.agents/skills/` (user).
+      // https://github.com/HKUDS/DeepCode/blob/main/docs/guide/skills-and-memory.md
+      class: DeepcodeSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],

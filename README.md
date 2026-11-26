@@ -156,6 +156,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | ZCode plugin              |       |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |             |        |
 | Pool (Poolside)           |  ✅   |        | ✅  |          |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | DeepSeek Harness          |  ✅   |        | ✅  |          |           |   ✅   |       |             |        |
+| DeepCode                  |  ✅   |        | ✅  |          |    ✅     |   ✅   |       |     ✅      |        |
 
 <!-- SUPPORTED_TOOLS_AI:END -->
 

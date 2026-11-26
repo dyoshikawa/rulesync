@@ -2736,6 +2736,7 @@ Content that would fail parsing`;
         "zcode",
         "zed",
         "dsh",
+        "deepcode",
       ]);
     });
 
@@ -2805,7 +2806,8 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("openclaw");
       expect(globalTargets).toContain("qoder");
       expect(globalTargets).toContain("xum");
-      expect(globalTargets.length).toBe(51);
+      expect(globalTargets).toContain("deepcode");
+      expect(globalTargets.length).toBe(52);
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");
@@ -6010,6 +6012,7 @@ targets: ["factorydroid"]
         "xum",
         "zcode",
         "dsh",
+        "deepcode",
       ]);
     });
 

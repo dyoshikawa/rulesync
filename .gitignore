@@ -461,6 +461,7 @@ rulesync.local.jsonc
 **/.openbitfun/agents/
 **/.xum/agents/
 **/.zcode/agents/
+**/.agents/presets/
 **/.ai/mcp/mcp.json
 **/.agents/mcp_config.json
 **/.augment/settings.json
@@ -487,6 +488,7 @@ rulesync.local.jsonc
 **/.warp/.mcp.json
 **/.xum/mcp.jsonc
 **/.devin/mcp_config.json
+**/deepcode_config.json
 **/.amp/plugins/rulesync-hooks.ts
 **/.agents/hooks.json
 **/.cursor/hooks.json
