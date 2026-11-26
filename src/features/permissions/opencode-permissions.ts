@@ -22,6 +22,7 @@ import {
   lowerOpencodeV2Mcp,
   mergeOpencodeConfigValues,
   setOwnEntry,
+  toOpencodeV2PermissionAction,
   toOpencodeV2PermissionRules,
   readOpencodeDotDirConfigLayers,
   warnOpencodeDotDirOverrides,
@@ -32,7 +33,10 @@ import {
   sanitizeOpencodeMcpNamePart,
 } from "../shared/opencode-family-mcp-tool-keys.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
-import { restateAllToolsRestrictionsLast } from "./last-match-restate.js";
+import {
+  orderIntegerLikeRestrictionsLast,
+  restateAllToolsRestrictionsLast,
+} from "./last-match-restate.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { honorAllToolsOnBash, MCP_CATEGORY_PREFIX } from "./shell-command-categories.js";
 import {
@@ -369,6 +373,28 @@ function fromOpencodeV2PermissionRules(
 }
 
 /**
+ * OpenCode V2's `permissions` array for a V1-shaped map, with each key's
+ * integer-like deny or ask patterns that a looser rule after them overlaps
+ * moved to the end of the key's rules as written: the map hoisted them first
+ * (JavaScript object order), while the array keeps the order it is given, so
+ * the stricter rule wins under last-match-wins as it does canonically.
+ */
+function toOrderedV2PermissionRules(
+  permission: Record<string, OpencodePermission>,
+): ReturnType<typeof toOpencodeV2PermissionRules> {
+  return Object.entries(permission).flatMap(([key, value]) => {
+    if (typeof value === "string") {
+      return toOpencodeV2PermissionRules({ [key]: value });
+    }
+    const action = toOpencodeV2PermissionAction(key);
+    return orderIntegerLikeRestrictionsLast({
+      entries: Object.entries(value),
+      respell: false,
+    }).entries.map(([resource, effect]) => ({ action, resource, effect }));
+  });
+}
+
+/**
  * Translates the shared canonical permission block into OpenCode's native
  * permission keys (`agent` → `task`, `write` → `edit`), so each rule is
  * written under the key OpenCode actually reads. A folded `write` is merged
@@ -378,11 +404,13 @@ function toOpencodeSharedPermission({
   permission,
   toolTarget,
   allToolsOverridden,
+  respellIntegerLikeKeys,
   logger,
 }: {
   permission: PermissionsConfig["permission"];
   toolTarget: string;
   allToolsOverridden: boolean;
+  respellIntegerLikeKeys: boolean;
   logger?: Logger;
 }): Record<string, Record<string, PermissionAction>> {
   const sharedPermission: Record<string, Record<string, PermissionAction>> = {};
@@ -428,6 +456,7 @@ function toOpencodeSharedPermission({
     sharedPermission,
     toolTarget,
     allToolsOverridden,
+    respellIntegerLikeKeys,
     logger,
   });
 }
@@ -595,14 +624,17 @@ export class OpencodePermissions extends ToolPermissions {
     // replaces the shared entry without affecting other tools' outputs.
     const overridePermission = rulesyncJson[this.layout.toolTarget]?.permission ?? {};
 
+    const isV2 = this.layout.configVersion === "v2";
     const sharedPermission = toOpencodeSharedPermission({
       permission: rulesyncJson.permission ?? {},
       toolTarget: this.layout.toolTarget,
       allToolsOverridden: Object.hasOwn(overridePermission, "*"),
+      // V2's `permissions` array keeps any order, so integer-like keys are
+      // moved there as written instead (see `toOrderedV2PermissionRules`).
+      respellIntegerLikeKeys: !isV2,
       logger,
     });
 
-    const isV2 = this.layout.configVersion === "v2";
     const permission: Record<string, OpencodePermission> = {};
     for (const [category, value] of Object.entries({
       ...sharedPermission,
@@ -618,7 +650,7 @@ export class OpencodePermissions extends ToolPermissions {
     // `permissions` array, so the V2 write retracts the V1 map rather than
     // leaving stale rules in front of the generated ones.
     const patch = isV2
-      ? { permissions: toOpencodeV2PermissionRules(permission), permission: undefined }
+      ? { permissions: toOrderedV2PermissionRules(permission), permission: undefined }
       : { permission };
 
     warnOpencodeDotDirOverrides({
