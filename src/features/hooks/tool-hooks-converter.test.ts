@@ -3,6 +3,8 @@ import { describe, expect, it } from "vite-plus/test";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import type { HooksConfig } from "../../types/hooks.js";
 import { ClaudecodeHooks } from "./claudecode-hooks.js";
+import { CODEXCLI_CONVERTER_CONFIG } from "./codexcli-hooks.js";
+import { FACTORYDROID_CONVERTER_CONFIG } from "./factorydroid-hooks.js";
 import {
   buildImportedHooksConfig,
   canonicalToToolHooks,
@@ -1131,4 +1133,32 @@ describe("toolHooksToCanonical with a native key spelled like a canonical event"
     expect(canonical).toEqual({ stop: [{ type: "command", command: "./stop.sh" }] });
     expect(logger.warn).not.toHaveBeenCalled();
   });
+});
+
+describe("toolHooksToCanonical with real converter configs", () => {
+  it.each([
+    ["codexcli", CODEXCLI_CONVERTER_CONFIG],
+    ["factorydroid", FACTORYDROID_CONVERTER_CONFIG],
+  ])(
+    "keeps the native SessionStart of %s and skips camelCase sessionStart",
+    (_, converterConfig) => {
+      const logger = createMockLogger();
+
+      const canonical = toolHooksToCanonical({
+        hooks: {
+          SessionStart: [{ hooks: [{ type: "command", command: "./native.sh" }] }],
+          sessionStart: [{ hooks: [{ type: "command", command: "./inert.sh" }] }],
+        },
+        converterConfig,
+        logger,
+      });
+
+      expect(canonical).toEqual({
+        sessionStart: [{ type: "command", command: "./native.sh" }],
+      });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Skipping imported hooks event "sessionStart"'),
+      );
+    },
+  );
 });
