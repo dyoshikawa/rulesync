@@ -663,15 +663,18 @@ function addCodexFilesystemRules({
 //   and the `:workspace` baseline re-grants the workspace above them, so
 //   `.git` still needs the carve-out; or
 // - a deny (or an ask other than the catch-all, which is the documented
-//   default idiom) under the all-tools `*` category names any path in `.git`
-//   (`{"*": {"*": "deny"}}`, `{"*": {".git/hooks/**": "deny"}}`,
+//   default idiom) under the all-tools `*` category matches a path git
+//   itself writes (`{"*": {"*": "deny"}}`, `{"*": {".git/hooks/**": "deny"}}`,
 //   `{"*": {".g*": "deny"}}`). Codex has no all-tools rule, so such a
 //   restriction may be written nowhere in the profile, and the carve-out
 //   would grant write access to it (`.git/hooks` writable is code execution
-//   on the next git command). The patterns are compared as globs the way
-//   every `*` restriction is (a `*` crosses `/`), exactly as if the carve-out
-//   were a `.git/**` allow the restriction withholds; a command (a pattern
-//   with whitespace) names no path and is left out.
+//   on the next git command). Each pattern is matched the way every `*`
+//   restriction is (a `*` crosses `/`) against the concrete paths in
+//   `GIT_WRITTEN_PATHS`, case-insensitively since `.GIT` names the same
+//   directory on macOS and Windows. A broad pattern that only overlaps
+//   `.git/**` in theory (`*.env`, `**/*.pem`, `*secret*`) matches none of them
+//   and keeps the carve-out; a command (a pattern with whitespace) names no
+//   path and is left out.
 function applyDefaultGitWriteRules({
   config,
   filesystem,
@@ -713,10 +716,25 @@ function applyDefaultGitWriteRules({
   }
 }
 
+// Concrete paths git writes in a repository, which an all-tools `*`
+// restriction must not match for the default `.git` carve-out to be emitted.
+const GIT_WRITTEN_PATHS = [
+  ".git",
+  ".git/index",
+  ".git/HEAD",
+  ".git/config",
+  // cspell:disable-next-line
+  ".git/COMMIT_EDITMSG",
+  ".git/objects/ab/cdef0123",
+  ".git/refs/heads/main",
+  ".git/hooks/pre-commit",
+  ".git/logs/HEAD",
+].map((path) => path.toLowerCase());
+
 // The first deny (or non-catch-all ask) path pattern under the all-tools `*`
-// category that names a path in `.git`; see applyDefaultGitWriteRules.
+// category that matches a path git writes; see applyDefaultGitWriteRules.
 function restrictedByAllToolsCategory(config: PermissionsConfig): string | undefined {
-  const restrictions = Object.entries(
+  return Object.entries(
     lookupOwn({ record: config.permission, key: ALL_TOOLS_PERMISSION_CATEGORY }) ?? {},
   )
     .filter(
@@ -724,12 +742,13 @@ function restrictedByAllToolsCategory(config: PermissionsConfig): string | undef
         !/\s/.test(pattern) &&
         (action === "deny" || (action === "ask" && pattern !== CATCH_ALL_PATTERN)),
     )
-    .map(([pattern]) => ({ pattern, fromAllToolsCategory: true }));
-  if (restrictions.length === 0) return undefined;
-  const shadowing = createShadowingRestrictionsTest(restrictions);
-  return [".git", ".git/**", "./.git/**", "/.git/**"]
-    .flatMap((gitPath) => shadowing(gitPath))
-    .at(0);
+    .map(([pattern]) => pattern)
+    .find((pattern) => {
+      const matches = createShadowingRestrictionsTest([
+        { pattern: pattern.toLowerCase().replace(/^\.?\//, ""), fromAllToolsCategory: true },
+      ]);
+      return GIT_WRITTEN_PATHS.some((path) => matches(path).length > 0);
+    });
 }
 
 // Whether the most specific other entry of a `:workspace_roots` table that

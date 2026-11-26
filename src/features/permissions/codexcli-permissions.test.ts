@@ -3706,6 +3706,8 @@ command = "node"
           "a '.git/hooks/**' deny written nowhere else",
           { "*": { ".git/hooks/**": "deny" }, bash: { ls: "allow" } },
         ],
+        ["an upper-case '.GIT/hooks/**' deny", { "*": { ".GIT/hooks/**": "deny" } }],
+        ["a './.git/**' deny", { "*": { "./.git/**": "deny" } }],
       ])("%s", async (_label, permission) => {
         const logger = createMockLogger();
         const fileContent = await generateFile({ permission, logger });
@@ -3719,6 +3721,10 @@ command = "node"
         ["a catch-all ask (the default idiom)", { "*": { "*": "ask" } }],
         ["a path deny outside .git", { "*": { "src/**": "deny" } }],
         ["a command ask", { "*": { "git push *": "ask" } }],
+        ["a '*.env' deny", { "*": { "*.env": "deny" } }],
+        ["a '*.log' deny", { "*": { "*.log": "deny" } }],
+        ["a '**/*.pem' deny", { "*": { "**/*.pem": "deny" } }],
+        ["a '*secret*' ask", { "*": { "*secret*": "ask" } }],
       ])("keeps the carve-out for %s", async (_label, permission) => {
         const logger = createMockLogger();
         const fileContent = await generateFile({ permission, logger });
