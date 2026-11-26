@@ -2024,6 +2024,43 @@ This is a test project for E2E testing.
     expect(generated).toContain("description: API rules");
     expect(await fileExists(join(testDir, ".trae", "rules", "api.md"))).toBe(false);
   });
+
+  // Qoder loads `.qoder/rules/` in any project subdirectory on demand.
+  // https://docs.qoder.com/cli/memory
+  it("should import nested qoder rules and round-trip their subproject scope", async () => {
+    const testDir = getTestDir();
+
+    // The entry `rulesync gitignore` writes for Qoder must not hide the nested
+    // rules directories from the import scan.
+    await writeFileContent(join(testDir, ".gitignore"), "**/.qoder/rules/\nvendored/\n");
+    await writeFileContent(
+      join(testDir, "vendored", "dep", ".qoder", "rules", "dep.md"),
+      "# Vendored\n",
+    );
+
+    await writeFileContent(join(testDir, "AGENTS.md"), "# Project Overview\n");
+    await writeFileContent(
+      join(testDir, "packages", "app", ".qoder", "rules", "app.md"),
+      "---\ntrigger: model_decision\ndescription: App rules\n---\n# App Instructions\n",
+    );
+
+    await runImport({ target: "qoder", features: "rules" });
+
+    const importedNested = await readFileContent(join(testDir, ".rulesync", "rules", "app.md"));
+    expect(importedNested).toContain("App Instructions");
+    expect(importedNested).toContain("subprojectPath: packages/app");
+    expect(await fileExists(join(testDir, ".rulesync", "rules", "dep.md"))).toBe(false);
+
+    await removeFile(join(testDir, "packages", "app", ".qoder", "rules", "app.md"));
+    await runGenerate({ target: "qoder", features: "rules" });
+
+    const generated = await readFileContent(
+      join(testDir, "packages", "app", ".qoder", "rules", "app.md"),
+    );
+    expect(generated).toContain("App Instructions");
+    expect(generated).toContain("trigger: model_decision");
+    expect(await fileExists(join(testDir, ".qoder", "rules", "app.md"))).toBe(false);
+  });
 });
 
 const rulesGlobalTargets = [
