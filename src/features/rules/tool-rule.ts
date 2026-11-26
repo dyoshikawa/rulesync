@@ -474,6 +474,17 @@ export abstract class ToolRule extends ToolFile {
     return false;
   }
 
+  /**
+   * Why this imported file must not become a rulesync rule, or `undefined`
+   * to import it. Checked for the files of an `importOnly` extra-file
+   * directory, which also hold hand-written files: one the tool itself would
+   * skip (e.g. a Qwen Code output style with a reserved name) is skipped with
+   * a warning instead of failing the whole import.
+   */
+  getImportSkipReason(): string | undefined {
+    return undefined;
+  }
+
   getDescription(): string | undefined {
     return this.description;
   }

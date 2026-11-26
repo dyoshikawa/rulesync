@@ -761,6 +761,89 @@ describe("QwencodeRule", () => {
       expect(() => buildOutputStyleRule({ name: "a".repeat(65) })).toThrow();
     });
 
+    it("should refuse a rule file stem longer than 64 characters when no name is set", () => {
+      expect(() =>
+        QwencodeRule.fromRulesyncRule({
+          outputRoot: testDir,
+          rulesyncRule: buildOutputStyleRule({ relativeFilePath: `${"a".repeat(65)}.md` }),
+          validate: true,
+        }),
+      ).toThrow(/longer than 64 characters/);
+    });
+
+    it.each([
+      {
+        case: "a name longer than 64 characters",
+        fileName: "long.md",
+        content: `---\nname: ${"a".repeat(65)}\n---\nBody.\n`,
+        reason: /longer than 64 characters/,
+      },
+      {
+        case: "a reserved name",
+        fileName: "custom.md",
+        content: "---\nname: Default\n---\nBody.\n",
+        reason: /reserved/,
+      },
+      {
+        case: "a reserved file stem",
+        fileName: "DEFAULT.md",
+        content: "Body.\n",
+        reason: /reserved/,
+      },
+      {
+        case: "an empty body",
+        fileName: "empty.md",
+        content: "---\nname: Empty\n---\n\n",
+        reason: /empty body/,
+      },
+      {
+        case: "a body that is only an HTML comment",
+        fileName: "note.md",
+        content: "<!-- just a note -->\n",
+        reason: /empty body/,
+      },
+      {
+        case: "a file larger than 25 kB",
+        fileName: "big.md",
+        content: "a".repeat(25_001),
+        reason: /larger than 25000 bytes/,
+      },
+    ])("should report a skip reason on import for $case", async ({ fileName, content, reason }) => {
+      await writeFileContent(join(testDir, ".qwen", "output-styles", fileName), content);
+
+      const qwencodeRule = await QwencodeRule.fromFile({
+        outputRoot: testDir,
+        relativeDirPath: join(".qwen", "output-styles"),
+        relativeFilePath: fileName,
+      });
+
+      expect(qwencodeRule.getImportSkipReason()).toMatch(reason);
+    });
+
+    it("should report no skip reason for a loadable style or a context rule", async () => {
+      await writeFileContent(
+        join(testDir, ".qwen", "output-styles", "reviewer.md"),
+        "---\nname: Reviewer\n---\nBody.\n",
+      );
+      const style = await QwencodeRule.fromFile({
+        outputRoot: testDir,
+        relativeDirPath: join(".qwen", "output-styles"),
+        relativeFilePath: "reviewer.md",
+      });
+      expect(style.getImportSkipReason()).toBeUndefined();
+
+      const contextRule = new QwencodeRule({
+        outputRoot: testDir,
+        relativeDirPath: join(".qwen", "rules"),
+        relativeFilePath: "default.md",
+        frontmatter: {},
+        body: "",
+        validate: true,
+        root: false,
+      });
+      expect(contextRule.getImportSkipReason()).toBeUndefined();
+    });
+
     it.each([false, true])(
       "should import an output style back to qwencode.channel: output-style (global: %s)",
       async (global) => {

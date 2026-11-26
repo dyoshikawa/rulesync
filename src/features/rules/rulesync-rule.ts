@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { z } from "zod/mini";
 
+import { QWENCODE_MAX_OUTPUT_STYLE_NAME_LENGTH } from "../../constants/qwencode-paths.js";
 import {
   RULESYNC_RELATIVE_DIR_PATH,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
@@ -184,7 +185,11 @@ export const RulesyncRuleFrontmatterSchema = z.object({
       // The output style's `name` frontmatter. Only read with
       // `channel: output-style`; Qwen Code defaults it to the file name and
       // skips a name longer than 64 characters.
-      name: z.optional(z.string().check(z.trim(), z.minLength(1), z.maxLength(64))),
+      name: z.optional(
+        z
+          .string()
+          .check(z.trim(), z.minLength(1), z.maxLength(QWENCODE_MAX_OUTPUT_STYLE_NAME_LENGTH)),
+      ),
       // The output style's `keep-coding-instructions` frontmatter: `true`
       // keeps the built-in software-engineering guidance alongside the style.
       // Only read with `channel: output-style`.

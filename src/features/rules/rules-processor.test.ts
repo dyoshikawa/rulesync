@@ -1492,6 +1492,39 @@ describe("RulesProcessor", () => {
       },
     );
 
+    it("should skip a hand-written qwencode output style Qwen Code would skip instead of failing the import", async () => {
+      await writeFileContent(
+        join(testDir, ".qwen", "output-styles", "reviewer.md"),
+        "Start with findings.",
+      );
+      await writeFileContent(
+        join(testDir, ".qwen", "output-styles", "long.md"),
+        `---\nname: ${"a".repeat(65)}\n---\nBody.\n`,
+      );
+      await writeFileContent(join(testDir, ".qwen", "output-styles", "default.md"), "Body.");
+      const warnSpy = vi.spyOn(logger, "warn");
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "qwencode" });
+      const imported = await processor.loadToolFiles();
+      const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(imported);
+
+      expect(rulesyncFiles.map((file) => file.getRelativeFilePath())).toEqual(["reviewer.md"]);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringMatching(
+          /Skipping \.qwen\/output-styles\/long\.md on import: .*longer than 64/,
+        ),
+      );
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringMatching(/Skipping \.qwen\/output-styles\/default\.md on import: .*reserved/),
+      );
+
+      // The imported style generates back without error.
+      const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
+      expect(
+        toolFiles.map((file) => join(file.getRelativeDirPath(), file.getRelativeFilePath())),
+      ).toContain(join(".qwen", "output-styles", "reviewer.md"));
+    });
+
     it.each([false, true])(
       "should generate qwencode output-style rules into .qwen/output-styles instead of .qwen/rules (global: %s)",
       async (global) => {

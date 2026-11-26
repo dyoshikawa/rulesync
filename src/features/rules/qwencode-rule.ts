@@ -1,10 +1,11 @@
-import { join, posix } from "node:path";
+import { basename, extname, join, posix } from "node:path";
 
 import { z } from "zod/mini";
 
 import {
   QWENCODE_DIR,
   QWENCODE_MAX_OUTPUT_STYLE_FILE_BYTES,
+  QWENCODE_MAX_OUTPUT_STYLE_NAME_LENGTH,
   QWENCODE_OUTPUT_STYLES_DIR_PATH,
   QWENCODE_RESERVED_OUTPUT_STYLE_NAMES,
   QWENCODE_RULE_FILE_NAME,
@@ -85,6 +86,45 @@ type QwencodeRuleRootParams = ToolRuleParams & {
  * the directory.
  */
 const OUTPUT_STYLE_FILE_GLOB = "*.md";
+
+/**
+ * Why Qwen Code would skip an output style with this name, body and file
+ * content, or `undefined` when it would load it. Mirrors the upstream loader:
+ * the name must be non-empty, at most 64 characters, free of control and
+ * format characters and not `default`; the body (with HTML comments
+ * stripped) must not be empty; the file must be at most 25,000 bytes.
+ * @see https://github.com/QwenLM/qwen-code/blob/main/packages/core/src/core/output-style-files.ts
+ */
+function findOutputStyleProblem({
+  styleName,
+  body,
+  fileContent,
+}: {
+  styleName: string;
+  body: string;
+  fileContent: string;
+}): string | undefined {
+  const name = styleName.trim();
+  if (name === "") {
+    return "the style name is empty";
+  }
+  if (name.length > QWENCODE_MAX_OUTPUT_STYLE_NAME_LENGTH) {
+    return `the style name is longer than ${QWENCODE_MAX_OUTPUT_STYLE_NAME_LENGTH} characters`;
+  }
+  if (/[\p{Cc}\p{Cf}]/u.test(name)) {
+    return "the style name contains control characters";
+  }
+  if (QWENCODE_RESERVED_OUTPUT_STYLE_NAMES.includes(name.toLowerCase())) {
+    return `the style name '${name}' is reserved for Qwen Code's built-in default style`;
+  }
+  if (body.replace(/<!--[\s\S]*?-->/g, "").trim() === "") {
+    return "the style has an empty body";
+  }
+  if (Buffer.byteLength(fileContent, "utf8") > QWENCODE_MAX_OUTPUT_STYLE_FILE_BYTES) {
+    return `the style file is larger than ${QWENCODE_MAX_OUTPUT_STYLE_FILE_BYTES} bytes`;
+  }
+  return undefined;
+}
 
 export type QwencodeRuleParams = QwencodeRuleNonRootParams | QwencodeRuleRootParams;
 
@@ -456,18 +496,7 @@ export class QwencodeRule extends ToolRule {
       message: `Rule '${sourcePath}' sets qwencode.channel: output-style but is nested in a subdirectory: Qwen Code reads only the files directly in .qwen/output-styles/, so move it to the top of ${RULESYNC_RULES_RELATIVE_DIR_PATH}.`,
     });
     const name = frontmatter.qwencode?.name;
-    const styleName = name ?? stem;
-    if (QWENCODE_RESERVED_OUTPUT_STYLE_NAMES.includes(styleName.trim().toLowerCase())) {
-      throw new Error(
-        `Rule '${sourcePath}' sets qwencode.channel: output-style with the style name '${styleName}', which is reserved for Qwen Code's built-in default style. Rename the rule file or set qwencode.name.`,
-      );
-    }
     const body = rulesyncRule.getBody();
-    if (body.trim() === "") {
-      throw new Error(
-        `Rule '${sourcePath}' sets qwencode.channel: output-style but has an empty body: Qwen Code skips an output style with no instructions.`,
-      );
-    }
 
     const keepCodingInstructions = frontmatter.qwencode?.["keep-coding-instructions"];
     const styleFrontmatter = {
@@ -480,9 +509,10 @@ export class QwencodeRule extends ToolRule {
       Object.keys(styleFrontmatter).length > 0
         ? stringifyFrontmatter(body, styleFrontmatter)
         : body;
-    if (Buffer.byteLength(fileContent, "utf8") > QWENCODE_MAX_OUTPUT_STYLE_FILE_BYTES) {
+    const problem = findOutputStyleProblem({ styleName: name ?? stem, body, fileContent });
+    if (problem !== undefined) {
       throw new Error(
-        `Rule '${sourcePath}' sets qwencode.channel: output-style but the style file would be larger than ${QWENCODE_MAX_OUTPUT_STYLE_FILE_BYTES} bytes: Qwen Code skips larger output styles.`,
+        `Rule '${sourcePath}' sets qwencode.channel: output-style, but ${problem}, so Qwen Code would skip it. Rename the rule file, set qwencode.name or fix the body.`,
       );
     }
     return new QwencodeRule({
@@ -494,6 +524,38 @@ export class QwencodeRule extends ToolRule {
       root: false,
       channel: "output-style",
     });
+  }
+
+  /**
+   * An output style Qwen Code would skip (see {@link findOutputStyleProblem})
+   * is skipped on import too: the directory holds hand-written styles, and
+   * one such file must not fail the whole import or come back as a rule
+   * generate refuses.
+   */
+  override getImportSkipReason(): string | undefined {
+    if (this.channel !== "output-style") {
+      return undefined;
+    }
+    let frontmatter: Record<string, unknown>;
+    let body: string;
+    try {
+      ({ frontmatter, body } = parseFrontmatter(
+        this.getFileContent(),
+        join(this.getRelativeDirPath(), this.getRelativeFilePath()),
+      ));
+    } catch (error) {
+      return `its frontmatter cannot be parsed (${formatError(error)})`;
+    }
+    const styleName =
+      typeof frontmatter.name === "string"
+        ? frontmatter.name
+        : basename(this.getRelativeFilePath(), extname(this.getRelativeFilePath()));
+    const problem = findOutputStyleProblem({
+      styleName,
+      body,
+      fileContent: this.getFileContent(),
+    });
+    return problem === undefined ? undefined : `${problem}, so Qwen Code skips it.`;
   }
 
   toRulesyncRule(): RulesyncRule {
