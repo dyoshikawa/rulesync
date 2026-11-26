@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { join, posix } from "node:path";
 
 import { z } from "zod/mini";
 
@@ -12,13 +12,14 @@ import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths
 import { ValidationResult } from "../../types/ai-file.js";
 import { splitBraceAwareList } from "../../utils/brace-aware-list.js";
 import { formatError } from "../../utils/error.js";
-import { readFileContent } from "../../utils/file.js";
+import { readFileContent, toPosixPath } from "../../utils/file.js";
 import {
   parseFrontmatter,
   stringifyFrontmatter,
   validateFrontmatterSchema,
 } from "../../utils/frontmatter.js";
 import { warnWithFallback } from "../../utils/logger.js";
+import { nestedScanExclusionGlobs } from "./nested-scan-exclusions.js";
 import {
   buildOutputStyleFrontmatter,
   getOutputStyleRuleOptionWarnings,
@@ -26,6 +27,7 @@ import {
   isOutputStyleChannel,
   resolveTopLevelOutputStyleStem,
 } from "./output-style-paths.js";
+import { extractRulesDirSubprojectPath } from "./rules-dir-subproject-path.js";
 import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
 import {
   ToolRule,
@@ -34,6 +36,7 @@ import {
   ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
+  ToolRuleNestedFilePatterns,
   ToolRuleParams,
   ToolRuleSettablePaths,
 } from "./tool-rule.js";
@@ -96,6 +99,55 @@ const INFERABLE_TRIGGERS = new Set(["always_on", "glob"]);
  */
 const OUTPUT_STYLE_FILE_GLOB = "*.md";
 
+/**
+ * The subproject directory a nested rule is scoped to, as a POSIX path without
+ * a leading `./` or trailing `/`, or `undefined` for the project root.
+ */
+function normalizeSubprojectPath(value: string | undefined): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  const normalized = toPosixPath(value)
+    .replace(/^(\.\/)+/, "")
+    .replace(/\/+$/, "");
+  return normalized === "" || normalized === "." ? undefined : normalized;
+}
+
+/**
+ * Rewrite a project-relative glob to one relative to `subprojectPath`, which
+ * is where Qoder matches the globs of a rule in `<subprojectPath>/.qoder/rules/`
+ * ("relative to the project directory containing the `.qoder/` directory").
+ * Returns `undefined` when the glob does not start with the subproject.
+ */
+function toSubprojectRelativeGlob({
+  glob,
+  subprojectPath,
+}: {
+  glob: string;
+  subprojectPath: string;
+}): string | undefined {
+  const negated = glob.startsWith("!");
+  const pattern = (negated ? glob.slice(1) : glob).replace(/^\.\//, "");
+  const prefix = `${subprojectPath}/`;
+  if (!pattern.startsWith(prefix) || pattern.length === prefix.length) {
+    return undefined;
+  }
+  return `${negated ? "!" : ""}${pattern.slice(prefix.length)}`;
+}
+
+/** The inverse of {@link toSubprojectRelativeGlob}, used on import. */
+function toProjectRelativeGlob({
+  glob,
+  subprojectPath,
+}: {
+  glob: string;
+  subprojectPath: string;
+}): string {
+  const negated = glob.startsWith("!");
+  const pattern = negated ? glob.slice(1) : glob;
+  return `${negated ? "!" : ""}${posix.join(subprojectPath, pattern)}`;
+}
+
 function normalizeGlobList(value: string | string[] | undefined): string[] {
   if (value === undefined) {
     return [];
@@ -141,6 +193,14 @@ function resolveTrigger(frontmatter: QoderRuleFrontmatter): string {
  *
  * A `qoder.trigger` (for example `model_decision` or `manual`) always takes
  * precedence and round-trips through import.
+ *
+ * Qoder also reads `.qoder/rules/` in any project subdirectory, on demand once
+ * it reads a file under that directory, so a non-root rule carrying
+ * `agentsmd.subprojectPath` is written to `<dir>/.qoder/rules/` instead
+ * (project scope only) and imported back through `getNestedFilePatterns`.
+ * Qoder matches such a rule's globs relative to that directory, so canonical
+ * (project-relative) `globs` lose the `<dir>/` prefix on generate and get it
+ * back on import.
  *
  * A non-root rule with `qoder.channel: output-style` becomes a custom output
  * style instead, `.qoder/output-styles/<rule file name>.md` (both scopes),
@@ -301,6 +361,24 @@ export class QoderRule extends ToolRule {
         outputStyle: true,
       });
     }
+    // A file discovered by `getNestedFilePatterns` arrives as its own directory
+    // plus its basename; it is re-split into the subproject's rules directory
+    // and the path inside it, matching how the root `.qoder/rules/` is read.
+    // Checked first: the root dispatch below reads every other directory as a
+    // root-file location.
+    const nested =
+      relativeDirPath === undefined || global
+        ? undefined
+        : extractRulesDirSubprojectPath({ relativeDirPath, toolDir: QODER_DIR });
+    if (nested) {
+      return this.fromTopicRuleFile({
+        outputRoot,
+        relativeDirPath: join(nested.subprojectPath, QODER_RULES_DIR_PATH),
+        relativeFilePath: join(nested.innerDirPath, relativeFilePath),
+        validate,
+      });
+    }
+
     // Dispatch on the directory the processor resolved, not on the file name:
     // a topic rule named `AGENTS.md` inside `.qoder/rules/` must not be misread
     // as the root file. Fall back to the file name when the caller omits it.
@@ -325,7 +403,27 @@ export class QoderRule extends ToolRule {
       });
     }
 
-    const filePath = join(outputRoot, paths.nonRoot.relativeDirPath, relativeFilePath);
+    return this.fromTopicRuleFile({
+      outputRoot,
+      relativeDirPath: paths.nonRoot.relativeDirPath,
+      relativeFilePath,
+      validate,
+    });
+  }
+
+  /** Read a topic rule from a `.qoder/rules/` directory (root or nested). */
+  private static async fromTopicRuleFile({
+    outputRoot,
+    relativeDirPath,
+    relativeFilePath,
+    validate,
+  }: {
+    outputRoot: string;
+    relativeDirPath: string;
+    relativeFilePath: string;
+    validate: boolean;
+  }): Promise<QoderRule> {
+    const filePath = join(outputRoot, relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(filePath);
     const { frontmatter, body } = parseFrontmatter(fileContent, filePath);
 
@@ -336,7 +434,7 @@ export class QoderRule extends ToolRule {
 
     return new QoderRule({
       outputRoot,
-      relativeDirPath: paths.nonRoot.relativeDirPath,
+      relativeDirPath,
       relativeFilePath,
       frontmatter: result.data,
       body: body.trim(),
@@ -372,14 +470,26 @@ export class QoderRule extends ToolRule {
       });
     }
 
+    // A directory-scoped rule goes to that directory's own `.qoder/rules/`,
+    // which Qoder loads only once it reads a file under that directory. Project
+    // scope only: there is no workspace tree to nest under in global scope.
+    const subprojectPath = global
+      ? undefined
+      : normalizeSubprojectPath(rulesyncFrontmatter.agentsmd?.subprojectPath);
+    const relativeDirPath =
+      subprojectPath !== undefined
+        ? join(subprojectPath, QODER_RULES_DIR_PATH)
+        : paths.nonRoot.relativeDirPath;
+
     return new QoderRule({
       outputRoot,
-      relativeDirPath: paths.nonRoot.relativeDirPath,
+      relativeDirPath,
       relativeFilePath: rulesyncRule.getRelativeFilePath(),
-      frontmatter: QoderRule.buildFrontmatter(
+      frontmatter: QoderRule.buildFrontmatter({
         rulesyncFrontmatter,
-        rulesyncRule.getRelativeFilePath(),
-      ),
+        relativeFilePath: rulesyncRule.getRelativeFilePath(),
+        subprojectPath,
+      }),
       body,
       validate,
       root: false,
@@ -418,10 +528,15 @@ export class QoderRule extends ToolRule {
     });
   }
 
-  private static buildFrontmatter(
-    rulesyncFrontmatter: RulesyncRuleFrontmatter,
-    relativeFilePath: string,
-  ): QoderRuleFrontmatter {
+  private static buildFrontmatter({
+    rulesyncFrontmatter,
+    relativeFilePath,
+    subprojectPath,
+  }: {
+    rulesyncFrontmatter: RulesyncRuleFrontmatter;
+    relativeFilePath: string;
+    subprojectPath?: string;
+  }): QoderRuleFrontmatter {
     const {
       trigger: storedTrigger,
       glob: storedGlob,
@@ -430,9 +545,18 @@ export class QoderRule extends ToolRule {
       name: _name,
       ...section
     } = rulesyncFrontmatter.qoder ?? {};
-    const specificGlobs = normalizeGlobList(storedGlob ?? rulesyncFrontmatter.globs).filter(
-      (glob) => !UNIVERSAL_GLOBS.has(glob),
-    );
+    // `qoder.glob` is Qoder's own value and is written verbatim; canonical
+    // `globs` are project-relative and are rebased onto a nested rule's
+    // directory, where Qoder matches them.
+    const sourceGlobs =
+      storedGlob !== undefined
+        ? normalizeGlobList(storedGlob)
+        : QoderRule.rebaseGlobs({
+            globs: normalizeGlobList(rulesyncFrontmatter.globs),
+            subprojectPath,
+            relativeFilePath,
+          });
+    const specificGlobs = sourceGlobs.filter((glob) => !UNIVERSAL_GLOBS.has(glob));
     let trigger = storedTrigger ?? (specificGlobs.length > 0 ? "glob" : "always_on");
     const description = section.description ?? rulesyncFrontmatter.description;
 
@@ -458,6 +582,45 @@ export class QoderRule extends ToolRule {
       ...(trigger === "glob" && specificGlobs.length > 0 && { glob: specificGlobs }),
       ...(description !== undefined && description !== "" && { description }),
     };
+  }
+
+  /**
+   * Rebase project-relative globs onto `subprojectPath` for a rule written to
+   * `<subprojectPath>/.qoder/rules/`. A glob outside the subproject cannot be
+   * rebased and is written as is, with a warning, since Qoder then matches it
+   * relative to the subproject.
+   */
+  private static rebaseGlobs({
+    globs,
+    subprojectPath,
+    relativeFilePath,
+  }: {
+    globs: string[];
+    subprojectPath: string | undefined;
+    relativeFilePath: string;
+  }): string[] {
+    if (subprojectPath === undefined) {
+      return globs;
+    }
+    const outside: string[] = [];
+    const rebased = globs.map((glob) => {
+      if (UNIVERSAL_GLOBS.has(glob)) {
+        return glob;
+      }
+      const relative = toSubprojectRelativeGlob({ glob, subprojectPath });
+      if (relative === undefined) {
+        outside.push(glob);
+        return glob;
+      }
+      return relative;
+    });
+    if (outside.length > 0) {
+      warnWithFallback(
+        undefined,
+        `Rule ${relativeFilePath} is written to ${subprojectPath}/.qoder/rules/, where Qoder matches globs relative to ${subprojectPath}, but ${outside.map((glob) => `"${glob}"`).join(", ")} does not start with "${subprojectPath}/". It is written as is; make it start with "${subprojectPath}/" or move the rule out of the subproject.`,
+      );
+    }
+    return rebased;
   }
 
   toRulesyncRule(): RulesyncRule {
@@ -496,7 +659,17 @@ export class QoderRule extends ToolRule {
       paths,
       ...unmapped
     } = this.frontmatter;
-    const fileGlobs = normalizeGlobList(glob ?? paths);
+    // A nested rule's globs are relative to its subproject; canonical `globs`
+    // are project-relative, so the subproject is put back in front.
+    const subprojectPath = extractRulesDirSubprojectPath({
+      relativeDirPath: this.getRelativeDirPath(),
+      toolDir: QODER_DIR,
+    })?.subprojectPath;
+    const fileGlobs = normalizeGlobList(glob ?? paths).map((fileGlob) =>
+      subprojectPath === undefined
+        ? fileGlob
+        : toProjectRelativeGlob({ glob: fileGlob, subprojectPath }),
+    );
     const globs = trigger === "glob" ? fileGlobs : trigger === "always_on" ? ["**/*"] : [];
     // Keep the mode when inference from `globs` would not reproduce it: a
     // non-inferable mode, or a `glob` rule whose glob list is empty.
@@ -510,11 +683,18 @@ export class QoderRule extends ToolRule {
       );
     }
 
+    // A nested rule carries its directory back through `agentsmd.subprojectPath`
+    // and targets qoder only, so the next generate neither surprises other
+    // tools with new nested files nor folds it into their root files. An
+    // always-on rule keeps `**/*` rather than a directory glob, which would
+    // turn it into a file-scoped one.
+
     const rulesyncFrontmatter: RulesyncRuleFrontmatter = {
-      targets: ["*"],
+      targets: subprojectPath === undefined ? ["*"] : ["qoder"],
       root: false,
       description,
       globs,
+      ...(subprojectPath !== undefined && { agentsmd: { subprojectPath } }),
       ...(Object.keys(section).length > 0 && { qoder: section }),
     };
 
@@ -568,6 +748,32 @@ export class QoderRule extends ToolRule {
         relativeFilePath === QODER_RULE_FILE_NAME,
       outputStyle,
     });
+  }
+
+  /**
+   * The `.qoder/rules/` folders of project subdirectories, which Qoder loads
+   * on demand once it reads a file under that directory. The shared nested
+   * scan ignores every hidden directory, which would skip `.qoder` itself, so
+   * only a `.qoder/rules/` below another hidden directory is ignored here
+   * (`extractRulesDirSubprojectPath` rejects one again on import). Import-only,
+   * like every other nested scan: these files sit outside the rulesync-owned
+   * root `.qoder/rules/`, so `--delete` never sweeps them.
+   * @see https://docs.qoder.com/cli/memory
+   */
+  static getNestedFilePatterns(): ToolRuleNestedFilePatterns {
+    const rulesDirPath = `${QODER_DIR}/rules`;
+    return {
+      include: [`**/${rulesDirPath}/**/*.md`],
+      ignore: [
+        // The project-root rules directory is read as the `nonRoot` one.
+        `${rulesDirPath}/**`,
+        `**/.*/**/${rulesDirPath}/**`,
+        ...nestedScanExclusionGlobs(),
+      ],
+      // `rulesync gitignore` ignores `**/.qoder/rules/`, so the gitignore filter
+      // stops at `<dir>/.qoder` instead of testing the rules directory itself.
+      ownedDirPath: rulesDirPath,
+    };
   }
 
   protected static override readonly toolTarget = "qoder";
