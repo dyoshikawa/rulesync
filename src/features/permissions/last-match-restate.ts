@@ -53,40 +53,137 @@ export function restateAllToolsRestrictionsLast({
     ([pattern, action]) =>
       action !== "allow" && pattern !== CATCH_ALL_PATTERN && !isPrototypePollutionKey(pattern),
   );
-  if (restrictions.length === 0 && !allToolsRules) {
-    return sharedPermission;
-  }
+  const globsOverlap = createGlobsOverlap();
   const result: Record<string, Record<string, PermissionAction>> = {};
+  const respelled: string[] = [];
   for (const [key, rules] of Object.entries(sharedPermission)) {
+    let written: Record<string, PermissionAction>;
     if (key !== ALL_TOOLS_PERMISSION_CATEGORY) {
-      result[key] = restateInKey({ rules, restrictions });
+      written = restateInKey({ rules, restrictions, globsOverlap });
+    } else {
+      written = sortRulesByActionPriority(rules);
+      if (!allToolsOverridden && !isDeepStrictEqual(Object.keys(written), Object.keys(rules))) {
+        logger?.warn(
+          `The all-tools "*" permission patterns were reordered allow, ask, deny because ${toolTarget} applies the last matching pattern and the stricter rule must win, which may disable a looser carve-out under a broader ask or deny pattern (e.g. "*": "deny", "src/**": "allow"). Set ${toolTarget}.permission["*"] to control the exact order.`,
+        );
+      }
+    }
+    if (key === ALL_TOOLS_PERMISSION_CATEGORY && allToolsOverridden) {
+      result[key] = written;
       continue;
     }
-    const sorted = sortRulesByActionPriority(rules);
-    if (!allToolsOverridden && !isDeepStrictEqual(Object.keys(sorted), Object.keys(rules))) {
-      logger?.warn(
-        `The all-tools "*" permission patterns were reordered allow, ask, deny because ${toolTarget} applies the last matching pattern and the stricter rule must win, which may disable a looser carve-out under a broader ask or deny pattern (e.g. "*": "deny", "src/**": "allow"). Set ${toolTarget}.permission["*"] to control the exact order.`,
-      );
-    }
-    result[key] = sorted;
+    const moved = respellIntegerLikeRestrictions({ rules: written, globsOverlap });
+    for (const pattern of moved.respelled) respelled.push(`${key}: ${pattern}`);
+    result[key] = moved.rules;
+  }
+  if (respelled.length > 0) {
+    logger?.warn(
+      `${toolTarget} reads permission patterns in object order, where an integer-like key always comes first, so a looser rule after it would override it. The deny/ask pattern(s) ${respelled.join(", ")} were written with a trailing "*" at the end of their key instead, which also covers the inputs that merely start with them.`,
+    );
   }
   return result;
 }
 
-function globsOverlap(left: string, right: string): boolean {
-  return (
-    createShadowingRestrictionsTest([{ pattern: left, fromAllToolsCategory: true }])(right).length >
-    0
-  );
+/**
+ * Whether two globs can name one input, with the left side's parsed test
+ * built once per distinct pattern rather than once per pair.
+ */
+function createGlobsOverlap(): (left: string, right: string) => boolean {
+  const tests = new Map<string, (allowPattern: string) => string[]>();
+  return (left, right) => {
+    let test = tests.get(left);
+    if (test === undefined) {
+      test = createShadowingRestrictionsTest([{ pattern: left, fromAllToolsCategory: true }]);
+      tests.set(left, test);
+    }
+    return test(right).length > 0;
+  };
+}
+
+/** An array-index-like key, which JavaScript (and so JSON) objects list before every other key. */
+function isIntegerLikeKey(key: string): boolean {
+  return /^(?:0|[1-9][0-9]*)$/.test(key) && Number(key) < 2 ** 32 - 1;
+}
+
+/**
+ * One key's rules with every integer-like deny or ask pattern (`8080`) that a
+ * looser rule after it overlaps written as `<pattern>*` at the key's end.
+ *
+ * An integer-like key cannot be placed anywhere but first in a JSON object, as
+ * written by rulesync and as read back by the tool, so a looser rule later in
+ * the key would override it under last-match-wins. `8080*` is no longer
+ * integer-like, keeps its place, and covers `8080` (and the inputs starting
+ * with it, a wider restriction, never a wider allow). The tail follows the
+ * same order as a restated `*` restriction: asks first, then denies, with
+ * every deny that overlaps a moved ask moved after it, so a moved ask never
+ * lands after a stricter rule it overlaps.
+ */
+function respellIntegerLikeRestrictions({
+  rules,
+  globsOverlap,
+}: {
+  rules: Record<string, PermissionAction>;
+  globsOverlap: (left: string, right: string) => boolean;
+}): { rules: Record<string, PermissionAction>; respelled: string[] } {
+  const entries = Object.entries(rules);
+  const respelled = entries
+    .filter(
+      ([pattern, action], index) =>
+        action !== "allow" &&
+        isIntegerLikeKey(pattern) &&
+        entries
+          .slice(index + 1)
+          .some(
+            ([later, laterAction]) =>
+              isStricterAction({ action, existing: laterAction }) && globsOverlap(pattern, later),
+          ),
+    )
+    .map(([pattern]) => pattern);
+  if (respelled.length === 0) {
+    return { rules, respelled };
+  }
+  const tail = new Map<string, PermissionAction>();
+  const raise = (pattern: string, action: PermissionAction): void => {
+    const existing =
+      tail.get(pattern) ?? (Object.hasOwn(rules, pattern) ? rules[pattern] : undefined);
+    tail.set(pattern, isStricterAction({ action, existing }) ? action : (existing ?? action));
+  };
+  for (const pattern of respelled) raise(`${pattern}*`, rules[pattern] ?? "deny");
+  // The asks as written at the end, whose trailing `*` reaches further.
+  const askPatterns = respelled
+    .filter((pattern) => rules[pattern] === "ask")
+    .map((pattern) => `${pattern}*`);
+  const moved = new Set(respelled);
+  for (const [pattern, action] of entries) {
+    if (action !== "deny" || moved.has(pattern)) continue;
+    if (!askPatterns.some((ask) => globsOverlap(pattern, ask))) continue;
+    // An integer-like deny cannot move either, so it is respelled as well.
+    if (isIntegerLikeKey(pattern)) {
+      moved.add(pattern);
+      respelled.push(pattern);
+      raise(`${pattern}*`, action);
+    } else {
+      raise(pattern, action);
+    }
+  }
+  const result: Record<string, PermissionAction> = {};
+  for (const [pattern, action] of entries) {
+    if (!moved.has(pattern) && !tail.has(pattern)) result[pattern] = action;
+  }
+  for (const [pattern, action] of tail) if (action === "ask") result[pattern] = action;
+  for (const [pattern, action] of tail) if (action === "deny") result[pattern] = action;
+  return { rules: result, respelled };
 }
 
 /** One key's rules with the `*` restrictions restated at its end; see the caller. */
 function restateInKey({
   rules,
   restrictions,
+  globsOverlap,
 }: {
   rules: Record<string, PermissionAction>;
   restrictions: Array<[string, PermissionAction]>;
+  globsOverlap: (left: string, right: string) => boolean;
 }): Record<string, PermissionAction> {
   const own = Object.entries(rules);
   const ownAction = (pattern: string): PermissionAction | undefined =>

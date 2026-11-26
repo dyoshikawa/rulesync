@@ -280,8 +280,17 @@ function keepAllToolsCatchAll({
  * an input with no rule would auto-approve it: such a restriction is copied
  * into each stated category it applies to (see `restatesAsCategoryRule`), so
  * the input stays restricted after its allow is withheld.
+ * `restateIntoAbsentCategories` names categories the restated rules are also
+ * written into when the config has no such category, for a tool whose default
+ * for one of them auto-approves (reads): `{"*": {".env": "deny"}, "bash":
+ * {"ls": "allow"}}` then also writes `read: {".env": "deny"}`. Such a category
+ * holds only the restated rules and is left out when there are none.
  * `downgradeWithheldCatchAll` writes a withheld catch-all `*` allow as `ask`
  * (`deny` under a catch-all `*` deny) rather than dropping it, for a tool that keeps a stale `always` otherwise.
+ * It also gives every other category without a `*` rule of its own the
+ * catch-all `*` restriction (`{"*": {"*": "deny"}, "read": {"src/**":
+ * "allow"}}` writes `read: {"*": "deny"}`), so the tool's default for the rest
+ * of that category's inputs does not auto-approve what the catch-all covers.
  *
  * `writesAllToolsCatchAll` says the tool already enforces a `*` catch-all
  * (`{"*": {"*": "ask"}}`) natively over its per-tool allows, so the catch-all
@@ -298,6 +307,7 @@ export function honorAllToolsRestrictions({
   dropAllToolsPatterns = false,
   isCatchAll = (pattern) => pattern === CATCH_ALL_PATTERN,
   restateAs = () => false,
+  restateIntoAbsentCategories = [],
   downgradeWithheldCatchAll = false,
 }: {
   permission: Permission;
@@ -307,6 +317,7 @@ export function honorAllToolsRestrictions({
   dropAllToolsPatterns?: boolean;
   isCatchAll?: (pattern: string) => boolean;
   restateAs?: RestateAs;
+  restateIntoAbsentCategories?: readonly string[];
   downgradeWithheldCatchAll?: boolean;
 }): Permission {
   const allToolsRules = Object.hasOwn(permission, ALL_TOOLS_PERMISSION_CATEGORY)
@@ -323,6 +334,11 @@ export function honorAllToolsRestrictions({
         !(writesAllToolsCatchAll && isCatchAll(pattern)),
     )
     .map(([pattern]) => ({ pattern, fromAllToolsCategory: true }));
+  // Each restriction with its action, looked up once for every category.
+  const restrictionRules = restrictions.map(({ pattern }) => ({
+    pattern,
+    action: allToolsRules[pattern] ?? "deny",
+  }));
 
   const result: Permission = {};
   const withheld: string[] = [];
@@ -345,7 +361,7 @@ export function honorAllToolsRestrictions({
       const bash = bashRulesHonoringAllTools({
         ...permission,
         [ALL_TOOLS_PERMISSION_CATEGORY]: Object.fromEntries(
-          restrictions.map(({ pattern }) => [pattern, allToolsRules[pattern] ?? "deny"]),
+          restrictionRules.map(({ pattern, action }) => [pattern, action]),
         ),
       });
       // A withheld allow is either gone or replaced by the `*` rule of the
@@ -362,15 +378,21 @@ export function honorAllToolsRestrictions({
     result[category] = honorInCategory({
       category,
       rules,
-      restrictions: restrictions.map(({ pattern }) => ({
-        pattern,
-        action: allToolsRules[pattern] ?? "deny",
-      })),
+      restrictions: restrictionRules,
       restateAs,
       downgradeWithheldCatchAll,
       withheld,
     });
   }
+  Object.assign(
+    result,
+    restateIntoAbsent({
+      permission,
+      categories: restateIntoAbsentCategories,
+      restrictions: restrictionRules,
+      restateAs,
+    }),
+  );
 
   if (withheld.length > 0) {
     warnWithFallback(
@@ -383,12 +405,47 @@ export function honorAllToolsRestrictions({
   return result;
 }
 
+/**
+ * The restated `*` restrictions of each of `categories` the config lacks,
+ * leaving out a category nothing is restated into.
+ */
+function restateIntoAbsent({
+  permission,
+  categories,
+  restrictions,
+  restateAs,
+}: {
+  permission: Permission;
+  categories: readonly string[];
+  restrictions: { pattern: string; action: PermissionAction }[];
+  restateAs: RestateAs;
+}): Permission {
+  const added: Permission = {};
+  for (const category of categories) {
+    if (Object.hasOwn(permission, category) || isPrototypePollutionKey(category)) continue;
+    const restated = restateInCategory({ category, rules: {}, restrictions, restateAs });
+    if (Object.keys(restated).length > 0) {
+      added[category] = restated;
+    }
+  }
+  return added;
+}
+
 /** Which `*` restrictions a tool restates under a category; see `honorAllToolsRestrictions`. */
 type RestateAs = (params: {
   category: string;
   pattern: string;
   action: PermissionAction;
 }) => boolean;
+
+/**
+ * The categories a tool whose read default auto-approves restates `*` path
+ * restrictions into even when the config has no such category (see
+ * `restateIntoAbsentCategories`). The rules written there are additive: the
+ * caller does not take the category over, so the entries a settings file
+ * already holds for it are kept.
+ */
+export const RESTATED_ABSENT_CATEGORIES: readonly string[] = ["read"];
 
 /** File categories whose patterns are paths. */
 const PATH_CATEGORIES = new Set(["read", "edit", "write"]);
@@ -449,6 +506,18 @@ function honorInCategory({
       continue;
     }
     kept[pattern] = action;
+  }
+  // The rest of the category's inputs fall to the tool's default, which may
+  // auto-approve them, so the catch-all restriction is written there too.
+  if (
+    downgradeWithheldCatchAll &&
+    restrictions.some(({ pattern }) => pattern === CATCH_ALL_PATTERN) &&
+    isStricterAction({
+      action: downgradedAction,
+      existing: Object.hasOwn(kept, CATCH_ALL_PATTERN) ? kept[CATCH_ALL_PATTERN] : undefined,
+    })
+  ) {
+    kept[CATCH_ALL_PATTERN] = downgradedAction;
   }
   return restateInCategory({ category, rules: kept, restrictions, restateAs });
 }

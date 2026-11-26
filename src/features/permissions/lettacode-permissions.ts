@@ -15,7 +15,11 @@ import {
   sharedConfigFileKey,
 } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { honorAllToolsRestrictions, restatesAsCategoryRule } from "./shadowed-allows.js";
+import {
+  honorAllToolsRestrictions,
+  RESTATED_ABSENT_CATEGORIES,
+  restatesAsCategoryRule,
+} from "./shadowed-allows.js";
 import { CATCH_ALL_PATTERN } from "./shell-command-categories.js";
 import { isStricterAction } from "./single-action-collapse.js";
 import { splitToolRule } from "./tool-pattern-entry.js";
@@ -222,8 +226,10 @@ function buildLettacodeRuleLists({
     toolLabel: "Letta Code",
     logger,
     // The default for an input with no rule may auto-approve it (reads), so a
-    // `*` path or URL restriction is also written as a rule of each category.
+    // `*` path or URL restriction is also written as a rule of each category,
+    // and as a read rule even when the config has no `read` category.
     restateAs: restatesAsCategoryRule(),
+    restateIntoAbsentCategories: RESTATED_ABSENT_CATEGORIES,
   });
   const ranked = new Map<string, PermissionAction>();
   const managedCategories = new Set<string>();
@@ -236,7 +242,9 @@ function buildLettacodeRuleLists({
       );
       continue;
     }
-    managedCategories.add(category);
+    // A category only restated from `*` (see `RESTATED_ABSENT_CATEGORIES`) is
+    // not the config's, so its existing entries are kept beside the rules.
+    if (Object.hasOwn(config.permission, category)) managedCategories.add(category);
     for (const [pattern, action] of Object.entries(rules)) {
       if (isPrototypePollutionKey(pattern)) {
         continue;

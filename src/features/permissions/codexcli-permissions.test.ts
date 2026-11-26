@@ -3672,6 +3672,52 @@ command = "node"
       expect(fileContent).not.toContain(":workspace_roots");
     });
 
+    describe("skips the carve-out when an all-tools '*' restriction covers .git", () => {
+      const generateFile = async ({
+        permission,
+        logger,
+      }: {
+        permission: Record<string, Record<string, string>>;
+        logger: ReturnType<typeof createMockLogger>;
+      }) => {
+        const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          rulesyncPermissions: new RulesyncPermissions({
+            outputRoot: testDir,
+            relativeDirPath: ".rulesync",
+            relativeFilePath: "permissions.json",
+            fileContent: JSON.stringify({ permission }),
+          }),
+          logger,
+        });
+        return codexPermissions.getFileContent();
+      };
+
+      it.each([
+        ["a catch-all deny", { "*": { "*": "deny" } }],
+        ["a '.git/**' deny", { "*": { ".git/**": "deny" } }],
+        ["a '.git' deny", { "*": { ".git": "deny" } }],
+        ["a '**' ask", { "*": { "**": "ask" } }],
+      ])("%s", async (_label, permission) => {
+        const logger = createMockLogger();
+        const fileContent = await generateFile({ permission, logger });
+        expect(fileContent).not.toContain(".git/**");
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining("under the all-tools '*' category"),
+        );
+      });
+
+      it.each([
+        ["a catch-all ask (the default idiom)", { "*": { "*": "ask" } }],
+        ["a narrower '.git/config' deny", { "*": { ".git/config": "deny" } }],
+        ["a command ask", { "*": { "git push *": "ask" } }],
+      ])("keeps the carve-out for %s", async (_label, permission) => {
+        const logger = createMockLogger();
+        const fileContent = await generateFile({ permission, logger });
+        expect(parseWorkspaceRoots(fileContent)[".git/**"]).toBe("write");
+      });
+    });
+
     describe("skips the carve-out when a broader workspace restriction covers .git", () => {
       const generateWorkspaceRoots = async ({
         permission,
