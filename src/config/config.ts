@@ -41,14 +41,30 @@ import { hasControlCharacters } from "../utils/validation.js";
 export const GITIGNORE_DESTINATION_KEY = "gitignoreDestination";
 
 /**
+ * A directory inside a declared source, such as `rulesPath`: relative, with no
+ * `..` segment and no control characters, so it can only name a directory
+ * inside the fetched repository or package.
+ */
+function sourceDirPathSchema(fieldName: string) {
+  return z.string().check(
+    refine((v) => !v.includes(".."), `${fieldName} must not contain ".."`),
+    refine((v) => !isAbsolute(v), `${fieldName} must not be absolute`),
+    refine((v) => !hasControlCharacters(v), `${fieldName} must not contain control characters`),
+  );
+}
+
+/**
  * Schema for a single source entry in the sources array.
- * Declares an external repository from which rules and skills can be fetched.
+ * Declares an external repository from which rules, skills, commands and
+ * subagents can be fetched.
  */
 export const SourceEntrySchema = z
   .object({
     source: z.string().check(minLength(1, "source must be a non-empty string")),
     skills: optional(z.array(z.string())),
     rules: optional(z.array(z.string())),
+    commands: optional(z.array(z.string())),
+    subagents: optional(z.array(z.string())),
     transport: optional(z.enum(["github", "git", "npm"])),
     ref: optional(
       z.string().check(
@@ -63,13 +79,9 @@ export const SourceEntrySchema = z
         refine((v) => !hasControlCharacters(v), "path must not contain control characters"),
       ),
     ),
-    rulesPath: optional(
-      z.string().check(
-        refine((v) => !v.includes(".."), 'rulesPath must not contain ".."'),
-        refine((v) => !isAbsolute(v), "rulesPath must not be absolute"),
-        refine((v) => !hasControlCharacters(v), "rulesPath must not contain control characters"),
-      ),
-    ),
+    rulesPath: optional(sourceDirPathSchema("rulesPath")),
+    commandsPath: optional(sourceDirPathSchema("commandsPath")),
+    subagentsPath: optional(sourceDirPathSchema("subagentsPath")),
     // npm-transport-only fields (EXPERIMENTAL). `registry` points at an
     // npm-compatible registry (npmjs.org, Artifactory, Nexus, Verdaccio, ...);
     // `tokenEnv` names the environment variable holding the registry token.
@@ -175,7 +187,7 @@ const ConfigParamsSchema = z.object({
   // versa) merge into a state where `inputRoots` wins, so no cross-file
   // error is raised.
   inputRoots: optional(z.array(z.string()).check(minLength(1, "inputRoots must be non-empty"))),
-  // Declarative rule and skill sources
+  // Declarative rule, skill, command and subagent sources
   sources: optional(z.array(SourceEntrySchema)),
 });
 // We override the inferred `targets` / `features` types with the hand-written

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import { createMockLogger } from "../test-utils/mock-logger.js";
-import { shouldSkipRule, shouldSkipSkill } from "./sources-artifacts.js";
+import { shouldSkipFile, shouldSkipSkill } from "./sources-artifacts.js";
 
 // Every C0/C1 control character and the bidi controls a terminal acts on.
 const isRawControl = (code: number): boolean =>
@@ -60,23 +60,61 @@ describe("shouldSkipSkill", () => {
   });
 });
 
-describe("shouldSkipRule", () => {
+describe("shouldSkipFile", () => {
   const baseParams = {
+    feature: "rules" as const,
     sourceKey: "https://example.com/repo",
-    localRuleNames: new Set<string>(),
-    alreadyFetchedRuleNames: new Set<string>(),
+    localNames: new Set<string>(),
+    alreadyFetchedNames: new Set<string>(),
   };
 
   it("skips a remote rule whose name holds control characters and logs none of them", () => {
     const logger = createMockLogger();
 
-    expect(shouldSkipRule({ ...baseParams, ruleName: "style\u009b2K", logger })).toBe(true);
+    expect(shouldSkipFile({ ...baseParams, name: "style\u009b2K", logger })).toBe(true);
     expect(hasRawControl(loggedText(logger))).toBe(false);
   });
 
   it("keeps an ordinary rule name", () => {
     const logger = createMockLogger();
 
-    expect(shouldSkipRule({ ...baseParams, ruleName: "coding-style", logger })).toBe(false);
+    expect(shouldSkipFile({ ...baseParams, name: "coding-style", logger })).toBe(false);
+  });
+});
+
+describe("shouldSkipFile for commands and subagents", () => {
+  it.each(["../escape", "a/b", "a\\b", "..", "__proto__"])(
+    "skips a remote command named %j that could escape the curated directory",
+    (name) => {
+      const logger = createMockLogger();
+      expect(
+        shouldSkipFile({
+          feature: "commands",
+          name,
+          sourceKey: "org/repo",
+          localNames: new Set(),
+          alreadyFetchedNames: new Set(),
+          logger,
+        }),
+      ).toBe(true);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("Skipping command"));
+    },
+  );
+
+  it("lets a local subagent take precedence", () => {
+    const logger = createMockLogger();
+    expect(
+      shouldSkipFile({
+        feature: "subagents",
+        name: "planner",
+        sourceKey: "org/repo",
+        localNames: new Set(["planner"]),
+        alreadyFetchedNames: new Set(),
+        logger,
+      }),
+    ).toBe(true);
+    expect(logger.debug).toHaveBeenCalledWith(
+      expect.stringContaining("local subagent takes precedence"),
+    );
   });
 });

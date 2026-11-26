@@ -15,6 +15,7 @@ import {
   parseSharedConfig,
   sharedConfigFileKey,
 } from "../shared/shared-config-gateway.js";
+import { skipsReservedPermissionName } from "./reserved-permission-name.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { honorAllToolsRestrictions, withholdAllowsShadowedByAsks } from "./shadowed-allows.js";
 import { CATCH_ALL_PATTERN } from "./shell-command-categories.js";
@@ -513,7 +514,7 @@ export class TraePermissions extends ToolPermissions {
     const customProfiles = readRecord(config, [CUSTOM_PROFILES_KEY]);
     const permission: Record<string, Record<string, PermissionAction>> = {};
     const put = (category: string, pattern: string, action: PermissionAction) => {
-      if (isPrototypePollutionKey(category) || isPrototypePollutionKey(pattern)) {
+      if (skipsReservedPermissionName({ toolLabel: "Trae", category, pattern })) {
         return;
       }
       const rules = getOrCreateOwn({ record: permission, key: category, create: () => ({}) });

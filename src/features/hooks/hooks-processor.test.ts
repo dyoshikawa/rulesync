@@ -57,6 +57,8 @@ import {
   TRAE_HOOK_EVENTS,
   VIBE_HOOK_EVENTS,
   ZCODE_HOOK_EVENTS,
+  ZERO_HOOK_EVENTS,
+  ZERO_MATCHER_EVENTS,
 } from "../../types/hooks.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { ClaudecodeHooks } from "./claudecode-hooks.js";
@@ -798,11 +800,11 @@ describe("HooksProcessor", () => {
       // The event list must be part of the same message, and must name only the
       // events that actually carry a disabled hook.
       expect(logger.warn).toHaveBeenCalledWith(
-        'Emitting "enabled: false" hook(s) as active for claudecode (only the kiro-cli / kiro-ide / cortexcode / zcode / zcode-plugin hooks formats support the flag): preToolUse',
+        'Emitting "enabled: false" hook(s) as active for claudecode (only the kiro-cli / kiro-ide / cortexcode / zcode / zcode-plugin / zero hooks formats support the flag): preToolUse',
       );
     });
 
-    it.each(["cortexcode", "kiro-ide", "kiro-cli", "zcode", "zcode-plugin"] as const)(
+    it.each(["cortexcode", "kiro-ide", "kiro-cli", "zcode", "zcode-plugin", "zero"] as const)(
       "should write a disabled hook for %s without warning that it stays active",
       async (toolTarget) => {
         const config = {
@@ -1189,6 +1191,7 @@ describe("HooksProcessor", () => {
         "crush",
         "zcode",
         "zcode-plugin",
+        "zero",
       ]);
     });
 
@@ -1240,6 +1243,7 @@ describe("HooksProcessor", () => {
         "grokcli",
         "crush",
         "zcode",
+        "zero",
       ]);
     });
 
@@ -1302,6 +1306,7 @@ describe("HooksProcessor", () => {
         "crush",
         "zcode",
         "zcode-plugin",
+        "zero",
       ]);
     });
 
@@ -1345,6 +1350,7 @@ describe("HooksProcessor", () => {
         "grokcli",
         "crush",
         "zcode",
+        "zero",
       ]);
     });
   });
@@ -2124,6 +2130,18 @@ describe("toolHooksFactories capability table", () => {
         supportedEvents: ZCODE_HOOK_EVENTS,
         supportedHookTypes: ["command"],
         supportsMatcher: true,
+        supportsPerHookEnabled: true,
+      },
+    ],
+    [
+      "zero",
+      {
+        meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+        supportedEvents: ZERO_HOOK_EVENTS,
+        supportedHookTypes: ["command"],
+        supportsMatcher: true,
+        matcherEvents: ZERO_MATCHER_EVENTS,
+        dropsUnknownOverrideEvents: true,
         supportsPerHookEnabled: true,
       },
     ],

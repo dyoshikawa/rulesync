@@ -4,6 +4,8 @@ import { z } from "zod/mini";
 
 import { POOL_SETTINGS_FILE_NAME } from "../../constants/pool-paths.js";
 import {
+  CURATED_SUBAGENTS_FEATURE_SUBDIR,
+  RULESYNC_CURATED_SUBAGENTS_RELATIVE_DIR_PATH,
   RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
   SUBAGENTS_FEATURE_SUBDIR,
 } from "../../constants/rulesync-paths.js";
@@ -11,6 +13,7 @@ import {
   caseFoldIdentity,
   ClaimedIdentities,
   FeatureProcessor,
+  filterCuratedShadowedByLocal,
   mergeByCaseInsensitiveIdentity,
 } from "../../types/feature-processor.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
@@ -18,6 +21,10 @@ import { ToolFile } from "../../types/tool-file.js";
 import { subagentsProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { quoteForLog, stripControlCharacters } from "../../utils/control-characters.js";
+import {
+  CURATED_SUBAGENT_FRONTMATTER_KEYS,
+  keepCuratedFrontmatterKeys,
+} from "../../utils/curated-frontmatter.js";
 import { formatError } from "../../utils/error.js";
 import {
   assertWritablePathInsideRoot,
@@ -87,11 +94,13 @@ import {
   ToolSubagentFromRulesyncSubagentParams,
   ToolSubagentSettablePaths,
 } from "./tool-subagent.js";
+import { TraeSubagent } from "./trae-subagent.js";
 import { VibePluginSubagent } from "./vibe-plugin-subagent.js";
 import { VibeSubagent } from "./vibe-subagent.js";
 import { XumSubagent } from "./xum-subagent.js";
 import { ZcodePluginSubagent } from "./zcode-plugin-subagent.js";
 import { ZcodeSubagent } from "./zcode-subagent.js";
+import { ZeroSubagent } from "./zero-subagent.js";
 import { ZoocodeSubagent } from "./zoocode-subagent.js";
 
 /**
@@ -1035,6 +1044,23 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
     },
   ],
   [
+    "trae",
+    {
+      // Trae subagents are native Markdown + YAML frontmatter under
+      // `.trae/agents/` (project only); Trae reads them once Settings > Beta >
+      // "Enable Subagents Directory" is on. The documented user directory is
+      // `~/.trae-cn/agents/` (CN build), so global scope is not written.
+      // https://docs.trae.ai/ide/subagents?_lang=en
+      class: TraeSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: false,
+        filePattern: "*.md",
+      },
+    },
+  ],
+  [
     "vibe",
     {
       class: VibeSubagent,
@@ -1100,6 +1126,21 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
       // project one (observed in the v3.14.3 agent runtime).
       // https://zcode.z.ai/en/docs/subagents
       class: ZcodeSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.md",
+      },
+    },
+  ],
+  [
+    "zero",
+    {
+      // Zero specialists are Markdown manifests under `.zero/specialists/`
+      // (project) and `<user config dir>/zero/specialists/` (global).
+      // https://github.com/Twigpine/zero/blob/main/docs/SPECIALISTS.md
+      class: ZeroSubagent,
       meta: {
         supportsProject: true,
         supportsSimulated: false,
@@ -1407,7 +1448,9 @@ export class SubagentsProcessor extends FeatureProcessor {
     const treeParent = dirname(sourceTree);
     const treeName = basename(sourceTree);
     const treeSubagentsDirPath = join(treeName, SUBAGENTS_FEATURE_SUBDIR);
+    const treeCuratedSubagentsDirPath = join(treeName, CURATED_SUBAGENTS_FEATURE_SUBDIR);
     const subagentsDir = join(sourceTree, SUBAGENTS_FEATURE_SUBDIR);
+    const curatedSubagentsDir = join(sourceTree, CURATED_SUBAGENTS_FEATURE_SUBDIR);
 
     // Strict: a source directory symlinked at a tree that is missing must not
     // read as "this feature has no sources", which would let `--delete` sweep
@@ -1419,7 +1462,7 @@ export class SubagentsProcessor extends FeatureProcessor {
     }
     this.rulesyncSourceDirFound = true;
 
-    const mdFiles = (
+    const localMdFiles = (
       await findFilesByGlobs("**/*.md", {
         cwd: subagentsDir,
         followSymbolicLinks: true,
@@ -1427,6 +1470,33 @@ export class SubagentsProcessor extends FeatureProcessor {
     )
       .map((file) => relative(subagentsDir, file))
       .toSorted(compareRelativePathsShallowestFirst);
+    // `subagents/.curated/` holds the subagents `rulesync install` fetched from
+    // declared sources; the glob above leaves dot-directories out. A local
+    // subagent of the same name takes precedence, as for rules and skills.
+    const curatedMdFiles = (await directoryExistsStrict(curatedSubagentsDir))
+      ? filterCuratedShadowedByLocal({
+          localRelativePaths: localMdFiles,
+          curatedRelativePaths: (await findFilesByGlobs("**/*.md", { cwd: curatedSubagentsDir }))
+            .map((file) => relative(curatedSubagentsDir, file))
+            .toSorted(compareRelativePathsShallowestFirst),
+          artifactKind: "subagent",
+          entryNoun: "file",
+          treeDirPath: treeSubagentsDirPath,
+          logger: this.logger,
+        })
+      : [];
+    const mdFiles = [
+      ...localMdFiles.map((relativeFilePath) => ({
+        relativeDirPath: treeSubagentsDirPath,
+        dirPath: subagentsDir,
+        relativeFilePath,
+      })),
+      ...curatedMdFiles.map((relativeFilePath) => ({
+        relativeDirPath: treeCuratedSubagentsDirPath,
+        dirPath: curatedSubagentsDir,
+        relativeFilePath,
+      })),
+    ];
 
     if (mdFiles.length === 0) {
       this.logger.debug(`No markdown files found in rulesync subagents directory: ${subagentsDir}`);
@@ -1437,16 +1507,20 @@ export class SubagentsProcessor extends FeatureProcessor {
 
     const rulesyncSubagents: RulesyncSubagent[] = [];
 
-    for (const mdFile of mdFiles) {
-      const filepath = join(subagentsDir, mdFile);
+    for (const { relativeDirPath, dirPath, relativeFilePath: mdFile } of mdFiles) {
+      const filepath = join(dirPath, mdFile);
 
       try {
-        const rulesyncSubagent = await RulesyncSubagent.fromFile({
+        const loaded = await RulesyncSubagent.fromFile({
           outputRoot: treeParent,
-          relativeDirPath: treeSubagentsDirPath,
+          relativeDirPath,
           relativeFilePath: mdFile,
           validate: true,
         });
+        const rulesyncSubagent =
+          relativeDirPath === treeCuratedSubagentsDirPath
+            ? this.withCanonicalFrontmatterOnly(loaded)
+            : loaded;
 
         rulesyncSubagents.push(rulesyncSubagent);
         this.logger.debug(`Successfully loaded subagent: ${mdFile}`);
@@ -1474,6 +1548,33 @@ export class SubagentsProcessor extends FeatureProcessor {
     }
 
     return rulesyncSubagents;
+  }
+
+  /**
+   * A subagent fetched from a declared source, keeping only the canonical,
+   * tool-neutral frontmatter fields and dropping every tool section, since
+   * those are copied into the generated files and can grant tools,
+   * permissions, hooks or MCP servers. A local subagent of the same name keeps
+   * its tool-specific settings.
+   */
+  private withCanonicalFrontmatterOnly(subagent: RulesyncSubagent): RulesyncSubagent {
+    const { frontmatter, droppedKeys } = keepCuratedFrontmatterKeys({
+      frontmatter: subagent.getFrontmatter(),
+      allowedKeys: CURATED_SUBAGENT_FRONTMATTER_KEYS,
+    });
+    if (droppedKeys.length === 0) {
+      return subagent;
+    }
+    this.logger.warn(
+      `Dropped frontmatter from source-installed subagent ${quoteForLog(join(subagent.getRelativeDirPath(), subagent.getRelativeFilePath()))}: ${droppedKeys.map(stripControlCharacters).join(", ")}. A subagent installed from a source keeps only these frontmatter fields: ${CURATED_SUBAGENT_FRONTMATTER_KEYS.join(", ")}. It cannot grant tools, permissions, hooks or MCP servers; copy it into .rulesync/ locally to keep tool-specific settings.`,
+    );
+    return new RulesyncSubagent({
+      outputRoot: subagent.getOutputRoot(),
+      relativeDirPath: subagent.getRelativeDirPath(),
+      relativeFilePath: subagent.getRelativeFilePath(),
+      frontmatter,
+      body: subagent.getBody(),
+    });
   }
 
   /**
@@ -1847,7 +1948,7 @@ export class SubagentsProcessor extends FeatureProcessor {
 
 Simulated subagents are specialized AI assistants that can be invoked to handle specific types of tasks. In this case, it can be appear something like custom slash commands simply. Simulated subagents can be called by custom slash commands.
 
-When users call a simulated subagent, it will look for the corresponding markdown file, \`${join(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "{subagent}.md")}\`, and execute its contents as the block of operations.
+When users call a simulated subagent, it will look for the corresponding markdown file, \`${join(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "{subagent}.md")}\` (or, for a subagent installed from a declared source, \`${join(RULESYNC_CURATED_SUBAGENTS_RELATIVE_DIR_PATH, "{subagent}.md")}\`), and execute its contents as the block of operations.
 
 For example, if the user instructs \`Call planner subagent to plan the refactoring\`, you have to look for the markdown file, \`${join(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md")}\`, and execute its contents as the block of operations.`;
   }

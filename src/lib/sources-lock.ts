@@ -54,6 +54,17 @@ const LockedSourceSchema = z.object({
   ruleSelection: optional(z.array(z.string())),
   rulesPath: optional(z.string()),
   resolvedRuleNames: optional(z.array(z.string())),
+  // Commands and subagents mirror the rule fields above. They are optional so
+  // lockfiles written before sources could install them keep parsing as they
+  // are, without a `lockfileVersion` bump.
+  commands: optional(z.record(z.string(), LockedRuleSchema)),
+  commandSelection: optional(z.array(z.string())),
+  commandsPath: optional(z.string()),
+  resolvedCommandNames: optional(z.array(z.string())),
+  subagents: optional(z.record(z.string(), LockedRuleSchema)),
+  subagentSelection: optional(z.array(z.string())),
+  subagentsPath: optional(z.string()),
+  resolvedSubagentNames: optional(z.array(z.string())),
 });
 export type LockedSource = z.infer<typeof LockedSourceSchema>;
 
@@ -282,10 +293,11 @@ function buildLockKeyQualifier(sourceEntry: SourceEntry): string {
   if (sourceEntry.path !== undefined) {
     parts.push(`path=${encodeLockKeyQualifierValue(normalizeLockKeyDirPath(sourceEntry.path))}`);
   }
-  if (sourceEntry.rulesPath !== undefined) {
-    parts.push(
-      `rulesPath=${encodeLockKeyQualifierValue(normalizeLockKeyDirPath(sourceEntry.rulesPath))}`,
-    );
+  for (const field of ["rulesPath", "commandsPath", "subagentsPath"] as const) {
+    const dirPath = sourceEntry[field];
+    if (dirPath !== undefined) {
+      parts.push(`${field}=${encodeLockKeyQualifierValue(normalizeLockKeyDirPath(dirPath))}`);
+    }
   }
   if (sourceEntry.ref !== undefined) {
     parts.push(`ref=${encodeLockKeyQualifierValue(sourceEntry.ref)}`);
@@ -302,7 +314,7 @@ function buildLockKeyQualifier(sourceEntry: SourceEntry): string {
  * stay valid unchanged. Only when several git/GitHub entries normalize to the
  * same repository does each of them get a qualified key
  * (`owner/repo#path=plugins/team-a/skills&ref=main`) built from its `path`,
- * `rulesPath` and `ref`, so each entry keeps its own lock entry, its own
+ * `rulesPath`, `commandsPath`, `subagentsPath` and `ref`, so each entry keeps its own lock entry, its own
  * curated-artifact cleanup and its own `--frozen` check. An entry declaring
  * none of those fields keeps the bare key, and entries declaring the same
  * location are told apart by their order (`entry=2`, `entry=3`, ...).
@@ -412,7 +424,110 @@ export function getLockedSkillNames(entry: LockedSource): string[] {
   return Object.keys(entry.skills);
 }
 
-/** Get the rule names from a locked source entry. */
-export function getLockedRuleNames(entry: LockedSource): string[] {
-  return Object.keys(entry.rules ?? {});
+/**
+ * The features a source installs as one Markdown file per item, each locked
+ * with the same four fields (`rules` / `ruleSelection` / `rulesPath` /
+ * `resolvedRuleNames`, and the command and subagent counterparts).
+ */
+export const SOURCE_FILE_FEATURES = ["rules", "commands", "subagents"] as const;
+export type SourceFileFeature = (typeof SOURCE_FILE_FEATURES)[number];
+
+/** Build a value for each per-file feature. */
+export function mapFileFeatures<T>(
+  map: (feature: SourceFileFeature) => T,
+): Record<SourceFileFeature, T> {
+  return { rules: map("rules"), commands: map("commands"), subagents: map("subagents") };
+}
+
+/** The lock fields of every per-file feature, shared by both lockfiles. */
+export type FileFeatureLockFields = Pick<
+  LockedSource,
+  | "rules"
+  | "ruleSelection"
+  | "rulesPath"
+  | "resolvedRuleNames"
+  | "commands"
+  | "commandSelection"
+  | "commandsPath"
+  | "resolvedCommandNames"
+  | "subagents"
+  | "subagentSelection"
+  | "subagentsPath"
+  | "resolvedSubagentNames"
+>;
+
+/** One per-file feature's side of a lock entry, independent of its field names. */
+export type LockedFileFeatureState = {
+  items: Record<string, LockedRule> | undefined;
+  selection: string[] | undefined;
+  path: string | undefined;
+  resolvedNames: string[] | undefined;
+};
+
+/** Read one per-file feature's lock fields from a lock entry. */
+export function getLockedFileFeatureState(
+  entry: FileFeatureLockFields,
+  feature: SourceFileFeature,
+): LockedFileFeatureState {
+  switch (feature) {
+    case "rules":
+      return {
+        items: entry.rules,
+        selection: entry.ruleSelection,
+        path: entry.rulesPath,
+        resolvedNames: entry.resolvedRuleNames,
+      };
+    case "commands":
+      return {
+        items: entry.commands,
+        selection: entry.commandSelection,
+        path: entry.commandsPath,
+        resolvedNames: entry.resolvedCommandNames,
+      };
+    case "subagents":
+      return {
+        items: entry.subagents,
+        selection: entry.subagentSelection,
+        path: entry.subagentsPath,
+        resolvedNames: entry.resolvedSubagentNames,
+      };
+  }
+}
+
+/** The lock fields that record one per-file feature's state. */
+export function toFileFeatureLockFields(
+  feature: SourceFileFeature,
+  state: LockedFileFeatureState,
+): FileFeatureLockFields {
+  switch (feature) {
+    case "rules":
+      return {
+        rules: state.items,
+        ruleSelection: state.selection,
+        rulesPath: state.path,
+        resolvedRuleNames: state.resolvedNames,
+      };
+    case "commands":
+      return {
+        commands: state.items,
+        commandSelection: state.selection,
+        commandsPath: state.path,
+        resolvedCommandNames: state.resolvedNames,
+      };
+    case "subagents":
+      return {
+        subagents: state.items,
+        subagentSelection: state.selection,
+        subagentsPath: state.path,
+        resolvedSubagentNames: state.resolvedNames,
+      };
+  }
+}
+
+/** The item names one per-file feature of a lock entry locks. */
+export function getLockedFileNames(
+  entry: FileFeatureLockFields,
+  feature: SourceFileFeature,
+): string[] {
+  return Object.keys(getLockedFileFeatureState(entry, feature).items ?? {});
 }

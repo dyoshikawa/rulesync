@@ -78,6 +78,7 @@ import { XumMcp } from "./xum-mcp.js";
 import { ZcodeMcp } from "./zcode-mcp.js";
 import { ZcodePluginMcp } from "./zcode-plugin-mcp.js";
 import { ZedMcp } from "./zed-mcp.js";
+import { ZeroMcp } from "./zero-mcp.js";
 
 /**
  * Supported tool targets for McpProcessor.
@@ -1073,6 +1074,21 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
         // `~/.zcode/cli/config.json`. Per-server tool filters are not part of
         // the documented entry shape.
         // https://zcode.z.ai/en/docs/mcp-services
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    "zero",
+    {
+      class: ZeroMcp,
+      meta: {
+        // Zero reads `mcp.servers` from `.zero/config.json` and
+        // `<user config dir>/zero/config.json` (stdio and http documented).
+        // https://github.com/Twigpine/zero/blob/main/docs/EXTENDING.md
         supportsProject: true,
         supportsGlobal: true,
         supportsEnabledTools: false,

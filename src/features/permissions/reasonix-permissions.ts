@@ -22,7 +22,6 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, toPosixPath } from "../../utils/file.js";
 import { type Logger, warnWithFallback } from "../../utils/logger.js";
 import { getOrCreateOwn, invertRecord, lookupOwn } from "../../utils/own-lookup.js";
-import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isRecord, toStringArray } from "../../utils/type-guards.js";
 import {
@@ -32,6 +31,7 @@ import {
   warnIfReasonixNestedProjectConfigShadowed,
 } from "../shared/reasonix-config-table.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
+import { skipsReservedPermissionName } from "./reserved-permission-name.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   collectRestrictionLosingSandboxEntries,
@@ -1166,7 +1166,7 @@ function convertReasonixToRulesyncPermissions(params: {
       const canonical = toCanonicalToolName(toolName);
       // A `__proto__` or `constructor` name would not land as a plain own key,
       // so such entries are dropped, as the other permissions adapters do.
-      if (isPrototypePollutionKey(canonical) || isPrototypePollutionKey(pattern)) {
+      if (skipsReservedPermissionName({ toolLabel: "Reasonix", category: canonical, pattern })) {
         continue;
       }
       getOrCreateOwn({ record: permission, key: canonical, create: () => ({}) })[pattern] = action;

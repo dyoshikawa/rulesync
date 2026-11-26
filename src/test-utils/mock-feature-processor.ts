@@ -10,10 +10,12 @@ export function mockProcessorBase(): {
   emitsToolFilesForEmptySource: ReturnType<typeof vi.fn>;
   hasRulesyncSourceLoadFailure: ReturnType<typeof vi.fn>;
   getRemovedPaths: ReturnType<typeof vi.fn>;
+  getSweepWrites: ReturnType<typeof vi.fn>;
 } {
   return {
     emitsToolFilesForEmptySource: vi.fn().mockReturnValue(false),
     hasRulesyncSourceLoadFailure: vi.fn().mockReturnValue(false),
     getRemovedPaths: vi.fn().mockReturnValue([]),
+    getSweepWrites: vi.fn().mockReturnValue({ paths: [], keyOperations: [] }),
   };
 }

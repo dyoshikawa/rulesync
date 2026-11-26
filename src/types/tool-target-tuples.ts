@@ -64,9 +64,11 @@ export const rulesProcessorToolTargetTuple = [
   "devin",
   "devin-plugin",
   "zcode",
+  "zero",
   "zed",
   "zoocode",
   "dsh",
+  "bb",
 ] as const;
 
 export const ignoreProcessorToolTargetTuple = [
@@ -167,6 +169,7 @@ export const mcpProcessorToolTargetTuple = [
   "devin",
   "devin-plugin",
   "zcode",
+  "zero",
   "zcode-plugin",
   "zed",
   "zoocode",
@@ -280,10 +283,12 @@ export const subagentsProcessorToolTargetTuple = [
   "rovodev",
   "tabnine",
   "takt",
+  "trae",
   "vibe",
   "vibe-plugin",
   "xum",
   "zcode",
+  "zero",
   "zcode-plugin",
 ] as const;
 
@@ -351,12 +356,14 @@ export const skillsProcessorToolTargetTuple = [
   "devin",
   "devin-plugin",
   "zcode",
+  "zero",
   "zcode-plugin",
   "zed",
   "zoocode",
   "dsh",
   "lettacode",
   "openclaw",
+  "bb",
 ] as const;
 
 export const hooksProcessorToolTargetTuple = [
@@ -412,6 +419,7 @@ export const hooksProcessorToolTargetTuple = [
   "gitlabduo",
   "lettacode",
   "zcode",
+  "zero",
   "zcode-plugin",
 ] as const;
 

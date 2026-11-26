@@ -13,8 +13,8 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { getOrCreateOwn, lookupOwn } from "../../utils/own-lookup.js";
-import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
+import { skipsReservedPermissionName } from "./reserved-permission-name.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { honorAllToolsRestrictions, withholdAllowsShadowedByAsks } from "./shadowed-allows.js";
 import { MCP_CATEGORY_PREFIX } from "./shell-command-categories.js";
@@ -579,7 +579,13 @@ function convertCursorToRulesyncPermissions(params: {
         type === "Mcp" && canonical.startsWith(MCP_CATEGORY_PREFIX) ? "*" : pattern;
       // A `__proto__` or `constructor` name would not land as a plain own key,
       // so such entries are dropped, as the other permissions adapters do.
-      if (isPrototypePollutionKey(canonical) || isPrototypePollutionKey(canonicalPattern)) {
+      if (
+        skipsReservedPermissionName({
+          toolLabel: "Cursor",
+          category: canonical,
+          pattern: canonicalPattern,
+        })
+      ) {
         continue;
       }
       getOrCreateOwn({ record: permission, key: canonical, create: () => ({}) })[canonicalPattern] =
