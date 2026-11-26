@@ -964,7 +964,9 @@ describe("VibePermissions", () => {
     const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
 
     expect(parsed.tools?.["*"]).toBeUndefined();
-    expect(parsed.disabled_tools).toBeUndefined();
+    // The catch-all deny still reaches `read_file`, whose default may be "always".
+    expect(parsed.tools?.read_file?.permission).toBe("never");
+    expect(parsed.disabled_tools).toEqual(["read_file"]);
     expect(
       logger.warn.mock.calls.some(([message]) =>
         String(message).includes("no tool table for the '*' category"),

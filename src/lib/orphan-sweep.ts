@@ -15,6 +15,16 @@ export type DeletedPath = { path: string; kind: "file" | "directory" };
 export type KeyOperation = { action: "write" | "delete"; path: string; key: string };
 
 /**
+ * What a deferred sweep wrote rather than deleted (or would, under
+ * `--dry-run`/`--check`): shared config rewritten to follow the removed files.
+ * `paths` are relative to the output root like {@link DeletedPath.path}.
+ */
+export type SweepWrites = {
+  paths: readonly string[];
+  keyOperations: readonly KeyOperation[];
+};
+
+/**
  * Run-scoped bookkeeping that keeps the `--delete` orphan sweep from turning
  * one target's output into another target's orphan.
  *
@@ -95,12 +105,14 @@ export type OrphanSweepPlan = {
    * Hold a sweep back until every generation step has written its files.
    *
    * `reportDeleted`, read once the sweep has run, names the paths it deleted
-   * (or, under `--dry-run`/`--check`, would have deleted). It is attributed to
-   * the feature of the {@link forFeature} view the sweep was deferred through.
+   * (or, under `--dry-run`/`--check`, would have deleted), and `reportWritten`
+   * the files it rewrote instead. Both are attributed to the feature of the
+   * {@link forFeature} view the sweep was deferred through.
    */
   defer(params: {
     sweep: () => Promise<boolean>;
     reportDeleted?: () => readonly DeletedPath[];
+    reportWritten?: () => SweepWrites;
   }): void;
   /** Run the deferred sweeps in registration order; true if anything changed. */
   run(): Promise<boolean>;
@@ -115,6 +127,13 @@ export type OrphanSweepPlan = {
    * previews of the same tree list them identically.
    */
   getDeletedPathsByFeature(): ReadonlyMap<string, readonly DeletedPath[]>;
+  /**
+   * The files the sweeps that already ran reported as rewritten, keyed by the
+   * feature they were deferred under, each listed once and sorted. Their key
+   * operations are reported through {@link getKeyOperationsByFeature} with
+   * those of the writes.
+   */
+  getSweepWrittenPathsByFeature(): ReadonlyMap<string, readonly string[]>;
   /**
    * Record the shared-config key operations a write made (or, under
    * `--dry-run`/`--check`, would make), attributed to the feature of the
@@ -133,6 +152,7 @@ export type OrphanSweepPlan = {
 type DeferredSweep = {
   sweep: () => Promise<boolean>;
   reportDeleted?: () => readonly DeletedPath[];
+  reportWritten?: () => SweepWrites;
   feature?: string;
 };
 
@@ -141,6 +161,7 @@ export function createOrphanSweepPlan({ logger }: { logger?: Logger } = {}): Orp
   const generatedTrees = new Set<string>();
   const deferredSweeps: DeferredSweep[] = [];
   const deletedPathsByFeature = new Map<string, DeletedPath[]>();
+  const sweepWrittenPathsByFeature = new Map<string, string[]>();
   const keyOperationsByFeature = new Map<string, KeyOperation[]>();
   const addKeyOperations = (feature: string, operations: readonly KeyOperation[]): void => {
     if (operations.length === 0) return;
@@ -256,19 +277,27 @@ export function createOrphanSweepPlan({ logger }: { logger?: Logger } = {}): Orp
       );
       return items.filter((_, index) => !claimed[index]);
     },
-    defer({ sweep, reportDeleted }) {
-      deferredSweeps.push({ sweep, reportDeleted });
+    defer({ sweep, reportDeleted, reportWritten }) {
+      deferredSweeps.push({ sweep, reportDeleted, reportWritten });
     },
     async run() {
       let hasDiff = false;
-      for (const { sweep, reportDeleted, feature } of deferredSweeps) {
+      for (const { sweep, reportDeleted, reportWritten, feature } of deferredSweeps) {
         if (await sweep()) hasDiff = true;
-        if (feature === undefined || reportDeleted === undefined) continue;
-        const deleted = reportDeleted();
-        if (deleted.length === 0) continue;
-        const existing = deletedPathsByFeature.get(feature) ?? [];
-        existing.push(...deleted);
-        deletedPathsByFeature.set(feature, existing);
+        if (feature === undefined) continue;
+        const deleted = reportDeleted?.() ?? [];
+        if (deleted.length > 0) {
+          const existing = deletedPathsByFeature.get(feature) ?? [];
+          existing.push(...deleted);
+          deletedPathsByFeature.set(feature, existing);
+        }
+        const written = reportWritten?.();
+        if (written !== undefined && written.paths.length > 0) {
+          const existing = sweepWrittenPathsByFeature.get(feature) ?? [];
+          existing.push(...written.paths);
+          sweepWrittenPathsByFeature.set(feature, existing);
+        }
+        addKeyOperations(feature, written?.keyOperations ?? []);
       }
       deferredSweeps.length = 0;
       return hasDiff;
@@ -276,8 +305,8 @@ export function createOrphanSweepPlan({ logger }: { logger?: Logger } = {}): Orp
     forFeature(feature) {
       return {
         ...plan,
-        defer({ sweep, reportDeleted }) {
-          deferredSweeps.push({ sweep, reportDeleted, feature });
+        defer({ sweep, reportDeleted, reportWritten }) {
+          deferredSweeps.push({ sweep, reportDeleted, reportWritten, feature });
         },
         recordKeyOperations(operations) {
           addKeyOperations(feature, operations);
@@ -294,6 +323,14 @@ export function createOrphanSweepPlan({ logger }: { logger?: Logger } = {}): Orp
           const unique = new Map(operations.map((op) => [`${op.path}\0${op.key}`, op] as const));
           return [feature, [...unique.keys()].toSorted().map((key) => unique.get(key)!)];
         }),
+      );
+    },
+    getSweepWrittenPathsByFeature() {
+      return new Map(
+        [...sweepWrittenPathsByFeature].map(([feature, paths]) => [
+          feature,
+          [...new Set(paths)].toSorted(),
+        ]),
       );
     },
     getDeletedPathsByFeature() {

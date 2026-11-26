@@ -11,6 +11,7 @@ import { join } from "node:path";
  * @see https://docs.trae.ai/ide/ignore-files?_lang=en
  * @see https://docs.trae.ai/ide/permission-and-approval?_lang=en
  * @see https://docs.trae.ai/ide/hook-configuration-reference?_lang=en
+ * @see https://docs.trae.ai/ide/subagents?_lang=en
  */
 export const TRAE_DIR = ".trae";
 
@@ -28,6 +29,13 @@ export const TRAE_SKILLS_DIR_PATH = join(TRAE_DIR, "skills");
  * directory levels) and `~/.trae/commands/` (global).
  */
 export const TRAE_COMMANDS_DIR_PATH = join(TRAE_DIR, "commands");
+
+/**
+ * Subagents: `.trae/agents/<name>.md`, project scope only. Trae reads the directory
+ * only while Settings > Beta > Subagents > "Enable Subagents Directory" is on, and
+ * documents the user directory only as `~/.trae-cn/agents/` (the CN build).
+ */
+export const TRAE_AGENTS_DIR_PATH = join(TRAE_DIR, "agents");
 
 /** Indexing ignore list (gitignore syntax), `.trae/.ignore`, project scope only. */
 export const TRAE_IGNORE_FILE_NAME = ".ignore";

@@ -103,6 +103,19 @@ describe("CopilotPermissions", () => {
       expect(json[URLS_KEY]).toEqual({ "good.com/z": true });
     });
 
+    it("still writes a '<host>//<path>' restriction under '*' into edits verbatim", async () => {
+      const permissions = await CopilotPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          "*": { "Evil.com//Admin": "deny" },
+          edit: { "src/**": "allow" },
+        }),
+      });
+
+      const json = JSON.parse(permissions.getFileContent());
+      expect(json[EDITS_KEY]).toEqual({ "src/**": true, "Evil.com//Admin": false });
+    });
+
     it("orders false entries where VS Code lets them win: last for edits, first for urls", async () => {
       const permissions = await CopilotPermissions.fromRulesyncPermissions({
         outputRoot: testDir,

@@ -2,6 +2,7 @@ import {
   OPENBITFUN_SKILLS_DIR_PATH,
   openbitfunGlobalSkillsDir,
 } from "../../constants/openbitfun-paths.js";
+import type { Logger } from "../../utils/logger.js";
 import { warnOpenbitfunXdgOverride } from "../../utils/openbitfun.js";
 import { AgentsSkillsSkill } from "./agentsskills-skill.js";
 import { ToolSkillFromRulesyncSkillParams, ToolSkillSettablePaths } from "./tool-skill.js";
@@ -28,6 +29,25 @@ export class OpenbitfunSkill extends AgentsSkillsSkill {
       warnOpenbitfunXdgOverride({ kind: "data", logger: params.logger });
     }
     return super.fromRulesyncSkill(params);
+  }
+
+  /**
+   * OpenBitFun has no configured skill roots; this import-only hook is used to
+   * warn, on `import --global`, about a moved user tree, which the import would
+   * otherwise silently find empty.
+   */
+  static async getConfiguredImportRoots({
+    global = false,
+    logger,
+  }: {
+    outputRoot: string;
+    global?: boolean;
+    logger?: Logger;
+  }): Promise<Array<{ outputRoot: string; relativeDirPath: string }>> {
+    if (global) {
+      warnOpenbitfunXdgOverride({ kind: "data", logger });
+    }
+    return [];
   }
 
   protected static override readonly toolTarget = "openbitfun";

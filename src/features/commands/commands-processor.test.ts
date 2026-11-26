@@ -482,6 +482,40 @@ describe("CommandsProcessor", () => {
       expect(calledArgs.rulesyncCommand.getRelativeFilePath()).toBe(join("pj", "test.md"));
     });
 
+    it("keeps one subdirectory level for junie and skips deeper commands with a warning", async () => {
+      const warnLogger = createMockLogger();
+      processor = new CommandsProcessor({
+        logger: warnLogger,
+        outputRoot: testDir,
+        toolTarget: "junie",
+      });
+      const command = (relativeFilePath: string) =>
+        new RulesyncCommand({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+          relativeFilePath,
+          frontmatter: { targets: ["junie"], description: relativeFilePath },
+          body: "content",
+        });
+      vi.mocked(JunieCommand.fromRulesyncCommand).mockImplementation(
+        ({ rulesyncCommand }) =>
+          ({ relativeFilePath: rulesyncCommand.getRelativeFilePath() }) as never,
+      );
+
+      await processor.convertRulesyncFilesToToolFiles([
+        command(join("git", "commit.md")),
+        command(join("git", "deep", "push.md")),
+      ]);
+
+      const writtenPaths = vi
+        .mocked(JunieCommand.fromRulesyncCommand)
+        .mock.calls.map(([params]) => params.rulesyncCommand.getRelativeFilePath());
+      expect(writtenPaths).toEqual([join("git", "commit.md")]);
+      expect(warnLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("only reads commands up to 1 subdirectory level(s) deep"),
+      );
+    });
+
     it("should warn when flattened command paths collide for supportsSubdirectory=false tools", async () => {
       processor = new CommandsProcessor({ logger, outputRoot: testDir, toolTarget: "cursor" });
 
@@ -1252,6 +1286,19 @@ describe("CommandsProcessor", () => {
       expect(calledGlob).not.toContain(join("**", "*.md"));
     });
 
+    it("should scan one subdirectory level for junie (import)", async () => {
+      processor = new CommandsProcessor({ logger, outputRoot: testDir, toolTarget: "junie" });
+
+      mockFindFilesByGlobs.mockResolvedValue([]);
+
+      await processor.loadToolFiles();
+
+      expect(mockFindFilesByGlobs).toHaveBeenCalledWith(["*.md", "*/*.md"], {
+        cwd: join(testDir, ".junie", "commands"),
+        followSymbolicLinks: true,
+      });
+    });
+
     it("should use recursive glob for supportsSubdirectory=true tools (import)", async () => {
       processor = new CommandsProcessor({ logger, outputRoot: testDir, toolTarget: "claudecode" });
 
@@ -1831,6 +1878,43 @@ describe("CommandsProcessor secondary import roots", () => {
       join("git", "commit.md"),
     ]);
   });
+
+  it("imports a .txt command but never offers it for deletion", async () => {
+    // Auggie 1.x also loads `.augment/commands/*.txt`. Import reads them, but
+    // rulesync never writes `.txt`, so the orphan sweep must leave them alone.
+    const actualFile =
+      await vi.importActual<typeof import("../../utils/file.js")>("../../utils/file.js");
+    vi.mocked(findFilesByGlobs).mockImplementation(actualFile.findFilesByGlobs);
+    await ensureDir(join(testDir, ".augment", "commands"));
+    await writeFileContent(
+      join(testDir, ".augment", "commands", "notes.txt"),
+      "Summarize the notes.\n",
+    );
+    await writeFileContent(
+      join(testDir, ".augment", "commands", "review.md"),
+      ["---", "description: Review", "---", "", "Review it.", ""].join("\n"),
+    );
+
+    const processor = new CommandsProcessor({
+      outputRoot: testDir,
+      toolTarget: "augmentcode",
+      logger: createMockLogger(),
+    });
+
+    const loaded = await processor.loadToolFiles();
+    expect(loaded.map((file) => file.getRelativeFilePath()).toSorted()).toEqual([
+      "notes.md",
+      "review.md",
+    ]);
+    const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(loaded);
+    expect(rulesyncFiles.map((file) => file.getRelativeFilePath()).toSorted()).toEqual([
+      "notes.md",
+      "review.md",
+    ]);
+
+    const forDeletion = await processor.loadToolFiles({ forDeletion: true });
+    expect(forDeletion.map((file) => file.getRelativeFilePath())).toEqual(["review.md"]);
+  });
 });
 
 describe("CommandsProcessor Goose slash-command retraction", () => {
@@ -1873,10 +1957,39 @@ describe("CommandsProcessor Goose slash-command retraction", () => {
       logger: createMockLogger(),
     });
 
-    await processor.removeOrphanAiFiles([], []);
+    expect(await processor.removeOrphanAiFiles([], [])).toBe(1);
 
     expect(await readFileContent(configPath)).toContain("my-recipes/mine.yaml");
     expect(await readFileContent(configPath)).not.toContain("removed.yaml");
+    // Reported so the mutation plan lists the rewrite like any other write.
+    expect(processor.getSweepWrites()).toEqual({
+      paths: [".config/goose/config.yaml"],
+      keyOperations: [
+        { action: "write", path: ".config/goose/config.yaml", key: "slash_commands" },
+      ],
+    });
+  });
+
+  it("reports the same rewrite under --dry-run without writing it", async () => {
+    const configPath = await writeConfig();
+    const before = await readFileContent(configPath);
+    const processor = new CommandsProcessor({
+      outputRoot: testDir,
+      toolTarget: "goose",
+      global: true,
+      dryRun: true,
+      logger: createMockLogger(),
+    });
+
+    expect(await processor.removeOrphanAiFiles([], [])).toBe(1);
+
+    expect(await readFileContent(configPath)).toBe(before);
+    expect(processor.getSweepWrites()).toEqual({
+      paths: [".config/goose/config.yaml"],
+      keyOperations: [
+        { action: "write", path: ".config/goose/config.yaml", key: "slash_commands" },
+      ],
+    });
   });
 
   it("does not rewrite a config that carries no managed registration", async () => {
@@ -1897,9 +2010,10 @@ describe("CommandsProcessor Goose slash-command retraction", () => {
       logger: createMockLogger(),
     });
 
-    await processor.removeOrphanAiFiles([], []);
+    expect(await processor.removeOrphanAiFiles([], [])).toBe(0);
 
     expect(await readFileContent(configPath)).toBe(before);
+    expect(processor.getSweepWrites()).toEqual({ paths: [], keyOperations: [] });
   });
 
   it("leaves the config untouched in project scope", async () => {

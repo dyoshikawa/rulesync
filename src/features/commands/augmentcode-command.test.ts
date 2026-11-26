@@ -394,3 +394,123 @@ describe("AugmentcodeCommand .agents/commands import root", () => {
     expect(await AugmentcodeCommand.loadAdditionalImportFiles({ outputRoot: testDir })).toEqual([]);
   });
 });
+
+describe("AugmentcodeCommand .txt command import", () => {
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
+  });
+
+  afterEach(async () => {
+    await cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it("imports .txt commands from .augment/commands as .md rulesync commands", async () => {
+    // Auggie 1.x names a command after its file, `.md` or `.txt`.
+    await writeFileContent(
+      join(testDir, ".augment", "commands", "notes.txt"),
+      "Summarize $1 in plain text.\n",
+    );
+    await writeFileContent(
+      join(testDir, ".augment", "commands", "git", "push.txt"),
+      ["---", "description: Push", "---", "", "Push it.", ""].join("\n"),
+    );
+    const logger = createMockLogger();
+
+    const commands = await AugmentcodeCommand.loadAdditionalImportFiles({
+      outputRoot: testDir,
+      logger,
+    });
+
+    expect(commands.map((command) => command.getRelativeFilePath()).toSorted()).toEqual([
+      join("git", "push.md"),
+      "notes.md",
+    ]);
+    const push = commands.find((command) => command.getRelativeFilePath().endsWith("push.md"));
+    expect(push?.getFrontmatter()).toEqual({ description: "Push" });
+    const notes = commands
+      .find((command) => command.getRelativeFilePath() === "notes.md")
+      ?.toRulesyncCommand();
+    expect(notes?.getRelativeFilePath()).toBe("notes.md");
+    expect(notes?.getBody()).toBe("Summarize $1 in plain text.");
+    // The originals stay on disk, so the user is told to remove them.
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining(".txt command(s)"));
+  });
+
+  it("reads ~/.augment/commands .txt files in global mode", async () => {
+    await writeFileContent(join(testDir, ".augment", "commands", "global.txt"), "Global.\n");
+
+    const commands = await AugmentcodeCommand.loadAdditionalImportFiles({
+      outputRoot: testDir,
+      global: true,
+    });
+
+    expect(commands.map((command) => command.getRelativeFilePath())).toEqual(["global.md"]);
+  });
+
+  it("skips a .txt command when a .md command of the same name exists", async () => {
+    await writeFileContent(join(testDir, ".augment", "commands", "review.txt"), "Text.\n");
+    await writeFileContent(
+      join(testDir, ".augment", "commands", "review.md"),
+      ["---", "description: Review", "---", "", "Markdown.", ""].join("\n"),
+    );
+    const logger = createMockLogger();
+
+    const commands = await AugmentcodeCommand.loadAdditionalImportFiles({
+      outputRoot: testDir,
+      logger,
+    });
+
+    expect(commands).toEqual([]);
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("review.txt"));
+  });
+
+  it("skips a .txt command whose frontmatter is invalid", async () => {
+    await writeFileContent(
+      join(testDir, ".augment", "commands", "bad.txt"),
+      ["---", "description: [not, a, string]", "---", "", "Body.", ""].join("\n"),
+    );
+    const logger = createMockLogger();
+
+    expect(
+      await AugmentcodeCommand.loadAdditionalImportFiles({ outputRoot: testDir, logger }),
+    ).toEqual([]);
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("bad.txt"));
+  });
+
+  it("skips a .txt command whose leading --- block is not YAML without aborting the import", async () => {
+    // A plain-text command can start with a `---` line that is just text.
+    await writeFileContent(
+      join(testDir, ".augment", "commands", "broken.txt"),
+      ["---", "key: [unclosed", "---", "", "Body.", ""].join("\n"),
+    );
+    await writeFileContent(join(testDir, ".augment", "commands", "fine.txt"), "Fine.\n");
+    const logger = createMockLogger();
+
+    const commands = await AugmentcodeCommand.loadAdditionalImportFiles({
+      outputRoot: testDir,
+      logger,
+    });
+
+    expect(commands.map((command) => command.getRelativeFilePath())).toEqual(["fine.md"]);
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("broken.txt"));
+  });
+
+  it("lists .txt commands before the shared .agents/commands root", async () => {
+    // `.augment/commands/` is the primary root, so its `.txt` command wins a
+    // name collision with a shared-root copy.
+    await writeFileContent(join(testDir, ".augment", "commands", "deploy.txt"), "Primary.\n");
+    await writeFileContent(
+      join(testDir, ".agents", "commands", "deploy.md"),
+      ["---", "description: Shared", "---", "", "Shared.", ""].join("\n"),
+    );
+
+    const commands = await AugmentcodeCommand.loadAdditionalImportFiles({ outputRoot: testDir });
+
+    expect(commands.map((command) => command.getBody())).toEqual(["Primary.", "Shared."]);
+  });
+});

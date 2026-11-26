@@ -1,7 +1,12 @@
+import { basename } from "node:path";
+
 import { z } from "zod/mini";
 
 import { JUNIE_COMMANDS_DIR_PATH } from "../../constants/junie-paths.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
+import { quoteForLog, stripControlCharacters } from "../../utils/control-characters.js";
+import { subdirectoryDepthOf } from "../../utils/file.js";
+import type { Logger } from "../../utils/logger.js";
 import { FrontmatterMarkdownToolCommand } from "./frontmatter-markdown-command.js";
 import { RulesyncCommand, type RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import type {
@@ -65,6 +70,43 @@ export class JunieCommand extends FrontmatterMarkdownToolCommand<JunieCommandFro
 
   protected static override getFrontmatterSchema() {
     return JunieCommandFrontmatterSchema;
+  }
+
+  /**
+   * Warn when two targeted commands share a file name. Junie reads one
+   * subdirectory level of `.junie/commands/` and "the file name supplies the
+   * command name", with no namespacing by directory, so `commit.md` and
+   * `git/commit.md` are both `/commit`. Both files are still written, so this
+   * warns instead of failing the run. Commands nested deeper than Junie reads
+   * are skipped by the processor and left out here.
+   * @see https://junie.jetbrains.com/docs/custom-slash-commands.html
+   */
+  static validateRulesyncCommands({
+    rulesyncCommands,
+    logger,
+  }: {
+    rulesyncCommands: RulesyncCommand[];
+    logger: Logger;
+  }): void {
+    const pathsByName = new Map<string, string[]>();
+    for (const command of rulesyncCommands) {
+      if (!this.isTargetedByRulesyncCommand(command)) continue;
+      const relativeFilePath = command.getRelativeFilePath();
+      if (subdirectoryDepthOf(relativeFilePath) > 1) continue;
+      const name = basename(relativeFilePath, ".md");
+      pathsByName.set(name, [...(pathsByName.get(name) ?? []), relativeFilePath]);
+    }
+    for (const [name, paths] of pathsByName) {
+      if (paths.length < 2) continue;
+      logger.warn(
+        `Junie names commands after their file, so ${paths
+          .map((path) => quoteForLog(path))
+          .join(
+            ", ",
+          )} are all /${stripControlCharacters(name)} and only one of them is reachable. ` +
+          `Rename them to make each invocable.`,
+      );
+    }
   }
 
   override toRulesyncCommand(): RulesyncCommand {
