@@ -246,17 +246,46 @@ function copyHermesBoolLikeFields(
 }
 
 /**
- * Reads `single_instance` the way Hermes does: `bool(config.get(...))`, plain
- * Python truthiness rather than the yes/no parser of
- * {@link copyHermesBoolLikeFields} (`tools/mcp_tool_server_run.py`). A number
- * or string is therefore written as the boolean Hermes acts on, with a warning
- * since that can surprise (`"false"` is a non-empty string, so it reads as
- * on); dropping it instead would quietly turn a running single-instance guard
- * off on regenerate. Any other non-boolean is dropped with a warning.
+ * The plain scalars PyYAML's YAML 1.1 resolver turns into booleans
+ * (`yaml/resolver.py`: each word in lower, Capitalized or UPPER case only).
+ * Hermes loads `config.yaml` with PyYAML, so an unquoted `no` or `off` is
+ * already `False` there, while Rulesync's YAML 1.2 parser yields the string.
+ * @see https://github.com/yaml/pyyaml/blob/main/lib/yaml/resolver.py
+ */
+const YAML11_BOOLEAN_WORDS: ReadonlyMap<string, boolean> = new Map(
+  (
+    [
+      ["yes", true],
+      ["true", true],
+      ["on", true],
+      ["no", false],
+      ["false", false],
+      ["off", false],
+    ] as const
+  ).flatMap(([word, value]) =>
+    [word, word[0]?.toUpperCase() + word.slice(1), word.toUpperCase()].map(
+      (spelling): [string, boolean] => [spelling, value],
+    ),
+  ),
+);
+
+/**
+ * Reads `single_instance` the way Hermes does: `bool(config.get(...))`
+ * (`tools/mcp_tool_server_run.py`) on the value PyYAML loaded. A word PyYAML
+ * reads as a boolean (`no`, `Off`, `TRUE`, see {@link YAML11_BOOLEAN_WORDS}) is
+ * that boolean. Any other number or string is written as the boolean Python
+ * truthiness gives it, with a warning since that can surprise (a non-empty
+ * string such as `"0"` reads as on); dropping it instead would quietly turn a
+ * running single-instance guard off on regenerate. Any other non-boolean is
+ * dropped with a warning.
  */
 function readHermesSingleInstance(value: unknown, logger?: Logger): boolean | undefined {
   if (value === undefined || value === null || typeof value === "boolean") {
     return value ?? undefined;
+  }
+  if (typeof value === "string") {
+    const word = YAML11_BOOLEAN_WORDS.get(value);
+    if (word !== undefined) return word;
   }
   if (typeof value === "number" || typeof value === "string") {
     const truthy = typeof value === "number" ? value !== 0 : value.length > 0;

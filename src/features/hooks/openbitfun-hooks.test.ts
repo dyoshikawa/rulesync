@@ -174,6 +174,30 @@ describe("OpenbitfunHooks", () => {
       expect(messages[2]).toContain('"Read"');
     });
 
+    it("should still warn about a name before the case-insensitive flag or under a flag that is not i (issue #3971)", async () => {
+      const logger = createMockLogger();
+      await OpenbitfunHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        logger,
+        rulesyncHooks: makeRulesyncHooks({
+          hooks: {
+            preToolUse: [
+              { command: "./a.sh", matcher: "read|(?i:edit)" },
+              { command: "./b.sh", matcher: "(?s)write" },
+              { command: "./c.sh", matcher: "(?-i)grep" },
+            ],
+          },
+        }),
+      });
+
+      const messages = logger.warn.mock.calls.map(([message]) => String(message));
+      expect(messages).toHaveLength(3);
+      expect(messages[0]).toContain('"read" in the "preToolUse" matcher "read|(?i:edit)"');
+      expect(messages[0]).not.toContain('"edit"');
+      expect(messages[1]).toContain('"write"');
+      expect(messages[2]).toContain('"grep"');
+    });
+
     it("should not warn about a case-insensitive matcher that still matches OpenBitFun's spelling (issue #3971)", async () => {
       const logger = createMockLogger();
       await OpenbitfunHooks.fromRulesyncHooks({
@@ -183,6 +207,7 @@ describe("OpenbitfunHooks", () => {
           hooks: {
             preToolUse: [
               { command: "./read-guard.sh", matcher: "(?i)read|edit" },
+              { command: "./grep-guard.sh", matcher: "(?i:grep|glob)" },
               { command: "./mcp-guard.sh", matcher: "mcp__github__.*" },
             ],
           },

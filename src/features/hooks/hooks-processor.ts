@@ -315,23 +315,56 @@ export const HOOKS_OVERRIDE_KEY_ALIASES: Partial<Record<ToolTarget, string>> = {
 };
 
 /**
- * Names the shared events that carry a hook whose canonical definition
- * satisfies `predicate`, excluding events the target skips altogether (those
- * are already reported as skipped and produce no output, so warning about them
- * again would contradict that message).
+ * The hooks that reach the target's file, for the warnings about what in them
+ * the target cannot express. An event the target skips altogether is left out:
+ * it is already reported as skipped and produces no output, so warning about
+ * its hooks again would repeat or contradict that message. Without
+ * `dropsUnknownOverrideEvents` only the shared block's events are skipped, so
+ * an override key of the same name is still emitted and still checked.
+ *
+ * `effective` holds every emitted event with the definitions written for it
+ * (an override key replaces the shared one). `canonical` holds only the
+ * shared block's definitions that are emitted as they are, for the checks of
+ * canonical per-hook fields: a tool-native field inside an override block is
+ * passed through verbatim and honored by that tool.
  */
-function emittedEventsWithHook(params: {
+function emittedHooksOf(params: {
   factory: ToolHooksFactory;
   sharedHooks: HooksConfig["hooks"];
-  effectiveHooks: HooksConfig["hooks"];
-  predicate: (def: HookDefinition) => boolean;
-}): string[] {
-  const { factory, sharedHooks, effectiveHooks, predicate } = params;
-  const skippedEvents: Set<string> = new Set(
+  overrideHooks: unknown;
+}): { effective: Record<string, unknown[]>; canonical: HooksConfig["hooks"] } {
+  const { factory, sharedHooks } = params;
+  const overrideHooks = isPlainObject(params.overrideHooks) ? params.overrideHooks : {};
+  const effectiveHooks: Record<string, unknown> = { ...sharedHooks, ...overrideHooks };
+  const skippedEvents: ReadonlySet<string> = new Set(
     unsupportedEventNames({ factory, sharedHooks, effectiveHooks }),
   );
-  return Object.entries(sharedHooks)
-    .filter(([event, defs]) => !skippedEvents.has(event) && defs.some((def) => predicate(def)))
+  const isOverridden = (event: string): boolean => Object.hasOwn(overrideHooks, event);
+  const isEmitted = (event: string): boolean =>
+    !skippedEvents.has(event) || (!factory.dropsUnknownOverrideEvents && isOverridden(event));
+  return {
+    effective: Object.fromEntries(
+      Object.entries(effectiveHooks)
+        .filter(([event, defs]) => isEmitted(event) && Array.isArray(defs))
+        .map(([event, defs]) => [event, defs as unknown[]]),
+    ),
+    canonical: Object.fromEntries(
+      Object.entries(sharedHooks).filter(([event]) => isEmitted(event) && !isOverridden(event)),
+    ),
+  };
+}
+
+/**
+ * Names the events whose emitted canonical definitions include one that
+ * satisfies `predicate` (see {@link emittedHooksOf}).
+ */
+function emittedEventsWithHook(params: {
+  canonicalHooks: HooksConfig["hooks"];
+  predicate: (def: HookDefinition) => boolean;
+}): string[] {
+  const { canonicalHooks, predicate } = params;
+  return Object.entries(canonicalHooks)
+    .filter(([, defs]) => defs.some((def) => predicate(def)))
     .map(([event]) => event);
 }
 
@@ -1527,19 +1560,7 @@ export class HooksProcessor extends FeatureProcessor {
     const overrideHooks = (config[overrideKey] as { hooks?: unknown } | undefined)?.hooks ?? {};
     const effectiveHooks = { ...sharedHooks, ...overrideHooks };
     const skippedEvents = unsupportedEventNames({ factory, sharedHooks, effectiveHooks });
-    // The hooks on a skipped event are already reported by the skipped-event
-    // warning and produce no output, so the hook-type and matcher warnings
-    // below leave them out rather than reporting the same hooks again. Without
-    // `dropsUnknownOverrideEvents` only the shared block's events are skipped,
-    // so an override key of the same name is still emitted and still checked.
-    const skippedEventSet: ReadonlySet<string> = new Set(skippedEvents);
-    const emittedHooks = Object.fromEntries(
-      Object.entries(effectiveHooks).filter(
-        ([event]) =>
-          !skippedEventSet.has(event) ||
-          (!factory.dropsUnknownOverrideEvents && Object.hasOwn(overrideHooks, event)),
-      ),
-    );
+    const emittedHooks = emittedHooksOf({ factory, sharedHooks, overrideHooks });
 
     // Warn about unsupported events
     {
@@ -1577,7 +1598,7 @@ export class HooksProcessor extends FeatureProcessor {
     {
       const supportedHookTypes: Set<string> = new Set(factory.supportedHookTypes);
       const unsupportedTypeToEvents = new Map<string, Set<string>>();
-      for (const [event, defs] of Object.entries(emittedHooks)) {
+      for (const [event, defs] of Object.entries(emittedHooks.effective)) {
         for (const def of defs as unknown[]) {
           const hookDef = def as { type?: string };
           const hookType = hookDef.type ?? "command";
@@ -1596,12 +1617,12 @@ export class HooksProcessor extends FeatureProcessor {
       }
     }
 
-    this.warnAboutDroppedPerHookFields({ factory, sharedHooks, effectiveHooks });
+    this.warnAboutDroppedPerHookFields({ factory, canonicalHooks: emittedHooks.canonical });
 
     // Warn about unsupported matcher
     const eventsWithUnsupportedMatcher = unsupportedMatcherEventNames({
       factory,
-      effectiveHooks: emittedHooks,
+      effectiveHooks: emittedHooks.effective,
     });
     if (eventsWithUnsupportedMatcher.length > 0) {
       this.logger.warn(
@@ -1697,10 +1718,9 @@ export class HooksProcessor extends FeatureProcessor {
    */
   private warnAboutDroppedPerHookFields(params: {
     factory: ToolHooksFactory;
-    sharedHooks: HooksConfig["hooks"];
-    effectiveHooks: HooksConfig["hooks"];
+    canonicalHooks: HooksConfig["hooks"];
   }): void {
-    const { factory, sharedHooks, effectiveHooks } = params;
+    const { factory, canonicalHooks } = params;
     // Warn that `enabled: false` cannot be expressed by targets whose hooks
     // format carries no per-definition on-disk enable flag (see
     // `supportsPerHookEnabled`); everywhere else the hook is emitted as an
@@ -1708,9 +1728,7 @@ export class HooksProcessor extends FeatureProcessor {
     // it keep firing with no explanation.
     if (!factory.supportsPerHookEnabled) {
       const eventsWithDisabledHooks = emittedEventsWithHook({
-        factory,
-        sharedHooks,
-        effectiveHooks,
+        canonicalHooks,
         predicate: (def) => def.enabled === false,
       });
       if (eventsWithDisabledHooks.length > 0) {
@@ -1725,9 +1743,7 @@ export class HooksProcessor extends FeatureProcessor {
     // unconditionally with no explanation.
     if (!factory.supportsPerHookConfirm) {
       const eventsWithConfirmHooks = emittedEventsWithHook({
-        factory,
-        sharedHooks,
-        effectiveHooks,
+        canonicalHooks,
         predicate: (def) => def.confirm !== undefined,
       });
       if (eventsWithConfirmHooks.length > 0) {

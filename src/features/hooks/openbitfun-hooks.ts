@@ -101,21 +101,31 @@ const KNOWN_TOOL_NAMES_BY_LOWERCASE: ReadonlyMap<string, string> = new Map([
 ]);
 
 /**
+ * An inline flag group that turns case-insensitive matching on: `(?i)`,
+ * `(?is)`, `(?i:...)`, `(?xi-s)`. A group that only turns it off (`(?-i)`) or
+ * names other flags (`(?s)`) does not.
+ */
+const CASE_INSENSITIVE_FLAG_PATTERN = /\(\?[a-zA-Z]*i[a-zA-Z]*(?:-[a-zA-Z]*)?[):]/;
+
+/**
  * Lowercase whole names in a matcher that spell a known tool in another case
  * (`bash`, `read`). OpenBitFun compiles the matcher as a case-sensitive regex
  * anchored to the runtime tool name, so such a name never matches, unless an
- * inline `(?i)` flag makes the match case-insensitive and the name is
- * OpenBitFun's own spelling (`(?i)read` matches `Read`, but `(?i)bash` still
- * does not match `ExecCommand`).
+ * inline flag group before it (`(?i)`, `(?i:...)`) makes the match
+ * case-insensitive and the name is OpenBitFun's own spelling (`(?i)read`
+ * matches `Read`, but `(?i)bash` still does not match `ExecCommand`).
  * @see https://github.com/openBitFun/OpenBitFun/blob/main/src/crates/execution/agent-runtime/src/native_hooks/settings.rs
  */
 function wrongCaseToolNames(matcher: string): Array<{ name: string; tool: string }> {
-  const caseInsensitive = matcher.includes("(?i");
+  const flag = CASE_INSENSITIVE_FLAG_PATTERN.exec(matcher);
+  const caseInsensitiveFrom = flag ? flag.index + flag[0].length : Number.POSITIVE_INFINITY;
   const found = new Map<string, string>();
-  for (const [token] of matcher.matchAll(MATCHER_TOKEN_PATTERN)) {
+  for (const match of matcher.matchAll(MATCHER_TOKEN_PATTERN)) {
+    const [token] = match;
     if (!isMatcherName(token) || !/^[a-z]/.test(token)) continue;
     const tool = KNOWN_TOOL_NAMES_BY_LOWERCASE.get(token.toLowerCase());
     if (tool === undefined) continue;
+    const caseInsensitive = match.index >= caseInsensitiveFrom;
     if (caseInsensitive && tool.toLowerCase() === token.toLowerCase()) continue;
     found.set(token, tool);
   }
