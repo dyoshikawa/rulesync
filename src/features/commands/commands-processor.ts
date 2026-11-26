@@ -157,6 +157,14 @@ type ToolCommandFactory = {
     /** Whether the tool supports subdirectory paths in commands */
     supportsSubdirectory: boolean;
     /**
+     * With {@link supportsSubdirectory}, the deepest directory level the tool
+     * reads: `1` means `git/commit.md` but not `git/sub/commit.md` (Junie
+     * reads only immediate subdirectories). Deeper rulesync sources are
+     * skipped with a warning, and import scans only that deep. Unset means no
+     * limit.
+     */
+    maxSubdirectoryDepth?: number;
+    /**
      * When true, {@link CommandsProcessor.loadToolFiles} never scans the
      * tool's output tree: the commands surface is emitted into a directory
      * owned by another feature (e.g. the skills tree), so import and
@@ -559,7 +567,13 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
         supportsProject: true,
         supportsGlobal: true,
         isSimulated: false,
-        supportsSubdirectory: false,
+        // Junie reads Markdown files in its command directories and their
+        // immediate subdirectories; "the file name supplies the command name",
+        // with no namespacing by directory (see JunieCommand's
+        // `validateRulesyncCommands` for the clash warning).
+        // https://junie.jetbrains.com/docs/custom-slash-commands.html
+        supportsSubdirectory: true,
+        maxSubdirectoryDepth: 1,
       },
     },
   ],
@@ -967,6 +981,25 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
  * Factory retrieval function type for dependency injection.
  * Allows injecting custom factory implementations for testing purposes.
  */
+/** Number of directory levels in a relative path (`commit.md` is 0, `git/commit.md` is 1). */
+function subdirectoryDepthOf(relativeFilePath: string): number {
+  return relativeFilePath.split(/[/\\]/u).length - 1;
+}
+
+/**
+ * The globs that find a tool's command files: flat only, every depth, or up to
+ * `maxSubdirectoryDepth` levels (`*.md` and `*\/*.md` for a depth of 1).
+ */
+function toolCommandGlobs(meta: ToolCommandFactory["meta"]): string | string[] {
+  const filePattern = `*.${meta.extension}`;
+  if (!meta.supportsSubdirectory) return filePattern;
+  if (meta.maxSubdirectoryDepth === undefined) return `**/${filePattern}`;
+  return Array.from(
+    { length: meta.maxSubdirectoryDepth + 1 },
+    (_, depth) => `${"*/".repeat(depth)}${filePattern}`,
+  );
+}
+
 type GetFactory = (target: CommandsProcessorToolTarget) => ToolCommandFactory;
 
 const defaultGetFactory: GetFactory = (target) => {
@@ -1057,6 +1090,18 @@ export class CommandsProcessor extends FeatureProcessor {
         continue;
       }
       const originalRelativePath = rulesyncCommand.getRelativeFilePath();
+      const { maxSubdirectoryDepth } = factory.meta;
+      if (
+        factory.meta.supportsSubdirectory &&
+        maxSubdirectoryDepth !== undefined &&
+        subdirectoryDepthOf(originalRelativePath) > maxSubdirectoryDepth
+      ) {
+        this.logger.warn(
+          `Skipping command ${quoteForLog(originalRelativePath)} for ` +
+            `'${this.toolTarget}', which only reads commands up to ${maxSubdirectoryDepth} subdirectory level(s) deep.`,
+        );
+        continue;
+      }
       const commandToConvert = factory.meta.supportsSubdirectory
         ? rulesyncCommand
         : this.flattenRelativeFilePath(rulesyncCommand);
@@ -1232,15 +1277,10 @@ export class CommandsProcessor extends FeatureProcessor {
     // `.augment/commands/team -> ../../shared-prompts` link would otherwise put
     // files outside the project on the orphan list. Matches the subagents,
     // skills and rules processors.
-    const commandFilePaths = await findFilesByGlobs(
-      factory.meta.supportsSubdirectory
-        ? `**/*.${factory.meta.extension}`
-        : `*.${factory.meta.extension}`,
-      {
-        cwd: outputRootFull,
-        followSymbolicLinks: !forDeletion,
-      },
-    );
+    const commandFilePaths = await findFilesByGlobs(toolCommandGlobs(factory.meta), {
+      cwd: outputRootFull,
+      followSymbolicLinks: !forDeletion,
+    });
 
     if (forDeletion) {
       const toolCommands = commandFilePaths

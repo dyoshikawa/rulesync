@@ -512,18 +512,23 @@ describe("SubagentsProcessor", () => {
     },
   );
 
-  it("marks only recursively scanned targets as supporting nested paths", () => {
+  it("marks only targets scanning subdirectories as supporting nested paths", () => {
     const factories = [...toolSubagentFactories];
     const flaggedTargets = factories
       .filter(([, factory]) => factory.meta.supportsNestedPaths === true)
       .map(([toolTarget]) => toolTarget);
     const recursiveTargets = factories
-      .filter(([, factory]) => factory.meta.filePattern.startsWith("**/"))
+      .filter(([, factory]) =>
+        // `**/*.md`, or a bounded `*/*.md`; a fixed `*/AGENT.md` is a
+        // directory-per-agent layout, not nesting.
+        [factory.meta.filePattern].flat().some((pattern) => /^(\*\*|\*)\/\*\./u.test(pattern)),
+      )
       .map(([toolTarget]) => toolTarget);
     expect(flaggedTargets).toEqual(recursiveTargets);
     expect(flaggedTargets).toEqual([
       "claudecode",
       "claudecode-legacy",
+      "junie",
       "kiro-cli",
       "kiro-ide",
       "kimi-code",
@@ -1393,6 +1398,127 @@ Body from inputRoots[0]`;
         outputRoot: testDir,
         toolTarget: "junie",
       });
+    });
+
+    it("imports one subdirectory level from both roots, skipping skills/ and deeper files", async () => {
+      const junieDir = join(testDir, ".junie", "agents");
+      const sharedDir = join(testDir, ".agents");
+      await writeFileContent(join(junieDir, "review", "security.md"), junieSubagentMd("security"));
+      await writeFileContent(
+        join(junieDir, "review", "deep", "too-deep.md"),
+        junieSubagentMd("too-deep"),
+      );
+      await writeFileContent(
+        join(junieDir, "skills", "not-agent.md"),
+        junieSubagentMd("not-agent"),
+      );
+      await writeFileContent(join(sharedDir, "team", "planner.md"), junieSubagentMd("planner"));
+      // `.agents/skills/` is the shared Agent Skills tree, never agents.
+      await writeFileContent(join(sharedDir, "skills", "README.md"), junieSubagentMd("readme"));
+      await writeFileContent(
+        join(sharedDir, "skills", "my-skill", "SKILL.md"),
+        junieSubagentMd("skill"),
+      );
+
+      const toolFiles = await processor.loadToolFiles();
+
+      expect(
+        toolFiles
+          .map((file) => join(file.getRelativeDirPath(), file.getRelativeFilePath()))
+          .toSorted(),
+      ).toEqual(
+        [
+          join(".junie", "agents", "review", "security.md"),
+          join(".agents", "team", "planner.md"),
+        ].toSorted(),
+      );
+      const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(toolFiles);
+      expect(rulesyncFiles.map((file) => file.getRelativeFilePath()).toSorted()).toEqual(
+        [join("review", "security.md"), join("team", "planner.md")].toSorted(),
+      );
+    });
+
+    it("names a nested subagent without frontmatter name after its file alone", async () => {
+      const junieDir = join(testDir, ".junie", "agents");
+      await writeFileContent(
+        join(junieDir, "review", "Security.agent.md"),
+        "---\ndescription: Review security\n---\nReview security.",
+      );
+
+      const toolFiles = await processor.loadToolFiles();
+      const [rulesyncFile] = await processor.convertToolFilesToRulesyncFiles(toolFiles);
+
+      expect(rulesyncFile).toBeInstanceOf(RulesyncSubagent);
+      expect((rulesyncFile as RulesyncSubagent).getFrontmatter().name).toBe("security");
+    });
+
+    it("keeps one copy when a nested and a top-level subagent share a name", async () => {
+      const logger = createMockLogger();
+      const nestedProcessor = new SubagentsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "junie",
+      });
+      const junieDir = join(testDir, ".junie", "agents");
+      await writeFileContent(join(junieDir, "reviewer.md"), junieSubagentMd("reviewer"));
+      await writeFileContent(join(junieDir, "team", "reviewer.md"), junieSubagentMd("reviewer"));
+
+      const toolFiles = await nestedProcessor.loadToolFiles();
+
+      expect(toolFiles.map((file) => file.getRelativeFilePath())).toEqual(["reviewer.md"]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Duplicate junie subagent "reviewer"'),
+      );
+    });
+
+    it("sweeps one-level orphans in .junie/agents but not skills/ or deeper files", async () => {
+      const junieDir = join(testDir, ".junie", "agents");
+      await writeFileContent(join(junieDir, "flat.md"), junieSubagentMd("flat"));
+      await writeFileContent(join(junieDir, "review", "security.md"), junieSubagentMd("security"));
+      await writeFileContent(
+        join(junieDir, "review", "deep", "too-deep.md"),
+        junieSubagentMd("too-deep"),
+      );
+      await writeFileContent(join(junieDir, "skills", "note.md"), junieSubagentMd("note"));
+
+      const candidates = await processor.loadToolFiles({ forDeletion: true });
+
+      expect(candidates.map((file) => file.getRelativeFilePath()).toSorted()).toEqual(
+        ["flat.md", join("review", "security.md")].toSorted(),
+      );
+    });
+
+    it("generates one-level nested subagents and skips deeper or skills/ sources", async () => {
+      const logger = createMockLogger();
+      const generator = new SubagentsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "junie",
+      });
+      const source = (relativeFilePath: string, name: string) =>
+        new RulesyncSubagent({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+          relativeFilePath,
+          frontmatter: { name, description: `${name} agent`, targets: ["*"] },
+          body: `${name} body`,
+        });
+
+      const toolFiles = await generator.convertRulesyncFilesToToolFiles([
+        source(join("review", "security.md"), "security"),
+        source(join("review", "deep", "too-deep.md"), "too-deep"),
+        source(join("skills", "helper.md"), "helper"),
+      ]);
+
+      expect(
+        toolFiles.map((file) => join(file.getRelativeDirPath(), file.getRelativeFilePath())),
+      ).toEqual([join(".junie", "agents", "review", "security.md")]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("only reads subagents up to 1 subdirectory level(s) deep"),
+      );
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('does not read subagents from a "skills/" directory'),
+      );
     });
 
     it("should import from both .junie/agents and the shared .agents root", async () => {

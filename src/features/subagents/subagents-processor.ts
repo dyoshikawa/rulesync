@@ -182,8 +182,11 @@ type ToolSubagentFactory = {
      * `/` literally rather than joined with `node:path`'s `join`: on Windows
      * `join` would separate the segments with a backslash, which only works by
      * accident because `findFilesByGlobs` rewrites backslashes.
+     *
+     * Several patterns cover a bounded nesting depth (Junie's `*.md` plus
+     * `*\/*.md`), which a single `**` glob would overshoot.
      */
-    filePattern: string;
+    filePattern: string | string[];
     /**
      * Patterns that replace {@link filePattern} for import only, for a tool
      * that reads more layouts than Rulesync writes (e.g. Devin's flat
@@ -205,8 +208,33 @@ type ToolSubagentFactory = {
      * only read a flat directory and skip nested sources with a warning.
      */
     supportsNestedPaths?: boolean;
+    /**
+     * With {@link supportsNestedPaths}, the deepest directory level the tool
+     * reads: `1` means `<dir>/<name>.md` but not `<dir>/<sub>/<name>.md`
+     * (Junie reads only immediate subdirectories). Deeper rulesync sources are
+     * skipped with a warning. Unset means no limit.
+     */
+    maxNestingDepth?: number;
+    /**
+     * Top-level subdirectories the tool does not read as agents (Junie skips
+     * `skills/`, which is the shared Agent Skills tree in `.agents/`). Sources
+     * under them are skipped on generation with a warning, and files under
+     * them are left out of imports and orphan sweeps.
+     */
+    excludedSubdirectories?: string[];
   };
 };
+
+/** Number of directory levels in a relative path (`a.md` is 0, `x/a.md` is 1). */
+function nestingDepthOf(relativeFilePath: string): number {
+  return relativeFilePath.split(/[/\\]/u).length - 1;
+}
+
+/** The top-level directory of a nested relative path, or `undefined` for a flat one. */
+function topLevelDirOf(relativeFilePath: string): string | undefined {
+  const segments = relativeFilePath.split(/[/\\]/u);
+  return segments.length > 1 ? segments[0] : undefined;
+}
 
 /**
  * The globs import scans for a tool: its import-only patterns when it reads
@@ -214,6 +242,12 @@ type ToolSubagentFactory = {
  */
 function importFilePatternsOf(meta: ToolSubagentFactory["meta"]): string | string[] {
   return meta.importFilePatterns ?? meta.filePattern;
+}
+
+/** `findFilesByGlobs` options that leave a tool's excluded subdirectories out of a scan. */
+function excludedSubdirectoryIgnoreOf(meta: ToolSubagentFactory["meta"]): { ignore?: string[] } {
+  const dirs = meta.excludedSubdirectories;
+  return dirs === undefined ? {} : { ignore: dirs.map((dir) => `${dir}/**`) };
 }
 
 /** Whether unparseable files are left out of this import or orphan sweep. */
@@ -644,7 +678,14 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsProject: true,
         supportsSimulated: false,
         supportsGlobal: true,
-        filePattern: "*.md",
+        // Junie reads `.md` and `.agent.md` files in its agent directories and
+        // their immediate subdirectories, except `skills/`. The name comes from
+        // frontmatter or the file name, never the directory.
+        // https://junie.jetbrains.com/docs/junie-cli-subagents.html
+        filePattern: ["*.md", "*/*.md"],
+        supportsNestedPaths: true,
+        maxNestingDepth: 1,
+        excludedSubdirectories: ["skills"],
       },
     },
   ],
@@ -1170,6 +1211,20 @@ export class SubagentsProcessor extends FeatureProcessor {
         );
         return false;
       }
+      const { maxNestingDepth, excludedSubdirectories } = factory.meta;
+      if (maxNestingDepth !== undefined && nestingDepthOf(path) > maxNestingDepth) {
+        this.logger.warn(
+          `Skipping nested subagent "${path}" for ${this.toolTarget}, which only reads subagents up to ${maxNestingDepth} subdirectory level(s) deep.`,
+        );
+        return false;
+      }
+      const topLevelDir = topLevelDirOf(path);
+      if (topLevelDir !== undefined && excludedSubdirectories?.includes(topLevelDir)) {
+        this.logger.warn(
+          `Skipping subagent "${path}" for ${this.toolTarget}, which does not read subagents from a "${topLevelDir}/" directory.`,
+        );
+        return false;
+      }
       return true;
     });
 
@@ -1455,6 +1510,7 @@ export class SubagentsProcessor extends FeatureProcessor {
         await findFilesByGlobs(filePatterns, {
           cwd: baseDir,
           followSymbolicLinks: !forDeletion,
+          ...excludedSubdirectoryIgnoreOf(factory.meta),
         })
       ).toSorted((left, right) =>
         compareRelativePathsShallowestFirst(relative(baseDir, left), relative(baseDir, right)),
