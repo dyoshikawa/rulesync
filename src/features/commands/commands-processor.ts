@@ -53,6 +53,7 @@ import { CursorCommand } from "./cursor-command.js";
 import { DevinCommand } from "./devin-command.js";
 import { FactorydroidCommand } from "./factorydroid-command.js";
 import { FirebenderCommand } from "./firebender-command.js";
+import { GajaecodeCommand } from "./gajaecode-command.js";
 import { GitlabduoCommand } from "./gitlabduo-command.js";
 import { GooseCommand } from "./goose-command.js";
 import { GrokcliCommand } from "./grokcli-command.js";
@@ -714,6 +715,21 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
         supportsGlobal: true,
         isSimulated: false,
         supportsSubdirectory: true,
+      },
+    },
+  ],
+  [
+    "gajaecode",
+    {
+      // `.gjc/commands/` (project) and `~/.gjc/agent/commands/` (global).
+      // https://github.com/Yeachan-Heo/gajae-code/blob/main/docs/customization.md
+      class: GajaecodeCommand,
+      meta: {
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: true,
+        isSimulated: false,
+        supportsSubdirectory: false,
       },
     },
   ],
