@@ -3,7 +3,10 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, MockedFunction, vi } from "vite-plus/test";
 
-import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import {
+  RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+  RULESYNC_CURATED_COMMANDS_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import {
@@ -908,7 +911,7 @@ describe("CommandsProcessor", () => {
         }),
       ];
 
-      mockFindFilesByGlobs.mockResolvedValue(mockPaths);
+      mockFindFilesByGlobs.mockResolvedValueOnce(mockPaths).mockResolvedValueOnce([]);
       vi.mocked(RulesyncCommand.fromFile)
         .mockResolvedValueOnce(mockRulesyncCommands[0]!)
         .mockResolvedValueOnce(mockRulesyncCommands[1]!);
@@ -949,7 +952,7 @@ describe("CommandsProcessor", () => {
         body: "content1",
       });
 
-      mockFindFilesByGlobs.mockResolvedValue(mockPaths);
+      mockFindFilesByGlobs.mockResolvedValueOnce(mockPaths).mockResolvedValueOnce([]);
       vi.mocked(RulesyncCommand.fromFile)
         .mockResolvedValueOnce(mockRulesyncCommand)
         .mockRejectedValueOnce(new Error("Failed to load"));
@@ -964,6 +967,44 @@ describe("CommandsProcessor", () => {
 
       expect(result).toEqual([]);
       expect(logger.debug).toHaveBeenCalledWith("Successfully loaded 0 rulesync commands");
+    });
+
+    it("should load curated commands fetched from sources, with local commands taking precedence", async () => {
+      const commandsDir = join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
+      const curatedDir = join(testDir, RULESYNC_CURATED_COMMANDS_RELATIVE_DIR_PATH);
+      mockFindFilesByGlobs.mockImplementation(async (_globs, options) =>
+        options?.cwd === curatedDir
+          ? [join(curatedDir, "review.md"), join(curatedDir, "shared.md")]
+          : [join(commandsDir, "shared.md")],
+      );
+      vi.mocked(RulesyncCommand.fromFile).mockImplementation(
+        async ({ relativeDirPath, relativeFilePath }) =>
+          new RulesyncCommand({
+            outputRoot: testDir,
+            relativeDirPath: relativeDirPath ?? RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+            relativeFilePath,
+            frontmatter: { targets: ["*"], description: relativeFilePath },
+            body: "body",
+          }),
+      );
+
+      const result = await processor.loadRulesyncFiles();
+
+      expect(RulesyncCommand.fromFile).toHaveBeenCalledTimes(2);
+      expect(RulesyncCommand.fromFile).toHaveBeenCalledWith({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: "shared.md",
+      });
+      expect(RulesyncCommand.fromFile).toHaveBeenCalledWith({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_CURATED_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: "review.md",
+      });
+      expect(result.map((file) => file.getRelativeFilePath()).toSorted()).toEqual([
+        "review.md",
+        "shared.md",
+      ]);
     });
 
     it("should load rulesync command files from subdirectories", async () => {
@@ -994,7 +1035,7 @@ describe("CommandsProcessor", () => {
         }),
       ];
 
-      mockFindFilesByGlobs.mockResolvedValue(mockPaths);
+      mockFindFilesByGlobs.mockResolvedValueOnce(mockPaths).mockResolvedValueOnce([]);
       vi.mocked(RulesyncCommand.fromFile)
         .mockResolvedValueOnce(mockRulesyncCommands[0]!)
         .mockResolvedValueOnce(mockRulesyncCommands[1]!);

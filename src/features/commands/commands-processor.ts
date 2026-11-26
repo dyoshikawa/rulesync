@@ -4,12 +4,14 @@ import { z } from "zod/mini";
 
 import {
   COMMANDS_FEATURE_SUBDIR,
+  CURATED_COMMANDS_FEATURE_SUBDIR,
   RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
 import { AiFile } from "../../types/ai-file.js";
 import {
   ClaimedIdentities,
   FeatureProcessor,
+  filterCuratedShadowedByLocal,
   mergeByCaseInsensitiveIdentity,
 } from "../../types/feature-processor.js";
 import type { FlattenedCommandNaming } from "../../types/features.js";
@@ -1185,31 +1187,64 @@ export class CommandsProcessor extends FeatureProcessor {
   }
 
   /**
-   * Load rulesync command files from a single source-tree's `commands/`
-   * subtree. `sourceTree` is the source tree itself (e.g.
-   * `/repo/.rulesync` or `/repo/.rulesync.local`).
+   * Load rulesync command files from a single source-tree's `commands/` (and
+   * `commands/.curated/`) subtree. `sourceTree` is the source tree itself
+   * (e.g. `/repo/.rulesync` or `/repo/.rulesync.local`).
+   *
+   * `commands/.curated/` holds the commands `rulesync install` fetched from
+   * declared sources. A local command of the same name takes precedence, as
+   * for rules and skills.
    */
   private async loadRulesyncFilesForRoot(sourceTree: string): Promise<RulesyncCommand[]> {
     const treeParent = dirname(sourceTree);
     const treeName = basename(sourceTree);
     const treeCommandsDirPath = join(treeName, COMMANDS_FEATURE_SUBDIR);
+    const treeCuratedCommandsDirPath = join(treeName, CURATED_COMMANDS_FEATURE_SUBDIR);
     const basePath = join(sourceTree, COMMANDS_FEATURE_SUBDIR);
+    const curatedBasePath = join(sourceTree, CURATED_COMMANDS_FEATURE_SUBDIR);
     // Strict for the same reason as the rules loader: a source directory whose
     // symlink no longer resolves must not glob to nothing and read as "every
     // command was deleted".
-    const rulesyncCommandPaths = (await directoryExistsStrict(basePath))
-      ? await findFilesByGlobs("**/*.md", { cwd: basePath })
-      : [];
+    const [baseExists, curatedExists] = await Promise.all([
+      directoryExistsStrict(basePath),
+      directoryExistsStrict(curatedBasePath),
+    ]);
+    // The local glob leaves out dot-directories, so `.curated/` is only read
+    // through the second glob.
+    const [rulesyncCommandPaths, curatedCommandPaths] = await Promise.all([
+      baseExists ? findFilesByGlobs("**/*.md", { cwd: basePath }) : [],
+      curatedExists ? findFilesByGlobs("**/*.md", { cwd: curatedBasePath }) : [],
+    ]);
+    const localRelativePaths = rulesyncCommandPaths.map((path) =>
+      this.safeRelativePath(basePath, path),
+    );
+    const curatedRelativePaths = filterCuratedShadowedByLocal({
+      localRelativePaths,
+      curatedRelativePaths: curatedCommandPaths.map((path) =>
+        this.safeRelativePath(curatedBasePath, path),
+      ),
+      artifactKind: "command",
+      entryNoun: "file",
+      treeDirPath: treeCommandsDirPath,
+      logger: this.logger,
+    });
 
-    return await Promise.all(
-      rulesyncCommandPaths.map((path) =>
+    return await Promise.all([
+      ...localRelativePaths.map((relativeFilePath) =>
         RulesyncCommand.fromFile({
           outputRoot: treeParent,
           relativeDirPath: treeCommandsDirPath,
-          relativeFilePath: this.safeRelativePath(basePath, path),
+          relativeFilePath,
         }),
       ),
-    );
+      ...curatedRelativePaths.map((relativeFilePath) =>
+        RulesyncCommand.fromFile({
+          outputRoot: treeParent,
+          relativeDirPath: treeCuratedCommandsDirPath,
+          relativeFilePath,
+        }),
+      ),
+    ]);
   }
 
   /**

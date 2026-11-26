@@ -661,6 +661,53 @@ export function formatCuratedCaseCollisionWarning({
 }
 
 /**
+ * The curated entries of a source tree that no local entry of the same tree
+ * overrides, in their given order. A curated entry whose path matches a local
+ * one exactly is the documented local-wins-over-curated flow and is dropped
+ * silently; one that matches only in case is dropped with
+ * {@link formatCuratedCaseCollisionWarning}, since both would land on one file
+ * on a case-insensitive filesystem.
+ *
+ * Paths are relative to the feature directory (local) and to its `.curated/`
+ * subdirectory (curated), so the same name compares equal on both sides.
+ */
+export function filterCuratedShadowedByLocal({
+  localRelativePaths,
+  curatedRelativePaths,
+  artifactKind,
+  entryNoun,
+  treeDirPath,
+  logger,
+}: {
+  localRelativePaths: readonly string[];
+  curatedRelativePaths: readonly string[];
+  artifactKind: string;
+  entryNoun: string;
+  treeDirPath: string;
+  logger: Logger;
+}): string[] {
+  const localSpellingsByIdentity = groupSpellingsByCaseFoldedIdentity(localRelativePaths);
+  return curatedRelativePaths.filter((relativePath) => {
+    const spellings = localSpellingsByIdentity.get(caseFoldIdentity(relativePath));
+    if (spellings === undefined) {
+      return true;
+    }
+    if (!spellings.includes(relativePath)) {
+      logger.warn(
+        formatCuratedCaseCollisionWarning({
+          artifactKind,
+          entryNoun,
+          treeDirPath,
+          curatedSpelling: join(".curated", relativePath),
+          localSpellings: spellings,
+        }),
+      );
+    }
+    return false;
+  });
+}
+
+/**
  * Merge artifacts whose filenames are case-insensitive identities, warning
  * when distinct spellings collapse to the same key. Exact-name overlays are
  * intentional and remain quiet; only case-only ambiguity is diagnosed.

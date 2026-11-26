@@ -2,6 +2,11 @@ import { join, resolve, sep } from "node:path";
 
 import { getSourceTransport, type SourceEntry } from "../config/config.js";
 import { SKILL_FILE_NAME } from "../constants/general.js";
+import {
+  RULESYNC_CURATED_COMMANDS_RELATIVE_DIR_PATH,
+  RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH,
+  RULESYNC_CURATED_SUBAGENTS_RELATIVE_DIR_PATH,
+} from "../constants/rulesync-paths.js";
 import { quoteForLog, stripControlCharacters } from "../utils/control-characters.js";
 import {
   applyFileMode,
@@ -21,13 +26,18 @@ import { classifyRemoteName } from "../utils/remote-name.js";
 import type { NpmLockedSource } from "./npm-sources-lock.js";
 import { parseSource } from "./source-parser.js";
 import {
+  type FileFeatureLockFields,
   type LockedSkill,
   type LockedRule,
   type LockedSource,
+  type SourceFileFeature,
   type SourcesLock,
+  SOURCE_FILE_FEATURES,
   computeRuleIntegrity,
   computeSkillIntegrity,
+  getLockedFileFeatureState,
   setLockedSource,
+  toFileFeatureLockFields,
 } from "./sources-lock.js";
 
 export type RemoteSkillFile = {
@@ -42,35 +52,80 @@ export type RemoteSkillFile = {
   executable?: boolean;
 };
 
-export type RemoteRuleFile = {
+/** One Markdown file of a per-file feature (a rule, command or subagent). */
+export type RemoteFeatureFile = {
   name: string;
   content: string;
 };
 
-export function getSourceFilters(sourceEntry: SourceEntry): {
-  skills: string[] | undefined;
-  rules: string[] | undefined;
-} {
-  const hasExplicitFeature = sourceEntry.skills !== undefined || sourceEntry.rules !== undefined;
+/**
+ * How a source installs one per-file feature: the singular noun used in
+ * messages, the source entry field naming the directory in the source, its
+ * default, and where the fetched copies are kept in the project.
+ */
+type FileFeatureSpec = {
+  noun: string;
+  pathField: "rulesPath" | "commandsPath" | "subagentsPath";
+  defaultPath: string;
+  curatedRelativeDirPath: string;
+};
+
+const FILE_FEATURE_SPECS: Record<SourceFileFeature, FileFeatureSpec> = {
+  rules: {
+    noun: "rule",
+    pathField: "rulesPath",
+    defaultPath: "rules",
+    curatedRelativeDirPath: RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH,
+  },
+  commands: {
+    noun: "command",
+    pathField: "commandsPath",
+    defaultPath: "commands",
+    curatedRelativeDirPath: RULESYNC_CURATED_COMMANDS_RELATIVE_DIR_PATH,
+  },
+  subagents: {
+    noun: "subagent",
+    pathField: "subagentsPath",
+    defaultPath: "subagents",
+    curatedRelativeDirPath: RULESYNC_CURATED_SUBAGENTS_RELATIVE_DIR_PATH,
+  },
+};
+
+/** The singular noun of a per-file feature, for messages (`rule`, `command`, `subagent`). */
+export function getFileFeatureNoun(feature: SourceFileFeature): string {
+  return FILE_FEATURE_SPECS[feature].noun;
+}
+
+/** Where a per-file feature's fetched copies live, relative to the project root. */
+export function getCuratedFileFeatureRelativeDirPath(feature: SourceFileFeature): string {
+  return FILE_FEATURE_SPECS[feature].curatedRelativeDirPath;
+}
+
+/** Every selection field a source entry may declare. */
+export const SOURCE_SELECTION_FIELDS = ["skills", ...SOURCE_FILE_FEATURES] as const;
+export type SourceSelectionField = (typeof SOURCE_SELECTION_FIELDS)[number];
+
+export function getSourceFilters(
+  sourceEntry: SourceEntry,
+): Record<SourceSelectionField, string[] | undefined> {
+  const hasExplicitFeature = SOURCE_SELECTION_FIELDS.some(
+    (field) => sourceEntry[field] !== undefined,
+  );
   return {
     skills: sourceEntry.skills ?? (hasExplicitFeature ? undefined : ["*"]),
     rules: sourceEntry.rules,
+    commands: sourceEntry.commands,
+    subagents: sourceEntry.subagents,
   };
 }
 
-export function getEmptySelections(sourceEntry: SourceEntry): {
-  skillsEmpty: boolean;
-  rulesEmpty: boolean;
-} {
-  return {
-    skillsEmpty: sourceEntry.skills?.length === 0,
-    rulesEmpty: sourceEntry.rules?.length === 0,
-  };
+/** The selection fields a source entry declares as an empty list. */
+export function getEmptySelectionFields(sourceEntry: SourceEntry): SourceSelectionField[] {
+  return SOURCE_SELECTION_FIELDS.filter((field) => sourceEntry[field]?.length === 0);
 }
 
 export function hasEmptySelection(sourceEntry: SourceEntry): boolean {
-  const { skillsEmpty, rulesEmpty } = getEmptySelections(sourceEntry);
-  return skillsEmpty || rulesEmpty;
+  return getEmptySelectionFields(sourceEntry).length > 0;
 }
 
 /**
@@ -154,11 +209,22 @@ export async function checkLockedSkillsAreValid(params: {
   return true;
 }
 
-export async function checkLockedRulesAreValid(params: {
+/**
+ * Check that every item one per-file feature of a lock entry locks is on disk
+ * in its curated directory with the locked content. A locked name that is not
+ * a valid file name (a hand-edited lockfile) never counts as installed, so it
+ * is fetched again rather than read from outside the curated directory.
+ */
+export async function checkLockedFilesAreValid(params: {
+  feature: SourceFileFeature;
   curatedDir: string;
-  locked: Pick<LockedSource, "rules">;
+  locked: FileFeatureLockFields;
 }): Promise<boolean> {
-  for (const [name, entry] of Object.entries(params.locked.rules ?? {})) {
+  const { items } = getLockedFileFeatureState(params.locked, params.feature);
+  for (const [name, entry] of Object.entries(items ?? {})) {
+    if (!isValidRuleName(name)) {
+      return false;
+    }
     const filePath = join(params.curatedDir, `${name}.md`);
     if (!(await fileExists(filePath))) {
       return false;
@@ -170,44 +236,32 @@ export async function checkLockedRulesAreValid(params: {
   return true;
 }
 
-export async function canReuseLockedRules(params: {
+export async function canReuseLockedFiles(params: {
+  feature: SourceFileFeature;
   locked: LockedSource | NpmLockedSource;
   sourceEntry: SourceEntry;
-  lockedRuleNames: string[];
-  localRuleNames: Set<string>;
-  alreadyFetchedRuleNames: Set<string>;
+  lockedNames: string[];
+  localNames: Set<string>;
+  alreadyFetchedNames: Set<string>;
   curatedDir: string;
 }): Promise<boolean> {
-  const {
-    locked,
-    sourceEntry,
-    lockedRuleNames,
-    localRuleNames,
-    alreadyFetchedRuleNames,
-    curatedDir,
-  } = params;
-  if (!lockedRuleConfigMatches({ locked, sourceEntry })) {
+  const { feature, locked, sourceEntry, lockedNames, localNames, alreadyFetchedNames, curatedDir } =
+    params;
+  if (!lockedFileConfigMatches({ feature, locked, sourceEntry })) {
     return false;
   }
-  if (locked.resolvedRuleNames === undefined) {
+  const { resolvedNames } = getLockedFileFeatureState(locked, feature);
+  if (resolvedNames === undefined) {
     return false;
   }
-  const availableRuleNames = new Set([
-    ...lockedRuleNames,
-    ...localRuleNames,
-    ...alreadyFetchedRuleNames,
-  ]);
-  if (locked.resolvedRuleNames.some((ruleName) => !availableRuleNames.has(ruleName))) {
+  const availableNames = new Set([...lockedNames, ...localNames, ...alreadyFetchedNames]);
+  if (resolvedNames.some((name) => !availableNames.has(name))) {
     return false;
   }
-  if (
-    lockedRuleNames.some(
-      (ruleName) => localRuleNames.has(ruleName) || alreadyFetchedRuleNames.has(ruleName),
-    )
-  ) {
+  if (lockedNames.some((name) => localNames.has(name) || alreadyFetchedNames.has(name))) {
     return false;
   }
-  return checkLockedRulesAreValid({ curatedDir, locked });
+  return checkLockedFilesAreValid({ feature, curatedDir, locked });
 }
 
 // ---------------------------------------------------------------------------
@@ -243,87 +297,103 @@ export async function cleanPreviousCuratedSkills(params: {
   }
 }
 
-export async function cleanPreviousCuratedRules(params: {
+/**
+ * Whether `<name>.md` resolves to a file directly inside `curatedDir`. Locked
+ * names come from the lockfile, which can be edited by hand, so they are
+ * checked before anything is read, removed or written under them.
+ */
+function isCuratedFileInside(params: { curatedDir: string; name: string }): boolean {
+  const resolvedCuratedDir = resolve(params.curatedDir);
+  return resolve(join(params.curatedDir, `${params.name}.md`)).startsWith(resolvedCuratedDir + sep);
+}
+
+/**
+ * Remove a source's previously curated files (rules, commands or subagents)
+ * before re-fetching. Validates that each path resolves within the curated
+ * directory to prevent traversal.
+ */
+export async function cleanPreviousCuratedFiles(params: {
   curatedDir: string;
-  lockedRuleNames: string[];
-  protectedRuleNames: Set<string>;
+  lockedNames: string[];
+  protectedNames: Set<string>;
   logger: Logger;
 }): Promise<void> {
-  const { curatedDir, lockedRuleNames, protectedRuleNames, logger } = params;
-  const resolvedCuratedDir = resolve(curatedDir);
-  for (const prevRule of lockedRuleNames) {
-    if (protectedRuleNames.has(prevRule)) {
+  const { curatedDir, lockedNames, protectedNames, logger } = params;
+  for (const prevName of lockedNames) {
+    if (protectedNames.has(prevName)) {
       continue;
     }
-    const prevFile = join(curatedDir, `${prevRule}.md`);
-    if (!resolve(prevFile).startsWith(resolvedCuratedDir + sep)) {
+    if (!isCuratedFileInside({ curatedDir, name: prevName })) {
       logger.warn(
-        `Skipping removal of ${quoteForLog(prevRule)}: resolved path is outside the curated directory.`,
+        `Skipping removal of ${quoteForLog(prevName)}: resolved path is outside the curated directory.`,
       );
       continue;
     }
+    const prevFile = join(curatedDir, `${prevName}.md`);
     if (await fileExists(prevFile)) {
       await removeFileStrict(prevFile);
     }
   }
 }
 
-export async function replaceCuratedRules(params: {
-  rules: RemoteRuleFile[];
+export async function replaceCuratedFiles(params: {
+  feature: SourceFileFeature;
+  files: RemoteFeatureFile[];
   curatedDir: string;
   locked: LockedSource | undefined;
-  lockedRuleNames: string[];
+  lockedNames: string[];
   resolvedRef: string;
   sourceKey: string;
-  localRuleNames: Set<string>;
-  alreadyFetchedRuleNames: Set<string>;
+  localNames: Set<string>;
+  alreadyFetchedNames: Set<string>;
   compareLockedIntegrity: boolean;
   frozen: boolean;
   logger: Logger;
 }): Promise<Record<string, LockedRule>> {
   const {
-    rules,
+    feature,
+    files,
     curatedDir,
     locked,
-    lockedRuleNames,
+    lockedNames,
     resolvedRef,
     sourceKey,
-    localRuleNames,
-    alreadyFetchedRuleNames,
+    localNames,
+    alreadyFetchedNames,
     compareLockedIntegrity,
     frozen,
     logger,
   } = params;
-  const protectedRuleNames = alreadyFetchedRuleNames;
-  const installableRules = rules.filter(
-    (rule) =>
-      !shouldSkipRule({
-        ruleName: rule.name,
+  const protectedNames = alreadyFetchedNames;
+  const installableFiles = files.filter(
+    (file) =>
+      !shouldSkipFile({
+        feature,
+        name: file.name,
         sourceKey,
-        localRuleNames,
-        alreadyFetchedRuleNames,
+        localNames,
+        alreadyFetchedNames,
         logger,
       }),
   );
   const previousContents = new Map<string, string>();
-  for (const name of lockedRuleNames) {
+  for (const name of lockedNames) {
+    if (protectedNames.has(name) || !isCuratedFileInside({ curatedDir, name })) {
+      continue;
+    }
     const path = join(curatedDir, `${name}.md`);
-    if (!protectedRuleNames.has(name) && (await fileExists(path))) {
+    if (await fileExists(path)) {
       previousContents.set(name, await readFileContent(path));
     }
   }
 
   try {
-    await cleanPreviousCuratedRules({
-      curatedDir,
-      lockedRuleNames,
-      protectedRuleNames,
-      logger,
-    });
-    const fetchedRules: Record<string, LockedRule> = {};
-    for (const rule of installableRules) {
-      fetchedRules[rule.name] = await writeRuleAndComputeIntegrity({
-        rule,
+    await cleanPreviousCuratedFiles({ curatedDir, lockedNames, protectedNames, logger });
+    const fetchedFiles: Record<string, LockedRule> = {};
+    for (const file of installableFiles) {
+      fetchedFiles[file.name] = await writeFeatureFileAndComputeIntegrity({
+        feature,
+        file,
         curatedDir,
         locked,
         resolvedRef,
@@ -333,10 +403,10 @@ export async function replaceCuratedRules(params: {
         logger,
       });
     }
-    return fetchedRules;
+    return fetchedFiles;
   } catch (error) {
-    for (const rule of installableRules) {
-      await removeFileStrict(join(curatedDir, `${rule.name}.md`));
+    for (const file of installableFiles) {
+      await removeFileStrict(join(curatedDir, `${file.name}.md`));
     }
     for (const [name, content] of previousContents) {
       await writeFileContent(join(curatedDir, `${name}.md`), content);
@@ -390,25 +460,49 @@ export function shouldSkipRule(params: {
   alreadyFetchedRuleNames: Set<string>;
   logger: Logger;
 }): boolean {
-  const { ruleName, sourceKey, localRuleNames, alreadyFetchedRuleNames, logger } = params;
-  if (!isValidRuleName(ruleName)) {
-    logger.warn(`Skipping rule with invalid name ${quoteForLog(ruleName)} from ${sourceKey}.`);
+  return shouldSkipFile({
+    feature: "rules",
+    name: params.ruleName,
+    sourceKey: params.sourceKey,
+    localNames: params.localRuleNames,
+    alreadyFetchedNames: params.alreadyFetchedRuleNames,
+    logger: params.logger,
+  });
+}
+
+/**
+ * Check whether a remote rule, command or subagent should be skipped: its
+ * name could escape the curated directory or is unsafe to print, a local file
+ * of the same name takes precedence, or an earlier source already took it.
+ */
+export function shouldSkipFile(params: {
+  feature: SourceFileFeature;
+  name: string;
+  sourceKey: string;
+  localNames: Set<string>;
+  alreadyFetchedNames: Set<string>;
+  logger: Logger;
+}): boolean {
+  const { feature, name, sourceKey, localNames, alreadyFetchedNames, logger } = params;
+  const noun = getFileFeatureNoun(feature);
+  if (!isValidRuleName(name)) {
+    logger.warn(`Skipping ${noun} with invalid name ${quoteForLog(name)} from ${sourceKey}.`);
     return true;
   }
-  const unsafe = describeUnsafeRemoteName(ruleName);
+  const unsafe = describeUnsafeRemoteName(name);
   if (unsafe !== undefined) {
-    logger.warn(`Skipping rule with unsafe name ${unsafe} from ${sourceKey}.`);
+    logger.warn(`Skipping ${noun} with unsafe name ${unsafe} from ${sourceKey}.`);
     return true;
   }
-  if (localRuleNames.has(ruleName)) {
+  if (localNames.has(name)) {
     logger.debug(
-      `Skipping remote rule ${quoteForLog(ruleName)} from ${sourceKey}: local rule takes precedence.`,
+      `Skipping remote ${noun} ${quoteForLog(name)} from ${sourceKey}: local ${noun} takes precedence.`,
     );
     return true;
   }
-  if (alreadyFetchedRuleNames.has(ruleName)) {
+  if (alreadyFetchedNames.has(name)) {
     logger.warn(
-      `Skipping duplicate rule ${quoteForLog(ruleName)} from ${sourceKey}: already fetched from another source.`,
+      `Skipping duplicate ${noun} ${quoteForLog(name)} from ${sourceKey}: already fetched from another source.`,
     );
     return true;
   }
@@ -460,8 +554,9 @@ function reportIntegrityMismatch(params: {
   logger.warn(message);
 }
 
-async function writeRuleAndComputeIntegrity(params: {
-  rule: RemoteRuleFile;
+async function writeFeatureFileAndComputeIntegrity(params: {
+  feature: SourceFileFeature;
+  file: RemoteFeatureFile;
   curatedDir: string;
   locked: LockedSource | undefined;
   resolvedRef: string;
@@ -471,7 +566,8 @@ async function writeRuleAndComputeIntegrity(params: {
   logger: Logger;
 }): Promise<LockedRule> {
   const {
-    rule,
+    feature,
+    file,
     curatedDir,
     locked,
     resolvedRef,
@@ -480,23 +576,25 @@ async function writeRuleAndComputeIntegrity(params: {
     frozen,
     logger,
   } = params;
-  const relativePath = `${rule.name}.md`;
+  const relativePath = `${file.name}.md`;
   checkPathTraversal({ relativePath, intendedRootDir: curatedDir });
-  const integrity = computeRuleIntegrity(rule.content);
-  const lockedRuleEntry = locked?.rules?.[rule.name];
+  const integrity = computeRuleIntegrity(file.content);
+  const lockedEntry = locked
+    ? getLockedFileFeatureState(locked, feature).items?.[file.name]
+    : undefined;
   if (
     compareLockedIntegrity &&
-    lockedRuleEntry?.integrity &&
-    lockedRuleEntry.integrity !== integrity &&
+    lockedEntry?.integrity &&
+    lockedEntry.integrity !== integrity &&
     resolvedRef === locked?.resolvedRef
   ) {
     reportIntegrityMismatch({
-      message: `Integrity mismatch for rule ${quoteForLog(rule.name)} from ${sourceKey}: expected "${lockedRuleEntry.integrity}", got "${integrity}". Content may have been tampered with.`,
+      message: `Integrity mismatch for ${getFileFeatureNoun(feature)} ${quoteForLog(file.name)} from ${sourceKey}: expected "${lockedEntry.integrity}", got "${integrity}". Content may have been tampered with.`,
       frozen,
       logger,
     });
   }
-  await writeFileContent(join(curatedDir, relativePath), rule.content);
+  await writeFileContent(join(curatedDir, relativePath), file.content);
   return { integrity };
 }
 
@@ -638,6 +736,7 @@ export function buildLockUpdate(params: {
     ruleSelection: locked?.ruleSelection,
     rulesPath: locked?.rulesPath,
     resolvedRuleNames: locked?.resolvedRuleNames,
+    ...pickFileFeatureLockFields({ locked, features: ["commands", "subagents"] }),
   });
 
   logger.info(
@@ -647,33 +746,56 @@ export function buildLockUpdate(params: {
   return { updatedLock, fetchedNames };
 }
 
-export function buildRuleLockUpdate(params: {
+/**
+ * The lock fields of the given per-file features, copied from a lock entry
+ * (empty when there is none), so that writing one feature's fields keeps the
+ * others as they were.
+ */
+export function pickFileFeatureLockFields(params: {
+  locked: FileFeatureLockFields | undefined;
+  features: readonly SourceFileFeature[];
+}): FileFeatureLockFields {
+  const { locked, features } = params;
+  if (locked === undefined) {
+    return {};
+  }
+  return Object.assign(
+    {},
+    ...features.map((feature) =>
+      toFileFeatureLockFields(feature, getLockedFileFeatureState(locked, feature)),
+    ),
+  );
+}
+
+export function buildFileLockUpdate(params: {
+  feature: SourceFileFeature;
   lock: SourcesLock;
   lockKey: string;
   sourceKey: string;
-  fetchedRules: Record<string, LockedRule>;
+  fetchedFiles: Record<string, LockedRule>;
   locked: LockedSource | undefined;
   requestedRef: string | undefined;
   resolvedRef: string;
-  ruleSelection: string[];
-  rulesPath: string;
-  resolvedRuleNames: string[];
+  selection: string[];
+  path: string;
+  resolvedNames: string[];
   logger: Logger;
 }): { updatedLock: SourcesLock; fetchedNames: string[] } {
   const {
+    feature,
     lock,
     lockKey,
     sourceKey,
-    fetchedRules,
+    fetchedFiles,
     locked,
     requestedRef,
     resolvedRef,
-    ruleSelection,
-    rulesPath,
-    resolvedRuleNames,
+    selection,
+    path,
+    resolvedNames,
     logger,
   } = params;
-  const fetchedNames = Object.keys(fetchedRules);
+  const fetchedNames = Object.keys(fetchedFiles);
   const updatedLock = setLockedSource(lock, lockKey, {
     requestedRef,
     resolvedRef,
@@ -681,13 +803,16 @@ export function buildRuleLockUpdate(params: {
     skills: locked?.skills ?? {},
     skillSelection: locked?.skillSelection,
     skillsPath: locked?.skillsPath,
-    rules: fetchedRules,
-    ruleSelection,
-    rulesPath,
-    resolvedRuleNames,
+    ...pickFileFeatureLockFields({ locked, features: SOURCE_FILE_FEATURES }),
+    ...toFileFeatureLockFields(feature, {
+      items: fetchedFiles,
+      selection,
+      path,
+      resolvedNames,
+    }),
   });
   logger.info(
-    `Fetched ${fetchedNames.length} rule(s) from ${sourceKey}: ${fetchedNames.map(stripControlCharacters).join(", ") || "(none)"}`,
+    `Fetched ${fetchedNames.length} ${getFileFeatureNoun(feature)}(s) from ${sourceKey}: ${fetchedNames.map(stripControlCharacters).join(", ") || "(none)"}`,
   );
   return { updatedLock, fetchedNames };
 }
@@ -785,17 +910,19 @@ export function isWildcardSelection(selection: readonly string[]): boolean {
 }
 
 /**
- * Pick the remote rule files a source entry declares: Markdown files whose
- * normalized name is selected by `sourceEntry.rules` (or the wildcard) and is
- * a valid rule name. Candidate order is preserved.
+ * Pick the remote files a source entry declares for one per-file feature:
+ * Markdown files whose normalized name is selected by the feature's field
+ * (`sourceEntry.rules`, `.commands` or `.subagents`, or the wildcard) and is a
+ * valid file name. Candidate order is preserved.
  */
-export function selectDeclaredRules<T>(params: {
+export function selectDeclaredFiles<T>(params: {
+  feature: SourceFileFeature;
   sourceEntry: SourceEntry;
   candidates: readonly T[];
   getFileName: (candidate: T) => string;
 }): Array<{ candidate: T; name: string }> {
-  const { sourceEntry, candidates, getFileName } = params;
-  const ruleFilter = (sourceEntry.rules ?? []).map(normalizeRuleFilterName);
+  const { feature, sourceEntry, candidates, getFileName } = params;
+  const ruleFilter = (sourceEntry[feature] ?? []).map(normalizeRuleFilterName);
   const isWildcard = isWildcardSelection(ruleFilter);
   return candidates
     .filter((candidate) => getFileName(candidate).toLowerCase().endsWith(".md"))
@@ -927,17 +1054,24 @@ export function resolveSkillsPath(sourceEntry: SourceEntry): string {
 }
 
 /**
- * The path the rules of a source are read from, as declared: the source's
- * `rulesPath`, else `rules`. The rules counterpart of
- * {@link resolveSkillsSourcePath}.
+ * The path one per-file feature of a source is read from, as declared: the
+ * source's `rulesPath` / `commandsPath` / `subagentsPath`, else `rules` /
+ * `commands` / `subagents`. The counterpart of {@link resolveSkillsSourcePath}.
  */
-export function resolveRulesSourcePath(sourceEntry: SourceEntry): string {
-  return sourceEntry.rulesPath ?? "rules";
+export function resolveFileFeatureSourcePath(
+  sourceEntry: SourceEntry,
+  feature: SourceFileFeature,
+): string {
+  const spec = FILE_FEATURE_SPECS[feature];
+  return sourceEntry[spec.pathField] ?? spec.defaultPath;
 }
 
-/** The rules path of a source in the form the lockfile records and compares. */
-export function resolveRulesPath(sourceEntry: SourceEntry): string {
-  return normalizeSourceDirPath(resolveRulesSourcePath(sourceEntry));
+/** A per-file feature's path in the form the lockfile records and compares. */
+export function resolveFileFeaturePath(
+  sourceEntry: SourceEntry,
+  feature: SourceFileFeature,
+): string {
+  return normalizeSourceDirPath(resolveFileFeatureSourcePath(sourceEntry, feature));
 }
 
 /**
@@ -948,24 +1082,60 @@ function normalizeSourceDirPath(dirPath: string): string {
   return normalizePosixDirPath(dirPath);
 }
 
-export function lockedRuleConfigMatches(params: {
-  locked: Pick<LockedSource, "ruleSelection" | "rulesPath">;
+/**
+ * Whether a lock entry was written for the selection and path one per-file
+ * feature of the source declares now.
+ */
+export function lockedFileConfigMatches(params: {
+  feature: SourceFileFeature;
+  locked: FileFeatureLockFields;
   sourceEntry: SourceEntry;
 }): boolean {
-  const rules = getSourceFilters(params.sourceEntry).rules;
-  if (rules === undefined || params.locked.ruleSelection === undefined) {
+  const { feature, locked, sourceEntry } = params;
+  const declared = getSourceFilters(sourceEntry)[feature];
+  const { selection: lockedSelection, path: lockedPath } = getLockedFileFeatureState(
+    locked,
+    feature,
+  );
+  if (declared === undefined || lockedSelection === undefined) {
     return false;
   }
-  const selection = normalizeRuleSelection(rules);
+  const selection = normalizeRuleSelection(declared);
   return (
-    selection.length === params.locked.ruleSelection.length &&
-    selection.every((ruleName, index) => ruleName === params.locked.ruleSelection?.[index]) &&
-    resolveRulesPath(params.sourceEntry) === params.locked.rulesPath
+    selection.length === lockedSelection.length &&
+    selection.every((name, index) => name === lockedSelection[index]) &&
+    resolveFileFeaturePath(sourceEntry, feature) === lockedPath
   );
 }
 
-export function assertMatchingRulesFound(params: { ruleNames: string[]; source: string }): void {
-  if (params.ruleNames.length === 0) {
-    throw new Error(`No matching rules found in ${params.source}.`);
+export function assertMatchingFilesFound(params: {
+  feature: SourceFileFeature;
+  names: string[];
+  source: string;
+}): void {
+  if (params.names.length === 0) {
+    throw new Error(`No matching ${params.feature} found in ${params.source}.`);
   }
+}
+
+/**
+ * "N skill(s) and M rule(s)", followed by the command and subagent counts when
+ * any were installed, for the summary lines of `add` and `install`.
+ */
+export function formatInstalledCounts(result: {
+  fetchedSkillCount: number;
+  fetchedRuleCount: number;
+  fetchedCommandCount: number;
+  fetchedSubagentCount: number;
+}): string {
+  const extras = [
+    result.fetchedCommandCount > 0 ? `${result.fetchedCommandCount} command(s)` : undefined,
+    result.fetchedSubagentCount > 0 ? `${result.fetchedSubagentCount} subagent(s)` : undefined,
+  ].filter((part) => part !== undefined);
+  const parts = [
+    `${result.fetchedSkillCount} skill(s)`,
+    `${result.fetchedRuleCount} rule(s)`,
+    ...extras,
+  ];
+  return `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}`;
 }

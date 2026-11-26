@@ -934,6 +934,59 @@ Second agent content`;
       expect(names).toEqual(["agent-1", "agent-2"]);
     });
 
+    it("should load curated subagents fetched from sources, with local subagents taking precedence", async () => {
+      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
+      const curatedDir = join(subagentsDir, ".curated");
+      const content = (name: string, description: string) => `---
+name: ${name}
+description: ${description}
+targets: ["*"]
+---
+${description} body`;
+      await writeFileContent(join(subagentsDir, "shared.md"), content("shared", "local"));
+      await writeFileContent(join(curatedDir, "shared.md"), content("shared", "curated"));
+      await writeFileContent(join(curatedDir, "reviewer.md"), content("reviewer", "curated"));
+      const logger = createMockLogger();
+      processor = new SubagentsProcessor({ logger, outputRoot: testDir, toolTarget: "claudecode" });
+
+      const rulesyncFiles = (await processor.loadRulesyncFiles()) as RulesyncSubagent[];
+
+      const byName = new Map(
+        rulesyncFiles.map((file) => [
+          file.getFrontmatter().name,
+          file.getFrontmatter().description,
+        ]),
+      );
+      expect(byName).toEqual(
+        new Map([
+          ["shared", "local"],
+          ["reviewer", "curated"],
+        ]),
+      );
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("should warn when a curated subagent differs from a local one only in case", async () => {
+      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
+      const content = (description: string) => `---
+name: shared
+description: ${description}
+targets: ["*"]
+---
+body`;
+      await writeFileContent(join(subagentsDir, "Shared.md"), content("local"));
+      await writeFileContent(join(subagentsDir, ".curated", "shared.md"), content("curated"));
+      const logger = createMockLogger();
+      processor = new SubagentsProcessor({ logger, outputRoot: testDir, toolTarget: "claudecode" });
+
+      const rulesyncFiles = (await processor.loadRulesyncFiles()) as RulesyncSubagent[];
+
+      expect(rulesyncFiles.map((file) => file.getFrontmatter().description)).toEqual(["local"]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("Case-insensitive subagent collision"),
+      );
+    });
+
     it("should load nested rulesync subagent files", async () => {
       const nestedDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "review");
       await ensureDir(nestedDir);

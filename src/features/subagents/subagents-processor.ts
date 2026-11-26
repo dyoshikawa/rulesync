@@ -4,6 +4,7 @@ import { z } from "zod/mini";
 
 import { POOL_SETTINGS_FILE_NAME } from "../../constants/pool-paths.js";
 import {
+  CURATED_SUBAGENTS_FEATURE_SUBDIR,
   RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
   SUBAGENTS_FEATURE_SUBDIR,
 } from "../../constants/rulesync-paths.js";
@@ -11,6 +12,7 @@ import {
   caseFoldIdentity,
   ClaimedIdentities,
   FeatureProcessor,
+  filterCuratedShadowedByLocal,
   mergeByCaseInsensitiveIdentity,
 } from "../../types/feature-processor.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
@@ -1407,7 +1409,9 @@ export class SubagentsProcessor extends FeatureProcessor {
     const treeParent = dirname(sourceTree);
     const treeName = basename(sourceTree);
     const treeSubagentsDirPath = join(treeName, SUBAGENTS_FEATURE_SUBDIR);
+    const treeCuratedSubagentsDirPath = join(treeName, CURATED_SUBAGENTS_FEATURE_SUBDIR);
     const subagentsDir = join(sourceTree, SUBAGENTS_FEATURE_SUBDIR);
+    const curatedSubagentsDir = join(sourceTree, CURATED_SUBAGENTS_FEATURE_SUBDIR);
 
     // Strict: a source directory symlinked at a tree that is missing must not
     // read as "this feature has no sources", which would let `--delete` sweep
@@ -1419,7 +1423,7 @@ export class SubagentsProcessor extends FeatureProcessor {
     }
     this.rulesyncSourceDirFound = true;
 
-    const mdFiles = (
+    const localMdFiles = (
       await findFilesByGlobs("**/*.md", {
         cwd: subagentsDir,
         followSymbolicLinks: true,
@@ -1427,6 +1431,33 @@ export class SubagentsProcessor extends FeatureProcessor {
     )
       .map((file) => relative(subagentsDir, file))
       .toSorted(compareRelativePathsShallowestFirst);
+    // `subagents/.curated/` holds the subagents `rulesync install` fetched from
+    // declared sources; the glob above leaves dot-directories out. A local
+    // subagent of the same name takes precedence, as for rules and skills.
+    const curatedMdFiles = (await directoryExistsStrict(curatedSubagentsDir))
+      ? filterCuratedShadowedByLocal({
+          localRelativePaths: localMdFiles,
+          curatedRelativePaths: (await findFilesByGlobs("**/*.md", { cwd: curatedSubagentsDir }))
+            .map((file) => relative(curatedSubagentsDir, file))
+            .toSorted(compareRelativePathsShallowestFirst),
+          artifactKind: "subagent",
+          entryNoun: "file",
+          treeDirPath: treeSubagentsDirPath,
+          logger: this.logger,
+        })
+      : [];
+    const mdFiles = [
+      ...localMdFiles.map((relativeFilePath) => ({
+        relativeDirPath: treeSubagentsDirPath,
+        dirPath: subagentsDir,
+        relativeFilePath,
+      })),
+      ...curatedMdFiles.map((relativeFilePath) => ({
+        relativeDirPath: treeCuratedSubagentsDirPath,
+        dirPath: curatedSubagentsDir,
+        relativeFilePath,
+      })),
+    ];
 
     if (mdFiles.length === 0) {
       this.logger.debug(`No markdown files found in rulesync subagents directory: ${subagentsDir}`);
@@ -1437,13 +1468,13 @@ export class SubagentsProcessor extends FeatureProcessor {
 
     const rulesyncSubagents: RulesyncSubagent[] = [];
 
-    for (const mdFile of mdFiles) {
-      const filepath = join(subagentsDir, mdFile);
+    for (const { relativeDirPath, dirPath, relativeFilePath: mdFile } of mdFiles) {
+      const filepath = join(dirPath, mdFile);
 
       try {
         const rulesyncSubagent = await RulesyncSubagent.fromFile({
           outputRoot: treeParent,
-          relativeDirPath: treeSubagentsDirPath,
+          relativeDirPath,
           relativeFilePath: mdFile,
           validate: true,
         });

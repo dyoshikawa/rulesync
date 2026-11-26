@@ -3,7 +3,6 @@ import { join } from "node:path";
 import type { SourceEntry } from "../config/config.js";
 import { SKILL_FILE_NAME } from "../constants/general.js";
 import {
-  RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH,
   formatMegabytes,
   MAX_FILE_SIZE,
   MAX_FILE_SIZE_MB,
@@ -25,7 +24,6 @@ import {
   verifyTarballIntegrity,
 } from "./npm-client.js";
 import {
-  getNpmLockedRuleNames,
   getNpmLockedSkillNames,
   getNpmLockedSource,
   type NpmLockedSource,
@@ -34,12 +32,14 @@ import {
 } from "./npm-sources-lock.js";
 import { extractPackageTarball } from "./npm-tar.js";
 import {
-  assertMatchingRulesFound,
+  assertMatchingFilesFound,
   assertMatchingSkillsFound,
-  canReuseLockedRules,
+  canReuseLockedFiles,
   checkLockedSkillsAreValid,
-  cleanPreviousCuratedRules,
+  cleanPreviousCuratedFiles,
   cleanPreviousCuratedSkills,
+  getCuratedFileFeatureRelativeDirPath,
+  getFileFeatureNoun,
   getFirstPathSeparatorIndex,
   getSourceFilters,
   groupRemoteFilesBySkillRoot,
@@ -49,16 +49,25 @@ import {
   normalizeRuleSelection,
   normalizeSkillSelection,
   type RemoteSkillFile,
-  replaceCuratedRules,
-  resolveRulesPath,
+  replaceCuratedFiles,
+  resolveFileFeaturePath,
   resolveSkillsPath,
   resolveSkillsSourcePath,
-  selectDeclaredRules,
+  selectDeclaredFiles,
   shouldSkipSkill,
   shouldUseRootFallback,
   writeSkillAndComputeIntegrity,
 } from "./sources-artifacts.js";
-import type { LockedSkill, LockedRule, LockedSource } from "./sources-lock.js";
+import {
+  type FileFeatureLockFields,
+  type LockedSkill,
+  type LockedRule,
+  type LockedSource,
+  type SourceFileFeature,
+  SOURCE_FILE_FEATURES,
+  getLockedFileNames,
+  toFileFeatureLockFields,
+} from "./sources-lock.js";
 
 /**
  * Select the skill files inside an extracted npm package, mirroring the git
@@ -250,8 +259,7 @@ function buildNpmLockEntry(params: {
   mergedSkills: Record<string, LockedSkill>;
   skillSelection: string[] | undefined;
   skillsPath: string | undefined;
-  mergedRules: Record<string, LockedRule>;
-  resolvedRuleNames: string[];
+  fetchedFiles: Record<SourceFileFeature, NpmFetchedFiles>;
 }): NpmLockedSource {
   const {
     sourceEntry,
@@ -261,9 +269,28 @@ function buildNpmLockEntry(params: {
     mergedSkills,
     skillSelection,
     skillsPath,
-    mergedRules,
-    resolvedRuleNames,
+    fetchedFiles,
   } = params;
+  // Only the features the source declares are recorded; a feature it no
+  // longer declares drops out of the entry, and its curated files have been
+  // removed already.
+  const fileFields: FileFeatureLockFields = Object.assign(
+    {},
+    ...SOURCE_FILE_FEATURES.flatMap((feature) => {
+      const selection = sourceEntry[feature];
+      if (selection === undefined) {
+        return [];
+      }
+      return [
+        toFileFeatureLockFields(feature, {
+          items: fetchedFiles[feature].fetched,
+          selection: normalizeRuleSelection(selection),
+          path: resolveFileFeaturePath(sourceEntry, feature),
+          resolvedNames: fetchedFiles[feature].resolvedNames,
+        }),
+      ];
+    }),
+  );
   const integrity =
     dist.integrity ?? (dist.shasum !== undefined ? shasumToSri(dist.shasum) : undefined);
   return {
@@ -275,14 +302,12 @@ function buildNpmLockEntry(params: {
     skills: mergedSkills,
     ...(skillSelection !== undefined && { skillSelection }),
     ...(skillsPath !== undefined && { skillsPath }),
-    ...(sourceEntry.rules !== undefined && {
-      rules: mergedRules,
-      ruleSelection: normalizeRuleSelection(sourceEntry.rules),
-      rulesPath: resolveRulesPath(sourceEntry),
-      resolvedRuleNames,
-    }),
+    ...fileFields,
   };
 }
+
+/** What one per-file feature of an npm source fetched, and every name it resolved. */
+type NpmFetchedFiles = { fetched: Record<string, LockedRule>; resolvedNames: string[] };
 
 async function fetchNpmSkills(params: {
   allFiles: RemoteSkillFile[];
@@ -369,66 +394,70 @@ async function fetchNpmSkills(params: {
   return { fetchedSkills, remoteSkillNames };
 }
 
-async function fetchNpmRules(params: {
+async function fetchNpmFiles(params: {
+  feature: SourceFileFeature;
   allFiles: RemoteSkillFile[];
   sourceEntry: SourceEntry;
   packageName: string;
   lockedForIntegrityCheck: LockedSource | undefined;
-  lockedRuleNames: string[];
-  curatedRulesDir: string;
-  localRuleNames: Set<string>;
-  alreadyFetchedRuleNames: Set<string>;
+  lockedNames: string[];
+  curatedDir: string;
+  localNames: Set<string>;
+  alreadyFetchedNames: Set<string>;
   resolvedVersion: string;
   updateSources: boolean;
   frozen: boolean;
   logger: Logger;
-}): Promise<{ fetchedRules: Record<string, LockedRule>; resolvedRuleNames: string[] }> {
-  if (params.sourceEntry.rules === undefined) {
-    return { fetchedRules: {}, resolvedRuleNames: [] };
-  }
+}): Promise<NpmFetchedFiles> {
   const {
+    feature,
     allFiles,
     sourceEntry,
     packageName,
     lockedForIntegrityCheck,
-    lockedRuleNames,
-    curatedRulesDir,
-    localRuleNames,
-    alreadyFetchedRuleNames,
+    lockedNames,
+    curatedDir,
+    localNames,
+    alreadyFetchedNames,
     resolvedVersion,
     updateSources,
     frozen,
     logger,
   } = params;
-  const normalizedRulesPath = resolveRulesPath(sourceEntry);
-  const rulePrefix = normalizedRulesPath === "." ? "" : `${normalizedRulesPath}/`;
-  const remoteRules = selectDeclaredRules({
+  if (sourceEntry[feature] === undefined) {
+    return { fetched: {}, resolvedNames: [] };
+  }
+  const normalizedPath = resolveFileFeaturePath(sourceEntry, feature);
+  const prefix = normalizedPath === "." ? "" : `${normalizedPath}/`;
+  const remoteFiles = selectDeclaredFiles({
+    feature,
     sourceEntry,
     candidates: allFiles
-      .filter((file) => file.relativePath.startsWith(rulePrefix))
+      .filter((file) => file.relativePath.startsWith(prefix))
       .map((file) => ({
-        relativePath: file.relativePath.substring(rulePrefix.length),
+        relativePath: file.relativePath.substring(prefix.length),
         content: file.content,
       }))
       .filter((file) => getFirstPathSeparatorIndex(file.relativePath) === -1),
     getFileName: (file) => file.relativePath,
   }).map(({ candidate, name }) => ({ name, content: candidate.content }));
-  const resolvedRuleNames = remoteRules.map((rule) => rule.name);
-  assertMatchingRulesFound({ ruleNames: resolvedRuleNames, source: packageName });
-  const fetchedRules = await replaceCuratedRules({
-    rules: remoteRules,
-    curatedDir: curatedRulesDir,
+  const resolvedNames = remoteFiles.map((file) => file.name);
+  assertMatchingFilesFound({ feature, names: resolvedNames, source: packageName });
+  const fetched = await replaceCuratedFiles({
+    feature,
+    files: remoteFiles,
+    curatedDir,
     locked: lockedForIntegrityCheck,
-    lockedRuleNames,
+    lockedNames,
     resolvedRef: resolvedVersion,
     sourceKey: packageName,
-    localRuleNames,
-    alreadyFetchedRuleNames,
+    localNames,
+    alreadyFetchedNames,
     compareLockedIntegrity: !updateSources,
     frozen,
     logger,
   });
-  return { fetchedRules, resolvedRuleNames };
+  return { fetched, resolvedNames };
 }
 
 async function canReuseLockedNpmArtifacts(params: {
@@ -437,12 +466,11 @@ async function canReuseLockedNpmArtifacts(params: {
   filters: ReturnType<typeof getSourceFilters>;
   frozen: boolean;
   lockedSkillNames: string[];
-  lockedRuleNames: string[];
   curatedSkillsDir: string;
-  curatedRulesDir: string;
-  localRuleNames: Set<string>;
+  projectRoot: string;
+  localFileNames: Record<SourceFileFeature, Set<string>>;
   alreadyFetchedSkillNames: Set<string>;
-  alreadyFetchedRuleNames: Set<string>;
+  alreadyFetchedFileNames: Record<SourceFileFeature, Set<string>>;
 }): Promise<boolean> {
   const {
     locked,
@@ -450,12 +478,11 @@ async function canReuseLockedNpmArtifacts(params: {
     filters,
     frozen,
     lockedSkillNames,
-    lockedRuleNames,
     curatedSkillsDir,
-    curatedRulesDir,
-    localRuleNames,
+    projectRoot,
+    localFileNames,
     alreadyFetchedSkillNames,
-    alreadyFetchedRuleNames,
+    alreadyFetchedFileNames,
   } = params;
   if (locked === undefined) {
     return false;
@@ -476,41 +503,68 @@ async function canReuseLockedNpmArtifacts(params: {
   if (!skillsExist) {
     return false;
   }
-  if (filters.rules === undefined) {
-    return locked.rules === undefined;
+  for (const feature of SOURCE_FILE_FEATURES) {
+    const selection = filters[feature];
+    if (selection === undefined) {
+      // A feature the entry still records but the source no longer declares
+      // must be fetched again, so its curated files are removed.
+      if (hasLockedFileFeature(locked, feature)) {
+        return false;
+      }
+      continue;
+    }
+    if (
+      !(await canReuseLockedFiles({
+        feature,
+        locked,
+        sourceEntry: { ...sourceEntry, [feature]: selection },
+        lockedNames: getLockedFileNames(locked, feature),
+        localNames: localFileNames[feature],
+        alreadyFetchedNames: alreadyFetchedFileNames[feature],
+        curatedDir: join(projectRoot, getCuratedFileFeatureRelativeDirPath(feature)),
+      }))
+    ) {
+      return false;
+    }
   }
-  return canReuseLockedRules({
-    locked,
-    sourceEntry: { ...sourceEntry, rules: filters.rules },
-    lockedRuleNames,
-    localRuleNames,
-    alreadyFetchedRuleNames,
-    curatedDir: curatedRulesDir,
-  });
+  return true;
+}
+
+/** Whether a lock entry records one per-file feature at all (even with no items). */
+function hasLockedFileFeature(locked: NpmLockedSource, feature: SourceFileFeature): boolean {
+  switch (feature) {
+    case "rules":
+      return locked.rules !== undefined;
+    case "commands":
+      return locked.commands !== undefined;
+    case "subagents":
+      return locked.subagents !== undefined;
+  }
 }
 
 /**
- * Fetch rules and skills from a single npm-transport source (EXPERIMENTAL): resolve the
- * package version via the registry packument, download and verify the
- * tarball, extract it in-memory with the hardened tar reader, and install the
- * discovered skills into the curated directory.
+ * Fetch skills, rules, commands and subagents from a single npm-transport
+ * source (EXPERIMENTAL): resolve the package version via the registry
+ * packument, download and verify the tarball, extract it in-memory with the
+ * hardened tar reader, and install the selected artifacts into their curated
+ * directories.
  */
 export async function fetchSourceViaNpm(params: {
   sourceEntry: SourceEntry;
   projectRoot: string;
   npmLock: NpmSourcesLock;
   localSkillNames: Set<string>;
-  localRuleNames: Set<string>;
+  localFileNames: Record<SourceFileFeature, Set<string>>;
   alreadyFetchedSkillNames: Set<string>;
-  alreadyFetchedRuleNames: Set<string>;
+  alreadyFetchedFileNames: Record<SourceFileFeature, Set<string>>;
   updateSources: boolean;
   frozen: boolean;
   logger: Logger;
 }): Promise<{
   skillCount: number;
-  ruleCount: number;
   fetchedSkillNames: string[];
-  fetchedRuleNames: string[];
+  fileCounts: Record<SourceFileFeature, number>;
+  fetchedFileNames: Record<SourceFileFeature, string[]>;
   updatedLock: NpmSourcesLock;
 }> {
   const {
@@ -518,9 +572,9 @@ export async function fetchSourceViaNpm(params: {
     projectRoot,
     npmLock,
     localSkillNames,
-    localRuleNames,
+    localFileNames,
     alreadyFetchedSkillNames,
-    alreadyFetchedRuleNames,
+    alreadyFetchedFileNames,
     updateSources,
     frozen,
     logger,
@@ -535,9 +589,7 @@ export async function fetchSourceViaNpm(params: {
   const sourceKey = packageName;
   const locked = getNpmLockedSource(npmLock, sourceKey);
   const lockedSkillNames = locked ? getNpmLockedSkillNames(locked) : [];
-  const lockedRuleNames = locked ? getNpmLockedRuleNames(locked) : [];
   const curatedSkillsDir = join(projectRoot, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
-  const curatedRulesDir = join(projectRoot, RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH);
   const filters = getSourceFilters(sourceEntry);
 
   const { lockedVersion, requestedVersion } = resolveNpmFetchVersion({
@@ -555,20 +607,23 @@ export async function fetchSourceViaNpm(params: {
       filters,
       frozen,
       lockedSkillNames,
-      lockedRuleNames,
       curatedSkillsDir,
-      curatedRulesDir,
-      localRuleNames,
+      projectRoot,
+      localFileNames,
       alreadyFetchedSkillNames,
-      alreadyFetchedRuleNames,
+      alreadyFetchedFileNames,
     }))
   ) {
     logger.debug(`Version unchanged for ${sourceKey}, skipping re-fetch.`);
     return {
       skillCount: 0,
-      ruleCount: 0,
       fetchedSkillNames: filters.skills === undefined ? [] : lockedSkillNames,
-      fetchedRuleNames: filters.rules === undefined ? [] : lockedRuleNames,
+      fileCounts: { rules: 0, commands: 0, subagents: 0 },
+      fetchedFileNames: mapFileFeatures((feature) =>
+        filters[feature] === undefined || locked === undefined
+          ? []
+          : getLockedFileNames(locked, feature),
+      ),
       updatedLock: npmLock,
     };
   }
@@ -590,10 +645,16 @@ export async function fetchSourceViaNpm(params: {
     logger,
   });
 
-  // Adapter so writeSkillAndComputeIntegrity can compare per-skill integrity
-  // against the npm lock entry the same way it does for git sources.
+  // Adapter so the integrity checks can compare against the npm lock entry the
+  // same way they do for git sources.
   const lockedForIntegrityCheck: LockedSource | undefined = locked
-    ? { resolvedRef: locked.resolvedVersion, skills: locked.skills, rules: locked.rules }
+    ? {
+        resolvedRef: locked.resolvedVersion,
+        skills: locked.skills,
+        rules: locked.rules,
+        commands: locked.commands,
+        subagents: locked.subagents,
+      }
     : undefined;
 
   const { fetchedSkills, remoteSkillNames } = await fetchNpmSkills({
@@ -611,39 +672,43 @@ export async function fetchSourceViaNpm(params: {
     logger,
   });
 
-  const { fetchedRules, resolvedRuleNames } = await fetchNpmRules({
-    allFiles,
-    sourceEntry: { ...sourceEntry, rules: filters.rules },
-    packageName,
-    lockedForIntegrityCheck,
-    lockedRuleNames,
-    curatedRulesDir,
-    localRuleNames,
-    alreadyFetchedRuleNames,
-    resolvedVersion,
-    updateSources,
-    frozen,
-    logger,
-  });
-
-  if (filters.rules === undefined && locked?.rules !== undefined) {
-    await cleanPreviousCuratedRules({
-      curatedDir: curatedRulesDir,
-      lockedRuleNames,
-      protectedRuleNames: alreadyFetchedRuleNames,
+  const fetchedFiles = {} as Record<SourceFileFeature, NpmFetchedFiles>;
+  for (const feature of SOURCE_FILE_FEATURES) {
+    const curatedDir = join(projectRoot, getCuratedFileFeatureRelativeDirPath(feature));
+    const lockedNames = locked ? getLockedFileNames(locked, feature) : [];
+    fetchedFiles[feature] = await fetchNpmFiles({
+      feature,
+      allFiles,
+      sourceEntry: { ...sourceEntry, [feature]: filters[feature] },
+      packageName,
+      lockedForIntegrityCheck,
+      lockedNames,
+      curatedDir,
+      localNames: localFileNames[feature],
+      alreadyFetchedNames: alreadyFetchedFileNames[feature],
+      resolvedVersion,
+      updateSources,
+      frozen,
       logger,
     });
+    if (filters[feature] === undefined && lockedNames.length > 0) {
+      await cleanPreviousCuratedFiles({
+        curatedDir,
+        lockedNames,
+        protectedNames: alreadyFetchedFileNames[feature],
+        logger,
+      });
+    }
   }
 
   const fetchedSkillNames = Object.keys(fetchedSkills);
-  const fetchedRuleNames = Object.keys(fetchedRules);
+  const fetchedFileNames = mapFileFeatures((feature) => Object.keys(fetchedFiles[feature].fetched));
   const mergedSkills = mergeFetchedWithLockedSkills({
     fetchedSkills,
     lockedSkills: locked?.skills,
     remoteSkillNames:
       filters.skills === undefined ? Object.keys(locked?.skills ?? {}) : remoteSkillNames,
   });
-  const mergedRules = filters.rules === undefined ? {} : fetchedRules;
 
   const updatedLock = setNpmLockedSource(
     npmLock,
@@ -655,20 +720,27 @@ export async function fetchSourceViaNpm(params: {
       dist,
       mergedSkills,
       ...getNpmSkillLockState({ sourceEntry, skills: filters.skills, locked }),
-      mergedRules,
-      resolvedRuleNames,
+      fetchedFiles,
     }),
   );
 
   logger.info(
-    `Fetched ${fetchedSkillNames.length} skill(s) and ${fetchedRuleNames.length} rule(s) from ${sourceKey}.`,
+    `Fetched ${fetchedSkillNames.length} skill(s) and ${fetchedFileNames.rules.length} rule(s)${SOURCE_FILE_FEATURES.filter(
+      (feature) => feature !== "rules" && filters[feature] !== undefined,
+    )
+      .map((feature) => `, ${fetchedFileNames[feature].length} ${getFileFeatureNoun(feature)}(s)`)
+      .join("")} from ${sourceKey}.`,
   );
 
   return {
     skillCount: fetchedSkillNames.length,
-    ruleCount: fetchedRuleNames.length,
     fetchedSkillNames,
-    fetchedRuleNames,
+    fileCounts: mapFileFeatures((feature) => fetchedFileNames[feature].length),
+    fetchedFileNames,
     updatedLock,
   };
+}
+
+function mapFileFeatures<T>(map: (feature: SourceFileFeature) => T): Record<SourceFileFeature, T> {
+  return { rules: map("rules"), commands: map("commands"), subagents: map("subagents") };
 }
