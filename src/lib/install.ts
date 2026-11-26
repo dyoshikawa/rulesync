@@ -4,6 +4,7 @@ import type { Logger } from "../utils/logger.js";
 import { installApm } from "./apm/apm-install.js";
 import { apmManifestExists } from "./apm/apm-manifest.js";
 import { installGh } from "./gh/gh-install.js";
+import { formatInstalledCounts } from "./sources-artifacts.js";
 import { checkOutdatedSources } from "./sources-outdated.js";
 import { resolveAndFetchSources } from "./sources.js";
 
@@ -84,7 +85,7 @@ async function runRulesyncInstall(logger: Logger, options: InstallCommandOptions
     logger.warn("No sources defined in configuration. Removing stale source artifacts.");
   }
 
-  logger.debug(`Installing rules and skills from ${sources.length} source(s)...`);
+  logger.debug(`Installing source artifacts from ${sources.length} source(s)...`);
 
   const result = await resolveAndFetchSources({
     sources,
@@ -101,6 +102,8 @@ async function runRulesyncInstall(logger: Logger, options: InstallCommandOptions
     logger.captureData("sourcesProcessed", result.sourcesProcessed);
     logger.captureData("skillsFetched", result.fetchedSkillCount);
     logger.captureData("rulesFetched", result.fetchedRuleCount);
+    logger.captureData("commandsFetched", result.fetchedCommandCount);
+    logger.captureData("subagentsFetched", result.fetchedSubagentCount);
     logger.captureData("failedSourceCount", result.failedSourceCount);
   }
 
@@ -110,9 +113,14 @@ async function runRulesyncInstall(logger: Logger, options: InstallCommandOptions
     );
   }
 
-  if (result.fetchedSkillCount > 0 || result.fetchedRuleCount > 0) {
+  if (
+    result.fetchedSkillCount > 0 ||
+    result.fetchedRuleCount > 0 ||
+    result.fetchedCommandCount > 0 ||
+    result.fetchedSubagentCount > 0
+  ) {
     logger.success(
-      `Installed ${result.fetchedSkillCount} skill(s) and ${result.fetchedRuleCount} rule(s) from ${result.sourcesProcessed} source(s).`,
+      `Installed ${formatInstalledCounts(result)} from ${result.sourcesProcessed} source(s).`,
     );
   } else {
     logger.success(

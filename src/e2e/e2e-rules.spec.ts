@@ -10,6 +10,7 @@ import {
   RULESYNC_SKILLS_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
 import { getZedGlobalDir } from "../constants/zed-paths.js";
+import { zeroGlobalConfigDir } from "../constants/zero-paths.js";
 import { RulesProcessor } from "../features/rules/rules-processor.js";
 import { buildLanguageInstruction } from "../types/language.js";
 import { fileExists, readFileContent, removeFile, writeFileContent } from "../utils/file.js";
@@ -71,6 +72,7 @@ const rulesRootTargets = [
   { target: "reasonix", outputPath: "REASONIX.md" },
   { target: "musecode", outputPath: "AGENTS.md" },
   { target: "zcode", outputPath: "AGENTS.md" },
+  { target: "zero", outputPath: "ZERO.md" },
   { target: "openclaw", outputPath: "AGENTS.md" },
   { target: "bob", outputPath: "AGENTS.md" },
   { target: "tabnine", outputPath: "TABNINE.md" },
@@ -80,6 +82,7 @@ const rulesRootTargets = [
   { target: "pool", outputPath: "AGENTS.md" },
   { target: "dsh", outputPath: "AGENTS.md" },
   { target: "firebender", outputPath: join(".firebender", "AGENTS.md") },
+  { target: "bb", outputPath: join(".bb", "AGENTS.md") },
 ] as const;
 
 // Tools that emit every rule as a directory entry.
@@ -673,6 +676,59 @@ Start with actionable findings, ordered by severity.
     );
     expect(importedStyle).toContain("channel: output-style");
     expect(importedStyle).toContain("name: Review Notes");
+    expect(importedStyle).toContain("Start with actionable findings, ordered by severity.");
+  });
+
+  it("should write qwencode.channel:output-style rules to .qwen/output-styles/ and round-trip", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+      `---
+root: true
+targets: ["qwencode"]
+description: "Root rule"
+globs: ["**/*"]
+---
+
+# Qwen Code Root Rule
+`,
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "reviewer.md"),
+      `---
+targets: ["qwencode"]
+description: "Put findings before the summary"
+qwencode:
+  channel: output-style
+  name: "Reviewer"
+  keep-coding-instructions: true
+---
+
+Start with actionable findings, ordered by severity.
+`,
+    );
+
+    await runGenerate({ target: "qwencode", features: "rules" });
+
+    // The style gets its own file, not a `.qwen/rules/` context rule.
+    expect(await fileExists(join(testDir, ".qwen", "rules", "reviewer.md"))).toBe(false);
+    const styleContent = await readFileContent(
+      join(testDir, ".qwen", "output-styles", "reviewer.md"),
+    );
+    expect(styleContent).toContain("name: Reviewer");
+    expect(styleContent).toContain("description: Put findings before the summary");
+    expect(styleContent).toContain("keep-coding-instructions: true");
+    expect(styleContent).toContain("Start with actionable findings, ordered by severity.");
+
+    await runImport({ target: "qwencode", features: "rules" });
+
+    const importedStyle = await readFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "reviewer.md"),
+    );
+    expect(importedStyle).toContain("channel: output-style");
+    expect(importedStyle).toContain("name: Reviewer");
+    expect(importedStyle).toContain("keep-coding-instructions: true");
     expect(importedStyle).toContain("Start with actionable findings, ordered by severity.");
   });
 
@@ -1784,6 +1840,7 @@ describe("E2E: rules (import)", () => {
     },
     { target: "amp", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "codexcli", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
+    { target: "zero", sourcePath: "ZERO.md", importedFileName: "overview.md" },
     { target: "commandcode", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "qoder", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "xum", sourcePath: join(".xum", "AGENTS.md"), importedFileName: "overview.md" },
@@ -1839,6 +1896,7 @@ describe("E2E: rules (import)", () => {
     { target: "codewhale", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "continue", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "dsh", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
+    { target: "bb", sourcePath: join(".bb", "AGENTS.md"), importedFileName: "overview.md" },
     { target: "vibe", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     {
       target: "cline",
@@ -2129,6 +2187,7 @@ const rulesGlobalTargets = [
   { target: "kiro-ide", outputPath: join(".kiro", "steering", "product.md") },
   { target: "reasonix", outputPath: join(".reasonix", "REASONIX.md") },
   { target: "zcode", outputPath: join(".zcode", "AGENTS.md") },
+  { target: "zero", outputPath: join(zeroGlobalConfigDir(), "ZERO.md") },
   { target: "openclaw", outputPath: join(".openclaw", "workspace", "AGENTS.md") },
   { target: "bob", outputPath: join(".bob", "AGENTS.md") },
   { target: "tabnine", outputPath: join(".tabnine", "agent", "TABNINE.md") },
@@ -2136,6 +2195,7 @@ const rulesGlobalTargets = [
   { target: "pool", outputPath: join(".config", "poolside", "AGENTS.md") },
   { target: "dsh", outputPath: join(".dsh", "AGENTS.md") },
   { target: "firebender", outputPath: join(".firebender", "AGENTS.md") },
+  { target: "bb", outputPath: join(".bb", "AGENTS.md") },
 ] as const;
 
 describe("E2E: rules (global mode)", () => {

@@ -14,8 +14,13 @@ import {
   parseSharedConfig,
   sharedConfigFileKey,
 } from "../shared/shared-config-gateway.js";
+import { skipsReservedPermissionName } from "./reserved-permission-name.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { honorAllToolsRestrictions, restatesAsCategoryRule } from "./shadowed-allows.js";
+import {
+  honorAllToolsRestrictions,
+  RESTATED_ABSENT_CATEGORIES,
+  restatesAsCategoryRule,
+} from "./shadowed-allows.js";
 import { ALL_TOOLS_PERMISSION_CATEGORY, CATCH_ALL_PATTERN } from "./shell-command-categories.js";
 import { isStricterAction } from "./single-action-collapse.js";
 import { splitToolRule } from "./tool-pattern-entry.js";
@@ -160,7 +165,7 @@ function buildCodebuddyRule({
       return CATCH_ALL_PATTERN;
     }
     logger?.warn(
-      `CodeBuddy permissions: skipping the all-tools '*' rule '${pattern}' — CodeBuddy's standalone '*' rule takes no specifier. Write it under the category it is meant for (for example 'bash' or 'read').`,
+      `CodeBuddy permissions: the all-tools '*' rule '${pattern}' was not written as a standalone '*' rule — CodeBuddy's standalone '*' rule takes no specifier. A deny or ask there is still written as a 'bash' rule and, when it reads as a path or URL, as a 'read' (or 'webfetch') rule, and it withholds the allows it covers; write it under the category it is meant for (for example 'bash' or 'read') to control exactly where it applies.`,
     );
     return null;
   }
@@ -209,8 +214,10 @@ function buildCodebuddyRuleLists({
     toolLabel: "CodeBuddy",
     logger,
     // The default for an input with no rule may auto-approve it (reads), so a
-    // `*` path or URL restriction is also written as a rule of each category.
+    // `*` path or URL restriction is also written as a rule of each category,
+    // and as a read rule even when the config has no `read` category.
     restateAs: restatesAsCategoryRule(),
+    restateIntoAbsentCategories: RESTATED_ABSENT_CATEGORIES,
     writesAllToolsCatchAll: true,
   });
   const ranked = new Map<string, PermissionAction>();
@@ -219,7 +226,10 @@ function buildCodebuddyRuleLists({
     if (isPrototypePollutionKey(category)) {
       continue;
     }
-    managedCategories.add(category);
+    // A category only restated from `*` (see `RESTATED_ABSENT_CATEGORIES`) is
+    // not the config's, so its existing entries are kept beside the rules.
+    const managed = Object.hasOwn(config.permission, category);
+    if (managed) managedCategories.add(category);
     for (const [pattern, action] of Object.entries(rules)) {
       if (isPrototypePollutionKey(pattern)) {
         continue;
@@ -234,7 +244,7 @@ function buildCodebuddyRuleLists({
       // replace the old `mcp__github` deny rather than leave it beside the
       // new allow.
       const emittedCategory = categoryOfRule(rule);
-      if (emittedCategory !== undefined) {
+      if (managed && emittedCategory !== undefined) {
         managedCategories.add(emittedCategory);
       }
       const existing = ranked.get(rule);
@@ -526,8 +536,11 @@ export class CodebuddyPermissions extends ToolPermissions {
         const parsed = parseCodebuddyRule(rule);
         if (
           parsed === null ||
-          isPrototypePollutionKey(parsed.category) ||
-          isPrototypePollutionKey(parsed.pattern)
+          skipsReservedPermissionName({
+            toolLabel: "CodeBuddy",
+            category: parsed.category,
+            pattern: parsed.pattern,
+          })
         ) {
           continue;
         }

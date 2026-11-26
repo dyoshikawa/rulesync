@@ -15,8 +15,13 @@ import {
   parseSharedConfig,
   sharedConfigFileKey,
 } from "../shared/shared-config-gateway.js";
+import { skipsReservedPermissionName } from "./reserved-permission-name.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { honorAllToolsRestrictions, restatesAsCategoryRule } from "./shadowed-allows.js";
+import {
+  honorAllToolsRestrictions,
+  RESTATED_ABSENT_CATEGORIES,
+  restatesAsCategoryRule,
+} from "./shadowed-allows.js";
 import { ALL_TOOLS_PERMISSION_CATEGORY, CATCH_ALL_PATTERN } from "./shell-command-categories.js";
 import { isStricterAction } from "./single-action-collapse.js";
 import { splitToolRule } from "./tool-pattern-entry.js";
@@ -170,7 +175,7 @@ function toQoderRule({
       return CATCH_ALL_PATTERN;
     }
     logger?.warn(
-      `Qoder permissions: skipping the all-tools '*' rule '${pattern}' — a Qoder rule with a payload names one tool. Write it under the categories it is meant for (for example 'bash' or 'read').`,
+      `Qoder permissions: the all-tools '*' rule '${pattern}' was not written as a standalone '*' rule — a Qoder rule with a payload names one tool. A deny or ask there is still written as a 'bash' rule and, when it reads as a path or URL, as a 'read' (or 'webfetch') rule, and it withholds the allows it covers; write it under the categories it is meant for (for example 'bash' or 'read') to control exactly where it applies.`,
     );
     return null;
   }
@@ -235,8 +240,10 @@ function buildQoderRuleLists({
     toolLabel: "Qoder",
     logger,
     // The default for an input with no rule may auto-approve it (reads), so a
-    // `*` path or URL restriction is also written as a rule of each category.
+    // `*` path or URL restriction is also written as a rule of each category,
+    // and as a read rule even when the config has no `read` category.
     restateAs: restatesAsCategoryRule(),
+    restateIntoAbsentCategories: RESTATED_ABSENT_CATEGORIES,
     writesAllToolsCatchAll: true,
   });
   const ranked = new Map<string, PermissionAction>();
@@ -252,7 +259,9 @@ function buildQoderRuleLists({
       );
       continue;
     }
-    managedCategories.add(category);
+    // A category only restated from `*` (see `RESTATED_ABSENT_CATEGORIES`) is
+    // not the config's, so its existing entries are kept beside the rules.
+    if (Object.hasOwn(config.permission, category)) managedCategories.add(category);
     for (const [pattern, action] of Object.entries(rules)) {
       if (isPrototypePollutionKey(pattern)) {
         continue;
@@ -644,8 +653,11 @@ export class QoderPermissions extends ToolPermissions {
         const parsed = fromQoderRule(rule);
         if (
           parsed === null ||
-          isPrototypePollutionKey(parsed.category) ||
-          isPrototypePollutionKey(parsed.pattern)
+          skipsReservedPermissionName({
+            toolLabel: "Qoder",
+            category: parsed.category,
+            pattern: parsed.pattern,
+          })
         ) {
           continue;
         }

@@ -165,6 +165,11 @@ describe("registry derivation", () => {
       // scope writes the project-root `firebender.json` instead), so project
       // derivation never yields it.
       "**/.firebender/firebender.json",
+      // Zero user config and hooks: emitted in GLOBAL scope only (project
+      // scope writes `.zero/config.json` and `.zero/hooks.json` instead), so
+      // project derivation never yields them.
+      "**/.config/zero/config.json",
+      "**/.config/zero/hooks.json",
     ]);
     const rawEntries = new Set(deriveAllGitignoreEntriesUnfiltered().map((tag) => tag.entry));
     const stale = [...DERIVED_PATHS_NOT_GITIGNORED].filter(

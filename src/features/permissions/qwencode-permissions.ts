@@ -14,11 +14,15 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, toPosixPath } from "../../utils/file.js";
 import { fallbackLogger, type Logger, warnWithFallback } from "../../utils/logger.js";
 import { getOrCreateOwn, invertRecord, lookupOwn } from "../../utils/own-lookup.js";
-import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
+import { skipsReservedPermissionName } from "./reserved-permission-name.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { honorAllToolsRestrictions, restatesAsCategoryRule } from "./shadowed-allows.js";
+import {
+  honorAllToolsRestrictions,
+  RESTATED_ABSENT_CATEGORIES,
+  restatesAsCategoryRule,
+} from "./shadowed-allows.js";
 import { buildToolPatternEntry } from "./tool-pattern-entry.js";
 import {
   ToolPermissions,
@@ -1163,8 +1167,10 @@ function convertRulesyncToQwenPermissions({
     toolLabel: "Qwen Code",
     logger,
     // The default for an input with no rule may auto-approve it (reads), so a
-    // `*` path or URL restriction is also written as a rule of each category.
+    // `*` path or URL restriction is also written as a rule of each category,
+    // and as a read rule even when the config has no `read` category.
     restateAs: restatesAsCategoryRule(),
+    restateIntoAbsentCategories: RESTATED_ABSENT_CATEGORIES,
   });
   for (const [category, rules] of Object.entries(permission)) {
     const qwenToolName = toQwenToolName(category);
@@ -1209,7 +1215,9 @@ function convertQwenToRulesyncPermissions(params: {
         //   already-emitted warn from `parseQwenPermissionEntry` makes the drop visible.
         if (action === "deny") {
           const canonical = toCanonicalToolName(parsed.toolName);
-          if (isPrototypePollutionKey(canonical)) {
+          if (
+            skipsReservedPermissionName({ toolLabel: "Qwen Code", category: canonical, logger })
+          ) {
             continue;
           }
           getOrCreateOwn({ record: permission, key: canonical, create: () => ({}) })["*"] = action;
@@ -1220,7 +1228,14 @@ function convertQwenToRulesyncPermissions(params: {
       const canonical = toCanonicalToolName(toolName);
       // A `__proto__` or `constructor` name would not land as a plain own key,
       // so such entries are dropped, as the other permissions adapters do.
-      if (isPrototypePollutionKey(canonical) || isPrototypePollutionKey(pattern)) {
+      if (
+        skipsReservedPermissionName({
+          toolLabel: "Qwen Code",
+          category: canonical,
+          pattern,
+          logger,
+        })
+      ) {
         continue;
       }
       getOrCreateOwn({ record: permission, key: canonical, create: () => ({}) })[pattern] = action;

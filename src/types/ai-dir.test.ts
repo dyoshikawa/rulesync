@@ -52,6 +52,33 @@ describe("AiDir.getRelativePathFromCwd - cross-platform path separator", () => {
   });
 });
 
+describe("AiDir.withOutputRoot", () => {
+  it("should return a copy written under the new output root with the other fields kept", () => {
+    const dir = makeTestDir({
+      outputRoot: "/plugin",
+      relativeDirPath: ".rulesync/skills",
+      dirName: "lint",
+    });
+
+    const rebased = dir.withOutputRoot("/project");
+
+    expect(rebased).toBeInstanceOf(TestAiDir);
+    expect(rebased.getDirPath()).toBe(join("/project", ".rulesync/skills", "lint"));
+    expect(rebased.getDirName()).toBe("lint");
+    expect(dir.getDirPath()).toBe(join("/plugin", ".rulesync/skills", "lint"));
+  });
+
+  it("should return the same instance when the output root does not change", () => {
+    const dir = makeTestDir({
+      outputRoot: "/project",
+      relativeDirPath: ".rulesync/skills",
+      dirName: "lint",
+    });
+
+    expect(dir.withOutputRoot("/project")).toBe(dir);
+  });
+});
+
 describe("AiDir constructor - dirName validation", () => {
   it.each([
     ["path separator", "nested/skill"],

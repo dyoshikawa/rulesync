@@ -42,6 +42,8 @@ import {
   type HookEvent,
   type HooksConfig,
   type HookType,
+  ZERO_HOOK_EVENTS,
+  ZERO_MATCHER_EVENTS,
 } from "../../types/hooks.js";
 import type { RulesyncFile } from "../../types/rulesync-file.js";
 import type { ToolFile } from "../../types/tool-file.js";
@@ -121,6 +123,7 @@ import { VibeHooks } from "./vibe-hooks.js";
 import { VibePluginHooks } from "./vibe-plugin-hooks.js";
 import { ZCODE_CONVERTER_CONFIG, ZcodeHooks } from "./zcode-hooks.js";
 import { ZCODE_PLUGIN_CONVERTER_CONFIG, ZcodePluginHooks } from "./zcode-plugin-hooks.js";
+import { ZeroHooks } from "./zero-hooks.js";
 
 export type HooksProcessorToolTarget = (typeof hooksProcessorToolTargetTuple)[number];
 
@@ -1435,6 +1438,24 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       meta: { supportsProject: true, supportsGlobal: false, supportsImport: true },
       ...converterCapabilities(ZCODE_PLUGIN_CONVERTER_CONFIG),
       supportsMatcher: true,
+    },
+  ],
+  [
+    "zero",
+    {
+      // Zero reads a flat `{ enabled, hooks: [{ id, event, matcher, command,
+      // args, enabled }] }` list from `.zero/hooks.json` and
+      // `<user config dir>/zero/hooks.json`. A matcher is an exact tool or
+      // specialist name or a `*` glob, valid on tool and specialist events.
+      // https://github.com/Twigpine/zero/blob/main/docs/EXTENDING.md
+      class: ZeroHooks,
+      meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+      supportedEvents: ZERO_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
+      supportsMatcher: true,
+      matcherEvents: ZERO_MATCHER_EVENTS,
+      dropsUnknownOverrideEvents: true,
+      supportsPerHookEnabled: true,
     },
   ],
 ]);

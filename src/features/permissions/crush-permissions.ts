@@ -23,6 +23,7 @@ import {
   warnCrushTwinLeftovers,
 } from "../crush-config.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
+import { skipsReservedPermissionName } from "./reserved-permission-name.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { honorAllToolsRestrictions } from "./shadowed-allows.js";
 import {
@@ -861,7 +862,11 @@ function convertCrushListsToRulesync({
   };
 
   for (const entry of disabled) {
-    if (entry === "" || isPrototypePollutionKey(entry)) continue;
+    if (
+      entry === "" ||
+      skipsReservedPermissionName({ toolLabel: "Crush", category: entry, logger })
+    )
+      continue;
     bucketFor(toCanonicalToolName(entry))[CATCH_ALL_PATTERN] = "deny";
   }
   // Pattern rules land in the `bash` bucket without overriding a rule already
@@ -899,7 +904,13 @@ function convertCrushListsToRulesync({
     setBashRule(line, "allow");
   }
   for (const entry of allowed) {
-    if (entry === "" || entry.includes(":") || isPrototypePollutionKey(entry)) continue;
+    if (
+      entry === "" ||
+      entry.includes(":") ||
+      skipsReservedPermissionName({ toolLabel: "Crush", category: entry, logger })
+    ) {
+      continue;
+    }
     // A disabled tool never runs, so its deny wins over a stale allow.
     bucketFor(toCanonicalToolName(entry))[CATCH_ALL_PATTERN] ??= "allow";
   }

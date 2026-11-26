@@ -116,6 +116,14 @@ export const SHARED_USER_MANAGED_CONFIG_PATHS: readonly string[] = [
   // Both carry the user's own ZCode settings beside the `mcp` block.
   ".zcode/config.json",
   ".zcode/cli/config.json",
+  // Zero config: the project file and the user one under `~/.config/zero/`.
+  // Both carry provider, model and sandbox settings beside the `mcp` block.
+  ".zero/config.json",
+  ".config/zero/config.json",
+  // Zero hooks: `zero hooks` edits the same files, so generation keeps hooks
+  // whose id does not start with `rulesync-` and the file stays committable.
+  ".zero/hooks.json",
+  ".config/zero/hooks.json",
   "reasonix.toml",
   ".vscode/settings.json",
   ".zed/settings.json",
