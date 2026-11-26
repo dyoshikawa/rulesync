@@ -18,8 +18,8 @@ export class AntigravityPluginSubagent extends AntigravitySharedSubagent {
     return "antigravity-plugin";
   }
 
-  // The bundle is not the shared `.agents/agents/` file, so the `musecode`
-  // section merged there is not read here.
+  // The bundle is not the shared `.agents/agents/` file, so the `gitlabduo`
+  // and `musecode` sections merged there are not read here.
   protected static override getReadSectionKeys(): ToolTarget[] {
     return [...ANTIGRAVITY_SHARED_SUBAGENT_SECTION_KEYS, "antigravity-plugin"];
   }

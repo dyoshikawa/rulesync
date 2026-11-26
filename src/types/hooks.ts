@@ -1715,7 +1715,9 @@ export const PI_HOOK_EVENTS: readonly HookEvent[] = eventsOf(CANONICAL_TO_PI_EVE
 /**
  * Map canonical camelCase event names to oh-my-pi extension event names. They
  * are Pi's names (see CANONICAL_TO_PI_EVENT_NAMES) for the events oh-my-pi
- * kept, plus `session_stop` for `stop`. Note that oh-my-pi runs
+ * kept, plus `session_stop` for `stop`. `sessionStart` handlers also
+ * subscribe to `session_clear` (see `OMP_EXTENSION_DIALECT.extraEventNames`),
+ * since oh-my-pi fires no `session_start` after `/clear`. Note that oh-my-pi runs
  * `session_shutdown` handlers with a 2-second budget, and fails a `tool_call`
  * closed when its handler exceeds `extensionHandlers.toolCallTimeoutMs`
  * (30 seconds by default).

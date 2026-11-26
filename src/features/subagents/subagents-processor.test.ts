@@ -557,6 +557,42 @@ describe("SubagentsProcessor", () => {
     );
   });
 
+  it("warns but still writes every subagent when more target GitLab Duo than it loads", async () => {
+    const logger = createMockLogger();
+    const gitlabduo = new SubagentsProcessor({
+      logger,
+      outputRoot: testDir,
+      toolTarget: "gitlabduo",
+    });
+    const makeSubagents = (count: number) =>
+      Array.from(
+        { length: count },
+        (_, index) =>
+          new RulesyncSubagent({
+            outputRoot: testDir,
+            relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+            relativeFilePath: `agent-${index}.md`,
+            frontmatter: {
+              name: `agent-${index}`,
+              description: "Agent",
+              targets: ["*"],
+              gitlabduo: { tools: ["read_file"] },
+            },
+            body: "Work.",
+          }),
+      );
+
+    expect(await gitlabduo.convertRulesyncFilesToToolFiles(makeSubagents(10))).toHaveLength(10);
+    expect(logger.warn).not.toHaveBeenCalled();
+
+    expect(await gitlabduo.convertRulesyncFilesToToolFiles(makeSubagents(11))).toHaveLength(11);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining(
+        "11 subagents target gitlabduo, which refuses to start a session with more than 10",
+      ),
+    );
+  });
+
   it("warns about nested Kimi Code subagents whose override resolves to the same name", async () => {
     const logger = createMockLogger();
     const kimiCode = new SubagentsProcessor({
@@ -2187,6 +2223,7 @@ Second global content`;
           "devin-plugin",
           "factorydroid",
           "firebender",
+          "gitlabduo",
           "goose",
           "hermesagent",
           "grokcli",

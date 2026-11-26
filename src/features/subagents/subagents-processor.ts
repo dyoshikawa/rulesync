@@ -50,6 +50,7 @@ import { DevinPluginSubagent } from "./devin-plugin-subagent.js";
 import { DevinSubagent } from "./devin-subagent.js";
 import { FactorydroidSubagent } from "./factorydroid-subagent.js";
 import { FirebenderSubagent } from "./firebender-subagent.js";
+import { GitlabduoSubagent, GITLABDUO_MAX_SUBAGENTS } from "./gitlabduo-subagent.js";
 import { GooseSubagent } from "./goose-subagent.js";
 import { GrokcliSubagent } from "./grokcli-subagent.js";
 import { HermesagentSubagent } from "./hermesagent-subagent.js";
@@ -205,6 +206,11 @@ type ToolSubagentFactory = {
      * only read a flat directory and skip nested sources with a warning.
      */
     supportsNestedPaths?: boolean;
+    /**
+     * The most subagents the tool loads before it refuses to start. When a run
+     * targets more than this, the processor warns; every file is still written.
+     */
+    maxSubagents?: number;
   };
 };
 
@@ -594,6 +600,23 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         emitsEmptyAggregate: true,
         emitsEmptyAggregateOnDelete: true,
         filePattern: "*.md",
+      },
+    },
+  ],
+  [
+    "gitlabduo",
+    {
+      // GitLab Duo workspace subagents (Developer Flow, GA in GitLab 19.6):
+      // Markdown + YAML frontmatter under the shared project `.agents/agents/`.
+      // No user-level location is documented, so project scope only.
+      // https://docs.gitlab.com/user/duo_agent_platform/customize/workspace_subagents/
+      class: GitlabduoSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: false,
+        filePattern: "*.md",
+        maxSubagents: GITLABDUO_MAX_SUBAGENTS,
       },
     },
   ],
@@ -1208,6 +1231,12 @@ export class SubagentsProcessor extends FeatureProcessor {
     );
     if (factory.meta.supportsNestedPaths === true) {
       this.warnAboutDuplicateNames(toolSubagents);
+    }
+    const { maxSubagents } = factory.meta;
+    if (maxSubagents !== undefined && toolSubagents.length > maxSubagents) {
+      this.logger.warn(
+        `${toolSubagents.length} subagents target ${this.toolTarget}, which refuses to start a session with more than ${maxSubagents}; narrow their \`targets\` to stay within the limit.`,
+      );
     }
     return toolSubagents;
   }
