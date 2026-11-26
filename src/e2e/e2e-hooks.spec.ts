@@ -639,11 +639,15 @@ describe("E2E: hooks", () => {
 
     await runGenerate({ target: "devin-plugin", features: "hooks" });
 
-    // Same bare event map as `.devin/hooks.v1.json`, at the plugin root.
+    // Same bare event map as `.devin/hooks.v1.json`, at the plugin root, with
+    // the relative command anchored to the plugin install directory.
     const parsed = JSON.parse(await readFileContent(join(testDir, "hooks.json")));
     expect(parsed).toEqual({
       PreToolUse: [
-        { matcher: "exec", hooks: [{ type: "command", command: "./scripts/audit.sh" }] },
+        {
+          matcher: "exec",
+          hooks: [{ type: "command", command: '"$DEVIN_PLUGIN_ROOT"/scripts/audit.sh' }],
+        },
       ],
     });
     expect(await fileExists(join(testDir, ".devin", "hooks.v1.json"))).toBe(false);
@@ -654,6 +658,7 @@ describe("E2E: hooks", () => {
     const importedContent = await readFileContent(join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH));
     expect(importedContent).toContain("preToolUse");
     expect(importedContent).toContain("./scripts/audit.sh");
+    expect(importedContent).not.toContain("DEVIN_PLUGIN_ROOT");
   });
 
   it("should generate codewhale hooks into .codewhale/hooks.toml", async () => {
