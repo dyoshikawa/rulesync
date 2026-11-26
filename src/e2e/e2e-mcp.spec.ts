@@ -532,7 +532,6 @@ describe("E2E: mcp", () => {
     { target: "commandcode", orphanPath: ".mcp.json" },
     { target: "qoder", orphanPath: ".mcp.json" },
     { target: "xum", orphanPath: join(".xum", "mcp.jsonc") },
-    { target: "jcode", orphanPath: join(".jcode", "mcp.json") },
     { target: "continue", orphanPath: join(".continue", "mcpServers", "mcp.json") },
     { target: "cursor", orphanPath: join(".cursor", "mcp.json") },
     { target: "trae", orphanPath: join(".trae", "mcp.json") },

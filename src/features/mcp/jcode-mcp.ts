@@ -85,20 +85,47 @@ function parseJcodeMcpConfig({
 /**
  * The server map of a jcode MCP file and the key it lives under. jcode reads
  * `mcpServers` as an alias of `servers` and fails to load a file that has
- * both, so whichever one the file already uses is kept.
+ * both, so whichever one the file already uses is kept. A file that has both
+ * anyway is read as their union (`mcpServers` winning a name clash), with a
+ * warning, and is written back under `mcpServers` alone.
  */
-function readServerMap(json: Record<string, unknown>): {
+function readServerMap({
+  json,
+  relativePath,
+  logger,
+}: {
+  json: Record<string, unknown>;
+  relativePath: string;
+  logger?: Logger;
+}): {
   key: typeof MCP_SERVERS_KEY | typeof LEGACY_SERVERS_KEY;
   servers: Record<string, unknown>;
 } {
-  if (isPlainObject(json[MCP_SERVERS_KEY])) {
-    return { key: MCP_SERVERS_KEY, servers: json[MCP_SERVERS_KEY] };
+  const modern = isPlainObject(json[MCP_SERVERS_KEY]) ? json[MCP_SERVERS_KEY] : undefined;
+  const legacy = isPlainObject(json[LEGACY_SERVERS_KEY]) ? json[LEGACY_SERVERS_KEY] : undefined;
+  if (modern && legacy) {
+    logger?.warn(
+      `${relativePath} has both "mcpServers" and "servers", which jcode refuses to load; reading both (mcpServers wins a name clash) and writing "mcpServers" only.`,
+    );
+    return { key: MCP_SERVERS_KEY, servers: { ...legacy, ...modern } };
   }
-  if (isPlainObject(json[LEGACY_SERVERS_KEY])) {
-    return { key: LEGACY_SERVERS_KEY, servers: json[LEGACY_SERVERS_KEY] };
-  }
-  return { key: MCP_SERVERS_KEY, servers: {} };
+  if (legacy) return { key: LEGACY_SERVERS_KEY, servers: legacy };
+  return { key: MCP_SERVERS_KEY, servers: modern ?? {} };
 }
+
+/**
+ * Normalize a transport name the way jcode reads it: trimmed and
+ * case-insensitive, with `streamable_http` / `streamablehttp` as spellings of
+ * `streamable-http`.
+ * @see https://github.com/1jehuang/jcode/blob/master/crates/jcode-base/src/mcp/protocol.rs
+ */
+function normalizeJcodeType(raw: string): string {
+  const type = raw.trim().toLowerCase();
+  return type === "streamable_http" || type === "streamablehttp" ? "streamable-http" : type;
+}
+
+/** `type` values jcode reads, after {@link normalizeJcodeType}. */
+const JCODE_TYPES: ReadonlySet<string> = new Set(["stdio", "http", "streamable-http", "sse"]);
 
 /** The canonical transport and URL of a server (`transport` / `httpUrl` folded in). */
 function readTransport(server: Record<string, unknown>): {
@@ -108,7 +135,10 @@ function readTransport(server: Record<string, unknown>): {
   const rawType = typeof server.type === "string" ? server.type : server.transport;
   const httpUrl = typeof server.httpUrl === "string" ? server.httpUrl : undefined;
   return {
-    type: typeof rawType === "string" ? rawType : undefined,
+    type:
+      typeof rawType === "string" && rawType.trim() !== ""
+        ? normalizeJcodeType(rawType)
+        : undefined,
     url: typeof server.url === "string" ? server.url : httpUrl,
   };
 }
@@ -230,7 +260,13 @@ function fromJcodeServers(servers: Record<string, unknown>): McpServers {
     if (PROTOTYPE_POLLUTION_KEYS.has(serverName) || !isPlainObject(raw)) continue;
     const entry = omitPrototypePollutionKeys(raw);
     const server: Record<string, unknown> = {};
-    if (typeof entry.type === "string" && entry.type !== "") server.type = entry.type;
+    if (typeof entry.type === "string" && entry.type.trim() !== "") {
+      const type = normalizeJcodeType(entry.type);
+      // jcode does not run an entry with any other type, so it is not imported
+      // as a server other tools would start.
+      if (!JCODE_TYPES.has(type)) continue;
+      server.type = type;
+    }
     if (typeof entry.command === "string" && entry.command !== "") server.command = entry.command;
     if (Array.isArray(entry.args) && entry.args.length > 0) server.args = entry.args;
     if (isPlainObject(entry.env) && Object.keys(entry.env).length > 0) server.env = entry.env;
@@ -262,7 +298,7 @@ function fromJcodeServers(servers: Record<string, unknown>): McpServers {
  * jcode's own `jcode mcp` commands rewrite these files, so only the server map
  * is touched: other top-level keys are kept, and so are keys rulesync does not
  * manage on an existing server entry (`shared`, `timeout_secs`, ...). The
- * project file may be deleted by `--delete`; the user file never is.
+ * file is never deleted by `--delete`, since `jcode mcp add` writes it too.
  *
  * @see https://github.com/1jehuang/jcode/blob/master/docs/MCP_REMOTE.md
  * @see https://github.com/1jehuang/jcode/blob/master/crates/jcode-base/src/mcp/protocol.rs
@@ -283,7 +319,8 @@ export class JcodeMcp extends ToolMcp {
   }
 
   override isDeletable(): boolean {
-    return !this.global;
+    // `jcode mcp add` writes these files too, so neither scope is deleted.
+    return false;
   }
 
   static getSettablePaths(_options: { global?: boolean } = {}): ToolMcpSettablePaths {
@@ -323,9 +360,11 @@ export class JcodeMcp extends ToolMcp {
     // Read without initializing so this stays side-effect-free under
     // `--dry-run`/`--check`; the actual write happens later.
     const existingContent = (await readFileContentOrNull(filePath)) ?? EMPTY_MCP_CONFIG;
-    const existing = readServerMap(
-      parseJcodeMcpConfig({ fileContent: existingContent, relativePath }),
-    );
+    const existing = readServerMap({
+      json: parseJcodeMcpConfig({ fileContent: existingContent, relativePath }),
+      relativePath,
+      logger,
+    });
 
     const servers: Record<string, unknown> = {};
     for (const [serverName, server] of Object.entries(rulesyncMcp.getMcpServers())) {
@@ -362,7 +401,12 @@ export class JcodeMcp extends ToolMcp {
   }
 
   toRulesyncMcp(): RulesyncMcp {
-    const mcpServers = fromJcodeServers(readServerMap(this.json).servers);
+    const mcpServers = fromJcodeServers(
+      readServerMap({
+        json: this.json,
+        relativePath: join(this.relativeDirPath, this.relativeFilePath),
+      }).servers,
+    );
     return this.toRulesyncMcpDefault({
       fileContent: JSON.stringify({ mcpServers }, null, 2),
     });

@@ -28,14 +28,14 @@ describe("JcodeMcp", () => {
     await cleanup();
   });
 
-  it("should use .jcode/mcp.json in both scopes and only delete the project file", () => {
+  it("should use .jcode/mcp.json in both scopes and never delete it", () => {
     expect(JcodeMcp.getSettablePaths()).toEqual({
       relativeDirPath: ".jcode",
       relativeFilePath: "mcp.json",
     });
     expect(JcodeMcp.getSettablePaths({ global: true })).toEqual(JcodeMcp.getSettablePaths());
     const params = { outputRoot: testDir, relativeDirPath: ".jcode", relativeFilePath: "mcp.json" };
-    expect(JcodeMcp.forDeletion(params).isDeletable()).toBe(true);
+    expect(JcodeMcp.forDeletion(params).isDeletable()).toBe(false);
     expect(JcodeMcp.forDeletion({ ...params, global: true }).isDeletable()).toBe(false);
   });
 
@@ -104,6 +104,69 @@ describe("JcodeMcp", () => {
     expect(mcp.toRulesyncMcp().getJson().mcpServers).toEqual({
       a: { command: "run-a", args: ["x"], disabled: true },
       b: { type: "http", url: "https://b" },
+    });
+  });
+
+  it("should merge both server-map keys with a warning and write mcpServers only", async () => {
+    await writeFileContent(
+      join(testDir, ".jcode", "mcp.json"),
+      JSON.stringify({
+        servers: {
+          legacy: { command: "a", shared: false },
+          both: { command: "old", timeout_secs: 1 },
+        },
+        mcpServers: { both: { command: "new", timeout_secs: 2 } },
+      }),
+    );
+    const logger = createMockLogger();
+    const mcp = await JcodeMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      logger,
+      rulesyncMcp: buildRulesyncMcp({ legacy: { command: "a" }, both: { command: "b" } }),
+    });
+    expect(JSON.parse(mcp.getFileContent())).toEqual({
+      mcpServers: {
+        legacy: { shared: false, command: "a" },
+        both: { timeout_secs: 2, command: "b" },
+      },
+    });
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('both "mcpServers" and "servers"'),
+    );
+
+    const imported = await JcodeMcp.fromFile({ outputRoot: testDir });
+    await writeFileContent(
+      join(testDir, ".jcode", "mcp.json"),
+      JSON.stringify({ servers: { x: { command: "x" } }, mcpServers: { y: { command: "y" } } }),
+    );
+    expect(Object.keys(imported.toRulesyncMcp().getJson().mcpServers)).toEqual(["legacy", "both"]);
+    const both = await JcodeMcp.fromFile({ outputRoot: testDir });
+    expect(Object.keys(both.toRulesyncMcp().getJson().mcpServers)).toEqual(["x", "y"]);
+  });
+
+  it("should normalize transport spellings the way jcode reads them", async () => {
+    await writeFileContent(
+      join(testDir, ".jcode", "mcp.json"),
+      JSON.stringify({
+        mcpServers: {
+          a: { type: " Streamable_HTTP ", url: "https://a" },
+          b: { type: "SSE", url: "https://b" },
+          c: { type: "carrier-pigeon", url: "https://c" },
+        },
+      }),
+    );
+    const imported = (await JcodeMcp.fromFile({ outputRoot: testDir })).toRulesyncMcp();
+    expect(imported.getJson().mcpServers).toEqual({
+      a: { type: "streamable-http", url: "https://a" },
+      b: { type: "sse", url: "https://b" },
+    });
+
+    const regenerated = await JcodeMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      rulesyncMcp: buildRulesyncMcp({ a: { type: "streamable-http", url: "https://a" } }),
+    });
+    expect(JSON.parse(regenerated.getFileContent()).mcpServers).toEqual({
+      a: { type: "streamable-http", url: "https://a" },
     });
   });
 

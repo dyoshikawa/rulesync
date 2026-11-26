@@ -41,20 +41,19 @@ const SUPPORTED_EVENTS: ReadonlySet<string> = new Set(JCODE_HOOK_EVENTS);
 const NATIVE_ONLY_EVENTS: ReadonlySet<string> = new Set(JCODE_NATIVE_ONLY_HOOK_EVENTS);
 
 /**
- * The `[hooks]` keys rulesync owns outright: the six keys canonical events map
- * onto. They are replaced on every generate (and removed when the sources no
- * longer define a hook for them). The two native-only keys
- * (`pre_tool_transform`, `post_tool_feedback`) are owned only when the
- * `jcode.hooks` override block sets them, so a hand-written one survives a
- * generate that does not author it. Every other key of the table (the
- * `*_timeout_ms` settings, anything jcode adds later) is always kept.
+ * The `[hooks]` keys the six mapped canonical events write to. rulesync never
+ * removes one of them: without an ownership record it cannot tell its own
+ * value from a hand-written one, and silently dropping a hand-written
+ * `pre_tool` gate would make it fail open. A key is replaced only when this run
+ * generates a value for it (with a warning when that changes the file), and
+ * every other key of the table is kept as it is.
  */
-const OWNED_EVENT_KEYS: ReadonlySet<string> = new Set(
+const MAPPED_EVENT_KEYS: ReadonlySet<string> = new Set(
   Object.values(CANONICAL_TO_JCODE_EVENT_NAMES),
 );
 
 /** Native jcode `[hooks]` keys that hold commands (as opposed to settings). */
-const COMMAND_KEYS: ReadonlySet<string> = new Set([...OWNED_EVENT_KEYS, ...NATIVE_ONLY_EVENTS]);
+const COMMAND_KEYS: ReadonlySet<string> = new Set([...MAPPED_EVENT_KEYS, ...NATIVE_ONLY_EVENTS]);
 
 /** A matcher that selects everything, so dropping it changes nothing. */
 const MATCH_ALL_MATCHERS: ReadonlySet<string> = new Set(["", "*", ".*"]);
@@ -97,7 +96,7 @@ function definitionsToCommands({
     if (typeof def.matcher === "string" && !MATCH_ALL_MATCHERS.has(def.matcher.trim())) {
       logger?.warn(
         nativeEvent === "pre_tool" || nativeEvent === "post_tool"
-          ? `jcode hooks have no matcher: the "${sourceEvent}" hook with matcher ${quoteValueForWarning(def.matcher)} is written to "${nativeEvent}" and runs for every tool call. jcode passes the tool name in JCODE_HOOK_TOOL_NAME, so filter on it inside the hook.`
+          ? `jcode hooks have no matcher: the "${sourceEvent}" hook with matcher ${quoteValueForWarning(def.matcher)} is written to "${nativeEvent}" and runs for every tool call, so whatever it does — blocking a call, or rewriting the input through "updatedInput" — applies to every tool. jcode passes the tool name in JCODE_HOOK_TOOL_NAME, so filter on it inside the hook.`
           : `jcode hooks have no matcher: matcher ${quoteValueForWarning(def.matcher)} on the "${sourceEvent}" hook is ignored and the hook runs on every "${nativeEvent}" event.`,
       );
     }
@@ -198,6 +197,11 @@ function jcodeHooksToCanonical(table: unknown): HooksConfig["hooks"] {
   return canonical;
 }
 
+/** Whether two `[hooks]` values run the same commands, string and list forms alike. */
+function sameCommands(a: unknown, b: unknown): boolean {
+  return JSON.stringify(readJcodeCommands(a)) === JSON.stringify(readJcodeCommands(b));
+}
+
 function parseJcodeToml(fileContent: string): Record<string, unknown> {
   const parsed = smolToml.parse(fileContent || smolToml.stringify({}));
   return isPlainObject(parsed) ? { ...parsed } : {};
@@ -211,12 +215,15 @@ function parseJcodeToml(fileContent: string): Record<string, unknown> {
  * adapter is global-only. Each key is one lifecycle point and takes a command
  * string or a list of them; rulesync writes a string for a single hook and a
  * list for several. The file also holds every other jcode setting, so only the
- * `[hooks]` table is touched, and within it only the command keys rulesync owns
- * (see {@link OWNED_EVENT_KEYS}); the file is never deleted.
+ * `[hooks]` table is touched, and within it only the command keys this run
+ * generates (see {@link MAPPED_EVENT_KEYS}); the file is never deleted.
  *
  * @see https://github.com/1jehuang/jcode/blob/master/docs/HOOKS.md
  */
 export class JcodeHooks extends ToolHooks {
+  /** Set by {@link fromRulesyncHooks}, so the merge can report what it overwrites. */
+  private mergeLogger: Logger | undefined;
+
   static getSettablePaths(_options: { global?: boolean } = {}): ToolHooksSettablePaths {
     // Global only; the processor supplies the home directory as outputRoot.
     return { relativeDirPath: JCODE_DIR, relativeFilePath: JCODE_CONFIG_FILE_NAME };
@@ -244,11 +251,19 @@ export class JcodeHooks extends ToolHooks {
     const generatedTable = isPlainObject(generated.hooks) ? generated.hooks : {};
     const existingTable = isPlainObject(existing.hooks) ? existing.hooks : {};
 
-    // Keep the table's settings and any native-only command key this run does
-    // not author; the keys rulesync owns are replaced (or retracted) wholesale.
+    // Only the keys this run generates are replaced; every other key — table
+    // settings, and command keys rulesync does not generate this time, which
+    // may be hand-written gates — is kept as it is.
     const preserved: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(existingTable)) {
-      if (OWNED_EVENT_KEYS.has(key) || key in generatedTable) continue;
+      if (key in generatedTable) {
+        if (!sameCommands(value, generatedTable[key])) {
+          this.mergeLogger?.warn(
+            `Overwriting the existing jcode [hooks] key "${key}" in ${filePath} (was ${quoteValueForWarning(value)}). Import it first to keep it.`,
+          );
+        }
+        continue;
+      }
       preserved[key] = value;
     }
     const table = { ...preserved, ...generatedTable };
@@ -289,7 +304,7 @@ export class JcodeHooks extends ToolHooks {
     const paths = JcodeHooks.getSettablePaths({ global });
     const hooks = canonicalToJcodeHooks({ config: rulesyncHooks.getJson(), logger });
     const fileContent = smolToml.stringify(Object.keys(hooks).length > 0 ? { hooks } : {});
-    return new JcodeHooks({
+    const jcodeHooks = new JcodeHooks({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
@@ -297,6 +312,8 @@ export class JcodeHooks extends ToolHooks {
       validate,
       global,
     });
+    jcodeHooks.mergeLogger = logger;
+    return jcodeHooks;
   }
 
   toRulesyncHooks({ logger }: { logger?: Logger } = {}): RulesyncHooks {

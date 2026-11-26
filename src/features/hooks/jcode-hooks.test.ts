@@ -175,6 +175,8 @@ describe("JcodeHooks", () => {
       expect(parsed.model).toBe("claude");
       expect(parsed.ui).toEqual({ theme: "dark" });
       expect(parsed.hooks).toEqual({
+        // Not generated this run, so the existing value is kept.
+        turn_end: "old-notify",
         post_tool_feedback: "~/bin/jcode-vale",
         pre_tool_timeout_ms: 5000,
         pre_tool: "policy",
@@ -215,14 +217,58 @@ describe("JcodeHooks", () => {
       });
     });
 
-    it("should retract owned keys and drop an emptied [hooks] table", async () => {
+    it("should keep a hand-written pre_tool gate when the sources define no preToolUse", async () => {
+      const logger = createMockLogger();
+      const hooks = await JcodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        global: true,
+        logger,
+        rulesyncHooks: buildRulesyncHooks({
+          version: 1,
+          hooks: { sessionStart: [{ command: "start" }] },
+        }),
+      });
+      hooks.setFileContent('model = "x"\n\n[hooks]\npre_tool = "~/bin/policy"\nturn_end = "n"\n');
+      expect(smolToml.parse(hooks.getFileContent())).toEqual({
+        model: "x",
+        hooks: { pre_tool: "~/bin/policy", turn_end: "n", session_start: "start" },
+      });
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("should leave the file alone when the sources define no jcode hooks", async () => {
       const hooks = await JcodeHooks.fromRulesyncHooks({
         outputRoot: testDir,
         global: true,
         rulesyncHooks: buildRulesyncHooks({ version: 1, hooks: {} }),
       });
-      hooks.setFileContent('model = "x"\n\n[hooks]\nturn_end = "gone"\n');
-      expect(smolToml.parse(hooks.getFileContent())).toEqual({ model: "x" });
+      hooks.setFileContent('model = "x"\n\n[hooks]\nturn_end = "kept"\n');
+      expect(smolToml.parse(hooks.getFileContent())).toEqual({
+        model: "x",
+        hooks: { turn_end: "kept" },
+      });
+    });
+
+    it("should warn only when it overwrites a different existing value", async () => {
+      const logger = createMockLogger();
+      const hooks = await JcodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        global: true,
+        logger,
+        rulesyncHooks: buildRulesyncHooks({
+          version: 1,
+          hooks: { preToolUse: [{ command: "policy" }], stop: [{ command: "notify" }] },
+        }),
+      });
+      hooks.setFileContent('[hooks]\npre_tool = "hand-written"\nturn_end = ["notify"]\n');
+      expect(parseHooksTable(hooks.getFileContent())).toEqual({
+        pre_tool: "policy",
+        turn_end: "notify",
+      });
+      const warnings = logger.warn.mock.calls.map(([message]) => String(message));
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain('"pre_tool"');
+      expect(warnings[0]).toContain("hand-written");
     });
 
     it("should refuse an unparseable config instead of replacing it", async () => {
