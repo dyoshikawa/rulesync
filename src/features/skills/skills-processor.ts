@@ -42,6 +42,7 @@ import { AntigravityIdeSkill } from "./antigravity-ide-skill.js";
 import { AntigravityPluginSkill } from "./antigravity-plugin-skill.js";
 import { AugmentcodePluginSkill } from "./augmentcode-plugin-skill.js";
 import { AugmentcodeSkill } from "./augmentcode-skill.js";
+import { BbSkill } from "./bb-skill.js";
 import { BobSkill } from "./bob-skill.js";
 import { ClaudecodePluginSkill } from "./claudecode-plugin-skill.js";
 import { ClaudecodeSkill } from "./claudecode-skill.js";
@@ -114,6 +115,7 @@ import { XumSkill } from "./xum-skill.js";
 import { ZcodePluginSkill } from "./zcode-plugin-skill.js";
 import { ZcodeSkill } from "./zcode-skill.js";
 import { ZedSkill } from "./zed-skill.js";
+import { ZeroSkill } from "./zero-skill.js";
 import { ZoocodeSkill } from "./zoocode-skill.js";
 
 /**
@@ -863,6 +865,17 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     },
   ],
   [
+    "zero",
+    {
+      // Zero reads skills (`<name>/SKILL.md`) from its user skills root
+      // `~/.local/share/zero/skills/`; project skill directories are not
+      // supported, so the target is global-only.
+      // https://github.com/Twigpine/zero/blob/main/docs/EXTENDING.md#3-skills
+      class: ZeroSkill,
+      meta: { supportsProject: false, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
     "zcode-plugin",
     {
       // `<plugin>/skills/<name>/SKILL.md`. https://zcode.z.ai/en/docs/plugin
@@ -891,6 +904,16 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
       // the managed/local `~/.openclaw/skills/` root (global).
       // https://docs.openclaw.ai/tools/skills
       class: OpenclawSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "bb",
+    {
+      // bb skills are directories (`<name>/SKILL.md`) under `.bb/skills/`
+      // (project) and `<dataDir>/skills/` (global, `~/.bb/skills/` by default).
+      // https://github.com/get-bb/bb/blob/main/docs/configuration.md#skills
+      class: BbSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],
@@ -959,7 +982,9 @@ export class SkillsProcessor extends DirFeatureProcessor {
       outputRoot,
       inputRoots,
       dryRun,
-      avoidBlockScalars: toolTarget === "cursor",
+      // Zero (like Cursor) reads skill frontmatter line by line, so a value
+      // folded onto several lines would be cut short.
+      avoidBlockScalars: toolTarget === "cursor" || toolTarget === "zero",
       logger,
     });
     const result = SkillsProcessorToolTargetSchema.safeParse(toolTarget);

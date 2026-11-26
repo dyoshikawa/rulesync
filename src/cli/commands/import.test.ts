@@ -131,7 +131,14 @@ describe("importCommand", () => {
     it("should import rules when feature is enabled and tool is supported", async () => {
       const mockRulesProcessor = {
         loadToolFiles: vi.fn().mockResolvedValue([{ file: "rule1" }]),
-        convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ rule: "converted" }]),
+        convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([
+          {
+            rule: "converted",
+            withOutputRoot() {
+              return this;
+            },
+          },
+        ]),
         writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
         warnForFoldImportDuplicationRisk: vi.fn().mockResolvedValue(undefined),
       };
@@ -160,7 +167,14 @@ describe("importCommand", () => {
     it("should import ignore files when feature is enabled and tool is supported", async () => {
       const mockIgnoreProcessor = {
         loadToolFiles: vi.fn().mockResolvedValue([{ file: "ignore1" }]),
-        convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ ignore: "converted" }]),
+        convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([
+          {
+            ignore: "converted",
+            withOutputRoot() {
+              return this;
+            },
+          },
+        ]),
         writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
       };
       vi.mocked(IgnoreProcessor).mockImplementation(function () {
@@ -215,7 +229,14 @@ describe("importCommand", () => {
     it("should import subagents with includeSimulated flag", async () => {
       const mockSubagentsProcessor = {
         loadToolFiles: vi.fn().mockResolvedValue([{ file: "subagent1" }]),
-        convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ subagent: "converted" }]),
+        convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([
+          {
+            subagent: "converted",
+            withOutputRoot() {
+              return this;
+            },
+          },
+        ]),
         writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
       };
       vi.mocked(SubagentsProcessor).mockImplementation(function () {
@@ -249,7 +270,14 @@ describe("importCommand", () => {
     it("should import commands with includeSimulated flag", async () => {
       const mockCommandsProcessor = {
         loadToolFiles: vi.fn().mockResolvedValue([{ file: "command1" }]),
-        convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ command: "converted" }]),
+        convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([
+          {
+            command: "converted",
+            withOutputRoot() {
+              return this;
+            },
+          },
+        ]),
         writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
       };
       vi.mocked(CommandsProcessor).mockImplementation(function () {
@@ -327,7 +355,14 @@ describe("importCommand", () => {
     it("should log success messages in verbose mode", async () => {
       const mockRulesProcessor = {
         loadToolFiles: vi.fn().mockResolvedValue([{ file: "rule1" }]),
-        convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ rule: "converted" }]),
+        convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([
+          {
+            rule: "converted",
+            withOutputRoot() {
+              return this;
+            },
+          },
+        ]),
         writeAiFiles: vi.fn().mockResolvedValue({ count: 2, paths: [] }),
         warnForFoldImportDuplicationRisk: vi.fn().mockResolvedValue(undefined),
       };
@@ -337,7 +372,14 @@ describe("importCommand", () => {
 
       const mockIgnoreProcessor = {
         loadToolFiles: vi.fn().mockResolvedValue([{ file: "ignore1" }]),
-        convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ ignore: "converted" }]),
+        convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([
+          {
+            ignore: "converted",
+            withOutputRoot() {
+              return this;
+            },
+          },
+        ]),
         writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
       };
       vi.mocked(IgnoreProcessor).mockImplementation(function () {
@@ -355,7 +397,14 @@ describe("importCommand", () => {
 
       const mockSubagentsProcessor = {
         loadToolFiles: vi.fn().mockResolvedValue([{ file: "subagent1" }]),
-        convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ subagent: "converted" }]),
+        convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([
+          {
+            subagent: "converted",
+            withOutputRoot() {
+              return this;
+            },
+          },
+        ]),
         writeAiFiles: vi.fn().mockResolvedValue({ count: 4, paths: [] }),
       };
       vi.mocked(SubagentsProcessor).mockImplementation(function () {
@@ -364,7 +413,14 @@ describe("importCommand", () => {
 
       const mockCommandsProcessor = {
         loadToolFiles: vi.fn().mockResolvedValue([{ file: "command1" }]),
-        convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ command: "converted" }]),
+        convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([
+          {
+            command: "converted",
+            withOutputRoot() {
+              return this;
+            },
+          },
+        ]),
         writeAiFiles: vi.fn().mockResolvedValue({ count: 5, paths: [] }),
       };
       vi.mocked(CommandsProcessor).mockImplementation(function () {
@@ -441,7 +497,14 @@ describe("importCommand", () => {
     it("should pass global flag to SubagentsProcessor when importing in global mode", async () => {
       const mockSubagentsProcessor = {
         loadToolFiles: vi.fn().mockResolvedValue([{ file: "subagent1" }]),
-        convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ subagent: "converted" }]),
+        convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([
+          {
+            subagent: "converted",
+            withOutputRoot() {
+              return this;
+            },
+          },
+        ]),
         writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
       };
       vi.mocked(SubagentsProcessor).mockImplementation(function () {
@@ -468,7 +531,14 @@ describe("importCommand", () => {
       vi.mocked(RulesProcessor).mockImplementation(function () {
         return {
           loadToolFiles: vi.fn().mockResolvedValue([{ file: "test1" }]),
-          convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ test: "converted" }]),
+          convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([
+            {
+              test: "converted",
+              withOutputRoot() {
+                return this;
+              },
+            },
+          ]),
           writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
           warnForFoldImportDuplicationRisk: vi.fn().mockResolvedValue(undefined),
         } as any;
@@ -490,14 +560,28 @@ describe("importCommand", () => {
       vi.mocked(CommandsProcessor).mockImplementation(function () {
         return {
           loadToolFiles: vi.fn().mockResolvedValue([{ file: "test1" }]),
-          convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ test: "converted" }]),
+          convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([
+            {
+              test: "converted",
+              withOutputRoot() {
+                return this;
+              },
+            },
+          ]),
           writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
         } as any;
       });
       vi.mocked(SubagentsProcessor).mockImplementation(function () {
         return {
           loadToolFiles: vi.fn().mockResolvedValue([{ file: "test1" }]),
-          convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ test: "converted" }]),
+          convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([
+            {
+              test: "converted",
+              withOutputRoot() {
+                return this;
+              },
+            },
+          ]),
           writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
         } as any;
       });

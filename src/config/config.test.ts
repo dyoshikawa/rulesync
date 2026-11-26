@@ -686,5 +686,25 @@ describe("Config", () => {
       expect(parseSources([{ source: "owner/repo", rulesPath: "../rules" }]).success).toBe(false);
       expect(parseSources([{ source: "owner/repo", rulesPath: "/rules" }]).success).toBe(false);
     });
+
+    it("accepts command and subagent selections with their paths", () => {
+      expect(
+        parseSources([
+          {
+            source: "owner/repo",
+            commands: ["review"],
+            commandsPath: "exports/commands",
+            subagents: ["*"],
+            subagentsPath: "exports/agents",
+          },
+        ]).success,
+      ).toBe(true);
+    });
+
+    it.each(["commandsPath", "subagentsPath"])("rejects unsafe %s values", (field) => {
+      for (const value of ["../escape", "/abs", "a/../../b", "bad\u0007path"]) {
+        expect(parseSources([{ source: "owner/repo", [field]: value }]).success).toBe(false);
+      }
+    });
   });
 });

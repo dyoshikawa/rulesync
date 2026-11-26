@@ -174,6 +174,10 @@ describe("installGh", () => {
   it.each([
     { field: "rules", value: ["testing-guidelines"] },
     { field: "rulesPath", value: "exports/rules" },
+    { field: "commands", value: ["review"] },
+    { field: "commandsPath", value: "exports/commands" },
+    { field: "subagents", value: ["planner"] },
+    { field: "subagentsPath", value: "exports/agents" },
   ])("rejects entry.$field with a field-specific error", async ({ field, value }) => {
     await expect(
       installGh({

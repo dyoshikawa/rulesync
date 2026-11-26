@@ -42,8 +42,10 @@ import { RulesyncSkill } from "../skills/rulesync-skill.js";
 import { listSkillDirNames } from "../skills/skills-utils.js";
 import { RulesyncCommand } from "./rulesync-command.js";
 import {
+  describeAfterOrphanSweepWrite,
   ToolCommand,
   type ToolCommandAfterOrphanSweepParams,
+  type ToolCommandAfterOrphanSweepResult,
   type ToolCommandForDeletionParams,
   type ToolCommandFromFileParams,
   type ToolCommandFromRulesyncCommandParams,
@@ -386,7 +388,7 @@ export class HermesagentCommand extends ToolCommand {
     logger,
     existingFiles,
     removedPaths,
-  }: ToolCommandAfterOrphanSweepParams): Promise<number> {
+  }: ToolCommandAfterOrphanSweepParams): Promise<ToolCommandAfterOrphanSweepResult> {
     const ownershipPath = join(
       outputRoot,
       getHermesagentRelativeFilePath({
@@ -406,14 +408,13 @@ export class HermesagentCommand extends ToolCommand {
           removed.kind === "file" && removed.path === ownershipMarker.getRelativePathFromCwd(),
       );
 
-    if (!shouldDisableHermesCommandsPlugin) return 0;
-    const configPath = join(
-      outputRoot,
-      getHermesagentRelativeFilePath({
-        global,
-        relativeFilePath: HERMESAGENT_CONFIG_FILE_PATH,
-      }),
-    );
+    const unchanged: ToolCommandAfterOrphanSweepResult = { paths: [], keyOperations: [] };
+    if (!shouldDisableHermesCommandsPlugin) return unchanged;
+    const relativeConfigPath = getHermesagentRelativeFilePath({
+      global,
+      relativeFilePath: HERMESAGENT_CONFIG_FILE_PATH,
+    });
+    const configPath = join(outputRoot, relativeConfigPath);
     if (
       await refusesWriteOutsideRoot({
         logger,
@@ -421,15 +422,15 @@ export class HermesagentCommand extends ToolCommand {
         targetPath: configPath,
       })
     ) {
-      return 0;
+      return unchanged;
     }
     const currentContent = await readFileContentOrNull(configPath);
-    if (currentContent === null) return 0;
+    if (currentContent === null) return unchanged;
     const nextContent = getDisabledHermesCommandsPluginConfigContent({
       currentContent,
       global,
     });
-    if (nextContent === currentContent) return 0;
+    if (nextContent === currentContent) return unchanged;
 
     await warnIfWriteFollowsLink({ logger, rootPath: outputRoot, targetPath: configPath });
     if (dryRun) {
@@ -437,7 +438,11 @@ export class HermesagentCommand extends ToolCommand {
     } else {
       await writeFileContent(configPath, nextContent);
     }
-    return 1;
+    return describeAfterOrphanSweepWrite({
+      relativePath: relativeConfigPath,
+      existingContent: currentContent,
+      newContent: nextContent,
+    });
   }
 
   static override async fromFile({

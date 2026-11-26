@@ -5,6 +5,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { openbitfunGlobalAgentsDir } from "../constants/openbitfun-paths.js";
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
+import { zeroGlobalSpecialistsDir } from "../constants/zero-paths.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
 import {
   ensureDir,
@@ -242,6 +243,10 @@ const subagentsGenerateTargets = [
     target: "zcode",
     outputPath: join(".zcode", "agents", "planner.md"),
   },
+  {
+    target: "zero",
+    outputPath: join(".zero", "specialists", "planner.md"),
+  },
   { target: "deepcode", outputPath: join(".agents", "presets", "planner.md") },
 ] as const;
 
@@ -304,6 +309,7 @@ const subagentsGlobalTargets = [
     outputPath: join(getHermesagentGlobalDir(), "rulesync", "subagents", "planner.json"),
   },
   { target: "zcode", outputPath: join(".zcode", "agents", "planner.md") },
+  { target: "zero", outputPath: join(zeroGlobalSpecialistsDir(), "planner.md") },
   { target: "deepcode", outputPath: join(".deepcode", "agent-presets", "planner.md") },
 ] as const;
 
@@ -491,6 +497,7 @@ You are a subagent-only helper.
     { target: "tabnine", orphanPath: join(".tabnine", "agent", "agents", "orphan.md") },
     { target: "trae", orphanPath: join(".trae", "agents", "orphan.md") },
     { target: "cortexcode", orphanPath: join(".cortex", "agents", "orphan.md") },
+    { target: "zero", orphanPath: join(".zero", "specialists", "orphan.md") },
     { target: "codewhale", orphanPath: join(".codewhale", "agents", "orphan.toml") },
     { target: "commandcode", orphanPath: join(".commandcode", "agents", "orphan.md") },
     { target: "qoder", orphanPath: join(".qoder", "agents", "orphan.md") },
@@ -862,6 +869,7 @@ describe("E2E: subagents (import)", () => {
     { target: "codebuddy", sourcePath: join(".codebuddy", "agents", "planner.md") },
     { target: "devin", sourcePath: join(".devin", "agents", "planner", "AGENT.md") },
     { target: "zcode", sourcePath: join(".zcode", "agents", "planner.md") },
+    { target: "zero", sourcePath: join(".zero", "specialists", "planner.md") },
     { target: "deepcode", sourcePath: join(".agents", "presets", "planner.md") },
   ])("should import $target subagents", async ({ target, sourcePath }) => {
     const testDir = getTestDir();
