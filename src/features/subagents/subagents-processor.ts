@@ -84,6 +84,7 @@ import {
   ToolSubagentFromRulesyncSubagentParams,
   ToolSubagentSettablePaths,
 } from "./tool-subagent.js";
+import { TraeSubagent } from "./trae-subagent.js";
 import { VibePluginSubagent } from "./vibe-plugin-subagent.js";
 import { VibeSubagent } from "./vibe-subagent.js";
 import { XumSubagent } from "./xum-subagent.js";
@@ -944,6 +945,23 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsProject: true,
         supportsSimulated: false,
         supportsGlobal: true,
+        filePattern: "*.md",
+      },
+    },
+  ],
+  [
+    "trae",
+    {
+      // Trae subagents are native Markdown + YAML frontmatter under
+      // `.trae/agents/` (project only); Trae reads them once Settings > Beta >
+      // "Enable Subagents Directory" is on. The documented user directory is
+      // `~/.trae-cn/agents/` (CN build), so global scope is not written.
+      // https://docs.trae.ai/ide/subagents?_lang=en
+      class: TraeSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: false,
         filePattern: "*.md",
       },
     },

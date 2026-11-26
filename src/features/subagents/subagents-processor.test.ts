@@ -2212,6 +2212,7 @@ Second global content`;
           "zoocode",
           "rovodev",
           "tabnine",
+          "trae",
           "takt",
           "vibe",
           "vibe-plugin",
