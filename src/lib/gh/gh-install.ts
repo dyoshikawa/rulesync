@@ -223,15 +223,19 @@ function resolveGhSource(entry: SourceEntry): ResolvedSource {
       `--mode gh: field "path" is not supported for source "${entry.source}". The remote layout is fixed to "skills/<name>/SKILL.md".`,
     );
   }
-  if (entry.rules !== undefined) {
-    throw new Error(
-      `--mode gh: field "rules" is not supported for source "${entry.source}". Switch to --mode rulesync to install declarative rules.`,
-    );
-  }
-  if (entry.rulesPath !== undefined) {
-    throw new Error(
-      `--mode gh: field "rulesPath" is not supported for source "${entry.source}". Switch to --mode rulesync to install declarative rules.`,
-    );
+  for (const [field, kind] of [
+    ["rules", "rules"],
+    ["rulesPath", "rules"],
+    ["commands", "commands"],
+    ["commandsPath", "commands"],
+    ["subagents", "subagents"],
+    ["subagentsPath", "subagents"],
+  ] as const) {
+    if (entry[field] !== undefined) {
+      throw new Error(
+        `--mode gh: field "${field}" is not supported for source "${entry.source}". Switch to --mode rulesync to install declarative ${kind}.`,
+      );
+    }
   }
   const agent = entry.agent ?? "github-copilot";
   if (!GH_AGENTS.includes(agent)) {

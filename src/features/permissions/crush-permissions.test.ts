@@ -615,6 +615,23 @@ describe("CrushPermissions", () => {
       expect(Object.hasOwn(Object.prototype.valueOf, "*")).toBe(false);
     });
 
+    it("should warn when it drops a reserved tool name", () => {
+      const logger = createMockLogger();
+      const permissions = new CrushPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".",
+        relativeFilePath: "crush.json",
+        fileContent: `{ "permissions": { "allowed_tools": ["bash", "__proto__"] } }`,
+      });
+
+      const json = permissions.toRulesyncPermissions({ logger }).getJson();
+
+      expect(json.permission).toEqual({ bash: { "*": "allow" } });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Skipping imported Crush permission rule for "__proto__"'),
+      );
+    });
+
     it("should map the command lists back to bash pattern rules", () => {
       const logger = createMockLogger();
       const permissions = new CrushPermissions({

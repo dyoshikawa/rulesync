@@ -6,7 +6,6 @@ import { getSourceTransport, type SourceEntry } from "../config/config.js";
 import { SKILL_FILE_NAME } from "../constants/general.js";
 import {
   FETCH_CONCURRENCY_LIMIT,
-  RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH,
   formatMegabytes,
   MAX_FILE_SIZE,
   MAX_FILE_SIZE_MB,
@@ -22,13 +21,15 @@ import { GitHubClient, GitHubClientError } from "./github-client.js";
 import { listDirectoryRecursive, resolveExecutablePaths, withSemaphore } from "./github-utils.js";
 import { parseSource } from "./source-parser.js";
 import {
-  assertMatchingRulesFound,
+  assertMatchingFilesFound,
   assertMatchingSkillsFound,
+  buildFileLockUpdate,
   buildLockUpdate,
-  buildRuleLockUpdate,
-  canReuseLockedRules,
+  canReuseLockedFiles,
   canReuseLockedSkills,
   cleanPreviousCuratedSkills,
+  getCuratedFileFeatureRelativeDirPath,
+  getFileFeatureNoun,
   getSourceFilters,
   groupRemoteFilesBySkillRoot,
   hasEmptySelection,
@@ -37,15 +38,15 @@ import {
   normalizeRuleFilterName,
   normalizeRuleSelection,
   normalizeSkillSelection,
-  type RemoteRuleFile,
+  type RemoteFeatureFile,
   type RemoteSkillFile,
-  replaceCuratedRules,
-  resolveRulesPath,
-  resolveRulesSourcePath,
+  replaceCuratedFiles,
+  resolveFileFeaturePath,
+  resolveFileFeatureSourcePath,
   resolveSkillsPath,
   resolveSkillsSourcePath,
-  selectDeclaredRules,
-  shouldSkipRule,
+  selectDeclaredFiles,
+  shouldSkipFile,
   shouldSkipSkill,
   shouldUseRootFallback,
   writeSkillAndComputeIntegrity,
@@ -53,8 +54,10 @@ import {
 import {
   type LockedSkill,
   type LockedSource,
+  type SourceFileFeature,
   type SourcesLock,
-  getLockedRuleNames,
+  SOURCE_FILE_FEATURES,
+  getLockedFileNames,
   getLockedSkillNames,
   getLockedSource,
   normalizeLockKey,
@@ -64,9 +67,9 @@ type GithubPrefetchContext = {
   client: GitHubClient;
   projectRoot: string;
   localSkillNames: Set<string>;
-  localRuleNames: Set<string>;
+  localFileNames: Record<SourceFileFeature, Set<string>>;
   reservedSkillNames: Set<string>;
-  reservedRuleNames: Set<string>;
+  reservedFileNames: Record<SourceFileFeature, Set<string>>;
   updateSources: boolean;
   frozen: boolean;
   semaphore: Semaphore;
@@ -160,9 +163,9 @@ export async function prefetchGithubSources(params: {
   projectRoot: string;
   lock: SourcesLock;
   localSkillNames: Set<string>;
-  localRuleNames: Set<string>;
+  localFileNames: Record<SourceFileFeature, Set<string>>;
   reservedSkillNames: Set<string>;
-  reservedRuleNames: Set<string>;
+  reservedFileNames: Record<SourceFileFeature, Set<string>>;
   updateSources: boolean;
   frozen: boolean;
   logger: Logger;
@@ -186,20 +189,22 @@ export async function prefetchGithubSources(params: {
       lockKey,
       listedThroughApi: isListedThroughGithubApi(sourceEntry),
       skills: createNameClaim(),
-      rules: createNameClaim(),
+      files: createFileClaims(),
     }));
   for (const item of items.filter((candidate) => !candidate.listedThroughApi)) {
     if (isGitlabSource(item.sourceEntry)) {
       // The serial pass rejects GitLab sources, so they take no name.
       item.skills.settle([]);
-      item.rules.settle([]);
+      settleFileClaims(item.files);
       continue;
     }
     const filters = getSourceFilters(item.sourceEntry);
     item.skills.settle(getSelectionClaim({ selection: filters.skills, normalize: (name) => name }));
-    item.rules.settle(
-      getSelectionClaim({ selection: filters.rules, normalize: normalizeRuleFilterName }),
-    );
+    for (const feature of SOURCE_FILE_FEATURES) {
+      item.files[feature].settle(
+        getSelectionClaim({ selection: filters[feature], normalize: normalizeRuleFilterName }),
+      );
+    }
   }
   await mapWithConcurrency({
     items: items.filter((item) => item.listedThroughApi),
@@ -217,11 +222,16 @@ export async function prefetchGithubSources(params: {
             earlier: earlier.map((other) => other.skills),
             own: item.skills,
           }),
-          ruleClaim: createClaimSlot({
-            reserved: context.reservedRuleNames,
-            earlier: earlier.map((other) => other.rules),
-            own: item.rules,
-          }),
+          fileClaims: Object.fromEntries(
+            SOURCE_FILE_FEATURES.map((feature) => [
+              feature,
+              createClaimSlot({
+                reserved: context.reservedFileNames[feature],
+                earlier: earlier.map((other) => other.files[feature]),
+                own: item.files[feature],
+              }),
+            ]),
+          ) as Record<SourceFileFeature, ClaimSlot>,
         });
       } catch (error) {
         logger.debug(
@@ -231,10 +241,25 @@ export async function prefetchGithubSources(params: {
         // A source that claimed nothing (or failed before it could) must not
         // keep later sources waiting. Settling twice keeps the first claim.
         item.skills.settle([]);
-        item.rules.settle([]);
+        settleFileClaims(item.files);
       }
     },
   });
+}
+
+function createFileClaims(): Record<SourceFileFeature, NameClaim> {
+  return {
+    rules: createNameClaim(),
+    commands: createNameClaim(),
+    subagents: createNameClaim(),
+  };
+}
+
+/** Settle every per-file feature claim with no names (a no-op for those already settled). */
+function settleFileClaims(claims: Record<SourceFileFeature, NameClaim>): void {
+  for (const feature of SOURCE_FILE_FEATURES) {
+    claims[feature].settle([]);
+  }
 }
 
 /** Whether the prefetch lists and downloads this source through the GitHub API. */
@@ -281,9 +306,9 @@ async function prefetchGithubSource(params: {
   lock: SourcesLock;
   context: GithubPrefetchContext;
   skillClaim: ClaimSlot;
-  ruleClaim: ClaimSlot;
+  fileClaims: Record<SourceFileFeature, ClaimSlot>;
 }): Promise<void> {
-  const { sourceEntry, lockKey, lock, context, skillClaim, ruleClaim } = params;
+  const { sourceEntry, lockKey, lock, context, skillClaim, fileClaims } = params;
   const parsedFromSource = parseSource(sourceEntry.source);
   const parsed: ParsedSource = {
     ...parsedFromSource,
@@ -302,16 +327,30 @@ async function prefetchGithubSource(params: {
           claim: skillClaim,
           context,
         }),
-    filters.rules === undefined
-      ? undefined
-      : prefetchGithubRules({
-          target: { sourceEntry: { ...sourceEntry, rules: filters.rules }, parsed, ref, locked },
-          // Mirrors `fetchSingleSource`: a source that also takes skills
-          // re-fetches its rules on `--update` at the ref the skills resolved.
-          forceRefetch: filters.skills !== undefined && context.updateSources,
-          claim: ruleClaim,
-          context,
-        }),
+    ...SOURCE_FILE_FEATURES.map((feature, index) =>
+      filters[feature] === undefined
+        ? undefined
+        : prefetchGithubFiles({
+            feature,
+            target: {
+              sourceEntry: { ...sourceEntry, [feature]: filters[feature] },
+              parsed,
+              ref,
+              locked,
+            },
+            // Mirrors `fetchSingleSource`: a feature fetched after another one
+            // of the same source re-fetches on `--update` at the ref the
+            // earlier feature resolved.
+            forceRefetch:
+              context.updateSources &&
+              (filters.skills !== undefined ||
+                SOURCE_FILE_FEATURES.slice(0, index).some(
+                  (earlier) => filters[earlier] !== undefined,
+                )),
+            claim: fileClaims[feature],
+            context,
+          }),
+    ),
   ]);
 }
 
@@ -455,44 +494,48 @@ async function listPrefetchSkillFiles(params: {
   return listings.flatMap((listing) => (listing.status === "fulfilled" ? listing.value : []));
 }
 
-async function prefetchGithubRules(params: {
+async function prefetchGithubFiles(params: {
+  feature: SourceFileFeature;
   target: GithubPrefetchTarget;
   forceRefetch: boolean;
   claim: ClaimSlot;
   context: GithubPrefetchContext;
 }): Promise<void> {
-  const { target, forceRefetch, claim, context } = params;
+  const { feature, target, forceRefetch, claim, context } = params;
   const { sourceEntry, parsed, ref, locked } = target;
+  const localNames = context.localFileNames[feature];
   const claimed = await claim.earlier();
   if (
     locked &&
     !context.updateSources &&
     !forceRefetch &&
-    (await canReuseLockedRules({
+    (await canReuseLockedFiles({
+      feature,
       locked,
       sourceEntry,
-      lockedRuleNames: getLockedRuleNames(locked),
-      localRuleNames: context.localRuleNames,
-      alreadyFetchedRuleNames: claimed.names,
-      curatedDir: join(context.projectRoot, RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH),
+      lockedNames: getLockedFileNames(locked, feature),
+      localNames,
+      alreadyFetchedNames: claimed.names,
+      curatedDir: join(context.projectRoot, getCuratedFileFeatureRelativeDirPath(feature)),
     }))
   ) {
-    claim.settle(getLockedRuleNames(locked));
+    claim.settle(getLockedFileNames(locked, feature));
     return;
   }
   const entries = await withSemaphore(context.semaphore, () =>
     context.client.listDirectory(
       parsed.owner,
       parsed.repo,
-      resolveRulesSourcePath(sourceEntry),
+      resolveFileFeatureSourcePath(sourceEntry, feature),
       ref,
     ),
   );
-  const selected = selectDeclaredRules({
+  const selected = selectDeclaredFiles({
+    feature,
     sourceEntry,
     candidates: entries.filter((entry) => entry.type === "file"),
     getFileName: (entry) => entry.name,
-  }).filter(({ name }) => !context.localRuleNames.has(name) && !claimed.has(name));
+  }).filter(({ name }) => !localNames.has(name) && !claimed.has(name));
   claim.settle(selected.map(({ name }) => name));
   await prefetchFileContents({
     files: selected.map(({ candidate }) => candidate),
@@ -556,32 +599,40 @@ export async function resolveGithubFetchRef(params: {
   return { ref: resolvedSha, resolvedSha, requestedRef };
 }
 
-export async function fetchRulesViaGithub(params: {
+/**
+ * Fetch one per-file feature (rules, commands or subagents) of a GitHub
+ * source: the Markdown files directly inside the feature's path, as selected,
+ * into the feature's curated directory.
+ */
+export async function fetchFilesViaGithub(params: {
+  feature: SourceFileFeature;
   sourceEntry: SourceEntry;
   lockKey: string;
   client: GitHubClient;
   projectRoot: string;
   lock: SourcesLock;
-  localRuleNames: Set<string>;
-  alreadyFetchedRuleNames: Set<string>;
+  localNames: Set<string>;
+  alreadyFetchedNames: Set<string>;
   updateSources: boolean;
   forceRefetch: boolean;
   frozen: boolean;
   logger: Logger;
-}): Promise<{ ruleCount: number; fetchedRuleNames: string[]; updatedLock: SourcesLock }> {
+}): Promise<{ count: number; fetchedNames: string[]; updatedLock: SourcesLock }> {
   const {
+    feature,
     sourceEntry,
     lockKey,
     client,
     projectRoot,
     lock,
-    localRuleNames,
-    alreadyFetchedRuleNames,
+    localNames,
+    alreadyFetchedNames,
     updateSources,
     forceRefetch,
     frozen,
     logger,
   } = params;
+  const noun = getFileFeatureNoun(feature);
   const parsedFromSource = parseSource(sourceEntry.source);
   const parsed: ParsedSource = {
     ...parsedFromSource,
@@ -592,7 +643,7 @@ export async function fetchRulesViaGithub(params: {
   }
   const sourceKey = sourceEntry.source;
   const locked = getLockedSource(lock, lockKey);
-  const lockedRuleNames = locked ? getLockedRuleNames(locked) : [];
+  const lockedNames = locked ? getLockedFileNames(locked, feature) : [];
   const { ref, resolvedSha, requestedRef } = await resolveGithubFetchRef({
     parsed,
     locked,
@@ -601,93 +652,98 @@ export async function fetchRulesViaGithub(params: {
     client,
     logger,
   });
-  const curatedDir = join(projectRoot, RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH);
+  const curatedDir = join(projectRoot, getCuratedFileFeatureRelativeDirPath(feature));
   if (
     locked &&
     resolvedSha === locked.resolvedRef &&
     !updateSources &&
     !forceRefetch &&
-    (await canReuseLockedRules({
+    (await canReuseLockedFiles({
+      feature,
       locked,
       sourceEntry,
-      lockedRuleNames,
-      localRuleNames,
-      alreadyFetchedRuleNames,
+      lockedNames,
+      localNames,
+      alreadyFetchedNames,
       curatedDir,
     }))
   ) {
-    logger.debug(`SHA unchanged for ${sourceKey} rules, skipping re-fetch.`);
-    return { ruleCount: 0, fetchedRuleNames: lockedRuleNames, updatedLock: lock };
+    logger.debug(`SHA unchanged for ${sourceKey} ${feature}, skipping re-fetch.`);
+    return { count: 0, fetchedNames: lockedNames, updatedLock: lock };
   }
 
-  const rulesPath = resolveRulesSourcePath(sourceEntry);
+  const featurePath = resolveFileFeatureSourcePath(sourceEntry, feature);
   let entries: GitHubFileEntry[];
   try {
-    entries = await client.listDirectory(parsed.owner, parsed.repo, rulesPath, ref);
+    entries = await client.listDirectory(parsed.owner, parsed.repo, featurePath, ref);
   } catch (error) {
     if (error instanceof GitHubClientError && error.statusCode === 404) {
-      throw new Error(`No ${rulesPath}/ directory found in ${sourceKey}.`, { cause: error });
+      throw new Error(`No ${featurePath}/ directory found in ${sourceKey}.`, { cause: error });
     }
     throw error;
   }
-  const remoteRules = selectDeclaredRules({
+  const remoteFiles = selectDeclaredFiles({
+    feature,
     sourceEntry,
     candidates: entries.filter((entry) => entry.type === "file"),
     getFileName: (entry) => entry.name,
   }).map(({ candidate, name }) => ({ entry: candidate, name }));
-  const remoteRuleNames = remoteRules.map(({ name }) => name);
-  assertMatchingRulesFound({ ruleNames: remoteRuleNames, source: sourceKey });
-  const preparedRules: RemoteRuleFile[] = [];
-  for (const { entry, name } of remoteRules) {
+  const remoteNames = remoteFiles.map(({ name }) => name);
+  assertMatchingFilesFound({ feature, names: remoteNames, source: sourceKey });
+  const preparedFiles: RemoteFeatureFile[] = [];
+  for (const { entry, name } of remoteFiles) {
     if (entry.size > MAX_FILE_SIZE) {
       logger.warn(
-        `Skipping rule ${quoteForLog(entry.path)} (${formatMegabytes(entry.size)}MB exceeds ${MAX_FILE_SIZE_MB}MB limit).`,
+        `Skipping ${noun} ${quoteForLog(entry.path)} (${formatMegabytes(entry.size)}MB exceeds ${MAX_FILE_SIZE_MB}MB limit).`,
       );
       continue;
     }
     if (
-      shouldSkipRule({
-        ruleName: name,
+      shouldSkipFile({
+        feature,
+        name,
         sourceKey,
-        localRuleNames,
-        alreadyFetchedRuleNames,
+        localNames,
+        alreadyFetchedNames,
         logger,
       })
     ) {
       continue;
     }
     const content = await client.getFileContent(parsed.owner, parsed.repo, entry.path, ref);
-    preparedRules.push({ name, content });
+    preparedFiles.push({ name, content });
   }
-  const fetchedRules = await replaceCuratedRules({
-    rules: preparedRules,
+  const fetchedFiles = await replaceCuratedFiles({
+    feature,
+    files: preparedFiles,
     curatedDir,
     locked,
-    lockedRuleNames,
+    lockedNames,
     resolvedRef: resolvedSha,
     sourceKey,
-    localRuleNames,
-    alreadyFetchedRuleNames,
+    localNames,
+    alreadyFetchedNames,
     compareLockedIntegrity: !updateSources && !forceRefetch,
     frozen,
     logger,
   });
-  const result = buildRuleLockUpdate({
+  const result = buildFileLockUpdate({
+    feature,
     lock,
     lockKey,
     sourceKey,
-    fetchedRules,
+    fetchedFiles,
     locked,
     requestedRef,
     resolvedRef: resolvedSha,
-    ruleSelection: normalizeRuleSelection(sourceEntry.rules ?? []),
-    rulesPath: resolveRulesPath(sourceEntry),
-    resolvedRuleNames: remoteRuleNames,
+    selection: normalizeRuleSelection(sourceEntry[feature] ?? []),
+    path: resolveFileFeaturePath(sourceEntry, feature),
+    resolvedNames: remoteNames,
     logger,
   });
   return {
-    ruleCount: result.fetchedNames.length,
-    fetchedRuleNames: result.fetchedNames,
+    count: result.fetchedNames.length,
+    fetchedNames: result.fetchedNames,
     updatedLock: result.updatedLock,
   };
 }

@@ -27,6 +27,23 @@ import { ToolFile } from "./tool-file.js";
 import { ToolTarget } from "./tool-targets.js";
 
 export abstract class FeatureProcessor extends RulesyncSourceConsumer {
+  /**
+   * Files the `--delete` sweep rewrote rather than deleted (or would rewrite
+   * under `--dry-run`/`--check`) — shared config that has to follow the
+   * removed files — relative to the output root like the paths
+   * `writeAiFiles` reports, with the owned top-level keys those rewrites
+   * touched. Recorded so the run's mutation plan lists every write.
+   */
+  protected readonly sweepWrites: { paths: string[]; keyOperations: KeyOperation[] } = {
+    paths: [],
+    keyOperations: [],
+  };
+
+  /** See {@link FeatureProcessor.sweepWrites}. */
+  getSweepWrites(): { paths: readonly string[]; keyOperations: readonly KeyOperation[] } {
+    return this.sweepWrites;
+  }
+
   abstract loadRulesyncFiles(): Promise<RulesyncFile[]>;
 
   abstract loadToolFiles(params?: { forDeletion?: boolean }): Promise<ToolFile[]>;
@@ -658,6 +675,53 @@ export function formatCuratedCaseCollisionWarning({
     `resolve to the same identity. The local ${entryNoun} wins and the curated ${entryNoun} is skipped.` +
     shadowedSuffix
   );
+}
+
+/**
+ * The curated entries of a source tree that no local entry of the same tree
+ * overrides, in their given order. A curated entry whose path matches a local
+ * one exactly is the documented local-wins-over-curated flow and is dropped
+ * silently; one that matches only in case is dropped with
+ * {@link formatCuratedCaseCollisionWarning}, since both would land on one file
+ * on a case-insensitive filesystem.
+ *
+ * Paths are relative to the feature directory (local) and to its `.curated/`
+ * subdirectory (curated), so the same name compares equal on both sides.
+ */
+export function filterCuratedShadowedByLocal({
+  localRelativePaths,
+  curatedRelativePaths,
+  artifactKind,
+  entryNoun,
+  treeDirPath,
+  logger,
+}: {
+  localRelativePaths: readonly string[];
+  curatedRelativePaths: readonly string[];
+  artifactKind: string;
+  entryNoun: string;
+  treeDirPath: string;
+  logger: Logger;
+}): string[] {
+  const localSpellingsByIdentity = groupSpellingsByCaseFoldedIdentity(localRelativePaths);
+  return curatedRelativePaths.filter((relativePath) => {
+    const spellings = localSpellingsByIdentity.get(caseFoldIdentity(relativePath));
+    if (spellings === undefined) {
+      return true;
+    }
+    if (!spellings.includes(relativePath)) {
+      logger.warn(
+        formatCuratedCaseCollisionWarning({
+          artifactKind,
+          entryNoun,
+          treeDirPath,
+          curatedSpelling: join(".curated", relativePath),
+          localSpellings: spellings,
+        }),
+      );
+    }
+    return false;
+  });
 }
 
 /**

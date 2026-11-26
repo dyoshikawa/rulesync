@@ -11,6 +11,7 @@ import {
   toAntigravityCommandLiteralPrefix,
   toAntigravityCommandTarget,
 } from "./antigravity-command-patterns.js";
+import { skipsReservedPermissionName } from "./reserved-permission-name.js";
 import {
   honorAllToolsRestrictions,
   normalizeUrlPattern,
@@ -702,7 +703,7 @@ export function convertAntigravityToRulesyncPermissions({
       for (const pattern of patterns) {
         // A `__proto__` or `constructor` name would not land as a plain own
         // key, so such entries are dropped, as the other permissions adapters do.
-        if (isPrototypePollutionKey(canonical) || isPrototypePollutionKey(pattern)) {
+        if (skipsReservedPermissionName({ toolLabel, category: canonical, pattern, logger })) {
           continue;
         }
         getOrCreateOwn({ record: permission, key: canonical, create: () => ({}) })[pattern] =

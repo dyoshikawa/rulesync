@@ -58,6 +58,8 @@ import {
   TRAE_HOOK_EVENTS,
   VIBE_HOOK_EVENTS,
   ZCODE_HOOK_EVENTS,
+  ZERO_HOOK_EVENTS,
+  ZERO_MATCHER_EVENTS,
 } from "../../types/hooks.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { ClaudecodeHooks } from "./claudecode-hooks.js";
@@ -694,6 +696,40 @@ describe("HooksProcessor", () => {
       expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("sessionEnd"));
     });
 
+    it("should report a skipped opt-in event's hooks once, not again as skipped types or matchers (issue #3971)", async () => {
+      const config = {
+        version: 1,
+        hooks: {
+          sessionEnd: [{ type: "prompt", prompt: "Summarize", matcher: "other" }],
+          preToolUse: [{ type: "prompt", prompt: "Check", matcher: "Bash" }],
+          stop: [{ command: "stop.sh", matcher: "anything" }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const processor = new HooksProcessor({ logger, outputRoot: testDir, toolTarget: "bob" });
+      await processor.convertRulesyncFilesToToolFiles([rulesyncHooks]);
+
+      const sessionEndWarnings = logger.warn.mock.calls
+        .map(([message]) => String(message))
+        .filter((message) => message.includes("sessionEnd"));
+      expect(sessionEndWarnings).toHaveLength(1);
+      expect(sessionEndWarnings[0]).toMatch(/^Skipped hook event\(s\) for bob: sessionEnd\. /);
+      // Hooks on emitted events are still checked.
+      expect(logger.warn).toHaveBeenCalledWith(
+        "Skipped prompt-type hook(s) for bob (not supported): preToolUse",
+      );
+      expect(logger.warn).toHaveBeenCalledWith(
+        "Skipped matcher hook(s) for bob (not supported): stop",
+      );
+    });
+
     it("should warn that a confirm prompt is dropped outside kiro-cli / kiro-ide", async () => {
       const config = {
         version: 1,
@@ -765,11 +801,11 @@ describe("HooksProcessor", () => {
       // The event list must be part of the same message, and must name only the
       // events that actually carry a disabled hook.
       expect(logger.warn).toHaveBeenCalledWith(
-        'Emitting "enabled: false" hook(s) as active for claudecode (only the kiro-cli / kiro-ide / cortexcode / zcode / zcode-plugin hooks formats support the flag): preToolUse',
+        'Emitting "enabled: false" hook(s) as active for claudecode (only the kiro-cli / kiro-ide / cortexcode / zcode / zcode-plugin / zero hooks formats support the flag): preToolUse',
       );
     });
 
-    it.each(["cortexcode", "kiro-ide", "kiro-cli", "zcode", "zcode-plugin"] as const)(
+    it.each(["cortexcode", "kiro-ide", "kiro-cli", "zcode", "zcode-plugin", "zero"] as const)(
       "should write a disabled hook for %s without warning that it stays active",
       async (toolTarget) => {
         const config = {
@@ -1155,6 +1191,7 @@ describe("HooksProcessor", () => {
         "crush",
         "zcode",
         "zcode-plugin",
+        "zero",
       ]);
     });
 
@@ -1207,6 +1244,7 @@ describe("HooksProcessor", () => {
         "grokcli",
         "crush",
         "zcode",
+        "zero",
       ]);
     });
 
@@ -1268,6 +1306,7 @@ describe("HooksProcessor", () => {
         "crush",
         "zcode",
         "zcode-plugin",
+        "zero",
       ]);
     });
 
@@ -1312,6 +1351,7 @@ describe("HooksProcessor", () => {
         "grokcli",
         "crush",
         "zcode",
+        "zero",
       ]);
     });
   });
@@ -2093,6 +2133,18 @@ describe("toolHooksFactories capability table", () => {
         supportedEvents: ZCODE_HOOK_EVENTS,
         supportedHookTypes: ["command"],
         supportsMatcher: true,
+        supportsPerHookEnabled: true,
+      },
+    ],
+    [
+      "zero",
+      {
+        meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+        supportedEvents: ZERO_HOOK_EVENTS,
+        supportedHookTypes: ["command"],
+        supportsMatcher: true,
+        matcherEvents: ZERO_MATCHER_EVENTS,
+        dropsUnknownOverrideEvents: true,
         supportsPerHookEnabled: true,
       },
     ],

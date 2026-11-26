@@ -10,6 +10,7 @@ import {
   RULESYNC_HOOKS_RELATIVE_FILE_PATH,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
+import { zeroGlobalConfigDir } from "../constants/zero-paths.js";
 import { HooksProcessor } from "../features/hooks/hooks-processor.js";
 import { fileExists, readFileContent, removeFile, writeFileContent } from "../utils/file.js";
 import { getHermesagentGlobalDir } from "../utils/hermesagent.js";
@@ -136,7 +137,7 @@ function assertOpencodePluginHooks({
     expect(generatedContent).toContain("setup: async (ctx) => {");
     expect(generatedContent).not.toContain("RulesyncHooksPlugin");
     expect(generatedContent).toContain('"session.created"');
-    expect(generatedContent).toContain('"session.execution.succeeded"');
+    expect(generatedContent).toContain('ctx.session.hook("experimental.idle"');
   } else {
     expect(generatedContent).toContain("export const RulesyncHooksPlugin");
     expect(generatedContent).toContain('"session.created"');
@@ -228,6 +229,7 @@ const hooksGenerateTargets = [
   { target: "grokcli", outputPath: join(".grok", "hooks", "rulesync.json") },
   { target: "cline", outputPath: join(".clinerules", "hooks", "rulesync-hooks.json") },
   { target: "zcode", outputPath: join(".zcode", "config.json") },
+  { target: "zero", outputPath: join(".zero", "hooks.json") },
 ] as const;
 
 // Targets exercised by dedicated `it`s (bespoke per-tool serialization).
@@ -365,6 +367,21 @@ describe("E2E: hooks", () => {
             hooks: [
               { type: "command", command: '"$DUO_PROJECT_DIR"/.rulesync/hooks/session-start.sh' },
             ],
+          },
+        ]);
+      } else if (target === "zero") {
+        // Zero reads a flat hook list; a canonical command runs through
+        // `sh -c` because Zero spawns `command` without a shell. `stop` has no
+        // Zero event, so audit.sh is dropped. No top-level `enabled` is
+        // added, so the project layer never overrides the user layer's flag.
+        expect(parsed.enabled).toBeUndefined();
+        expect(parsed.hooks).toEqual([
+          {
+            id: "rulesync-project-sessionStart-001",
+            event: "sessionStart",
+            command: "sh",
+            args: ["-c", ".rulesync/hooks/session-start.sh"],
+            enabled: true,
           },
         ]);
       } else if (target === "zcode") {
@@ -622,11 +639,15 @@ describe("E2E: hooks", () => {
 
     await runGenerate({ target: "devin-plugin", features: "hooks" });
 
-    // Same bare event map as `.devin/hooks.v1.json`, at the plugin root.
+    // Same bare event map as `.devin/hooks.v1.json`, at the plugin root, with
+    // the relative command anchored to the plugin install directory.
     const parsed = JSON.parse(await readFileContent(join(testDir, "hooks.json")));
     expect(parsed).toEqual({
       PreToolUse: [
-        { matcher: "exec", hooks: [{ type: "command", command: "./scripts/audit.sh" }] },
+        {
+          matcher: "exec",
+          hooks: [{ type: "command", command: '"$DEVIN_PLUGIN_ROOT"/scripts/audit.sh' }],
+        },
       ],
     });
     expect(await fileExists(join(testDir, ".devin", "hooks.v1.json"))).toBe(false);
@@ -637,6 +658,7 @@ describe("E2E: hooks", () => {
     const importedContent = await readFileContent(join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH));
     expect(importedContent).toContain("preToolUse");
     expect(importedContent).toContain("./scripts/audit.sh");
+    expect(importedContent).not.toContain("DEVIN_PLUGIN_ROOT");
   });
 
   it("should generate codewhale hooks into .codewhale/hooks.toml", async () => {
@@ -1025,11 +1047,13 @@ describe("E2E: hooks (import)", () => {
       },
     },
     {
+      // The tool reads only its PascalCase event names; a camelCase key is
+      // ignored there and skipped on import.
       target: "codexcli",
       sourcePath: join(".codex", "hooks.json"),
       sourceContent: {
         hooks: {
-          sessionStart: [
+          SessionStart: [
             { matcher: "", hooks: [{ type: "command", command: "echo session started" }] },
           ],
         },
@@ -1067,11 +1091,13 @@ describe("E2E: hooks (import)", () => {
       },
     },
     {
+      // The tool reads only its PascalCase event names; a camelCase key is
+      // ignored there and skipped on import.
       target: "factorydroid",
       sourcePath: join(".factory", "hooks.json"),
       sourceContent: {
         hooks: {
-          sessionStart: [
+          SessionStart: [
             { matcher: "", hooks: [{ type: "command", command: "echo session started" }] },
           ],
         },
@@ -1311,6 +1337,22 @@ describe("E2E: hooks (import)", () => {
         },
       },
     },
+    {
+      // Zero's flat list: rulesync's `sh -c` wrapper is unwrapped on import.
+      target: "zero",
+      sourcePath: join(".zero", "hooks.json"),
+      sourceContent: {
+        enabled: true,
+        hooks: [
+          {
+            id: "log-session",
+            event: "sessionStart",
+            command: "sh",
+            args: ["-c", "echo session started"],
+          },
+        ],
+      },
+    },
   ])(
     "should import $target hooks",
     async ({ target, sourcePath, sourceContent, expectedEvent }) => {
@@ -1372,6 +1414,7 @@ const hooksGlobalTargets = [
   { target: "grokcli", outputPath: join(".grok", "hooks", "rulesync.json") },
   { target: "cline", outputPath: join("Documents", "Cline", "Hooks", "rulesync-hooks.json") },
   { target: "zcode", outputPath: join(".zcode", "cli", "config.json") },
+  { target: "zero", outputPath: join(zeroGlobalConfigDir(), "hooks.json") },
 ] as const;
 
 // Global targets exercised by dedicated `it`s (bespoke per-tool serialization).
@@ -1453,6 +1496,19 @@ describe("E2E: hooks (global mode)", () => {
         const parsed = JSON.parse(generatedContent);
         expect(parsed.hooks.sessionStart).toBeDefined();
         expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
+      } else if (target === "zero") {
+        // The user layer gets `user`-scoped ids, so Zero's id-keyed merge of
+        // the user and project layers never lets one replace the other.
+        const parsed = JSON.parse(generatedContent);
+        expect(parsed.hooks).toEqual([
+          {
+            id: "rulesync-user-sessionStart-001",
+            event: "sessionStart",
+            command: "sh",
+            args: ["-c", ".rulesync/hooks/session-start.sh"],
+            enabled: true,
+          },
+        ]);
       } else if (target === "zcode") {
         // In global mode the `hooks` block (with `enabled: true`) goes to
         // ~/.zcode/cli/config.json. See CANONICAL_TO_ZCODE_EVENT_NAMES in

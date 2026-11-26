@@ -3,7 +3,10 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, MockedFunction, vi } from "vite-plus/test";
 
-import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import {
+  RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+  RULESYNC_CURATED_COMMANDS_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import {
@@ -482,6 +485,40 @@ describe("CommandsProcessor", () => {
       expect(calledArgs.rulesyncCommand.getRelativeFilePath()).toBe(join("pj", "test.md"));
     });
 
+    it("keeps one subdirectory level for junie and skips deeper commands with a warning", async () => {
+      const warnLogger = createMockLogger();
+      processor = new CommandsProcessor({
+        logger: warnLogger,
+        outputRoot: testDir,
+        toolTarget: "junie",
+      });
+      const command = (relativeFilePath: string) =>
+        new RulesyncCommand({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+          relativeFilePath,
+          frontmatter: { targets: ["junie"], description: relativeFilePath },
+          body: "content",
+        });
+      vi.mocked(JunieCommand.fromRulesyncCommand).mockImplementation(
+        ({ rulesyncCommand }) =>
+          ({ relativeFilePath: rulesyncCommand.getRelativeFilePath() }) as never,
+      );
+
+      await processor.convertRulesyncFilesToToolFiles([
+        command(join("git", "commit.md")),
+        command(join("git", "deep", "push.md")),
+      ]);
+
+      const writtenPaths = vi
+        .mocked(JunieCommand.fromRulesyncCommand)
+        .mock.calls.map(([params]) => params.rulesyncCommand.getRelativeFilePath());
+      expect(writtenPaths).toEqual([join("git", "commit.md")]);
+      expect(warnLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("only reads commands up to 1 subdirectory level(s) deep"),
+      );
+    });
+
     it("should warn when flattened command paths collide for supportsSubdirectory=false tools", async () => {
       processor = new CommandsProcessor({ logger, outputRoot: testDir, toolTarget: "cursor" });
 
@@ -874,7 +911,7 @@ describe("CommandsProcessor", () => {
         }),
       ];
 
-      mockFindFilesByGlobs.mockResolvedValue(mockPaths);
+      mockFindFilesByGlobs.mockResolvedValueOnce(mockPaths).mockResolvedValueOnce([]);
       vi.mocked(RulesyncCommand.fromFile)
         .mockResolvedValueOnce(mockRulesyncCommands[0]!)
         .mockResolvedValueOnce(mockRulesyncCommands[1]!);
@@ -915,7 +952,7 @@ describe("CommandsProcessor", () => {
         body: "content1",
       });
 
-      mockFindFilesByGlobs.mockResolvedValue(mockPaths);
+      mockFindFilesByGlobs.mockResolvedValueOnce(mockPaths).mockResolvedValueOnce([]);
       vi.mocked(RulesyncCommand.fromFile)
         .mockResolvedValueOnce(mockRulesyncCommand)
         .mockRejectedValueOnce(new Error("Failed to load"));
@@ -930,6 +967,72 @@ describe("CommandsProcessor", () => {
 
       expect(result).toEqual([]);
       expect(logger.debug).toHaveBeenCalledWith("Successfully loaded 0 rulesync commands");
+    });
+
+    it("should load curated commands fetched from sources, with local commands taking precedence", async () => {
+      const commandsDir = join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
+      const curatedDir = join(testDir, RULESYNC_CURATED_COMMANDS_RELATIVE_DIR_PATH);
+      mockFindFilesByGlobs.mockImplementation(async (_globs, options) =>
+        options?.cwd === curatedDir
+          ? [join(curatedDir, "review.md"), join(curatedDir, "shared.md")]
+          : [join(commandsDir, "shared.md")],
+      );
+      vi.mocked(RulesyncCommand.fromFile).mockImplementation(
+        async ({ relativeDirPath, relativeFilePath }) =>
+          new RulesyncCommand({
+            outputRoot: testDir,
+            relativeDirPath: relativeDirPath ?? RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+            relativeFilePath,
+            frontmatter: { targets: ["*"], description: relativeFilePath },
+            body: "body",
+          }),
+      );
+
+      const result = await processor.loadRulesyncFiles();
+
+      expect(RulesyncCommand.fromFile).toHaveBeenCalledTimes(2);
+      expect(RulesyncCommand.fromFile).toHaveBeenCalledWith({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: "shared.md",
+      });
+      expect(RulesyncCommand.fromFile).toHaveBeenCalledWith({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_CURATED_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: "review.md",
+      });
+      expect(result.map((file) => file.getRelativeFilePath()).toSorted()).toEqual([
+        "review.md",
+        "shared.md",
+      ]);
+    });
+
+    it("should keep only canonical frontmatter in curated commands", async () => {
+      const curatedDir = join(testDir, RULESYNC_CURATED_COMMANDS_RELATIVE_DIR_PATH);
+      mockFindFilesByGlobs.mockImplementation(async (_globs, options) =>
+        options?.cwd === curatedDir ? [join(curatedDir, "deploy.md")] : [],
+      );
+      vi.mocked(RulesyncCommand.fromFile).mockImplementation(
+        async ({ relativeDirPath, relativeFilePath }) =>
+          new RulesyncCommand({
+            outputRoot: testDir,
+            relativeDirPath: relativeDirPath ?? RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+            relativeFilePath,
+            frontmatter: {
+              targets: ["*"],
+              description: "Deploy",
+              claudecode: { "allowed-tools": "Bash(*)", hooks: {}, model: "haiku" },
+            },
+            body: "body",
+          }),
+      );
+
+      const [command] = (await processor.loadRulesyncFiles()) as RulesyncCommand[];
+
+      expect(command?.getFrontmatter()).toEqual({ targets: ["*"], description: "Deploy" });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(`deploy.md": claudecode. A command installed from a source`),
+      );
     });
 
     it("should load rulesync command files from subdirectories", async () => {
@@ -960,7 +1063,7 @@ describe("CommandsProcessor", () => {
         }),
       ];
 
-      mockFindFilesByGlobs.mockResolvedValue(mockPaths);
+      mockFindFilesByGlobs.mockResolvedValueOnce(mockPaths).mockResolvedValueOnce([]);
       vi.mocked(RulesyncCommand.fromFile)
         .mockResolvedValueOnce(mockRulesyncCommands[0]!)
         .mockResolvedValueOnce(mockRulesyncCommands[1]!);
@@ -1250,6 +1353,19 @@ describe("CommandsProcessor", () => {
       // Should NOT contain "**" in the glob pattern
       const calledGlob = mockFindFilesByGlobs.mock.calls[0]![0] as string;
       expect(calledGlob).not.toContain(join("**", "*.md"));
+    });
+
+    it("should scan one subdirectory level for junie (import)", async () => {
+      processor = new CommandsProcessor({ logger, outputRoot: testDir, toolTarget: "junie" });
+
+      mockFindFilesByGlobs.mockResolvedValue([]);
+
+      await processor.loadToolFiles();
+
+      expect(mockFindFilesByGlobs).toHaveBeenCalledWith(["*.md", "*/*.md"], {
+        cwd: join(testDir, ".junie", "commands"),
+        followSymbolicLinks: true,
+      });
     });
 
     it("should use recursive glob for supportsSubdirectory=true tools (import)", async () => {
@@ -1828,6 +1944,43 @@ describe("CommandsProcessor secondary import roots", () => {
       join("git", "commit.md"),
     ]);
   });
+
+  it("imports a .txt command but never offers it for deletion", async () => {
+    // Auggie 1.x also loads `.augment/commands/*.txt`. Import reads them, but
+    // rulesync never writes `.txt`, so the orphan sweep must leave them alone.
+    const actualFile =
+      await vi.importActual<typeof import("../../utils/file.js")>("../../utils/file.js");
+    vi.mocked(findFilesByGlobs).mockImplementation(actualFile.findFilesByGlobs);
+    await ensureDir(join(testDir, ".augment", "commands"));
+    await writeFileContent(
+      join(testDir, ".augment", "commands", "notes.txt"),
+      "Summarize the notes.\n",
+    );
+    await writeFileContent(
+      join(testDir, ".augment", "commands", "review.md"),
+      ["---", "description: Review", "---", "", "Review it.", ""].join("\n"),
+    );
+
+    const processor = new CommandsProcessor({
+      outputRoot: testDir,
+      toolTarget: "augmentcode",
+      logger: createMockLogger(),
+    });
+
+    const loaded = await processor.loadToolFiles();
+    expect(loaded.map((file) => file.getRelativeFilePath()).toSorted()).toEqual([
+      "notes.md",
+      "review.md",
+    ]);
+    const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(loaded);
+    expect(rulesyncFiles.map((file) => file.getRelativeFilePath()).toSorted()).toEqual([
+      "notes.md",
+      "review.md",
+    ]);
+
+    const forDeletion = await processor.loadToolFiles({ forDeletion: true });
+    expect(forDeletion.map((file) => file.getRelativeFilePath())).toEqual(["review.md"]);
+  });
 });
 
 describe("CommandsProcessor Goose slash-command retraction", () => {
@@ -1870,10 +2023,39 @@ describe("CommandsProcessor Goose slash-command retraction", () => {
       logger: createMockLogger(),
     });
 
-    await processor.removeOrphanAiFiles([], []);
+    expect(await processor.removeOrphanAiFiles([], [])).toBe(1);
 
     expect(await readFileContent(configPath)).toContain("my-recipes/mine.yaml");
     expect(await readFileContent(configPath)).not.toContain("removed.yaml");
+    // Reported so the mutation plan lists the rewrite like any other write.
+    expect(processor.getSweepWrites()).toEqual({
+      paths: [".config/goose/config.yaml"],
+      keyOperations: [
+        { action: "write", path: ".config/goose/config.yaml", key: "slash_commands" },
+      ],
+    });
+  });
+
+  it("reports the same rewrite under --dry-run without writing it", async () => {
+    const configPath = await writeConfig();
+    const before = await readFileContent(configPath);
+    const processor = new CommandsProcessor({
+      outputRoot: testDir,
+      toolTarget: "goose",
+      global: true,
+      dryRun: true,
+      logger: createMockLogger(),
+    });
+
+    expect(await processor.removeOrphanAiFiles([], [])).toBe(1);
+
+    expect(await readFileContent(configPath)).toBe(before);
+    expect(processor.getSweepWrites()).toEqual({
+      paths: [".config/goose/config.yaml"],
+      keyOperations: [
+        { action: "write", path: ".config/goose/config.yaml", key: "slash_commands" },
+      ],
+    });
   });
 
   it("does not rewrite a config that carries no managed registration", async () => {
@@ -1894,9 +2076,10 @@ describe("CommandsProcessor Goose slash-command retraction", () => {
       logger: createMockLogger(),
     });
 
-    await processor.removeOrphanAiFiles([], []);
+    expect(await processor.removeOrphanAiFiles([], [])).toBe(0);
 
     expect(await readFileContent(configPath)).toBe(before);
+    expect(processor.getSweepWrites()).toEqual({ paths: [], keyOperations: [] });
   });
 
   it("leaves the config untouched in project scope", async () => {

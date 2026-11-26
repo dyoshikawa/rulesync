@@ -10,7 +10,6 @@ import { PermissionsProcessor } from "../features/permissions/permissions-proces
 import { RulesyncPermissions } from "../features/permissions/rulesync-permissions.js";
 import { RulesProcessor } from "../features/rules/rules-processor.js";
 import { serializeSharedConfig } from "../features/shared/shared-config-gateway.js";
-import { RulesyncSkill } from "../features/skills/rulesync-skill.js";
 import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
 import type { FeatureProcessor } from "../types/feature-processor.js";
@@ -37,19 +36,17 @@ async function applyRulesyncSourcePath<T extends RulesyncFile>({
   files,
   paths,
   sourceClass,
-  outputRoot,
 }: {
   files: T[];
   paths: RulesyncSourceSettablePaths;
   sourceClass: new (params: RulesyncFileParams) => T;
-  outputRoot?: string;
 }): Promise<T[]> {
   const first = files[0];
   if (!first) {
     return files;
   }
 
-  const destinationOutputRoot = outputRoot ?? first.getOutputRoot();
+  const destinationOutputRoot = first.getOutputRoot();
   const destination = await resolveRulesyncSourceWritePath({
     outputRoot: destinationOutputRoot,
     paths,
@@ -74,6 +71,27 @@ function getToolOutputRoot({ config, tool }: { config: Config; tool: ToolTarget 
     toolTarget: tool,
     global: config.getGlobal(),
   });
+}
+
+/**
+ * Send the converted rulesync sources to `.rulesync/` in the current working
+ * directory. `--output-root` names where the tool files are read; the sources
+ * always belong to the project, where `generate` reads them (packaging targets
+ * included: their output root is the plugin directory). Global mode keeps the
+ * root each adapter chose.
+ */
+function toImportDestination<T extends { withOutputRoot(outputRoot: string): T }>({
+  items,
+  global,
+}: {
+  items: T[];
+  global: boolean;
+}): T[] {
+  if (global) {
+    return items;
+  }
+  const destination = process.cwd();
+  return items.map((item) => item.withOutputRoot(destination));
 }
 
 /**
@@ -201,7 +219,10 @@ async function importRulesCore(params: {
     logger.warn(`Skipped the ${tool} import duplication check: ${formatError(error)}`);
   }
 
-  const rulesyncFiles = await rulesProcessor.convertToolFilesToRulesyncFiles(toolFiles);
+  const rulesyncFiles = toImportDestination({
+    items: await rulesProcessor.convertToolFilesToRulesyncFiles(toolFiles),
+    global,
+  });
   const { count: writtenCount } = await rulesProcessor.writeAiFiles(rulesyncFiles);
 
   if (config.getVerbose() && writtenCount > 0) {
@@ -243,26 +264,11 @@ async function importSkillsCore(params: {
     return 0;
   }
 
-  const rulesyncDirs = await skillsProcessor.convertToolDirsToRulesyncDirs(toolDirs);
-  const rebasedRulesyncDirs = rulesyncDirs.map((dir) => {
-    if (!isPackagingToolTarget(tool)) {
-      return dir;
-    }
-    if (!(dir instanceof RulesyncSkill)) {
-      return dir;
-    }
-    return new RulesyncSkill({
-      outputRoot: process.cwd(),
-      relativeDirPath: dir.getRelativeDirPath(),
-      dirName: dir.getDirName(),
-      frontmatter: dir.getFrontmatter(),
-      body: dir.getBody(),
-      otherFiles: dir.getOtherFiles(),
-      validate: true,
-      global: false,
-    });
+  const rulesyncDirs = toImportDestination({
+    items: await skillsProcessor.convertToolDirsToRulesyncDirs(toolDirs),
+    global,
   });
-  const { count: writtenCount } = await skillsProcessor.writeAiDirs(rebasedRulesyncDirs);
+  const { count: writtenCount } = await skillsProcessor.writeAiDirs(rulesyncDirs);
 
   if (config.getVerbose() && writtenCount > 0) {
     logger.success(`Created ${writtenCount} skill directories`);
@@ -401,7 +407,12 @@ async function runFeatureImport({
     return 0;
   }
 
-  const convertedFiles = await processor.convertToolFilesToRulesyncFiles(toolFiles);
+  // Rebased before `postConvert`, which resolves the source path and reads the
+  // existing file under the files' own output root.
+  const convertedFiles = toImportDestination({
+    items: await processor.convertToolFilesToRulesyncFiles(toolFiles),
+    global,
+  });
   const rulesyncFiles = strategy.postConvert
     ? await strategy.postConvert({ files: convertedFiles, tool, logger })
     : convertedFiles;
@@ -416,14 +427,6 @@ async function runFeatureImport({
   }
 
   return writtenCount;
-}
-
-/**
- * A packaging target imports into the project (`process.cwd()`) rather than
- * into the plugin directory the tool files were read from.
- */
-function getPackagingImportOutputRoot(tool: ToolTarget): string | undefined {
-  return isPackagingToolTarget(tool) ? process.cwd() : undefined;
 }
 
 const IGNORE_IMPORT_STRATEGY: ImportStrategy = {
@@ -454,12 +457,11 @@ const MCP_IMPORT_STRATEGY: ImportStrategy = {
       logger,
     }),
   missingLabel: "MCP files",
-  postConvert: ({ files, tool }) =>
+  postConvert: ({ files }) =>
     applyRulesyncSourcePath({
       files,
       paths: RulesyncMcp.getSettablePaths(),
       sourceClass: RulesyncMcp,
-      outputRoot: getPackagingImportOutputRoot(tool),
     }),
   createdLabel: "MCP files",
 };
@@ -509,12 +511,11 @@ const HOOKS_IMPORT_STRATEGY: ImportStrategy = {
       logger,
     }),
   missingLabel: "hooks files",
-  postConvert: ({ files, tool }) =>
+  postConvert: ({ files }) =>
     applyRulesyncSourcePath({
       files,
       paths: RulesyncHooks.getSettablePaths(),
       sourceClass: RulesyncHooks,
-      outputRoot: getPackagingImportOutputRoot(tool),
     }),
   createdLabel: "hooks file(s)",
 };

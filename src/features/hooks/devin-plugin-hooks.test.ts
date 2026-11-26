@@ -38,8 +38,48 @@ describe("DevinPluginHooks", () => {
     expect(hooks.getRelativeDirPath()).toBe(".");
     expect(hooks.getRelativeFilePath()).toBe("hooks.json");
     expect(hooks.isDeletable()).toBe(true);
-    expect(JSON.parse(hooks.getFileContent())).toEqual(JSON.parse(projectHooks.getFileContent()));
     expect(JSON.parse(hooks.getFileContent())).not.toHaveProperty("hooks");
+    expect(JSON.parse(hooks.getFileContent())).toEqual({
+      PreToolUse: [
+        {
+          matcher: "exec",
+          hooks: [{ type: "command", command: '"$DEVIN_PLUGIN_ROOT"/scripts/check.sh' }],
+        },
+      ],
+    });
+    // The non-plugin `devin` target keeps the command as written.
+    expect(JSON.parse(projectHooks.getFileContent())).toEqual({
+      PreToolUse: [
+        { matcher: "exec", hooks: [{ type: "command", command: "./scripts/check.sh" }] },
+      ],
+    });
+  });
+
+  it("anchors later ./ script words but leaves bare commands as written", async () => {
+    const rulesyncHooks = new RulesyncHooks({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "hooks.json",
+      fileContent: JSON.stringify({
+        version: 1,
+        hooks: {
+          postToolUse: [
+            { matcher: "edit", command: "node ./scripts/format.js" },
+            { matcher: "edit", command: "npx prettier --write ./src" },
+          ],
+        },
+      }),
+    });
+
+    const hooks = await DevinPluginHooks.fromRulesyncHooks({ outputRoot: testDir, rulesyncHooks });
+    const commands = JSON.parse(hooks.getFileContent()).PostToolUse.flatMap(
+      (group: { hooks: Array<{ command: string }> }) => group.hooks.map((hook) => hook.command),
+    );
+
+    expect(commands).toEqual([
+      'node "$DEVIN_PLUGIN_ROOT"/scripts/format.js',
+      "npx prettier --write ./src",
+    ]);
   });
 
   it("writes the canonical failClosed as fail_closed", async () => {
@@ -59,7 +99,7 @@ describe("DevinPluginHooks", () => {
       PreToolUse: [
         {
           matcher: "exec",
-          hooks: [{ type: "command", command: "./guard.sh", fail_closed: true }],
+          hooks: [{ type: "command", command: '"$DEVIN_PLUGIN_ROOT"/guard.sh', fail_closed: true }],
         },
       ],
     });
@@ -82,7 +122,7 @@ describe("DevinPluginHooks", () => {
       PreCompact: [
         {
           matcher: "manual",
-          hooks: [{ type: "command", command: "./scripts/pre-compact.sh" }],
+          hooks: [{ type: "command", command: '"$DEVIN_PLUGIN_ROOT"/scripts/pre-compact.sh' }],
         },
       ],
     });
@@ -104,6 +144,68 @@ describe("DevinPluginHooks", () => {
     expect(hooks.toRulesyncHooks().getJson().hooks.preToolUse).toEqual([
       expect.objectContaining({ matcher: "exec", command: "./scripts/check.sh" }),
     ]);
+  });
+
+  it("converts the plugin-root variables back to ./ on import", async () => {
+    await writeFileContent(
+      join(testDir, "hooks.json"),
+      JSON.stringify({
+        PreToolUse: [
+          {
+            matcher: "exec",
+            hooks: [
+              { type: "command", command: '"$DEVIN_PLUGIN_ROOT"/scripts/a.sh' },
+              { type: "command", command: "$DEVIN_PLUGIN_ROOT/scripts/b.sh" },
+              { type: "command", command: '"$PLUGIN_ROOT"/scripts/c.sh' },
+              { type: "command", command: "${PLUGIN_ROOT}/scripts/d.sh" },
+              { type: "command", command: '"$CLAUDE_PLUGIN_ROOT"/scripts/e.sh' },
+              { type: "command", command: 'node "$DEVIN_PLUGIN_ROOT"/scripts/f.js' },
+            ],
+          },
+        ],
+      }),
+    );
+
+    const hooks = await DevinPluginHooks.fromFile({ outputRoot: testDir });
+    const commands = hooks
+      .toRulesyncHooks()
+      .getJson()
+      .hooks.preToolUse?.map((hook) => hook.command);
+
+    expect(commands).toEqual([
+      "./scripts/a.sh",
+      "./scripts/b.sh",
+      "./scripts/c.sh",
+      "./scripts/d.sh",
+      "./scripts/e.sh",
+      "node ./scripts/f.js",
+    ]);
+  });
+
+  it("round-trips an anchored command through generate and import", async () => {
+    const rulesyncHooks = new RulesyncHooks({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "hooks.json",
+      fileContent: JSON.stringify({
+        version: 1,
+        hooks: { preToolUse: [{ matcher: "exec", command: '"./scripts/my hook.sh" --fast' }] },
+      }),
+    });
+
+    const generated = await DevinPluginHooks.fromRulesyncHooks({
+      outputRoot: testDir,
+      rulesyncHooks,
+    });
+    await writeFileContent(join(testDir, "hooks.json"), generated.getFileContent());
+    const imported = await DevinPluginHooks.fromFile({ outputRoot: testDir });
+
+    expect(JSON.parse(generated.getFileContent()).PreToolUse[0].hooks[0].command).toBe(
+      '"$DEVIN_PLUGIN_ROOT"/"scripts/my hook.sh" --fast',
+    );
+    expect(imported.toRulesyncHooks().getJson().hooks.preToolUse?.[0]?.command).toBe(
+      '"./scripts/my hook.sh" --fast',
+    );
   });
 
   it("imports fail_closed from hooks.json as the canonical failClosed", async () => {

@@ -42,6 +42,8 @@ describe("executeInstall", () => {
     vi.mocked(resolveAndFetchSources).mockResolvedValue({
       fetchedSkillCount: 2,
       fetchedRuleCount: 1,
+      fetchedCommandCount: 0,
+      fetchedSubagentCount: 0,
       sourcesProcessed: 1,
       failedSourceCount: 0,
     });
@@ -53,6 +55,8 @@ describe("executeInstall", () => {
       sourcesProcessed: 1,
       skillsFetched: 2,
       rulesFetched: 1,
+      commandsFetched: 0,
+      subagentsFetched: 0,
       failedSourceCount: 0,
     });
     expect(vi.mocked(resolveAndFetchSources).mock.calls[0]?.[0].options).toEqual({
@@ -106,6 +110,8 @@ describe("executeInstall", () => {
     vi.mocked(resolveAndFetchSources).mockResolvedValue({
       fetchedSkillCount: 0,
       fetchedRuleCount: 0,
+      fetchedCommandCount: 0,
+      fetchedSubagentCount: 0,
       sourcesProcessed: 1,
       failedSourceCount: 0,
     });

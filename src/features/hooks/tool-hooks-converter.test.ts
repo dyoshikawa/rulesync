@@ -3,6 +3,8 @@ import { describe, expect, it } from "vite-plus/test";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import type { HooksConfig } from "../../types/hooks.js";
 import { ClaudecodeHooks } from "./claudecode-hooks.js";
+import { CODEXCLI_CONVERTER_CONFIG } from "./codexcli-hooks.js";
+import { FACTORYDROID_CONVERTER_CONFIG } from "./factorydroid-hooks.js";
 import {
   buildImportedHooksConfig,
   canonicalToToolHooks,
@@ -950,6 +952,95 @@ describe("booleanPassthroughFields events restriction", () => {
   });
 });
 
+describe("eventHookTypes (per-event hook types)", () => {
+  const EVENT_CONFIG: ToolHooksConverterConfig = {
+    ...BASE_CONFIG,
+    supportedEvents: ["preToolUse", "notification"],
+    canonicalToToolEventNames: { preToolUse: "PreToolUse", notification: "Notification" },
+    toolToCanonicalEventNames: { PreToolUse: "preToolUse", Notification: "notification" },
+    supportedHookTypes: new Set(["command", "prompt"]),
+    eventHookTypes: { notification: new Set(["command"]) },
+    groupPassthroughFields: [{ canonical: "metadata", tool: "metadata" }],
+  };
+
+  const emit = ({
+    hooks,
+    toolOverrideHooks,
+    converterConfig = EVENT_CONFIG,
+  }: {
+    hooks: HooksConfig["hooks"];
+    toolOverrideHooks?: HooksConfig["hooks"];
+    converterConfig?: ToolHooksConverterConfig;
+  }) => {
+    const logger = createMockLogger();
+    const emitted = canonicalToToolHooks({
+      config: { version: 1, hooks },
+      toolOverrideHooks,
+      converterConfig,
+      logger,
+    });
+    return { emitted, logger };
+  };
+
+  it("skips a type the event does not run, deriving group fields from the remaining hooks", () => {
+    const { emitted, logger } = emit({
+      hooks: {
+        notification: [
+          { type: "prompt", prompt: "Summarize", metadata: { from: "prompt" } },
+          { type: "command", command: "notify.sh", metadata: { from: "command" } },
+        ],
+        preToolUse: [{ type: "prompt", prompt: "Check" }],
+      },
+    });
+
+    expect(emitted.Notification).toEqual([
+      { metadata: { from: "command" }, hooks: [{ type: "command", command: "notify.sh" }] },
+    ]);
+    // Events without an entry keep every supported type.
+    expect(emitted.PreToolUse).toEqual([{ hooks: [{ type: "prompt", prompt: "Check" }] }]);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'Skipping a "notification" prompt hook ("Summarize"): this tool does not run prompt hooks on this event (supported types: command).',
+      ),
+    );
+    expect(logger.warn).not.toHaveBeenCalledWith(
+      expect.stringContaining("belongs to the whole matcher group"),
+    );
+  });
+
+  it("looks a tool-native override key up under its canonical event name", () => {
+    const { emitted, logger } = emit({
+      hooks: {},
+      toolOverrideHooks: { Notification: [{ type: "prompt", prompt: "Summarize" }] },
+    });
+
+    expect(emitted).not.toHaveProperty("Notification");
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Skipping a "Notification" prompt hook'),
+    );
+  });
+
+  it("keeps the hook with a warning on an event the tool fails closed on", () => {
+    const { emitted, logger } = emit({
+      hooks: { notification: [{ type: "prompt", prompt: "Summarize", metadata: { k: 1 } }] },
+      converterConfig: {
+        ...EVENT_CONFIG,
+        failClosedEventHookTypeEvents: new Set(["notification"]),
+      },
+    });
+
+    expect(emitted.Notification).toEqual([
+      { metadata: { k: 1 }, hooks: [{ type: "prompt", prompt: "Summarize" }] },
+    ]);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'Keeping a "notification" prompt hook ("Summarize") although this tool cannot run prompt hooks on this event',
+      ),
+    );
+    expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("Skipping"));
+  });
+});
+
 describe("buildImportedHooksConfig", () => {
   it("should move non-canonical event keys under the override block", () => {
     const config = buildImportedHooksConfig({
@@ -992,4 +1083,82 @@ describe("buildImportedHooksConfig", () => {
       );
     }
   });
+});
+
+describe("toolHooksToCanonical with a native key spelled like a canonical event", () => {
+  it("skips an unmapped canonical-looking key with a warning instead of activating it", () => {
+    const logger = createMockLogger();
+
+    const canonical = toolHooksToCanonical({
+      hooks: {
+        PreToolUse: [{ hooks: [{ type: "command", command: "./guard.sh" }] }],
+        // The tool reads `PreToolUse` only, so this key is inert there.
+        preToolUse: [{ hooks: [{ type: "command", command: "./inert.sh" }] }],
+        // Not an event this tool supports at all.
+        sessionStart: [{ hooks: [{ type: "command", command: "./start.sh" }] }],
+        // Not a canonical name: kept for the tool's override block.
+        PostFileSave: [{ hooks: [{ type: "command", command: "./save.sh" }] }],
+      },
+      converterConfig: BASE_CONFIG,
+      logger,
+    });
+
+    expect(canonical).toEqual({
+      preToolUse: [{ type: "command", command: "./guard.sh" }],
+      PostFileSave: [{ type: "command", command: "./save.sh" }],
+    });
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Skipping imported hooks event "preToolUse"'),
+    );
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Skipping imported hooks event "sessionStart"'),
+    );
+  });
+
+  it("keeps a supported event the tool spells like the canonical name", () => {
+    const logger = createMockLogger();
+    const converterConfig: ToolHooksConverterConfig = {
+      supportedEvents: ["preToolUse", "stop"],
+      canonicalToToolEventNames: { preToolUse: "PreToolUse" },
+      toolToCanonicalEventNames: { PreToolUse: "preToolUse" },
+      projectDirVar: "",
+    };
+
+    const canonical = toolHooksToCanonical({
+      hooks: { stop: [{ hooks: [{ type: "command", command: "./stop.sh" }] }] },
+      converterConfig,
+      logger,
+    });
+
+    expect(canonical).toEqual({ stop: [{ type: "command", command: "./stop.sh" }] });
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+});
+
+describe("toolHooksToCanonical with real converter configs", () => {
+  it.each([
+    ["codexcli", CODEXCLI_CONVERTER_CONFIG],
+    ["factorydroid", FACTORYDROID_CONVERTER_CONFIG],
+  ])(
+    "keeps the native SessionStart of %s and skips camelCase sessionStart",
+    (_, converterConfig) => {
+      const logger = createMockLogger();
+
+      const canonical = toolHooksToCanonical({
+        hooks: {
+          SessionStart: [{ hooks: [{ type: "command", command: "./native.sh" }] }],
+          sessionStart: [{ hooks: [{ type: "command", command: "./inert.sh" }] }],
+        },
+        converterConfig,
+        logger,
+      });
+
+      expect(canonical).toEqual({
+        sessionStart: [{ type: "command", command: "./native.sh" }],
+      });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Skipping imported hooks event "sessionStart"'),
+      );
+    },
+  );
 });
