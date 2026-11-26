@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
 import { OpenbitfunSubagent } from "./openbitfun-subagent.js";
@@ -155,5 +156,40 @@ describe("OpenbitfunSubagent", () => {
         makeRulesyncSubagent({ targets: ["cursor"] }),
       ),
     ).toBe(false);
+  });
+
+  describe("loadAdditionalImportFiles", () => {
+    it("should load nothing and warn about a moved XDG config home on a global import (issue #3971)", async () => {
+      vi.spyOn(process, "platform", "get").mockReturnValue("linux");
+      vi.stubEnv("HOME_DIR", testDir);
+      vi.stubEnv("XDG_CONFIG_HOME", join("/", "srv", "openbitfun-agents-import-xdg"));
+      const logger = createMockLogger();
+      try {
+        await expect(
+          OpenbitfunSubagent.loadAdditionalImportFiles({
+            outputRoot: testDir,
+            global: true,
+            logger,
+          }),
+        ).resolves.toEqual([]);
+      } finally {
+        vi.unstubAllEnvs();
+      }
+
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("$XDG_CONFIG_HOME"));
+    });
+
+    it("should not warn on a project import", async () => {
+      vi.spyOn(process, "platform", "get").mockReturnValue("linux");
+      vi.stubEnv("XDG_CONFIG_HOME", join("/", "srv", "openbitfun-agents-project-xdg"));
+      const logger = createMockLogger();
+      try {
+        await OpenbitfunSubagent.loadAdditionalImportFiles({ outputRoot: testDir, logger });
+      } finally {
+        vi.unstubAllEnvs();
+      }
+
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
   });
 });

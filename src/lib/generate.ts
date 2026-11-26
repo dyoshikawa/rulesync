@@ -192,6 +192,7 @@ async function processFeatureGeneration<T extends AiFile>(params: {
         return orphanCount > 0;
       },
       reportDeleted: () => processor.getRemovedPaths(),
+      reportWritten: () => processor.getSweepWrites(),
     });
   }
 
@@ -396,6 +397,7 @@ async function processEmptyFeatureGeneration(params: {
         return orphanCount > 0;
       },
       reportDeleted: () => processor.getRemovedPaths(),
+      reportWritten: () => processor.getSweepWrites(),
     });
   }
 
@@ -1002,6 +1004,22 @@ async function generateInWriteLandingScope(params: {
   // throws therefore skips every sweep rather than leaving a half-swept tree,
   // which is the safer of the two failure modes for a destructive operation.
   const sweepHasDiff = await sweepPlan.run();
+
+  // A sweep can also rewrite shared config to follow the files it removed
+  // (Hermes Agent's commands plugin switch, Goose's `slash_commands`). Those
+  // writes belong to the feature that swept, so they are counted and listed
+  // with its other writes — and therefore reach the mutation plan.
+  for (const [feature, sweptPaths] of sweepPlan.getSweepWrittenPathsByFeature()) {
+    const result = resultsById.get(feature as GenerationStepId);
+    if (!result) continue;
+    const newPaths = sweptPaths.filter((path) => !result.paths.includes(path));
+    resultsById.set(feature as GenerationStepId, {
+      ...result,
+      count: result.count + newPaths.length,
+      paths: [...result.paths, ...newPaths],
+      hasDiff: result.hasDiff || newPaths.length > 0,
+    });
+  }
 
   const activationResult = await activateHermesProjectPlugins({
     pluginNames: await collectHermesProjectPluginNames({ config, resultsById }),

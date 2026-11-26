@@ -13,6 +13,7 @@ import {
   CANONICAL_TO_JUNIE_EVENT_NAMES,
   CANONICAL_TO_OPENCODE_EVENT_NAMES,
   CLAUDE_HOOK_EVENTS,
+  CLAUDE_TO_CANONICAL_EVENT_NAMES,
   CLINE_HOOK_EVENTS,
   CODEXCLI_HOOK_EVENTS,
   CODEXCLI_TO_CANONICAL_EVENT_NAMES,
@@ -173,6 +174,13 @@ describe("Claude Code event naming", () => {
     expect(CANONICAL_TO_CLAUDE_EVENT_NAMES.postModelSwitch).toBe("PostModelSwitch");
     expect(CLAUDE_HOOK_EVENTS).toContain("preModelSwitch");
     expect(CLAUDE_HOOK_EVENTS).toContain("postModelSwitch");
+  });
+
+  it("should support the PreSkillShellCommand event", () => {
+    // Verified against https://code.claude.com/docs/en/hooks#preskillshellcommand (added in v2.1.332)
+    expect(CANONICAL_TO_CLAUDE_EVENT_NAMES.preSkillShellCommand).toBe("PreSkillShellCommand");
+    expect(CLAUDE_TO_CANONICAL_EVENT_NAMES.PreSkillShellCommand).toBe("preSkillShellCommand");
+    expect(CLAUDE_HOOK_EVENTS).toContain("preSkillShellCommand");
   });
 });
 

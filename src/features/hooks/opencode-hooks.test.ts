@@ -149,6 +149,7 @@ describe("OpencodeHooks (OpenCode V2)", () => {
         'ctx.tool.hook("execute.after"',
         'ctx.session.hook("prompt"',
         'ctx.session.hook("compaction"',
+        'ctx.session.hook("experimental.idle"',
       ]) {
         expect(content.split(hook).length - 1).toBe(1);
       }
@@ -158,7 +159,6 @@ describe("OpencodeHooks (OpenCode V2)", () => {
         "session.created",
         "session.deleted",
         "session.compaction.ended",
-        "session.execution.succeeded",
         "session.execution.failed",
         "permission.asked",
         "permission.replied",
@@ -168,7 +168,7 @@ describe("OpencodeHooks (OpenCode V2)", () => {
       expect(content).toContain(
         [
           "for await (const event of ctx.event.subscribe({",
-          '        types: ["session.created", "session.deleted", "session.compaction.ended", "session.execution.succeeded", "session.execution.failed", "permission.asked", "permission.replied"],',
+          '        types: ["session.created", "session.deleted", "session.compaction.ended", "session.execution.failed", "permission.asked", "permission.replied", "session.execution.succeeded", "session.execution.interrupted"],',
           "        signal: __rulesyncEvents.signal,",
           "      })) {",
         ].join("\n"),
@@ -177,6 +177,18 @@ describe("OpencodeHooks (OpenCode V2)", () => {
       execFileSync("node", ["--input-type=module", "--check"], {
         input: content,
       });
+    });
+
+    it("defines the block-reason sanitizer once when both preToolUse and stop use it", () => {
+      const content = generate({
+        hooks: {
+          preToolUse: [{ command: "echo pre" }],
+          stop: [{ command: "echo stop" }],
+        },
+      });
+
+      expect(content.split("function sanitizeBlockReason(raw) {").length - 1).toBe(1);
+      execFileSync("node", ["--input-type=module", "--check"], { input: content });
     });
 
     it("gates the shell events on the V2 `shell` tool and splits execute.after by status", () => {
@@ -378,7 +390,7 @@ describe("OpencodeHooks (OpenCode V2)", () => {
       const content = generate({
         hooks: { stop: [{ type: "prompt", prompt: "Summarize" }] },
       });
-      expect(content).not.toContain("session.execution.succeeded");
+      expect(content).not.toContain("experimental.idle");
     });
 
     it("escapes template literal syntax in commands", () => {
@@ -386,7 +398,7 @@ describe("OpencodeHooks (OpenCode V2)", () => {
         hooks: { stop: [{ command: "echo ${HOME} `date` \\n" }] },
       });
       expect(content).toContain(
-        'command: "echo \\\\${HOME} \\\\`date\\\\` \\\\\\\\n", input: __rulesyncStopInput(), blocking: false, seconds: 600',
+        'command: "echo \\\\${HOME} \\\\`date\\\\` \\\\\\\\n", input: __rulesyncStopInput(), seconds: 600',
       );
       execFileSync("node", ["--input-type=module", "--check"], {
         input: content,
@@ -515,19 +527,27 @@ describe("OpencodeHooks (OpenCode V2)", () => {
           "await call(() => hooks['tool:execute.before']({ tool: 'shell', sessionID: 's1', id: 'c1', input: { command: 'rm -rf /' } }));",
           "await call(() => hooks['tool:execute.before']({ tool: 'edit', input: {} }));",
           "await call(() => hooks['tool:execute.after']({ tool: 'write', sessionID: 's1', id: 'c2', input: { path: 'a' }, status: 'completed', result: { ok: 1 } }));",
-          "push({ type: 'session.execution.succeeded', data: { sessionID: 's1' } });",
-          "await Bun.sleep(3000);",
+          "await call(() => hooks['session:experimental.idle']({ sessionID: 's1', background: [] }));",
         ].join("\n"),
       });
 
       // `shell` matches `^bash$` through its OpenCode 1.x name; the guard allows, then the
       // shell gate's non-zero exit blocks the call, as it did before; postToolUse only logs.
+      // A stop command exiting with 3 is only logged: it neither continues the agent nor fails
+      // the execution.
       expect(out).toEqual([
         "threw: [rulesync-hooks] beforeShellExecution hook exited with code 1",
         "threw: kept",
         "ok",
+        "ok",
       ]);
-      expect(types).toEqual([["session.execution.succeeded"]]);
+      expect(types).toEqual([
+        [
+          "session.execution.succeeded",
+          "session.execution.failed",
+          "session.execution.interrupted",
+        ],
+      ]);
       const byName = Object.fromEntries(records.map((record) => [record.name, record]));
       expect(payloadOf(byName.pre)).toEqual({
         hook_event_name: "PreToolUse",
@@ -546,7 +566,13 @@ describe("OpencodeHooks (OpenCode V2)", () => {
       expect([byName.sub?.stdin, byName["post-b"]?.stdin]).toEqual(["", ""]);
       expect(byName["post-b"]?.rest).toEqual(["visible-sub", "quote\\inner"]);
       expect(byName["post-fail"]?.rest).toEqual([]);
-      expect(payloadOf(byName.stop)).toMatchObject({ hook_event_name: "Stop", session_id: "s1" });
+      expect(payloadOf(byName.stop)).toEqual({
+        hook_event_name: "Stop",
+        session_id: "s1",
+        stop_hook_active: false,
+        cwd: testDir,
+      });
+      expect(byName.fails).toBeDefined();
       // Bun Shell has no `unset`: the command sees an empty `BUN_BE_BUN`, which Bun treats as unset.
       expect(records.every((record) => record.BUN_BE_BUN === "" && record.RS_DOTENV === null)).toBe(
         true,
@@ -554,11 +580,163 @@ describe("OpencodeHooks (OpenCode V2)", () => {
       expect(printed).toContain("visible-post-b");
     }, 60_000);
 
-    it("keeps the event subscription going when building a handler's payload throws", async () => {
+    it("continues the agent once when a stop command exits with code 2", async () => {
       const content = generate({
         hooks: {
-          stop: [{ command: "node hook.cjs stop 0" }],
+          stop: [
+            { command: "node hook.cjs block 2" },
+            { command: "node hook.cjs fails 1" },
+            { command: "node hook.cjs stop 0" },
+          ],
+        },
+      });
+      const { out, records } = await runUnderBun({
+        content,
+        prelude: [
+          "console.error = (message) => out.push('error: ' + message);",
+          "ctx.session.synthetic = async ({ sessionID, text }) => out.push('synthetic ' + sessionID + ': ' + JSON.stringify(text));",
+          "await mod.default.setup(ctx);",
+        ].join("\n"),
+        body: [
+          "const idle = (event) => call(() => hooks['session:experimental.idle'](event));",
+          "await idle({ sessionID: 's1', background: [] });",
+          // The hook runs again after the admitted input: the commands run, the session stops.
+          "await idle({ sessionID: 's1', background: [] });",
+          // The next idle may continue again.
+          "await idle({ sessionID: 's1', background: [] });",
+        ].join("\n"),
+      });
+
+      const exitedWith1 = "error: [rulesync-hooks] stop hook exited with code 1: visible-fails";
+      const continued = `synthetic s1: ${JSON.stringify("Stop hook feedback:\nvisible-block")}`;
+      expect(out).toEqual([
+        exitedWith1,
+        continued,
+        "ok",
+        exitedWith1,
+        "ok",
+        exitedWith1,
+        continued,
+        "ok",
+      ]);
+      expect(records.map((record) => record.name)).toEqual(
+        Array.from({ length: 3 }, () => ["block", "fails", "stop"]).flat(),
+      );
+      expect(
+        records
+          .filter((record) => record.name === "stop")
+          .map((record) => (payloadOf(record) as { stop_hook_active: boolean }).stop_hook_active),
+      ).toEqual([false, true, false]);
+    }, 60_000);
+
+    it("waits for the session's own background jobs but not its shells, and never fails the execution", async () => {
+      const content = generate({
+        hooks: { stop: [{ command: "node hook.cjs block 2" }] },
+      });
+      const { out, records } = await runUnderBun({
+        content,
+        prelude: [
+          "console.error = (message) => out.push('error: ' + message);",
+          "ctx.session.synthetic = async () => { throw new Error('gone'); };",
+          "await mod.default.setup(ctx);",
+        ].join("\n"),
+        body: [
+          "const idle = (event) => call(() => hooks['session:experimental.idle'](event));",
+          "await idle({ sessionID: 's1', background: [{ kind: 'subagent', sessionID: 's1' }] });",
+          "await idle({ sessionID: 's1', background: [{ kind: 'codemode', sessionID: 's1', jobID: 'j' }] });",
+          "out.push('waited');",
+          "await idle({ sessionID: 's1', background: [{ kind: 'shell', sessionID: 's1', shellID: 'x', command: 'serve' }, { kind: 'subagent', sessionID: 'child' }] });",
+        ].join("\n"),
+      });
+
+      // The admitting call throws: it is logged, and the hook still resolves.
+      expect(out).toEqual([
+        "ok",
+        "ok",
+        "waited",
+        "error: [rulesync-hooks] stop hook failed:",
+        "ok",
+      ]);
+      expect(records.map((record) => record.name)).toEqual(["block"]);
+    }, 60_000);
+
+    it("falls back to observing session.execution.succeeded until the idle hook runs", async () => {
+      // Before OpenCode 2.2.1 the host stores the unknown `experimental.idle` registration
+      // and never triggers it, as this mock does until the test calls it.
+      const content = generate({
+        hooks: { stop: [{ command: "node hook.cjs stop 2" }] },
+      });
+      const { out, types, records } = await runUnderBun({
+        content,
+        prelude: [
+          QUEUED_EVENTS_PRELUDE,
+          "ctx.session.synthetic = async ({ sessionID }) => out.push('synthetic ' + sessionID);",
+          "ctx.session.get = async ({ sessionID }) => (sessionID === 'child' ? { parentID: 's1' } : { id: sessionID });",
+          "await mod.default.setup(ctx);",
+        ].join("\n"),
+        body: [
+          "const recorded = async () => (await Bun.file(directory + '/rec.jsonl').text()).split('\\n').filter(Boolean).length;",
+          "const settle = async (count) => { for (let i = 0; i < 400 && (await recorded()) < count; i++) await Bun.sleep(25); await Bun.sleep(200); };",
+          // A subagent's execution never runs stop commands.
+          "push({ type: 'session.execution.succeeded', data: { sessionID: 'child' } });",
+          "push({ type: 'session.execution.succeeded', data: { sessionID: 's1' } });",
+          "await settle(1);",
+          // Once the idle hook runs, the fallback stands down: one run per execution.
+          "await call(() => hooks['session:experimental.idle']({ sessionID: 's1', background: [] }));",
+          "push({ type: 'session.execution.succeeded', data: { sessionID: 's1' } });",
+          "await settle(2);",
+        ].join("\n"),
+      });
+
+      // The fallback only observes: exit code 2 does not continue the agent there.
+      expect(out).toEqual(["synthetic s1", "ok"]);
+      expect(types).toEqual([
+        [
+          "session.execution.succeeded",
+          "session.execution.failed",
+          "session.execution.interrupted",
+        ],
+      ]);
+      expect(records.map((record) => payloadOf(record))).toEqual([
+        { hook_event_name: "Stop", session_id: "s1", stop_hook_active: false, cwd: testDir },
+        { hook_event_name: "Stop", session_id: "s1", stop_hook_active: false, cwd: testDir },
+      ]);
+    }, 60_000);
+
+    it("skips subagent sessions and clears the continue-once guard when a run fails", async () => {
+      const content = generate({
+        hooks: { stop: [{ command: "node hook.cjs stop 2" }] },
+      });
+      const { out, records } = await runUnderBun({
+        content,
+        prelude: [
+          QUEUED_EVENTS_PRELUDE,
+          "ctx.session.synthetic = async ({ sessionID }) => out.push('synthetic ' + sessionID);",
+          "ctx.session.get = async ({ sessionID }) => (sessionID === 'child' ? { parentID: 's1' } : { id: sessionID });",
+          "await mod.default.setup(ctx);",
+        ].join("\n"),
+        body: [
+          "const idle = (sessionID) => call(() => hooks['session:experimental.idle']({ sessionID, background: [] }));",
+          "await idle('child');",
+          "await idle('s1');",
+          // The continued run fails, so the idle hook does not run again in it.
+          "push({ type: 'session.execution.failed', data: { sessionID: 's1' } });",
+          "await Bun.sleep(200);",
+          "await idle('s1');",
+        ].join("\n"),
+      });
+
+      expect(out).toEqual(["ok", "synthetic s1", "ok", "synthetic s1", "ok"]);
+      expect(
+        records.map((record) => (payloadOf(record) as { session_id: string }).session_id),
+      ).toEqual(["s1", "s1"]);
+    }, 60_000);
+
+    it("keeps the event subscription going when a handler's gate throws", async () => {
+      const content = generate({
+        hooks: {
           permissionDenied: [{ command: "node hook.cjs denied 0" }],
+          afterError: [{ command: "node hook.cjs error 0" }],
         },
       });
       const { out, records } = await runUnderBun({
@@ -568,16 +746,16 @@ describe("OpencodeHooks (OpenCode V2)", () => {
           "await mod.default.setup(ctx);",
         ].join("\n"),
         body: [
-          // A BigInt session ID makes the Stop payload's JSON.stringify throw.
-          "push({ type: 'session.execution.succeeded', data: { sessionID: 1n } });",
+          // Reading the reply to test the permissionDenied gate throws.
+          "push({ type: 'permission.replied', get data() { throw new Error('boom'); } });",
           "await Bun.sleep(500);",
-          "push({ type: 'permission.replied', data: { reply: 'reject' } });",
+          "push({ type: 'session.execution.failed', data: { sessionID: 's1' } });",
           "await Bun.sleep(3000);",
         ].join("\n"),
       });
 
-      expect(out).toEqual(["error: [rulesync-hooks] stop hook failed:"]);
-      expect(records.map((record) => record.name)).toEqual(["denied"]);
+      expect(out).toEqual(["error: [rulesync-hooks] permissionDenied hook failed:"]);
+      expect(records.map((record) => record.name)).toEqual(["error"]);
     }, 60_000);
 
     it("runs the V1 plugin the same way, and falls back to Bun Shell without the Bun CLI", async () => {
@@ -885,9 +1063,9 @@ describe("OpencodeHooks (OpenCode V2)", () => {
       await writeFileContent(join(testDir, "ctx.cjs"), CONTEXT_SCRIPT);
       const content = generate({
         hooks: {
-          stop: [
+          afterError: [
             { command: `node -e "setTimeout(() => {}, 3000)"` },
-            { command: "node hook.cjs stop 0" },
+            { command: "node hook.cjs error 0" },
           ],
           sessionStart: [{ command: "node ctx.cjs json" }],
         },
@@ -896,7 +1074,7 @@ describe("OpencodeHooks (OpenCode V2)", () => {
         content,
         prelude: `${QUEUED_EVENTS_PRELUDE}\nawait mod.default.setup(ctx);`,
         body: [
-          "push({ type: 'session.execution.succeeded', data: { sessionID: 's0' } });",
+          "push({ type: 'session.execution.failed', data: { sessionID: 's0' } });",
           "await Bun.sleep(50);",
           "push({ type: 'session.created', data: { sessionID: 's1' } });",
           "await Bun.sleep(50);",
@@ -905,21 +1083,21 @@ describe("OpencodeHooks (OpenCode V2)", () => {
           "await call(() => hooks['session:context'](request));",
           "out.push(request.system.map((part) => part.text).join('|'));",
           "out.push(Date.now() - started < 2000 ? 'not held back' : 'held back');",
-          // The slow stop command still finishes, and the next one runs after it.
+          // The slow afterError command still finishes, and the next one runs after it.
           "await Bun.sleep(3500);",
         ].join("\n"),
       });
 
       expect(out).toEqual(["ok", "json-context", "not held back"]);
-      expect(records.map((record) => record.name)).toEqual(["stop"]);
+      expect(records.map((record) => record.name)).toEqual(["error"]);
     }, 60_000);
 
     it("runs the other event commands in event order, past a slow or throwing one", async () => {
       const content = generate({
         hooks: {
-          stop: [
+          permissionDenied: [
             { command: `node -e "setTimeout(() => {}, 1500)"` },
-            { command: "node hook.cjs stop 0" },
+            { command: "node hook.cjs denied 0" },
           ],
           sessionDelete: [{ command: "node hook.cjs delete 0" }],
         },
@@ -932,20 +1110,20 @@ describe("OpencodeHooks (OpenCode V2)", () => {
           "await mod.default.setup(ctx);",
         ].join("\n"),
         body: [
-          // Reading this event's payload throws; the events after it still run.
-          "push({ type: 'session.execution.succeeded', get data() { throw new Error('boom'); } });",
-          "push({ type: 'session.execution.succeeded', data: { sessionID: 's1' } });",
+          // Reading this event's reply throws; the events after it still run.
+          "push({ type: 'permission.replied', get data() { throw new Error('boom'); } });",
+          "push({ type: 'permission.replied', data: { reply: 'reject' } });",
           "push({ type: 'session.deleted', data: { sessionID: 's1' } });",
           "const recorded = async () => (await Bun.file(directory + '/rec.jsonl').text()).split('\\n').filter(Boolean).length;",
           "for (let i = 0; i < 400 && (await recorded()) < 2; i++) await Bun.sleep(50);",
         ].join("\n"),
       });
 
-      expect(records.map((record) => record.name)).toEqual(["stop", "delete"]);
-      // Each stop handler logs its own throw.
+      expect(records.map((record) => record.name)).toEqual(["denied", "delete"]);
+      // Each permissionDenied handler logs its own throw.
       expect(out).toEqual([
-        "error: [rulesync-hooks] stop hook failed:",
-        "error: [rulesync-hooks] stop hook failed:",
+        "error: [rulesync-hooks] permissionDenied hook failed:",
+        "error: [rulesync-hooks] permissionDenied hook failed:",
       ]);
     }, 60_000);
 
