@@ -59,6 +59,7 @@ import { DevinPluginSubagent } from "./devin-plugin-subagent.js";
 import { DevinSubagent } from "./devin-subagent.js";
 import { FactorydroidSubagent } from "./factorydroid-subagent.js";
 import { FirebenderSubagent } from "./firebender-subagent.js";
+import { GajaecodeSubagent } from "./gajaecode-subagent.js";
 import { GitlabduoSubagent, GITLABDUO_MAX_SUBAGENTS } from "./gitlabduo-subagent.js";
 import { GooseSubagent } from "./goose-subagent.js";
 import { GrokcliSubagent } from "./grokcli-subagent.js";
@@ -87,6 +88,7 @@ import { RulesyncSubagent } from "./rulesync-subagent.js";
 import { SimulatedSubagent } from "./simulated-subagent.js";
 import { TabnineSubagent } from "./tabnine-subagent.js";
 import { TaktSubagent } from "./takt-subagent.js";
+import { TheiaSubagent } from "./theia-subagent.js";
 import {
   ToolSubagent,
   ToolSubagentForDeletionParams,
@@ -870,6 +872,20 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
     },
   ],
   [
+    "gajaecode",
+    {
+      // `.gjc/agents/*.md` (project) and `~/.gjc/agent/agents/*.md` (global).
+      // https://github.com/Yeachan-Heo/gajae-code/blob/main/docs/customization.md
+      class: GajaecodeSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.md",
+      },
+    },
+  ],
+  [
     "omp",
     {
       class: OmpSubagent,
@@ -1040,6 +1056,29 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsSimulated: false,
         supportsGlobal: true,
         filePattern: "*.md",
+      },
+    },
+  ],
+  [
+    "theia",
+    {
+      // Theia AI custom agents: `.agents/agents/<id>/agent.md`, one folder per
+      // agent (the folder name is the id). Theia reads only the immediate
+      // subfolders, so the flat `<name>.md` files the agentsmd and Antigravity
+      // targets write into the same root are left alone by this pattern, and
+      // theirs (`*.md`) never reach into these folders. Global agents live in a
+      // product-specific prompt directory that is not documented.
+      // https://theia-ide.org/docs/user_ai/#custom-agents
+      class: TheiaSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: false,
+        filePattern: "*/agent.md",
+        // Theia skips an `agent.md` without string `name`, `description` and
+        // `defaultLLM`, so import does too (with a warning) instead of
+        // aborting on one hand-written file.
+        skipInvalidImportFiles: true,
       },
     },
   ],

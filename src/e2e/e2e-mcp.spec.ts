@@ -45,6 +45,7 @@ const mcpGenerateTargets = [
   { target: "codebuff", outputPath: join(".agents", "mcp.json") },
   { target: "cursor", outputPath: join(".cursor", "mcp.json") },
   { target: "trae", outputPath: join(".trae", "mcp.json") },
+  { target: "theia", outputPath: join(".theia", "settings.json") },
   { target: "qwencode", outputPath: join(".qwen", "settings.json") },
   { target: "codexcli", outputPath: join(".codex", "config.toml") },
   { target: "codewhale", outputPath: join(".codewhale", "mcp.json") },
@@ -60,6 +61,7 @@ const mcpGenerateTargets = [
   { target: "crush", outputPath: "crush.json" },
   { target: "mimocode", outputPath: join(".mimocode", "mimocode.jsonc") },
   { target: "omp", outputPath: join(".omp", "mcp.json") },
+  { target: "gajaecode", outputPath: join(".gjc", "mcp.json") },
   { target: "opencode", outputPath: "opencode.jsonc" },
   { target: "opencodev1", outputPath: "opencode.jsonc" },
   { target: "pi", outputPath: join(".pi", "mcp.json") },
@@ -647,6 +649,17 @@ describe("E2E: mcp", () => {
       outputPath: "firebender.json",
       content: JSON.stringify({ useCursorRules: false }, null, 2),
     },
+    {
+      target: "theia",
+      outputPath: join(".theia", "settings.json"),
+      content: JSON.stringify({ "editor.fontSize": 14 }, null, 2),
+    },
+    {
+      // `gjc mcp add --project` writes here too, so the file is never deleted.
+      target: "gajaecode",
+      outputPath: join(".gjc", "mcp.json"),
+      content: JSON.stringify({ mcpServers: { added: { command: "echo" } } }, null, 2),
+    },
   ])(
     "should succeed in check mode when a $target mcp file is non-deletable",
     async ({ target, outputPath, content }) => {
@@ -666,6 +679,131 @@ describe("E2E: mcp", () => {
       expect(stdout).toContain("All files are up to date.");
     },
   );
+
+  it("should merge theia MCP servers into .theia/settings.json and import them back", async () => {
+    const testDir = getTestDir();
+    const settingsPath = join(testDir, ".theia", "settings.json");
+
+    await writeFileContent(
+      settingsPath,
+      [
+        "{",
+        "  // Hand-written workspace preference",
+        '  "editor.fontSize": 14,',
+        '  "ai-features.mcp.mcpServers": {',
+        '    "remote": {',
+        '      "serverUrl": "https://old.example.com/mcp",',
+        '      "autostart": false,',
+        '      "registryMetadata": { "serverId": "example" }',
+        "    },",
+        '    "stale": { "command": "stale" }',
+        "  }",
+        "}",
+      ].join("\n"),
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH),
+      JSON.stringify({
+        mcpServers: {
+          local: { type: "stdio", command: "npx", args: ["-y", "server"], env: { KEY: "v" } },
+          remote: {
+            type: "http",
+            url: "https://example.com/mcp",
+            headers: { "X-Team": "a" },
+            deferLoading: true,
+          },
+        },
+      }),
+    );
+
+    await runGenerate({ target: "theia", features: "mcp" });
+
+    const content = await readFileContent(settingsPath);
+    expect(content).toContain("// Hand-written workspace preference");
+    const generated = parseJson5(content) as Record<string, unknown>;
+    expect(generated["editor.fontSize"]).toBe(14);
+    expect(generated["ai-features.mcp.mcpServers"]).toEqual({
+      local: { command: "npx", args: ["-y", "server"], env: { KEY: "v" } },
+      remote: {
+        // Theia-managed keys of an existing server survive; the documented
+        // configuration keys (`autostart` here) follow the rulesync source.
+        registryMetadata: { serverId: "example" },
+        deferLoading: true,
+        serverUrl: "https://example.com/mcp",
+        headers: { "X-Team": "a" },
+      },
+    });
+
+    await removeFile(join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH));
+    await runImport({ target: "theia", features: "mcp" });
+
+    const imported = JSON.parse(
+      await readFileContent(join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH)),
+    ) as {
+      mcpServers: Record<string, Record<string, unknown>>;
+      theia?: { mcpServers: Record<string, Record<string, unknown>> };
+    };
+    // `deferLoading` is Theia-specific, so the server goes to the tool-scoped
+    // block; generating from the imported source yields the same file.
+    expect(imported.theia?.mcpServers.remote).toEqual({
+      deferLoading: true,
+      url: "https://example.com/mcp",
+      headers: { "X-Team": "a" },
+    });
+    expect(imported.mcpServers.remote).toBeUndefined();
+    expect(imported.mcpServers.local?.command).toBe("npx");
+
+    await runGenerate({ target: "theia", features: "mcp" });
+    expect(parseJson5(await readFileContent(settingsPath))).toEqual(generated);
+  });
+
+  it("should keep gajaecode servers added outside rulesync and their credentials", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".rulesync", "mcp.json"),
+      JSON.stringify({ mcpServers: { managed: { command: "managed-server" } } }),
+    );
+    await writeFileContent(
+      join(testDir, ".gjc", "mcp.json"),
+      JSON.stringify({
+        disabledServers: ["other"],
+        mcpServers: {
+          managed: {
+            command: "managed-server",
+            autoload: false,
+            auth: { type: "oauth", credentialId: "cred" },
+          },
+          added: { type: "http", url: "https://example.com/mcp" },
+        },
+      }),
+    );
+
+    await runGenerate({ target: "gajaecode", features: "mcp", deleteFiles: true });
+
+    expect(JSON.parse(await readFileContent(join(testDir, ".gjc", "mcp.json")))).toEqual({
+      disabledServers: ["other"],
+      mcpServers: {
+        // `autoload` follows the source; the credential binding stays
+        // because the server still runs the same command.
+        managed: {
+          type: "stdio",
+          command: "managed-server",
+          auth: { type: "oauth", credentialId: "cred" },
+        },
+        added: { type: "http", url: "https://example.com/mcp" },
+      },
+    });
+
+    // Importing and generating again rewrites each server in place.
+    await runImport({ target: "gajaecode", features: "mcp" });
+    await runGenerate({ target: "gajaecode", features: "mcp" });
+    const servers = JSON.parse(await readFileContent(join(testDir, ".gjc", "mcp.json"))).mcpServers;
+    expect(Object.keys(servers).toSorted()).toEqual(["added", "managed"]);
+    expect(servers.managed.auth).toEqual({ type: "oauth", credentialId: "cred" });
+    // The credential binding is never copied into the rulesync source.
+    expect(await readFileContent(join(testDir, ".rulesync", "mcp.json"))).not.toContain("cred");
+  });
 
   it("should run mcp command as daemon without errors", async () => {
     const testDir = getTestDir();
@@ -927,6 +1065,7 @@ describe("E2E: mcp (import)", () => {
     { target: "trae", sourcePath: join(".trae", "mcp.json") },
     { target: "codewhale", sourcePath: join(".codewhale", "mcp.json") },
     { target: "omp", sourcePath: join(".omp", "mcp.json") },
+    { target: "gajaecode", sourcePath: join(".gjc", "mcp.json") },
     { target: "pi", sourcePath: join(".pi", "mcp.json") },
     // copilot MCP uses VS Code-specific format — excluded from import test
     { target: "copilotcli", sourcePath: join(".github", "mcp.json") },
@@ -1138,7 +1277,9 @@ const mcpGlobalTargets = [
   { target: "hermesagent", outputPath: join(getHermesagentGlobalDir(), "config.yaml") },
   { target: "mimocode", outputPath: join(".config", "mimocode", "mimocode.jsonc") },
   { target: "omp", outputPath: join(".omp", "agent", "mcp.json") },
+  { target: "gajaecode", outputPath: join(".gjc", "agent", "mcp.json") },
   { target: "openclaw", outputPath: join(".openclaw", "openclaw.json") },
+  { target: "openhands", outputPath: join(".openhands", "mcp.json") },
   { target: "opencode", outputPath: join(".config", "opencode", "opencode.jsonc") },
   { target: "opencodev1", outputPath: join(".config", "opencode", "opencode.jsonc") },
   { target: "pi", outputPath: join(".pi", "agent", "mcp.json") },

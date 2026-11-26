@@ -178,6 +178,27 @@ export abstract class AiFile {
   }
 
   /**
+   * Whether an existing file is removed, instead of rewritten, when the
+   * generated content is an empty payload (see {@link shouldSkipCreationWhenPayloadEmpty}).
+   * Opt in for a file whose mere presence changes the tool's behavior, such
+   * as OpenHands' project `.openhands/hooks.json`, which hides the user-level
+   * hooks file whenever it exists, even empty. Such a file is never created
+   * empty either.
+   */
+  shouldRemoveWhenPayloadEmpty(): boolean {
+    return false;
+  }
+
+  /**
+   * Why this file must not be removed even though
+   * {@link shouldRemoveWhenPayloadEmpty} asks for it (the write phase warns and
+   * leaves it untouched), or `undefined` when removing it is fine.
+   */
+  describeRemovalRefusal(): string | undefined {
+    return undefined;
+  }
+
+  /**
    * Directories this file stands for in the `--delete` orphan sweep, on top of
    * its own path. Override in a file feature that emits into a directory
    * another feature sweeps as a whole (Antigravity commands emitted as

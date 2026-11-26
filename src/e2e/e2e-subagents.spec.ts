@@ -134,6 +134,7 @@ const subagentsGenerateTargets = [
     target: "deepagents",
     outputPath: join(".deepagents", "agents", "planner", "AGENTS.md"),
   },
+  { target: "theia", outputPath: join(".agents", "agents", "planner", "agent.md") },
   {
     target: "devin",
     outputPath: join(".devin", "agents", "planner", "AGENT.md"),
@@ -175,6 +176,7 @@ const subagentsGenerateTargets = [
     outputPath: join(".agents", "agents", "planner.md"),
   },
   { target: "omp", outputPath: join(".omp", "agents", "planner.md") },
+  { target: "gajaecode", outputPath: join(".gjc", "agents", "planner.md") },
   {
     target: "opencode",
     outputPath: join(".opencode", "agents", "planner.md"),
@@ -277,6 +279,7 @@ const subagentsGlobalTargets = [
   { target: "mimocode", outputPath: join(".config", "mimocode", "agents", "planner.md") },
   { target: "musecode", outputPath: join(".config", "muse", "agents", "planner.md") },
   { target: "omp", outputPath: join(".omp", "agent", "agents", "planner.md") },
+  { target: "gajaecode", outputPath: join(".gjc", "agent", "agents", "planner.md") },
   { target: "opencode", outputPath: join(".config", "opencode", "agents", "planner.md") },
   { target: "opencodev1", outputPath: join(".config", "opencode", "agents", "planner.md") },
   { target: "pool", outputPath: join(".config", "poolside", "settings.yaml") },
@@ -504,6 +507,7 @@ You are a subagent-only helper.
     { target: "codexcli", orphanPath: join(".codex", "agents", "orphan.toml") },
     { target: "copilot", orphanPath: join(".github", "agents", "orphan.md") },
     { target: "deepagents", orphanPath: join(".deepagents", "agents", "orphan", "AGENTS.md") },
+    { target: "theia", orphanPath: join(".agents", "agents", "orphan", "agent.md") },
     { target: "devin", orphanPath: join(".devin", "agents", "orphan", "AGENT.md") },
     { target: "kiro", orphanPath: join(".kiro", "agents", "orphan.json") },
     { target: "kiro-cli", orphanPath: join(".kiro", "agents", "orphan.json") },
@@ -856,6 +860,7 @@ describe("E2E: subagents (import)", () => {
     { target: "gitlabduo", sourcePath: join(".agents", "agents", "planner.md") },
     { target: "musecode", sourcePath: join(".agents", "agents", "planner.md") },
     { target: "omp", sourcePath: join(".omp", "agents", "planner.md") },
+    { target: "gajaecode", sourcePath: join(".gjc", "agents", "planner.md") },
     { target: "opencode", sourcePath: join(".opencode", "agents", "planner.md") },
     { target: "opencodev1", sourcePath: join(".opencode", "agents", "planner.md") },
     { target: "deepagents", sourcePath: join(".deepagents", "agents", "planner", "AGENTS.md") },
@@ -886,6 +891,63 @@ Break down tasks into steps.
       join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
     );
     expect(importedContent).toContain("planner");
+  });
+
+  it("should import theia custom agents and generate them back with defaultLLM", async () => {
+    const testDir = getTestDir();
+    const agentPath = join(testDir, ".agents", "agents", "planner", "agent.md");
+
+    await writeFileContent(
+      agentPath,
+      [
+        "---",
+        "name: Planner",
+        'description: "Plans implementation tasks"',
+        "defaultLLM: openai/gpt-5",
+        "showInChat: true",
+        "---",
+        "Break down tasks into steps.",
+        "",
+      ].join("\n"),
+    );
+    // A flat file in the same root belongs to the agentsmd / Antigravity
+    // targets; Theia only reads `<id>/agent.md`.
+    await writeFileContent(
+      join(testDir, ".agents", "agents", "other.md"),
+      "---\nname: other\n---\nNot a Theia agent.\n",
+    );
+
+    // Theia skips an agent.md without defaultLLM, and so does the import.
+    await writeFileContent(
+      join(testDir, ".agents", "agents", "broken", "agent.md"),
+      "---\nname: Broken\ndescription: No model\n---\nBody\n",
+    );
+
+    await runImport({ target: "theia", features: "subagents" });
+
+    const importedContent = await readFileContent(
+      join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
+    );
+    expect(importedContent).toContain("name: Planner");
+    expect(importedContent).toContain("defaultLLM: openai/gpt-5");
+    expect(importedContent).toContain("showInChat: true");
+    expect(await fileExists(join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "other.md"))).toBe(
+      false,
+    );
+    expect(await fileExists(join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "broken.md"))).toBe(
+      false,
+    );
+
+    await removeFile(agentPath);
+    await runGenerate({ target: "theia", features: "subagents", deleteFiles: true });
+
+    const generated = await readFileContent(agentPath);
+    expect(generated).toContain("name: Planner");
+    expect(generated).toContain("defaultLLM: openai/gpt-5");
+    expect(generated).toContain("Break down tasks into steps.");
+    expect(await fileExists(join(testDir, ".agents", "agents", "other.md"))).toBe(true);
+    // `--delete` sweeps an agent folder no rulesync subagent accounts for.
+    expect(await fileExists(join(testDir, ".agents", "agents", "broken", "agent.md"))).toBe(false);
   });
 
   it("should import a flat devin subagent and default its name to the file name", async () => {

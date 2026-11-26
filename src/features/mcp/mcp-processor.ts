@@ -37,6 +37,7 @@ import { DevinPluginMcp } from "./devin-plugin-mcp.js";
 import { DshMcp } from "./dsh-mcp.js";
 import { FactorydroidMcp } from "./factorydroid-mcp.js";
 import { FirebenderMcp } from "./firebender-mcp.js";
+import { GajaecodeMcp } from "./gajaecode-mcp.js";
 import { GitlabduoMcp } from "./gitlabduo-mcp.js";
 import { GooseMcp } from "./goose-mcp.js";
 import { GrokcliMcp } from "./grokcli-mcp.js";
@@ -52,6 +53,7 @@ import { OmpMcp } from "./omp-mcp.js";
 import { OpenclawMcp } from "./openclaw-mcp.js";
 import { OpencodeMcp } from "./opencode-mcp.js";
 import { Opencodev1Mcp } from "./opencodev1-mcp.js";
+import { OpenhandsMcp } from "./openhands-mcp.js";
 import { PiMcp } from "./pi-mcp.js";
 import { PoolMcp } from "./pool-mcp.js";
 import { QoderMcp } from "./qoder-mcp.js";
@@ -62,6 +64,7 @@ import { RovodevMcp } from "./rovodev-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import { TabnineMcp } from "./tabnine-mcp.js";
 import { TaktMcp } from "./takt-mcp.js";
+import { TheiaMcp } from "./theia-mcp.js";
 import {
   ToolMcp,
   ToolMcpForDeletionParams,
@@ -608,6 +611,22 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
     },
   ],
   [
+    "openhands",
+    {
+      // OpenHands reads MCP servers only from the user-level
+      // `~/.openhands/mcp.json` (`mcpServers`, FastMCP format); it has no
+      // project-scoped MCP file and no per-server tool allow/deny lists.
+      // https://docs.openhands.dev/openhands/usage/cli/mcp-servers
+      class: OpenhandsMcp,
+      meta: {
+        supportsProject: false,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
     "kimi-code",
     {
       class: KimiCodeMcp,
@@ -717,6 +736,20 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
       class: MusecodeMcp,
       meta: {
         supportsProject: false,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    "gajaecode",
+    {
+      // `.gjc/mcp.json` (project) and `~/.gjc/agent/mcp.json` (global).
+      // https://github.com/Yeachan-Heo/gajae-code/blob/main/docs/standalone-mcp.md
+      class: GajaecodeMcp,
+      meta: {
+        supportsProject: true,
         supportsGlobal: true,
         supportsEnabledTools: false,
         supportsDisabledTools: false,
@@ -917,6 +950,23 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
       meta: {
         supportsProject: true,
         supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    "theia",
+    {
+      // Theia AI reads MCP servers from the `ai-features.mcp.mcpServers`
+      // preference; workspace preferences live in `.theia/settings.json`. The
+      // user settings path differs per Theia-based product and is not
+      // documented, and the server entry has no tool allow/deny list.
+      // https://theia-ide.org/docs/user_ai/#mcp-integration
+      class: TheiaMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: false,
         supportsEnabledTools: false,
         supportsDisabledTools: false,
       },

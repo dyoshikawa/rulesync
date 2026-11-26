@@ -54,8 +54,9 @@ Example:
   // file. By default the generated hooks replace the destination's hook list
   // wholesale, so a handler another tool (or a person) added by hand is lost on
   // the next `generate`. Turning this on keeps such handlers and appends the
-  // generated ones. It applies to Claude Code, Codex CLI, Cursor, OpenBitFun
-  // and Qwen Code, in both project and global scope; the Claude Code *plugin* bundle
+  // generated ones. It applies to Claude Code, Codex CLI, Cursor, OpenBitFun,
+  // OpenHands (project only) and Qwen Code, in both project and global scope
+  // where the tool has one; the Claude Code *plugin* bundle
   // always replaces, because Rulesync owns that directory outright. A kept
   // matcher group joins a generated one only when its other group-level keys
   // (such as Qwen Code's `sequential`) agree, so it never changes how its
