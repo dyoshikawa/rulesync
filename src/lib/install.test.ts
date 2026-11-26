@@ -45,6 +45,10 @@ describe("installCommand", () => {
         fetchedSkillCount: 3,
 
         fetchedRuleCount: 0,
+
+        fetchedCommandCount: 0,
+
+        fetchedSubagentCount: 0,
         sourcesProcessed: 1,
         failedSourceCount: 0,
       });
@@ -74,6 +78,10 @@ describe("installCommand", () => {
         fetchedSkillCount: 0,
 
         fetchedRuleCount: 0,
+
+        fetchedCommandCount: 0,
+
+        fetchedSubagentCount: 0,
         sourcesProcessed: 1,
         failedSourceCount: 0,
       });
@@ -90,6 +98,8 @@ describe("installCommand", () => {
       vi.mocked(resolveAndFetchSources).mockResolvedValue({
         fetchedSkillCount: 0,
         fetchedRuleCount: 0,
+        fetchedCommandCount: 0,
+        fetchedSubagentCount: 0,
         sourcesProcessed: 0,
         failedSourceCount: 0,
       });
@@ -139,6 +149,10 @@ describe("installCommand", () => {
         fetchedSkillCount: 0,
 
         fetchedRuleCount: 0,
+
+        fetchedCommandCount: 0,
+
+        fetchedSubagentCount: 0,
         sourcesProcessed: 1,
         failedSourceCount: 1,
       });
@@ -158,6 +172,10 @@ describe("installCommand", () => {
         fetchedSkillCount: 0,
 
         fetchedRuleCount: 0,
+
+        fetchedCommandCount: 0,
+
+        fetchedSubagentCount: 0,
         sourcesProcessed: 1,
         failedSourceCount: 0,
       });
@@ -178,6 +196,10 @@ describe("installCommand", () => {
         fetchedSkillCount: 0,
 
         fetchedRuleCount: 0,
+
+        fetchedCommandCount: 0,
+
+        fetchedSubagentCount: 0,
         sourcesProcessed: 1,
         failedSourceCount: 0,
       });
@@ -198,6 +220,10 @@ describe("installCommand", () => {
         fetchedSkillCount: 0,
 
         fetchedRuleCount: 0,
+
+        fetchedCommandCount: 0,
+
+        fetchedSubagentCount: 0,
         sourcesProcessed: 1,
         failedSourceCount: 0,
       });

@@ -504,7 +504,7 @@ Feature keywords are reserved when no source-specific option is present. To add 
 
 ### Declarative sources
 
-For any other source identifier, `add` appends one source to `rulesync.jsonc` and immediately runs the declarative source resolver. It preserves JSONC comments, installs selected rules into `.rulesync/rules/.curated/`, installs selected skills into `.rulesync/skills/.curated/`, and updates `rulesync.lock` or `rulesync-npm.lock.json`.
+For any other source identifier, `add` appends one source to `rulesync.jsonc` and immediately runs the declarative source resolver. It preserves JSONC comments, installs selected rules, commands, and subagents into `.rulesync/rules/.curated/`, `.rulesync/commands/.curated/`, and `.rulesync/subagents/.curated/`, installs selected skills into `.rulesync/skills/.curated/`, and updates `rulesync.lock` or `rulesync-npm.lock.json`.
 
 ```bash
 # GitHub source (default transport)
@@ -516,6 +516,9 @@ rulesync add acme/ai-standards --rules testing-guidelines,typescript-conventions
 # Rules and skills from separate paths in one source
 rulesync add acme/ai-assets --rules "*" --rules-path exports/rules --skills review-pr --path exports/skills
 
+# Commands and subagents; direct .md files are selected from commands/ and subagents/
+rulesync add acme/ai-assets --commands review,release --subagents "*" --subagents-path exports/agents
+
 # Any Git remote through the git CLI
 rulesync add https://example.com/team/skills.git --transport git --ref main --path skills
 
@@ -525,24 +528,28 @@ rulesync add @acme/skill-package --transport npm --registry https://registry.npm
 
 The selected configuration file must already exist. Run `rulesync init` first, or pass `--config <path>`. Adding a source whose normalized source identity is already present fails instead of silently creating duplicate lockfile entries; edit the existing entry when changing its options.
 
-The operation fetches only the source being added; existing declarations are not re-fetched. Existing sources must already be locked and installed, otherwise run `rulesync install` first. The operation is transactional: if the new source fails to install, Rulesync restores the manifest, source lockfiles, curated rules, and curated skills to their pre-command state.
+The operation fetches only the source being added; existing declarations are not re-fetched. Existing sources must already be locked and installed, otherwise run `rulesync install` first. The operation is transactional: if the new source fails to install, Rulesync restores the manifest, source lockfiles, and the curated rules, skills, commands, and subagents to their pre-command state.
 
-| Option                | Description                                                                                               |
-| --------------------- | --------------------------------------------------------------------------------------------------------- |
-| `--name <name>`       | Name for a rule, command, subagent, skill, or check scaffold                                              |
-| `--force`             | Replace an existing scaffold file without prompting                                                       |
-| `--skills <skills>`   | Comma-separated skill names. `*` selects all skills.                                                      |
-| `--rules <rules>`     | Comma-separated rule names. Names may omit `.md`; `*` selects direct `.md` files under rulesPath.         |
-| `--transport <type>`  | `github` (default), `git`, or experimental `npm`                                                          |
-| `--ref <ref>`         | Git ref, npm version, or npm dist-tag                                                                     |
-| `--path <path>`       | Skills path within the source; defaults to `skills`                                                       |
-| `--rules-path <path>` | Rules path within the source; defaults to `rules`                                                         |
-| `--registry <url>`    | npm-compatible registry URL                                                                               |
-| `--token-env <name>`  | Environment variable containing the npm registry token (`NPM_TOKEN`, `NODE_AUTH_TOKEN`, or `*_NPM_TOKEN`) |
-| `--token <token>`     | GitHub token for private repositories                                                                     |
-| `--config <path>`     | Configuration file to edit (default: `rulesync.jsonc`)                                                    |
+| Option                    | Description                                                                                               |
+| ------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `--name <name>`           | Name for a rule, command, subagent, skill, or check scaffold                                              |
+| `--force`                 | Replace an existing scaffold file without prompting                                                       |
+| `--skills <skills>`       | Comma-separated skill names. `*` selects all skills.                                                      |
+| `--rules <rules>`         | Comma-separated rule names. Names may omit `.md`; `*` selects direct `.md` files under rulesPath.         |
+| `--commands <names>`      | Comma-separated command names, selected like `--rules` from commandsPath                                  |
+| `--subagents <names>`     | Comma-separated subagent names, selected like `--rules` from subagentsPath                                |
+| `--transport <type>`      | `github` (default), `git`, or experimental `npm`                                                          |
+| `--ref <ref>`             | Git ref, npm version, or npm dist-tag                                                                     |
+| `--path <path>`           | Skills path within the source; defaults to `skills`                                                       |
+| `--rules-path <path>`     | Rules path within the source; defaults to `rules`                                                         |
+| `--commands-path <path>`  | Commands path within the source; defaults to `commands`                                                   |
+| `--subagents-path <path>` | Subagents path within the source; defaults to `subagents`                                                 |
+| `--registry <url>`        | npm-compatible registry URL                                                                               |
+| `--token-env <name>`      | Environment variable containing the npm registry token (`NPM_TOKEN`, `NODE_AUTH_TOKEN`, or `*_NPM_TOKEN`) |
+| `--token <token>`         | GitHub token for private repositories                                                                     |
+| `--config <path>`         | Configuration file to edit (default: `rulesync.jsonc`)                                                    |
 
-When neither `--skills` nor `--rules` is provided, all skills are installed for backward compatibility. Providing only `--rules` installs no skills.
+When none of `--skills`, `--rules`, `--commands`, and `--subagents` is provided, all skills are installed for backward compatibility. Providing only `--rules`, `--commands`, or `--subagents` installs no skills.
 
 ## Fetch Command
 

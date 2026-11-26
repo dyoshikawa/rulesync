@@ -432,6 +432,11 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
       class: AugmentcodeRule,
       meta: {
         extension: "md",
+        // Auggie loads `.md` and `.mdc` files from `.augment/rules/` and
+        // `~/.augment/rules/`, recursively. Import reads both; generation and
+        // deletion stay on `.md`, so a hand-written `.mdc` is never removed.
+        // https://docs.augmentcode.com/cli/rules
+        nonRootImportGlob: "**/*.{md,mdc}",
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
       },
