@@ -182,6 +182,46 @@ export function scopeAntigravityFrontmatterToSubproject({
   return frontmatter;
 }
 
+/**
+ * Rewrite the globs of a rule imported from a legacy
+ * `<subprojectPath>/.agents/rules/` folder relative to that subproject.
+ * Earlier versions wrote a subproject derived from `globs` there with its
+ * project-root-relative globs (`packages/api/**\/*.ts`); the import sets
+ * `agentsmd.subprojectPath` explicitly, and globs next to an explicit
+ * subproject are always prefixed on generate, so a leading
+ * `<subprojectPath>/` is stripped here to avoid
+ * `**\/packages/api/packages/api/**\/*.ts`.
+ */
+export function toSubprojectRelativeGlobs<T extends { globs?: string[] }>(
+  data: T & { antigravity?: Record<string, unknown> },
+  subprojectPath: string,
+): T {
+  const strip = (glob: string): string => {
+    const negated = glob.startsWith("!");
+    const pattern = negated ? glob.slice(1) : glob;
+    const relative =
+      pattern === subprojectPath
+        ? "**"
+        : pattern.startsWith(`${subprojectPath}/`)
+          ? pattern.slice(subprojectPath.length + 1)
+          : pattern;
+    return `${negated ? "!" : ""}${relative}`;
+  };
+  const storedGlobs = data.antigravity?.globs;
+  return {
+    ...data,
+    ...(data.globs && { globs: data.globs.map(strip) }),
+    ...(data.antigravity && {
+      antigravity: {
+        ...data.antigravity,
+        ...(Array.isArray(storedGlobs) && {
+          globs: storedGlobs.map((glob) => (typeof glob === "string" ? strip(glob) : glob)),
+        }),
+      },
+    }),
+  };
+}
+
 /** The legacy `.agents/rules/` directory of a subproject, still read on import. */
 export function toAntigravityNestedRulesDirPath(subprojectPath: string): string {
   return join(subprojectPath, ANTIGRAVITY_IDE_AGENTS_DIR, "rules");

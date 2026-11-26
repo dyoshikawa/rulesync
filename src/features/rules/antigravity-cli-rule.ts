@@ -22,6 +22,7 @@ import {
   resolveAntigravitySubprojectPath,
   scopeAntigravityFrontmatterToSubproject,
   toGlobalRuleFileName,
+  toSubprojectRelativeGlobs,
   toSubprojectRuleFileName,
 } from "./antigravity-rule.js";
 import { RulesyncRule } from "./rulesync-rule.js";
@@ -241,7 +242,9 @@ export class AntigravityCliRule extends ToolRule {
       frontmatter: {
         root: false,
         targets: subprojectPath === undefined ? ["*"] : [...ANTIGRAVITY_NESTED_RULE_TARGETS],
-        ...rulesyncData,
+        ...(subprojectPath === undefined
+          ? rulesyncData
+          : toSubprojectRelativeGlobs(rulesyncData, subprojectPath)),
         ...(subprojectPath !== undefined && { agentsmd: { subprojectPath } }),
       },
       body,

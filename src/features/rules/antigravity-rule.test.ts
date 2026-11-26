@@ -236,6 +236,36 @@ describe.each([
     expect(regenerated.getFileContent()).toContain("globs: '**/packages/api/src/**/*.ts'");
   });
 
+  it.each([
+    ["packages/api/**/*.ts", "**/packages/api/**/*.ts"],
+    ["src/**/*.ts", "**/packages/api/src/**/*.ts"],
+    [
+      "packages/api/src/*.ts, !packages/api/src/gen/**",
+      "**/packages/api/src/*.ts,!**/packages/api/src/gen/**",
+    ],
+  ])(
+    "moves a legacy nested rule with globs %s without prefixing the subproject twice",
+    async (globs, expected) => {
+      await writeFileContent(
+        join(testDir, "packages", "api", ".agents", "rules", "api.md"),
+        `---\ntrigger: glob\nglobs: ${globs}\n---\nBody\n`,
+      );
+      const imported = await RuleClass.fromFile({
+        outputRoot: testDir,
+        relativeDirPath: join("packages", "api", ".agents", "rules"),
+        relativeFilePath: "api.md",
+      });
+      const regenerated = RuleClass.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule: imported.toRulesyncRule(),
+      });
+      expect(regenerated.getFilePath()).toBe(
+        join(testDir, ".agents", "rules", "packages-api-api.md"),
+      );
+      expect(regenerated.getFileContent()).toContain(`globs: '${expected}'`);
+    },
+  );
+
   it.each<[string, Partial<RulesyncRuleFrontmatter>]>([
     [join("frontend", "codeStyle.md"), {}],
     ["api.md", { globs: ["src/**/*.ts"] }],
