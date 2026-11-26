@@ -1,11 +1,12 @@
 import { join } from "node:path";
 
 import { ANTIGRAVITY_IDE_AGENTS_DIR } from "../../constants/antigravity-ide-paths.js";
+import { splitBraceAwareList } from "../../utils/brace-aware-list.js";
 import { toKebabCaseFilename } from "../../utils/file.js";
 import { warnOnceWithFallback } from "../../utils/logger.js";
 import { nestedScanExclusionGlobs } from "./nested-scan-exclusions.js";
 import { extractRulesDirSubprojectPath } from "./rules-dir-subproject-path.js";
-import type { RulesyncRule } from "./rulesync-rule.js";
+import { AUTO_SUBPROJECT_PATH, type RulesyncRule } from "./rulesync-rule.js";
 import type { ToolRuleNestedFilePatterns } from "./tool-rule.js";
 import {
   TriggerRuleFrontmatter,
@@ -93,42 +94,59 @@ export function toSubprojectRuleFileName({
 }
 
 /**
- * Prefix one glob with a subproject directory. A glob that already starts
- * with the subproject (a project-root-relative glob, as a subproject derived
- * from `globs` always has) is not prefixed twice. The result starts with
- * `**\/` because Antigravity matches globs against the resolved file path
- * (a bare `dir/file.md` does not match), and so that the rule also applies
- * when it is loaded from a parent folder of a workspace opened inside the
- * repository.
+ * Whether a rule's subproject was derived from its `globs` (the
+ * `deriveSubprojectPathFromGlobs` option or `agentsmd.subprojectPath: "auto"`)
+ * rather than named explicitly. A derived subproject is the directory every
+ * glob already starts with, so those globs are relative to the project root;
+ * globs next to an explicit subproject are relative to that subproject.
  */
-function prefixGlob({ glob, subprojectPath }: { glob: string; subprojectPath: string }): string {
-  const negated = glob.startsWith("!");
-  const pattern = (negated ? glob.slice(1) : glob).replace(/^(?:\.\/)+/, "").replace(/^\/+/, "");
-  return `${negated ? "!" : ""}${anchorToSubproject({ pattern, subprojectPath })}`;
+export function isAntigravitySubprojectPathDerived(rulesyncRule: RulesyncRule): boolean {
+  const authored = rulesyncRule.getAuthoredFrontmatter().agentsmd?.subprojectPath;
+  return authored === undefined || authored === AUTO_SUBPROJECT_PATH;
 }
 
-function anchorToSubproject({
-  pattern,
+/**
+ * Anchor one glob to a subproject directory. With an explicit subproject the
+ * glob is relative to it and is always prefixed (`src/**` →
+ * `**\/packages/api/src/**`), even when it happens to start with the
+ * subproject's own name. With a derived one the glob already starts with the
+ * subproject and is only anchored (`packages/api/**` → `**\/packages/api/**`).
+ *
+ * The result starts with `**\/` because Antigravity matches globs against the
+ * resolved file path (a bare `dir/file.md` does not match), and so that the
+ * rule also applies when it is loaded from a parent folder of a workspace
+ * opened inside the repository. The side effect is that the rule also matches
+ * any other directory whose path ends with the subproject path (with
+ * `subprojectPath: "api"`, `**\/api/**` matches `tools/api/` too).
+ */
+function anchorGlob({
+  glob,
   subprojectPath,
+  globsIncludeSubproject,
 }: {
-  pattern: string;
+  glob: string;
   subprojectPath: string;
+  globsIncludeSubproject: boolean;
 }): string {
-  if (pattern === `**/${subprojectPath}` || pattern.startsWith(`**/${subprojectPath}/`)) {
-    return pattern;
-  }
-  if (pattern === subprojectPath || pattern.startsWith(`${subprojectPath}/`)) {
-    return `**/${pattern}`;
-  }
-  return `**/${subprojectPath}/${pattern}`;
+  const negated = glob.startsWith("!");
+  const pattern = (negated ? glob.slice(1) : glob).replace(/^(?:\.\/)+/, "").replace(/^\/+/, "");
+  const startsWithSubproject =
+    pattern === subprojectPath || pattern.startsWith(`${subprojectPath}/`);
+  const anchored =
+    globsIncludeSubproject && startsWithSubproject
+      ? `**/${pattern}`
+      : `**/${subprojectPath}/${pattern}`;
+  return `${negated ? "!" : ""}${anchored}`;
 }
 
 /**
  * Limit the trigger frontmatter of a subproject-scoped rule to that
  * subproject, for writing it to the project-root `.agents/rules/`:
  *
- * - a `glob` rule keeps its trigger, with every glob prefixed by the
- *   subproject (`src/**\/*.ts` → `**\/packages/api/src/**\/*.ts`);
+ * - a `glob` rule keeps its trigger, with every glob anchored to the
+ *   subproject (`src/**\/*.ts` → `**\/packages/api/src/**\/*.ts`, see
+ *   `anchorGlob`); the list is split only on commas outside brace groups, so
+ *   `*.{ts,tsx}` stays one glob;
  * - an `always_on` rule becomes a `glob` rule matching everything under the
  *   subproject (`**\/packages/api/**`);
  * - any other trigger (`model_decision`, `manual`, or an unknown one) cannot
@@ -138,23 +156,23 @@ function anchorToSubproject({
 export function scopeAntigravityFrontmatterToSubproject({
   frontmatter,
   subprojectPath,
+  globsIncludeSubproject,
   rulePath,
 }: {
   frontmatter: AntigravityRuleFrontmatter;
   subprojectPath: string;
+  globsIncludeSubproject: boolean;
   rulePath: string;
 }): AntigravityRuleFrontmatter {
   if (frontmatter.trigger === "glob" || frontmatter.trigger === "always_on") {
     const globs =
       frontmatter.trigger === "glob" && frontmatter.globs
-        ? frontmatter.globs
-            .split(",")
-            .map((glob) => glob.trim())
-            .filter((glob) => glob !== "")
+        ? splitBraceAwareList(frontmatter.globs)
         : [];
-    const scoped = (globs.length > 0 ? globs : ["**"]).map((glob) =>
-      prefixGlob({ glob, subprojectPath }),
-    );
+    const scoped =
+      globs.length > 0
+        ? globs.map((glob) => anchorGlob({ glob, subprojectPath, globsIncludeSubproject }))
+        : [`**/${subprojectPath}/**`];
     return { ...frontmatter, trigger: "glob", globs: scoped.join(",") };
   }
   warnOnceWithFallback(

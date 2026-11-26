@@ -101,9 +101,11 @@ describe.each([
   it.each([
     [["src/**/*.ts"], "**/packages/api/src/**/*.ts"],
     [["**/*.ts", "*.md"], "**/packages/api/**/*.ts,**/packages/api/*.md"],
-    // A project-root-relative glob, as a subproject derived from globs has.
-    [["packages/api/**/*.ts"], "**/packages/api/**/*.ts"],
     [["./src/*.ts", "!src/gen/**"], "**/packages/api/src/*.ts,!**/packages/api/src/gen/**"],
+    // A comma inside a brace group does not split the glob.
+    [["src/**/*.{ts,tsx}", "*.md"], "**/packages/api/src/**/*.{ts,tsx},**/packages/api/*.md"],
+    // An explicit subproject always prefixes, even a glob starting with its name.
+    [["packages/api/**"], "**/packages/api/packages/api/**"],
   ])("prefixes the globs %j with the subproject", (globs, expected) => {
     const rule = RuleClass.fromRulesyncRule({
       outputRoot: testDir,
@@ -115,6 +117,28 @@ describe.each([
     expect(rule.getFileContent()).toContain("trigger: glob");
     expect(rule.getFileContent()).toContain(expected);
   });
+
+  it.each([
+    [{ subprojectPath: "auto" }, ["packages/api/**/*.{ts,tsx}"]],
+    [undefined, ["packages/api/**"]],
+  ])(
+    "only anchors the project-root-relative globs of a subproject derived from them (%j)",
+    (agentsmd, globs) => {
+      const rule = RuleClass.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule: new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "api.md",
+          frontmatter: { targets: ["*"], globs, ...(agentsmd && { agentsmd }) },
+          body: "Rule body",
+          deriveSubprojectPathFromGlobs: agentsmd === undefined,
+        }),
+      });
+      expect(rule.getFilePath()).toBe(join(testDir, ".agents", "rules", "packages-api-api.md"));
+      expect(rule.getFileContent()).toContain(`globs: '**/${globs[0]}'`);
+    },
+  );
 
   it("keeps a stored glob trigger and prefixes the stored globs", () => {
     const rule = RuleClass.fromRulesyncRule({

@@ -19,6 +19,7 @@ import {
   extractAntigravitySubprojectPath,
   getAntigravityNestedFilePatterns,
   resolveAntigravityNonRootFile,
+  isAntigravitySubprojectPathDerived,
   resolveAntigravitySubprojectPath,
   scopeAntigravityFrontmatterToSubproject,
   toGlobalRuleFileName,
@@ -291,6 +292,7 @@ export class AntigravityIdeRule extends ToolRule {
         : scopeAntigravityFrontmatterToSubproject({
             frontmatter: triggerFrontmatter,
             subprojectPath,
+            globsIncludeSubproject: isAntigravitySubprojectPathDerived(rulesyncRule),
             rulePath: rulesyncRule.getRelativePathFromCwd(),
           });
     // The global rules directory is shared with the CLI, so use the name the
