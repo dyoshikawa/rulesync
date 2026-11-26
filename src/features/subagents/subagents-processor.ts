@@ -88,6 +88,7 @@ import { RulesyncSubagent } from "./rulesync-subagent.js";
 import { SimulatedSubagent } from "./simulated-subagent.js";
 import { TabnineSubagent } from "./tabnine-subagent.js";
 import { TaktSubagent } from "./takt-subagent.js";
+import { TheiaSubagent } from "./theia-subagent.js";
 import {
   ToolSubagent,
   ToolSubagentForDeletionParams,
@@ -1055,6 +1056,29 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsSimulated: false,
         supportsGlobal: true,
         filePattern: "*.md",
+      },
+    },
+  ],
+  [
+    "theia",
+    {
+      // Theia AI custom agents: `.agents/agents/<id>/agent.md`, one folder per
+      // agent (the folder name is the id). Theia reads only the immediate
+      // subfolders, so the flat `<name>.md` files the agentsmd and Antigravity
+      // targets write into the same root are left alone by this pattern, and
+      // theirs (`*.md`) never reach into these folders. Global agents live in a
+      // product-specific prompt directory that is not documented.
+      // https://theia-ide.org/docs/user_ai/#custom-agents
+      class: TheiaSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: false,
+        filePattern: "*/agent.md",
+        // Theia skips an `agent.md` without string `name`, `description` and
+        // `defaultLLM`, so import does too (with a warning) instead of
+        // aborting on one hand-written file.
+        skipInvalidImportFiles: true,
       },
     },
   ],

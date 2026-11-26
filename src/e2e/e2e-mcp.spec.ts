@@ -45,6 +45,7 @@ const mcpGenerateTargets = [
   { target: "codebuff", outputPath: join(".agents", "mcp.json") },
   { target: "cursor", outputPath: join(".cursor", "mcp.json") },
   { target: "trae", outputPath: join(".trae", "mcp.json") },
+  { target: "theia", outputPath: join(".theia", "settings.json") },
   { target: "qwencode", outputPath: join(".qwen", "settings.json") },
   { target: "codexcli", outputPath: join(".codex", "config.toml") },
   { target: "codewhale", outputPath: join(".codewhale", "mcp.json") },
@@ -648,6 +649,11 @@ describe("E2E: mcp", () => {
       content: JSON.stringify({ useCursorRules: false }, null, 2),
     },
     {
+      target: "theia",
+      outputPath: join(".theia", "settings.json"),
+      content: JSON.stringify({ "editor.fontSize": 14 }, null, 2),
+    },
+    {
       // `gjc mcp add --project` writes here too, so the file is never deleted.
       target: "gajaecode",
       outputPath: join(".gjc", "mcp.json"),
@@ -672,6 +678,83 @@ describe("E2E: mcp", () => {
       expect(stdout).toContain("All files are up to date.");
     },
   );
+
+  it("should merge theia MCP servers into .theia/settings.json and import them back", async () => {
+    const testDir = getTestDir();
+    const settingsPath = join(testDir, ".theia", "settings.json");
+
+    await writeFileContent(
+      settingsPath,
+      [
+        "{",
+        "  // Hand-written workspace preference",
+        '  "editor.fontSize": 14,',
+        '  "ai-features.mcp.mcpServers": {',
+        '    "remote": {',
+        '      "serverUrl": "https://old.example.com/mcp",',
+        '      "autostart": false,',
+        '      "registryMetadata": { "serverId": "example" }',
+        "    },",
+        '    "stale": { "command": "stale" }',
+        "  }",
+        "}",
+      ].join("\n"),
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH),
+      JSON.stringify({
+        mcpServers: {
+          local: { type: "stdio", command: "npx", args: ["-y", "server"], env: { KEY: "v" } },
+          remote: {
+            type: "http",
+            url: "https://example.com/mcp",
+            headers: { "X-Team": "a" },
+            deferLoading: true,
+          },
+        },
+      }),
+    );
+
+    await runGenerate({ target: "theia", features: "mcp" });
+
+    const content = await readFileContent(settingsPath);
+    expect(content).toContain("// Hand-written workspace preference");
+    const generated = parseJson5(content) as Record<string, unknown>;
+    expect(generated["editor.fontSize"]).toBe(14);
+    expect(generated["ai-features.mcp.mcpServers"]).toEqual({
+      local: { command: "npx", args: ["-y", "server"], env: { KEY: "v" } },
+      remote: {
+        // Theia-managed keys of an existing server survive; the documented
+        // configuration keys (`autostart` here) follow the rulesync source.
+        registryMetadata: { serverId: "example" },
+        deferLoading: true,
+        serverUrl: "https://example.com/mcp",
+        headers: { "X-Team": "a" },
+      },
+    });
+
+    await removeFile(join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH));
+    await runImport({ target: "theia", features: "mcp" });
+
+    const imported = JSON.parse(
+      await readFileContent(join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH)),
+    ) as {
+      mcpServers: Record<string, Record<string, unknown>>;
+      theia?: { mcpServers: Record<string, Record<string, unknown>> };
+    };
+    // `deferLoading` is Theia-specific, so the server goes to the tool-scoped
+    // block; generating from the imported source yields the same file.
+    expect(imported.theia?.mcpServers.remote).toEqual({
+      deferLoading: true,
+      url: "https://example.com/mcp",
+      headers: { "X-Team": "a" },
+    });
+    expect(imported.mcpServers.remote).toBeUndefined();
+    expect(imported.mcpServers.local?.command).toBe("npx");
+
+    await runGenerate({ target: "theia", features: "mcp" });
+    expect(parseJson5(await readFileContent(settingsPath))).toEqual(generated);
+  });
 
   it("should keep gajaecode servers added outside rulesync and their credentials", async () => {
     const testDir = getTestDir();

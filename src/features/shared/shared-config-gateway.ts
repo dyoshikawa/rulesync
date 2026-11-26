@@ -17,6 +17,7 @@ import {
   TAKT_WORKFLOW_MCP_SERVERS_KEY,
   TAKT_WORKFLOW_OVERRIDES_KEY,
 } from "../../constants/takt-paths.js";
+import { THEIA_MCP_SERVERS_KEY } from "../../constants/theia-paths.js";
 import type { ClaudeSettingsJson } from "../../types/claude-settings.js";
 import type { Feature } from "../../types/features.js";
 import { type BoundedWalk, createBoundedWalk } from "../../utils/bounded-walk.js";
@@ -858,6 +859,23 @@ const PI_SETTINGS_DECLARATION: SharedConfigFileDeclaration = {
 };
 
 /**
+ * Theia workspace preferences (`.theia/settings.json`): every Theia workspace
+ * setting lives here, so an unparseable file fails closed rather than being
+ * replaced. Theia reads it as JSONC, so comments are kept by editing in place.
+ * MCP owns the literal dotted `ai-features.mcp.mcpServers` key; its writer
+ * recomputes the map from the existing file (Theia-managed keys of kept
+ * servers carried over) before applying the patch.
+ */
+const THEIA_SETTINGS_DECLARATION: SharedConfigFileDeclaration = {
+  format: "jsonc",
+  invalidRootPolicy: "error",
+  jsoncParseErrors: "error",
+  features: {
+    mcp: { kind: "replace-owned-keys", ownedKeys: [THEIA_MCP_SERVERS_KEY] },
+  },
+};
+
+/**
  * Amp settings (`settings.json`, or a hand-authored `settings.jsonc` twin the
  * writers probe for — both resolve to this declaration via the settable
  * paths), shared by the project and global spellings. Keys are Amp's literal
@@ -1025,6 +1043,7 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
   ".omp/agent/config.yml": OMP_CONFIG_DECLARATION,
   ".pi/settings.json": PI_SETTINGS_DECLARATION,
   ".pi/agent/settings.json": PI_SETTINGS_DECLARATION,
+  ".theia/settings.json": THEIA_SETTINGS_DECLARATION,
   // Copilot CLI repository settings (`.github/copilot/settings.json`, CLI
   // v1.0.60+): a committed, hand-edited file that also carries `model`,
   // `effortLevel`, `hooks` and other repository-scope keys rulesync does not

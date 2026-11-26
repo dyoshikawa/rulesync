@@ -2528,6 +2528,7 @@ Second global content`;
           "tabnine",
           "trae",
           "takt",
+          "theia",
           "vibe",
           "vibe-plugin",
           "xum",

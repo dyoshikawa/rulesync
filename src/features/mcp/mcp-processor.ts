@@ -63,6 +63,7 @@ import { RovodevMcp } from "./rovodev-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import { TabnineMcp } from "./tabnine-mcp.js";
 import { TaktMcp } from "./takt-mcp.js";
+import { TheiaMcp } from "./theia-mcp.js";
 import {
   ToolMcp,
   ToolMcpForDeletionParams,
@@ -948,6 +949,23 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
       meta: {
         supportsProject: true,
         supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    "theia",
+    {
+      // Theia AI reads MCP servers from the `ai-features.mcp.mcpServers`
+      // preference; workspace preferences live in `.theia/settings.json`. The
+      // user settings path differs per Theia-based product and is not
+      // documented, and the server entry has no tool allow/deny list.
+      // https://theia-ide.org/docs/user_ai/#mcp-integration
+      class: TheiaMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: false,
         supportsEnabledTools: false,
         supportsDisabledTools: false,
       },

@@ -80,6 +80,7 @@ import { RovodevRule } from "./rovodev-rule.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import { TabnineRule } from "./tabnine-rule.js";
 import { TaktRule } from "./takt-rule.js";
+import { TheiaRule } from "./theia-rule.js";
 import {
   ToolRule,
   ToolRuleBuildLocalRootFileParams,
@@ -1251,6 +1252,23 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         // No `additionalConventions` here: TAKT does not synthesize a root
         // overview rule (TaktRule.fromRulesyncRule always emits non-root files),
         // so the conventions block would never be rendered anywhere.
+      },
+    },
+  ],
+  [
+    "theia",
+    {
+      class: TheiaRule,
+      meta: {
+        // Theia AI reads the workspace-root AGENTS.md only (no nested files,
+        // no CLAUDE.md fallback, no user-scoped rule file), so rules are
+        // project-only and topic rules fold into the root file (mirrors
+        // cortexcode).
+        // https://theia-ide.org/docs/user_ai/
+        extension: "md",
+        supportsGlobal: false,
+        ruleDiscoveryMode: "auto",
+        collisionPolicy: "fold",
       },
     },
   ],
