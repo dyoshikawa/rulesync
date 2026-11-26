@@ -106,6 +106,10 @@ const subagentsGenerateTargets = [
     outputPath: join(".qoder", "agents", "planner.md"),
   },
   {
+    target: "qodercn",
+    outputPath: join(".qoder", "agents", "planner.md"),
+  },
+  {
     target: "xum",
     outputPath: join(".xum", "agents", "planner.md"),
   },
@@ -245,6 +249,7 @@ const subagentsGlobalTargets = [
   { target: "codexcli", outputPath: join(".codex", "agents", "planner.toml") },
   { target: "commandcode", outputPath: join(".commandcode", "agents", "planner.md") },
   { target: "qoder", outputPath: join(".qoder", "agents", "planner.md") },
+  { target: "qodercn", outputPath: join(".qoder-cn", "agents", "planner.md") },
   { target: "xum", outputPath: join(".xum", "agents", "planner.md") },
   { target: "openbitfun", outputPath: join(openbitfunGlobalAgentsDir(), "planner.md") },
   { target: "copilot", outputPath: join(".copilot", "agents", "planner.agent.md") },

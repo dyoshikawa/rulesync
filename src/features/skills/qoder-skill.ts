@@ -1,4 +1,7 @@
-import { QODER_SKILLS_DIR_PATH } from "../../constants/qoder-paths.js";
+import { join } from "node:path";
+
+import { QODER_DIR, QODER_SKILLS_DIR_PATH } from "../../constants/qoder-paths.js";
+import type { ToolTarget } from "../../types/tool-targets.js";
 import { AgentsSkillsSkill } from "./agentsskills-skill.js";
 import { ToolSkillSettablePaths } from "./tool-skill.js";
 
@@ -13,11 +16,18 @@ import { ToolSkillSettablePaths } from "./tool-skill.js";
  * @see https://docs.qoder.com/en/cli/04-extending-qoder-cli/Skills
  */
 export class QoderSkill extends AgentsSkillsSkill {
-  static override getSettablePaths(_options: { global?: boolean } = {}): ToolSkillSettablePaths {
-    // Both scopes share the same relative path; the home-directory root is
-    // applied by the processor in global mode.
-    return { relativeDirPath: QODER_SKILLS_DIR_PATH };
+  /** The user-level config directory; Qoder CN reads `~/.qoder-cn/`. */
+  protected static readonly globalConfigDir: string = QODER_DIR;
+
+  static override getSettablePaths({
+    global = false,
+  }: { global?: boolean } = {}): ToolSkillSettablePaths {
+    // The home-directory root is applied by the processor in global mode, so
+    // only the config directory name differs between the scopes.
+    return {
+      relativeDirPath: global ? join(this.globalConfigDir, "skills") : QODER_SKILLS_DIR_PATH,
+    };
   }
 
-  protected static override readonly toolTarget = "qoder";
+  protected static override readonly toolTarget: ToolTarget = "qoder";
 }

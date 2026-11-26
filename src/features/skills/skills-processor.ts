@@ -84,6 +84,7 @@ import { Opencodev1Skill } from "./opencodev1-skill.js";
 import { PiSkill } from "./pi-skill.js";
 import { PoolSkill } from "./pool-skill.js";
 import { QoderSkill } from "./qoder-skill.js";
+import { QodercnSkill } from "./qodercn-skill.js";
 import { QwencodeSkill } from "./qwencode-skill.js";
 import { ReasonixSkill } from "./reasonix-skill.js";
 import { ReplitSkill } from "./replit-skill.js";
@@ -708,6 +709,16 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
       // (project) / `~/.qoder/skills/` (user), shared by the IDE and the CLI.
       // https://docs.qoder.com/en/cli/04-extending-qoder-cli/Skills
       class: QoderSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "qodercn",
+    {
+      // Qoder CN shares Qoder's `.qoder/skills/` project directory; user skills
+      // live under `~/.qoder-cn/skills/`.
+      // https://docs.qoder.cn/user-guide/skills
+      class: QodercnSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],

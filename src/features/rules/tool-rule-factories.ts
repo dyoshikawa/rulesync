@@ -69,6 +69,7 @@ import { Opencodev1Rule } from "./opencodev1-rule.js";
 import { PiRule } from "./pi-rule.js";
 import { PoolRule } from "./pool-rule.js";
 import { QoderRule } from "./qoder-rule.js";
+import { QodercnRule } from "./qodercn-rule.js";
 import { QwencodeRule } from "./qwencode-rule.js";
 import { ReasonixRule } from "./reasonix-rule.js";
 import { ReplitRule } from "./replit-rule.js";
@@ -1072,6 +1073,22 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         // `~/.qoder/`. Commands, subagents and skills are native, so no
         // simulated additionalConventions are needed.
         // https://docs.qoder.com/en/cli/04-extending-qoder-cli/memory
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
+        localRootMode: "separate-local-file",
+        localRootFileName: QODER_LOCAL_RULE_FILE_NAME,
+      },
+    },
+  ],
+  [
+    "qodercn",
+    {
+      class: QodercnRule,
+      meta: {
+        // Qoder CN (CLI CN and the desktop app) reads the same project files as
+        // Qoder; the user scope lives under `~/.qoder-cn/` instead.
+        // https://docs.qoder.cn/cli/memory
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",

@@ -55,6 +55,7 @@ const permissionsGenerateTargets = [
   "kilo",
   "lettacode",
   "qoder",
+  "qodercn",
   "antigravity-ide",
   "augmentcode",
   "cline",
@@ -113,6 +114,7 @@ const permissionsGlobalTargets = [
   "junie",
   "lettacode",
   "qoder",
+  "qodercn",
   "trae",
   "kiro-cli",
   "kiro-ide",
@@ -145,6 +147,7 @@ describe("E2E: permissions", () => {
     { target: "commandcode", relativePaths: [[".commandcode", "settings.json"]] },
     { target: "lettacode", relativePaths: [[".letta", "settings.json"]] },
     { target: "qoder", relativePaths: [[".qoder", "settings.json"]] },
+    { target: "qodercn", relativePaths: [[".qoder", "settings.json"]] },
     // opencode writes the `.jsonc` twin when neither file exists yet, so both
     // spellings must stay absent.
     { target: "opencode", relativePaths: [["opencode.json"], ["opencode.jsonc"]] },
@@ -2928,6 +2931,41 @@ describe("E2E: permissions (global mode)", () => {
       allow: ["Bash(git *)"],
       deny: ["Bash(rm -rf *)"],
     });
+  });
+
+  it("should generate qodercn permissions into ~/.qoder-cn/settings.json with --global, reading the qoder block", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: { bash: { "ls *": "allow" } },
+          // The tool-scoped category replaces the shared one for qoder/qodercn.
+          qoder: { permission: { bash: { "git *": "allow", "rm -rf *": "deny" } } },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({
+      target: "qodercn",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const generated = JSON.parse(
+      await readFileContent(join(homeDir, ".qoder-cn", "settings.json")),
+    );
+    expect(generated.permissions).toEqual({
+      allow: ["Bash(git *)"],
+      deny: ["Bash(rm -rf *)"],
+    });
+    // Qoder's own user settings are left untouched.
+    expect(await fileExists(join(homeDir, ".qoder", "settings.json"))).toBe(false);
   });
 
   it("should generate trae permissions into ~/.trae/permission/global.json (global-only)", async () => {

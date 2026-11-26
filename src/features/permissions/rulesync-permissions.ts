@@ -563,11 +563,15 @@ const NATIVE_PERMISSION_OVERRIDE_TARGETS: ReadonlySet<ToolTarget> = new Set([
 
 /**
  * Targets that read their tool-scoped override from a differently named key:
- * Kiro IDE/CLI share the `kiro` block (they write the same agent config) and
- * Hermes Agent's established override key is `hermes`.
+ * Kiro IDE/CLI share the `kiro` block (they write the same agent config),
+ * Hermes Agent's established override key is `hermes`, and Qoder CN shares
+ * Qoder's `qoder` block.
  */
 export const PERMISSION_OVERRIDE_KEY_ALIASES: Partial<Record<ToolTarget, string>> = {
   "kiro-cli": "kiro",
   "kiro-ide": "kiro",
   hermesagent: "hermes",
+  // Qoder CN writes Qoder's settings shape (and the same project file), so it
+  // reads the `qoder` block.
+  qodercn: "qoder",
 };

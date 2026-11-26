@@ -13,6 +13,18 @@ import { join } from "node:path";
  */
 export const QODER_DIR = ".qoder";
 
+/**
+ * User-level root of Qoder CN, the China-region edition (Qoder CLI CN and the
+ * Qoder CN desktop app). Its project layout is the international `.qoder/`
+ * tree above; only the user assets move to `~/.qoder-cn/` (`AGENTS.md`,
+ * `rules/`, `commands/`, `agents/`, `skills/`, `settings.json`). The `qodercn`
+ * target reuses every `qoder` class with this directory in global scope.
+ *
+ * @see https://docs.qoder.cn/cli/config-scope
+ * @see https://docs.qoder.cn/cli/memory
+ */
+export const QODERCN_DIR = ".qoder-cn";
+
 // Rules (static memory). The project `AGENTS.md` sits at the project root, the
 // user one at `~/.qoder/AGENTS.md`, and `AGENTS.local.md` is the per-machine
 // overlay beside the project file. Topic rules are Markdown files under

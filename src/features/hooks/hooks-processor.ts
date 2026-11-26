@@ -103,6 +103,7 @@ import { Opencodev1Hooks } from "./opencodev1-hooks.js";
 import { PiHooks } from "./pi-hooks.js";
 import { PoolHooks } from "./pool-hooks.js";
 import { QoderHooks } from "./qoder-hooks.js";
+import { QodercnHooks } from "./qodercn-hooks.js";
 import { QwencodeHooks } from "./qwencode-hooks.js";
 import { ReasonixHooks } from "./reasonix-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
@@ -306,6 +307,9 @@ export const HOOKS_OVERRIDE_KEY_ALIASES: Partial<Record<ToolTarget, string>> = {
   "augmentcode-plugin": "augmentcode",
   "kiro-cli": KIRO_HOOKS_OVERRIDE_KEY,
   "kiro-ide": KIRO_HOOKS_OVERRIDE_KEY,
+  // Qoder CN writes Qoder's hook shape (and the same project settings file),
+  // so it reads the `qoder` block.
+  qodercn: "qoder",
   // A ZCode plugin's hooks are ZCode hooks, so it reads the `zcode` block.
   "zcode-plugin": "zcode",
   // A Vibe plugin's hooks are Vibe hooks, so it reads the `vibe` block.
@@ -362,6 +366,50 @@ function converterCapabilities(
     supportedHookTypes: [...config.supportedHookTypes],
     ...(passesThroughEnabled ? { supportsPerHookEnabled: true } : {}),
     ...(passesThroughIf ? { supportsPerHookIf: true } : {}),
+  };
+}
+
+/**
+ * The factory of a Qoder-family hooks target: `qoder` and `qodercn` share the
+ * converter, the event set and the matcher rules, and differ only in the user
+ * settings file their class writes.
+ */
+function qoderHooksFactory(hooksClass: typeof QoderHooks): ToolHooksFactory {
+  return {
+    // Qoder hooks live under the `hooks` key of `.qoder/settings.json`
+    // (project) / `~/.qoder/settings.json` (global) in the Claude-Code shape.
+    // UserPromptSubmit, Stop, CwdChanged, WorktreeCreate/Remove and the
+    // task/teammate events carry no matcher.
+    // https://docs.qoder.com/en/cli/hooks
+    class: hooksClass,
+    meta: {
+      supportsProject: true,
+      supportsGlobal: true,
+      supportsImport: true,
+    },
+    ...converterCapabilities(hooksClass.getConverterConfig()),
+    supportsMatcher: true,
+    matcherEvents: [
+      "sessionStart",
+      "sessionEnd",
+      "preToolUse",
+      "postToolUse",
+      "postToolUseFailure",
+      "stopFailure",
+      "subagentStart",
+      "subagentStop",
+      "preCompact",
+      "postCompact",
+      "notification",
+      "configChange",
+      "instructionsLoaded",
+      "fileChanged",
+      "elicitation",
+      "elicitationResult",
+      "permissionRequest",
+      "permissionDenied",
+      "setup",
+    ],
   };
 }
 
@@ -1210,45 +1258,11 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       // filed there) are emitted verbatim by the adapter.
     },
   ],
-  [
-    "qoder",
-    {
-      // Qoder hooks live under the `hooks` key of `.qoder/settings.json`
-      // (project) / `~/.qoder/settings.json` (global) in the Claude-Code shape.
-      // UserPromptSubmit, Stop, CwdChanged, WorktreeCreate/Remove and the
-      // task/teammate events carry no matcher.
-      // https://docs.qoder.com/en/cli/hooks
-      class: QoderHooks,
-      meta: {
-        supportsProject: true,
-        supportsGlobal: true,
-        supportsImport: true,
-      },
-      ...converterCapabilities(QoderHooks.getConverterConfig()),
-      supportsMatcher: true,
-      matcherEvents: [
-        "sessionStart",
-        "sessionEnd",
-        "preToolUse",
-        "postToolUse",
-        "postToolUseFailure",
-        "stopFailure",
-        "subagentStart",
-        "subagentStop",
-        "preCompact",
-        "postCompact",
-        "notification",
-        "configChange",
-        "instructionsLoaded",
-        "fileChanged",
-        "elicitation",
-        "elicitationResult",
-        "permissionRequest",
-        "permissionDenied",
-        "setup",
-      ],
-    },
-  ],
+  ["qoder", qoderHooksFactory(QoderHooks)],
+  // Qoder CN shares Qoder's project `.qoder/settings.json` and hook shape; the
+  // user file is `~/.qoder-cn/settings.json`.
+  // https://docs.qoder.cn/user-guide/hooks
+  ["qodercn", qoderHooksFactory(QodercnHooks)],
   [
     "qwencode",
     {
