@@ -422,6 +422,12 @@ Several of those shared files are JSONC rather than JSON, because the tools them
 
 Rulesync falls back to rewriting the whole document when there is nothing to preserve, nothing to edit against, or no way to edit safely: an empty file; a file that does not parse, a byte-order mark included (for `.vscode/settings.json`, `.vscode/mcp.json` and `.amp/settings.json` an unparsable file stops the command instead, rather than have Rulesync overwrite settings it could not read); a file whose root is not an object; a file using `__proto__`, `constructor` or `prototype` as a key (those keys are dropped from every document Rulesync parses, so they are removed rather than left behind); a file that states the same key twice, where an edit would land on the copy the tool itself ignores; a file so large, with so much of it changing, that editing it key by key would take longer than a rewrite is worth, whether the size is the file Rulesync starts from or the document it is taking (a machine-generated file with thousands of entries, all of them replaced, or a small file handed thousands of new ones); a file whose changed keys write more than about 200 KB of new text between them, indentation included, which costs more to re-indent than to write out; and a file the editor itself refuses, which it reports as an error rather than a result. Except for the empty file, every such whole-document rewrite is reported as a warning naming the file and the reason (once per file and reason per run), so a comment that goes missing is announced by the `generate` that dropped it rather than discovered in the next diff. Files in the other formats — JSON, YAML, TOML — are re-serialized as before, so comments in `.codex/config.toml` or `reasonix.toml` are still not retained.
 
+## Import Command
+
+`rulesync import --targets <tool>` reads one tool's existing configuration and converts it into rulesync sources under `.rulesync/`.
+
+`--output-root <dir>` names the directory the tool files are read from. The imported sources are always written to `.rulesync/` in the current working directory, for every target and feature, never to `<dir>/.rulesync/`: that is where `rulesync generate` reads them by default. For example, `rulesync import --targets claudecode --output-root ./packages/app` reads `./packages/app/CLAUDE.md` and writes `./.rulesync/rules/CLAUDE.md`. In global mode (`--global`), the tool files are read from your home directory instead.
+
 ## Gitignore Command
 
 The `gitignore` command adds generated AI tool configuration files to `.gitignore`. By default, it emits entries only for the tools listed in the `targets` of your `rulesync.jsonc` (controlled by the `gitignoreTargetsOnly` option, which defaults to `true`). Set `gitignoreTargetsOnly` to `false` to emit entries for all supported tools instead. You can also filter the output per-invocation with `--targets` / `--features`, which take precedence over the config.
@@ -498,7 +504,7 @@ Feature keywords are reserved when no source-specific option is present. To add 
 
 ### Declarative sources
 
-For any other source identifier, `add` appends one source to `rulesync.jsonc` and immediately runs the declarative source resolver. It preserves JSONC comments, installs selected rules into `.rulesync/rules/.curated/`, installs selected skills into `.rulesync/skills/.curated/`, and updates `rulesync.lock` or `rulesync-npm.lock.json`.
+For any other source identifier, `add` appends one source to `rulesync.jsonc` and immediately runs the declarative source resolver. It preserves JSONC comments, installs selected rules, commands, and subagents into `.rulesync/rules/.curated/`, `.rulesync/commands/.curated/`, and `.rulesync/subagents/.curated/`, installs selected skills into `.rulesync/skills/.curated/`, and updates `rulesync.lock` or `rulesync-npm.lock.json`.
 
 ```bash
 # GitHub source (default transport)
@@ -510,6 +516,9 @@ rulesync add acme/ai-standards --rules testing-guidelines,typescript-conventions
 # Rules and skills from separate paths in one source
 rulesync add acme/ai-assets --rules "*" --rules-path exports/rules --skills review-pr --path exports/skills
 
+# Commands and subagents; direct .md files are selected from commands/ and subagents/
+rulesync add acme/ai-assets --commands review,release --subagents "*" --subagents-path exports/agents
+
 # Any Git remote through the git CLI
 rulesync add https://example.com/team/skills.git --transport git --ref main --path skills
 
@@ -519,24 +528,28 @@ rulesync add @acme/skill-package --transport npm --registry https://registry.npm
 
 The selected configuration file must already exist. Run `rulesync init` first, or pass `--config <path>`. Adding a source whose normalized source identity is already present fails instead of silently creating duplicate lockfile entries; edit the existing entry when changing its options.
 
-The operation fetches only the source being added; existing declarations are not re-fetched. Existing sources must already be locked and installed, otherwise run `rulesync install` first. The operation is transactional: if the new source fails to install, Rulesync restores the manifest, source lockfiles, curated rules, and curated skills to their pre-command state.
+The operation fetches only the source being added; existing declarations are not re-fetched. Existing sources must already be locked and installed, otherwise run `rulesync install` first. The operation is transactional: if the new source fails to install, Rulesync restores the manifest, source lockfiles, and the curated rules, skills, commands, and subagents to their pre-command state.
 
-| Option                | Description                                                                                               |
-| --------------------- | --------------------------------------------------------------------------------------------------------- |
-| `--name <name>`       | Name for a rule, command, subagent, skill, or check scaffold                                              |
-| `--force`             | Replace an existing scaffold file without prompting                                                       |
-| `--skills <skills>`   | Comma-separated skill names. `*` selects all skills.                                                      |
-| `--rules <rules>`     | Comma-separated rule names. Names may omit `.md`; `*` selects direct `.md` files under rulesPath.         |
-| `--transport <type>`  | `github` (default), `git`, or experimental `npm`                                                          |
-| `--ref <ref>`         | Git ref, npm version, or npm dist-tag                                                                     |
-| `--path <path>`       | Skills path within the source; defaults to `skills`                                                       |
-| `--rules-path <path>` | Rules path within the source; defaults to `rules`                                                         |
-| `--registry <url>`    | npm-compatible registry URL                                                                               |
-| `--token-env <name>`  | Environment variable containing the npm registry token (`NPM_TOKEN`, `NODE_AUTH_TOKEN`, or `*_NPM_TOKEN`) |
-| `--token <token>`     | GitHub token for private repositories                                                                     |
-| `--config <path>`     | Configuration file to edit (default: `rulesync.jsonc`)                                                    |
+| Option                    | Description                                                                                               |
+| ------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `--name <name>`           | Name for a rule, command, subagent, skill, or check scaffold                                              |
+| `--force`                 | Replace an existing scaffold file without prompting                                                       |
+| `--skills <skills>`       | Comma-separated skill names. `*` selects all skills.                                                      |
+| `--rules <rules>`         | Comma-separated rule names. Names may omit `.md`; `*` selects direct `.md` files under rulesPath.         |
+| `--commands <names>`      | Comma-separated command names, selected like `--rules` from commandsPath                                  |
+| `--subagents <names>`     | Comma-separated subagent names, selected like `--rules` from subagentsPath                                |
+| `--transport <type>`      | `github` (default), `git`, or experimental `npm`                                                          |
+| `--ref <ref>`             | Git ref, npm version, or npm dist-tag                                                                     |
+| `--path <path>`           | Skills path within the source; defaults to `skills`                                                       |
+| `--rules-path <path>`     | Rules path within the source; defaults to `rules`                                                         |
+| `--commands-path <path>`  | Commands path within the source; defaults to `commands`                                                   |
+| `--subagents-path <path>` | Subagents path within the source; defaults to `subagents`                                                 |
+| `--registry <url>`        | npm-compatible registry URL                                                                               |
+| `--token-env <name>`      | Environment variable containing the npm registry token (`NPM_TOKEN`, `NODE_AUTH_TOKEN`, or `*_NPM_TOKEN`) |
+| `--token <token>`         | GitHub token for private repositories                                                                     |
+| `--config <path>`         | Configuration file to edit (default: `rulesync.jsonc`)                                                    |
 
-When neither `--skills` nor `--rules` is provided, all skills are installed for backward compatibility. Providing only `--rules` installs no skills.
+When none of `--skills`, `--rules`, `--commands`, and `--subagents` is provided, all skills are installed for backward compatibility. Providing only `--rules`, `--commands`, or `--subagents` installs no skills.
 
 ## Fetch Command
 

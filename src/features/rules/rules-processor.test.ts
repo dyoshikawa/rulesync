@@ -2962,6 +2962,7 @@ Content that would fail parsing`;
         "zero",
         "zed",
         "dsh",
+        "bb",
       ]);
     });
 
@@ -3026,13 +3027,14 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("warp");
       expect(globalTargets).toContain("pool");
       expect(globalTargets).toContain("dsh");
+      expect(globalTargets).toContain("bb");
       expect(globalTargets).toContain("continue");
       expect(globalTargets).toContain("commandcode");
       expect(globalTargets).toContain("openclaw");
       expect(globalTargets).toContain("qoder");
       expect(globalTargets).toContain("xum");
       expect(globalTargets).toContain("gajaecode");
-      expect(globalTargets.length).toBe(53);
+      expect(globalTargets.length).toBe(54);
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");
@@ -6238,6 +6240,7 @@ targets: ["factorydroid"]
         "zcode",
         "zero",
         "dsh",
+        "bb",
       ]);
     });
 

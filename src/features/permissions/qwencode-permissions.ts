@@ -14,9 +14,9 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, toPosixPath } from "../../utils/file.js";
 import { fallbackLogger, type Logger, warnWithFallback } from "../../utils/logger.js";
 import { getOrCreateOwn, invertRecord, lookupOwn } from "../../utils/own-lookup.js";
-import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
+import { skipsReservedPermissionName } from "./reserved-permission-name.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   honorAllToolsRestrictions,
@@ -1215,7 +1215,9 @@ function convertQwenToRulesyncPermissions(params: {
         //   already-emitted warn from `parseQwenPermissionEntry` makes the drop visible.
         if (action === "deny") {
           const canonical = toCanonicalToolName(parsed.toolName);
-          if (isPrototypePollutionKey(canonical)) {
+          if (
+            skipsReservedPermissionName({ toolLabel: "Qwen Code", category: canonical, logger })
+          ) {
             continue;
           }
           getOrCreateOwn({ record: permission, key: canonical, create: () => ({}) })["*"] = action;
@@ -1226,7 +1228,14 @@ function convertQwenToRulesyncPermissions(params: {
       const canonical = toCanonicalToolName(toolName);
       // A `__proto__` or `constructor` name would not land as a plain own key,
       // so such entries are dropped, as the other permissions adapters do.
-      if (isPrototypePollutionKey(canonical) || isPrototypePollutionKey(pattern)) {
+      if (
+        skipsReservedPermissionName({
+          toolLabel: "Qwen Code",
+          category: canonical,
+          pattern,
+          logger,
+        })
+      ) {
         continue;
       }
       getOrCreateOwn({ record: permission, key: canonical, create: () => ({}) })[pattern] = action;

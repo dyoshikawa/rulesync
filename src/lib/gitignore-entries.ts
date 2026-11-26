@@ -24,8 +24,10 @@ import { LETTACODE_DIR, LETTACODE_SETTINGS_LOCAL_FILE_NAME } from "../constants/
 import { QWENCODE_DIR, QWENCODE_LOCAL_RULE_FILE_NAME } from "../constants/qwencode-paths.js";
 import { REASONIX_LOCAL_RULE_FILE_NAME } from "../constants/reasonix-paths.js";
 import {
+  RULESYNC_CURATED_COMMANDS_RELATIVE_DIR_PATH,
   RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH,
   RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH,
+  RULESYNC_CURATED_SUBAGENTS_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
 import {
   ALL_FEATURES_WITH_WILDCARD,
@@ -66,6 +68,16 @@ export const HAND_MAINTAINED_GITIGNORE_ENTRIES: ReadonlyArray<GitignoreEntryTag>
     target: "common",
     feature: "general",
     entry: `${RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH}/`,
+  },
+  {
+    target: "common",
+    feature: "general",
+    entry: `${RULESYNC_CURATED_COMMANDS_RELATIVE_DIR_PATH}/`,
+  },
+  {
+    target: "common",
+    feature: "general",
+    entry: `${RULESYNC_CURATED_SUBAGENTS_RELATIVE_DIR_PATH}/`,
   },
   { target: "common", feature: "general", entry: ".rulesync/rules/*.local.md" },
   { target: "common", feature: "general", entry: "rulesync.local.jsonc" },

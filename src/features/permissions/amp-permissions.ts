@@ -11,6 +11,7 @@ import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { isPlainObject } from "../../utils/type-guards.js";
 import { parseAmpSettings, resolveAmpSettingsFile } from "../shared/amp-settings.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
+import { skipsReservedPermissionName } from "./reserved-permission-name.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { isStricterAction } from "./single-action-collapse.js";
 import {
@@ -528,8 +529,7 @@ function convertAmpToRulesync({
   const permission: Record<string, Record<string, PermissionAction>> = {};
 
   const assign = (tool: string, pattern: string, action: PermissionAction): void => {
-    if (isPrototypePollutionKey(tool)) return;
-    if (isPrototypePollutionKey(pattern)) return;
+    if (skipsReservedPermissionName({ toolLabel: "Amp", category: tool, pattern })) return;
     const bucket = getOrCreateOwn({ record: permission, key: tool, create: () => ({}) });
     const existing = lookupOwn({ record: bucket, key: pattern });
     if (isStricterAction({ action, existing })) {
