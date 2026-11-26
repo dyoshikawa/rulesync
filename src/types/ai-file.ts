@@ -176,6 +176,15 @@ export abstract class AiFile {
   }
 
   /**
+   * Why this file must not be removed even though
+   * {@link shouldRemoveWhenPayloadEmpty} asks for it (the write phase warns and
+   * leaves it untouched), or `undefined` when removing it is fine.
+   */
+  describeRemovalRefusal(): string | undefined {
+    return undefined;
+  }
+
+  /**
    * Directories this file stands for in the `--delete` orphan sweep, on top of
    * its own path. Override in a file feature that emits into a directory
    * another feature sweeps as a whole (Antigravity commands emitted as

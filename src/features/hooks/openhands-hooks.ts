@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 import { OPENHANDS_DIR, OPENHANDS_HOOKS_FILE_NAME } from "../../constants/openhands-paths.js";
 import {
@@ -437,14 +437,28 @@ function openhandsUserHooksPath(): string | undefined {
   }
 }
 
+function isSamePath(a: string, b: string): boolean {
+  return resolve(a) === resolve(b);
+}
+
 /**
  * Warn when a user-level hooks file exists: OpenHands reads it only when the
  * project has no `.openhands/hooks.json`, so the generated project file makes
  * OpenHands ignore every hook (guards included) kept there.
  */
-async function warnHiddenUserHooks(logger: Logger | undefined): Promise<void> {
+async function warnHiddenUserHooks({
+  projectHooksPath,
+  logger,
+}: {
+  projectHooksPath: string;
+  logger: Logger | undefined;
+}): Promise<void> {
   const userHooksPath = openhandsUserHooksPath();
-  if (userHooksPath === undefined || !(await fileExists(userHooksPath))) {
+  if (
+    userHooksPath === undefined ||
+    isSamePath(userHooksPath, projectHooksPath) ||
+    !(await fileExists(userHooksPath))
+  ) {
     return;
   }
   logger?.warn(
@@ -538,7 +552,10 @@ export class OpenhandsHooks extends ToolHooks {
     });
 
     if (Object.keys(merged.hooks).length > 0) {
-      await warnHiddenUserHooks(logger);
+      await warnHiddenUserHooks({
+        projectHooksPath: join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
+        logger,
+      });
     }
 
     return new OpenhandsHooks({
@@ -582,6 +599,21 @@ export class OpenhandsHooks extends ToolHooks {
    */
   override shouldRemoveWhenPayloadEmpty(): boolean {
     return true;
+  }
+
+  /**
+   * Run from the home directory, the project file is the user-level hooks
+   * file itself, which rulesync must never delete.
+   */
+  override describeRemovalRefusal(): string | undefined {
+    const userHooksPath = openhandsUserHooksPath();
+    if (userHooksPath !== undefined && isSamePath(userHooksPath, this.getFilePath())) {
+      return (
+        "it is also OpenHands' user-level hooks file, which rulesync never deletes. " +
+        "Remove it by hand if it should go."
+      );
+    }
+    return undefined;
   }
 
   static override supportsPreserveUnowned(): boolean {

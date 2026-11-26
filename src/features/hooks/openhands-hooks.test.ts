@@ -257,6 +257,30 @@ describe("OpenhandsHooks", () => {
       expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("ignore every hook"));
     });
 
+    it("should refuse to remove the project file when it is the user-level hooks file", async () => {
+      vi.stubEnv("OH_PERSISTENCE_DIR", join(testDir, ".openhands"));
+      const logger = createMockLogger();
+      const hooks = await OpenhandsHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        logger,
+        rulesyncHooks: makeRulesyncHooks({ hooks: { stop: [{ command: "echo stop" }] } }),
+      });
+
+      expect(hooks.describeRemovalRefusal()).toContain("user-level hooks file");
+      // Writing the file itself is not "hiding" it, so no such warning.
+      expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("ignore every hook"));
+    });
+
+    it("should allow removing the project file when it is not the user-level one", async () => {
+      vi.stubEnv("OH_PERSISTENCE_DIR", join(testDir, "persistence"));
+      const hooks = await OpenhandsHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks: makeRulesyncHooks({ hooks: {} }),
+      });
+
+      expect(hooks.describeRemovalRefusal()).toBeUndefined();
+    });
+
     it("should replace the existing file by default", async () => {
       await writeFileContent(
         join(testDir, ".openhands", "hooks.json"),
