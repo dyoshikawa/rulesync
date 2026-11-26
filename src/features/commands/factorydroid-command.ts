@@ -8,7 +8,7 @@ import type { ToolCommandSettablePaths } from "./tool-command.js";
 
 // looseObject preserves unknown keys during parsing (like passthrough in Zod 3).
 // Factory Droid custom slash commands are native Markdown files with frontmatter.
-// See https://docs.factory.ai/cli/configuration/custom-slash-commands
+// See https://docs.factory.com/harness/custom-slash-commands
 //   - `description`: optional human-readable summary.
 //   - `argument-hint`: optional hint shown for `$ARGUMENTS` usage.
 // Those two are the only documented fields. The docs state verbatim: "Tool

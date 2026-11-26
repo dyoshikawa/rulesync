@@ -123,7 +123,7 @@ export const HookDefinitionSchema = z.looseObject({
   // an `Execute` matcher group, e.g. `"^git "`. It belongs to the matcher group
   // rather than to a single hook, but is stored per definition so it survives
   // the canonical, flat list of definitions.
-  // https://docs.factory.ai/reference/hooks-reference
+  // https://docs.factory.com/harness/hooks
   commandRegex: z.optional(safeString),
   // Qwen Code: when true, the hooks within this matcher group run sequentially
   // instead of in parallel (the default). Stored per-definition so it can be
@@ -236,6 +236,11 @@ export const HookDefinitionSchema = z.looseObject({
   // hooks). Defaults to false upstream.
   // https://junie.jetbrains.com/docs/junie-cli-hooks.html
   strictJsonOutput: z.optional(z.boolean()),
+  // Factory Droid PreToolUse hooks: when the hook rewrites an `Execute` command
+  // through `updatedInput`, keep the model's `riskLevel` instead of
+  // re-assessing it. Defaults to false upstream.
+  // https://docs.factory.com/harness/hooks
+  preserveRiskLevel: z.optional(z.boolean()),
 });
 
 export type HookDefinition = z.infer<typeof HookDefinitionSchema>;
@@ -1526,7 +1531,7 @@ export const CANONICAL_TO_FACTORYDROID_EVENT_NAMES: Record<string, string> = {
  * Matches the documented 9-event set (PreToolUse, PostToolUse, UserPromptSubmit,
  * Notification, Stop, SubagentStop, PreCompact, SessionStart, SessionEnd).
  * `Setup` and `PermissionRequest` are NOT valid Droid events and were removed
- * to avoid emitting dead keys. https://docs.factory.ai/reference/hooks-reference
+ * to avoid emitting dead keys. https://docs.factory.com/harness/hooks
  */
 export const FACTORYDROID_HOOK_EVENTS: readonly HookEvent[] = eventsOf(
   CANONICAL_TO_FACTORYDROID_EVENT_NAMES,
@@ -1591,11 +1596,18 @@ export const CANONICAL_TO_KILO_EVENT_NAMES: Record<string, string> =
  *
  * The shell events reuse the tool hooks gated on the `shell` tool (V1 named it
  * `bash`), and `postToolUse` / `postToolUseFailure` split `execute.after` by
- * its `status`; see `opencode-v2-plugin-generator.ts`. `stop` maps to
- * `session.execution.succeeded` because V2 deprecated `session.idle` and no
- * longer publishes it.
+ * its `status`; see `opencode-v2-plugin-generator.ts`. `stop` maps to the
+ * `experimental.idle` session hook (OpenCode 2.2.1+), which runs when a
+ * Session finishes model work with no pending input, just before it goes idle,
+ * and lets a plugin admit input that continues the same execution. That makes
+ * it an actionable stop boundary like Pi's `agent_before_settle`: a stop
+ * command exiting with code 2 continues the agent once. Before 2.2.1 the hook
+ * never runs, so the generated plugin falls back to the observe-only
+ * `session.execution.succeeded` event earlier versions mapped `stop` to, until
+ * the idle hook has run once (see `opencode-v2-plugin-generator.ts`).
  *
  * @see https://opencode.ai/v2/docs/build/plugins/
+ * @see https://github.com/anomalyco/opencode/blob/v2.4.2/packages/plugin/src/README.md
  */
 export const CANONICAL_TO_OPENCODE_V2_EVENT_NAMES: Record<string, string> = {
   sessionStart: "event:session.created",
@@ -1610,7 +1622,7 @@ export const CANONICAL_TO_OPENCODE_V2_EVENT_NAMES: Record<string, string> = {
   preModelInvocation: "session:context",
   preCompact: "session:compaction",
   postCompact: "event:session.compaction.ended",
-  stop: "event:session.execution.succeeded",
+  stop: "session:experimental.idle",
   afterError: "event:session.execution.failed",
   permissionRequest: "event:permission.asked",
   // `permission.replied` fires for every reply; the handler gates on `reject`.
@@ -1710,7 +1722,9 @@ export const PI_HOOK_EVENTS: readonly HookEvent[] = eventsOf(CANONICAL_TO_PI_EVE
 /**
  * Map canonical camelCase event names to oh-my-pi extension event names. They
  * are Pi's names (see CANONICAL_TO_PI_EVENT_NAMES) for the events oh-my-pi
- * kept, plus `session_stop` for `stop`. Note that oh-my-pi runs
+ * kept, plus `session_stop` for `stop`. `sessionStart` handlers also
+ * subscribe to `session_clear` (see `OMP_EXTENSION_DIALECT.extraEventNames`),
+ * since oh-my-pi fires no `session_start` after `/clear`. Note that oh-my-pi runs
  * `session_shutdown` handlers with a 2-second budget, and fails a `tool_call`
  * closed when its handler exceeds `extensionHandlers.toolCallTimeoutMs`
  * (30 seconds by default).

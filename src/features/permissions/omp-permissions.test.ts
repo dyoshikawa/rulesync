@@ -139,6 +139,172 @@ describe("OmpPermissions", () => {
     });
   });
 
+  it("should keep path-scoped bash.patterns entries so they cannot loosen rulesync restrictions", async () => {
+    await writeFileContent(
+      join(testDir, ".omp", "config.yml"),
+      [
+        "bash:",
+        "  allowedEnvVars: [GOOS]",
+        "  patterns:",
+        "    - path: ~/work/service",
+        "      patterns:",
+        "        - match: make lint*",
+        "          approval: allow",
+        "    - pathPrefixes: [./vendor]",
+        "      match: curl *",
+        "      approval: prompt",
+        "    - paths: [./prod, ./ops]",
+        "      match: kubectl delete *",
+        "      approval: deny",
+        "    - match: old *",
+        "      approval: allow",
+        "    - path: ~",
+        "      match: unscoped *",
+        "      approval: allow",
+        "",
+      ].join("\n"),
+    );
+
+    const permissions = await OmpPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: rulesyncPermissionsFrom({
+        permission: { bash: { "rm -rf *": "deny", "git push *": "ask", "git *": "allow" } },
+      }),
+    });
+
+    expect(loadYaml(permissions.getFileContent())).toEqual({
+      tools: { approval: { bash: "prompt" } },
+      bash: {
+        allowedEnvVars: ["GOOS"],
+        patterns: [
+          // Deny-only scoped entries lead; scoped prompts follow rulesync's
+          // denies; scoped allows follow rulesync's prompts. Unscoped entries
+          // (including `path: ~`, which holds no string) are rulesync-owned.
+          { paths: ["./prod", "./ops"], match: "kubectl delete *", approval: "deny" },
+          { match: "rm -rf *", approval: "deny" },
+          { pathPrefixes: ["./vendor"], match: "curl *", approval: "prompt" },
+          { match: "git push *", approval: "prompt" },
+          { path: "~/work/service", patterns: [{ match: "make lint*", approval: "allow" }] },
+          { match: "git *", approval: "allow" },
+        ],
+      },
+    });
+  });
+
+  it("should keep path-scoped bash.patterns entries when no bash rule is authored", async () => {
+    await writeFileContent(
+      join(testDir, ".omp", "config.yml"),
+      [
+        "bash:",
+        "  patterns:",
+        "    - path: ./a",
+        "      match: x *",
+        "      approval: allow",
+        "",
+      ].join("\n"),
+    );
+
+    const permissions = await OmpPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: rulesyncPermissionsFrom({ permission: { read: { "*": "allow" } } }),
+    });
+
+    expect(loadYaml(permissions.getFileContent())).toEqual({
+      tools: { approval: { read: "allow" } },
+      bash: { patterns: [{ path: "./a", match: "x *", approval: "allow" }] },
+    });
+  });
+
+  it("should warn about kept scoped entries a mixed deny or a catch-all restriction weakens", async () => {
+    await writeFileContent(
+      join(testDir, ".omp", "config.yml"),
+      [
+        "bash:",
+        "  patterns:",
+        "    - path: ./mixed",
+        "      patterns:",
+        "        - match: git push*",
+        "          approval: deny",
+        "        - match: git *",
+        "          approval: allow",
+        "    - path: ./prompting",
+        "      match: curl *",
+        "      approval: prompt",
+        "",
+      ].join("\n"),
+    );
+    const logger = createLogger();
+
+    const permissions = await OmpPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: rulesyncPermissionsFrom({
+        permission: { bash: { "*": "deny", "ls *": "allow" } },
+      }),
+      logger: logger as never,
+    });
+
+    // Kept whole, so the mixed entry's deny follows rulesync's patterns.
+    expect(loadYaml(permissions.getFileContent())).toEqual({
+      bash: {
+        patterns: [
+          { match: "*", approval: "deny" },
+          { path: "./prompting", match: "curl *", approval: "prompt" },
+          {
+            path: "./mixed",
+            patterns: [
+              { match: "git push*", approval: "deny" },
+              { match: "git *", approval: "allow" },
+            ],
+          },
+          { match: "ls *", approval: "allow" },
+        ],
+      },
+    });
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('scoped to "./mixed" mixes allow and deny rules'),
+    );
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('scoped to "./prompting" was kept after the bash catch-all "*" deny'),
+    );
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('scoped to "./mixed" was kept after the bash catch-all "*" deny'),
+    );
+  });
+
+  it("should carry a per-rule env list over to a regenerated rule with the same match and approval", async () => {
+    await writeFileContent(
+      join(testDir, ".omp", "config.yml"),
+      [
+        "bash:",
+        "  patterns:",
+        "    - match: 'go   test*'",
+        "      approval: allow",
+        "      env: [GOOS, CGO_ENABLED]",
+        "    - match: rm *",
+        "      approval: allow",
+        "      env: [FORCE]",
+        "",
+      ].join("\n"),
+    );
+
+    const permissions = await OmpPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: rulesyncPermissionsFrom({
+        permission: { bash: { "go test*": "allow", "rm *": "deny" } },
+      }),
+    });
+
+    expect(loadYaml(permissions.getFileContent())).toEqual({
+      bash: {
+        patterns: [
+          // The approval changed, so the env list is not carried over.
+          { match: "rm *", approval: "deny" },
+          { match: "go test*", approval: "allow", env: ["GOOS", "CGO_ENABLED"] },
+        ],
+      },
+    });
+  });
+
   it("should remove emptied tools and bash blocks", async () => {
     await writeFileContent(
       join(testDir, ".omp", "config.yml"),
@@ -553,6 +719,89 @@ describe("OmpPermissions", () => {
       agent: { "*": "deny" },
       eval: { "*": "ask" },
     });
+  });
+
+  it("should import path-scoped restrictions as global rules and skip path-scoped allows", () => {
+    const logger = createLogger();
+    const json = new OmpPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".omp",
+      relativeFilePath: "config.yml",
+      fileContent: [
+        "bash:",
+        "  patterns:",
+        "    - path: ./service",
+        "      match: make deploy*",
+        "      approval: allow",
+        "      items:",
+        "        - match: rm -rf *",
+        "          approval: deny",
+        "        - pathPrefix: ./service/sub",
+        "          values:",
+        "            - match: curl *",
+        "              approval: prompt",
+        "    - match: git *",
+        "      approval: allow",
+        "    - path: ./other",
+        "      match: git *",
+        "      approval: deny",
+        "    - path: ~",
+        "      match: ls *",
+        "      approval: allow",
+        "",
+      ].join("\n"),
+    })
+      .toRulesyncPermissions({ logger: logger as never })
+      .getJson();
+
+    expect(json.permission).toEqual({
+      // `make deploy*` (scoped allow) is skipped. The scoped `git *` deny comes
+      // after the unscoped allow, which oh-my-pi matches first everywhere.
+      // `path: ~` holds no string, so that entry is unscoped.
+      bash: { "rm -rf *": "deny", "curl *": "ask", "git *": "allow", "ls *": "allow" },
+    });
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('scoped to "./service"'));
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"make deploy*"'));
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"rm -rf *", "curl *"'));
+  });
+
+  it("should never let a scope-derived rule beat a later unscoped rule for the same pattern", () => {
+    const logger = createLogger();
+    const json = new OmpPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".omp",
+      relativeFilePath: "config.yml",
+      fileContent: [
+        "bash:",
+        "  patterns:",
+        "    - path: ~/a",
+        "      match: rm *",
+        "      approval: prompt",
+        "    - match: rm *",
+        "      approval: deny",
+        "    - path: ~/b",
+        "      match: curl *",
+        "      approval: deny",
+        "    - match: curl *",
+        "      approval: prompt",
+        "    - path: ~/c",
+        "      match: rm *",
+        "      approval: deny",
+        "    - path: ~/d",
+        "      match: rm *",
+        "      approval: prompt",
+        "",
+      ].join("\n"),
+    })
+      .toRulesyncPermissions({ logger: logger as never })
+      .getJson();
+
+    // The stricter of a scope-derived rule and a later unscoped one wins.
+    expect(json.permission).toEqual({ bash: { "rm *": "deny", "curl *": "deny" } });
+    // The `~/c` and `~/d` rules changed nothing, so no warning lists them.
+    expect(logger.warn).toHaveBeenCalledTimes(2);
+    expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining('"~/c"'));
+    expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining('"~/d"'));
   });
 
   it("should keep a prompt bash policy so a critical command cannot skip an ask rule", async () => {

@@ -651,6 +651,49 @@ describe("FactorydroidHooks", () => {
       );
     });
 
+    it("should pass preserveRiskLevel through on PreToolUse only", async () => {
+      // https://docs.factory.com/harness/hooks
+      const logger = createMockLogger();
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            preToolUse: [
+              { type: "command", command: "rewrite.sh", preserveRiskLevel: true },
+              { type: "command", command: "audit.sh", preserveRiskLevel: false },
+            ],
+            postToolUse: [{ type: "command", command: "post.sh", preserveRiskLevel: true }],
+          },
+        }),
+        validate: false,
+      });
+
+      const factorydroidHooks = await FactorydroidHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+        logger,
+      });
+
+      const parsed = JSON.parse(factorydroidHooks.getFileContent());
+      const preToolUse = parsed.PreToolUse.flatMap(
+        (entry: { hooks: Array<Record<string, unknown>> }) => entry.hooks,
+      );
+      expect(preToolUse).toEqual([
+        { type: "command", command: "rewrite.sh", preserveRiskLevel: true },
+        { type: "command", command: "audit.sh", preserveRiskLevel: false },
+      ]);
+      expect(parsed.PostToolUse[0].hooks[0]).toEqual({ type: "command", command: "post.sh" });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'Dropping "preserveRiskLevel" from a "command" hook on "postToolUse"',
+        ),
+      );
+    });
+
     it.each([
       ["preToolUse", "PreToolUse"],
       ["postToolUse", "PostToolUse"],
@@ -837,6 +880,35 @@ describe("FactorydroidHooks", () => {
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining('Dropping "onFailure" from a "command" hook on "stop"'),
       );
+    });
+
+    it("should import preserveRiskLevel back on PreToolUse and drop it elsewhere", () => {
+      const factorydroidHooks = new FactorydroidHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".factory",
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          PreToolUse: [
+            {
+              hooks: [
+                { type: "command", command: "rewrite.sh", preserveRiskLevel: true },
+                { type: "command", command: "typo.sh", preserveRiskLevel: "yes" },
+              ],
+            },
+          ],
+          PostToolUse: [
+            { hooks: [{ type: "command", command: "post.sh", preserveRiskLevel: true }] },
+          ],
+        }),
+        validate: false,
+      });
+
+      const json = factorydroidHooks.toRulesyncHooks({ logger: createMockLogger() }).getJson();
+      expect(json.hooks.preToolUse).toEqual([
+        { type: "command", command: "rewrite.sh", preserveRiskLevel: true },
+        { type: "command", command: "typo.sh" },
+      ]);
+      expect(json.hooks.postToolUse).toEqual([{ type: "command", command: "post.sh" }]);
     });
 
     it("should convert Factory Droid PascalCase hooks to canonical camelCase", () => {

@@ -123,7 +123,7 @@ function handWrittenWarning({
  * instructions, while a file here may be an ordinary skill written for Droid's
  * skill loader that has nothing to do with reviews.
  *
- * @see https://docs.factory.ai/software-factory/code-review-ci
+ * @see https://docs.factory.com/automations/code-review-ci
  */
 export class FactorydroidCheck extends AggregatedToolCheck {
   static getSettablePaths(_options: { global?: boolean } = {}): ToolCheckSettablePaths {
