@@ -511,7 +511,7 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     {
       // Factory Droid skills are native SKILL.md files under .factory/skills/
       // (project) and ~/.factory/skills/ (global).
-      // https://docs.factory.ai/cli/configuration/skills
+      // https://docs.factory.com/harness/skills
       class: FactorydroidSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },

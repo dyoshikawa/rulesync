@@ -253,6 +253,7 @@ export const subagentsProcessorToolTargetTuple = [
   "firebender",
   "goose",
   "grokcli",
+  "gitlabduo",
   "hermesagent",
   "kimi-code",
   "kimi-code-plugin",

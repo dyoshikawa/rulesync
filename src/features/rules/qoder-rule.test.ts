@@ -1,10 +1,10 @@
-import { join } from "node:path";
+import { join, relative } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { writeFileContent } from "../../utils/file.js";
+import { findFilesByGlobs, toPosixPath, writeFileContent } from "../../utils/file.js";
 import { fallbackLogger } from "../../utils/logger.js";
 import { QoderRule } from "./qoder-rule.js";
 import { RulesyncRule, type RulesyncRuleFrontmatter } from "./rulesync-rule.js";
@@ -219,6 +219,188 @@ describe("QoderRule", () => {
     });
 
     expect(rule.isRoot()).toBe(false);
+  });
+
+  describe("subproject rules", () => {
+    it("should write a directory-scoped rule to that directory's .qoder/rules", () => {
+      const rule = QoderRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule: makeRulesyncRule({
+          description: "App",
+          agentsmd: { subprojectPath: "packages/app" },
+        }),
+      });
+      expect(rule.getFilePath()).toBe(
+        join(testDir, "packages", "app", ".qoder", "rules", "topic.md"),
+      );
+      expect(rule.getFileContent()).toBe(
+        "---\ntrigger: always_on\ndescription: App\n---\nRule body\n",
+      );
+    });
+
+    it("should rebase globs onto the subproject and restore them on import", async () => {
+      const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+      const rule = QoderRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule: makeRulesyncRule({
+          globs: ["packages/app/src/**/*.ts", "!packages/app/src/gen/**"],
+          agentsmd: { subprojectPath: "packages/app/" },
+        }),
+      });
+      expect(rule.getRelativeDirPath()).toBe(join("packages", "app", ".qoder", "rules"));
+      expect(rule.getFrontmatter()).toMatchObject({
+        trigger: "glob",
+        glob: ["src/**/*.ts", "!src/gen/**"],
+      });
+      expect(warn).not.toHaveBeenCalled();
+
+      await writeFileContent(rule.getFilePath(), rule.getFileContent());
+      const imported = await QoderRule.fromFile({
+        outputRoot: testDir,
+        relativeDirPath: join("packages", "app", ".qoder", "rules"),
+        relativeFilePath: "topic.md",
+      });
+      const rulesyncRule = imported.toRulesyncRule();
+      expect(rulesyncRule.getFrontmatter()).toMatchObject({
+        globs: ["packages/app/src/**/*.ts", "!packages/app/src/gen/**"],
+        agentsmd: { subprojectPath: "packages/app" },
+      });
+      const regenerated = QoderRule.fromRulesyncRule({ outputRoot: testDir, rulesyncRule });
+      expect(regenerated.getFileContent()).toBe(rule.getFileContent());
+    });
+
+    it("should turn a glob covering the whole subproject into always_on", () => {
+      const rule = QoderRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule: makeRulesyncRule({
+          globs: ["packages/app/**/*"],
+          agentsmd: { subprojectPath: "packages/app" },
+        }),
+      });
+      expect(rule.getFrontmatter().trigger).toBe("always_on");
+      expect(rule.getFrontmatter().glob).toBeUndefined();
+    });
+
+    it("should warn about a glob outside the subproject and keep qoder.glob verbatim", () => {
+      const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+      const outside = QoderRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule: makeRulesyncRule({
+          globs: ["packages/app/**/*.ts", "docs/**/*.md"],
+          agentsmd: { subprojectPath: "packages/app" },
+        }),
+      });
+      expect(outside.getFrontmatter().glob).toEqual(["**/*.ts", "docs/**/*.md"]);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('"docs/**/*.md"'));
+
+      const explicit = QoderRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule: makeRulesyncRule({
+          globs: ["packages/app/**/*.ts"],
+          agentsmd: { subprojectPath: "packages/app" },
+          qoder: { glob: ["lib/**"] },
+        }),
+      });
+      expect(explicit.getFrontmatter().glob).toEqual(["lib/**"]);
+    });
+
+    it("should never nest the root rule, a global rule or an output style", () => {
+      const root = QoderRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule: makeRulesyncRule({
+          root: true,
+          agentsmd: { subprojectPath: "packages/app" },
+        }),
+      });
+      expect(root.getRelativeDirPath()).toBe(".");
+
+      const global = QoderRule.fromRulesyncRule({
+        outputRoot: testDir,
+        global: true,
+        rulesyncRule: makeRulesyncRule({ agentsmd: { subprojectPath: "packages/app" } }),
+      });
+      expect(global.getRelativeDirPath()).toBe(join(".qoder", "rules"));
+
+      const style = QoderRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule: makeRulesyncRule({
+          agentsmd: { subprojectPath: "packages/app" },
+          qoder: { channel: "output-style" },
+        }),
+      });
+      expect(style.getRelativeDirPath()).toBe(join(".qoder", "output-styles"));
+    });
+
+    it("should import a nested rule with its subproject and round-trip it", async () => {
+      await writeFileContent(
+        join(testDir, "packages", "app", ".qoder", "rules", "sub", "app.md"),
+        "---\ntrigger: model_decision\ndescription: App rules\n---\nBody\n",
+      );
+      const rule = await QoderRule.fromFile({
+        outputRoot: testDir,
+        relativeDirPath: join("packages", "app", ".qoder", "rules", "sub"),
+        relativeFilePath: "app.md",
+      });
+      expect(rule.isRoot()).toBe(false);
+      expect(rule.getRelativeDirPath()).toBe(join("packages", "app", ".qoder", "rules"));
+      expect(rule.getRelativeFilePath()).toBe(join("sub", "app.md"));
+
+      const rulesyncRule = rule.toRulesyncRule();
+      expect(rulesyncRule.getRelativeFilePath()).toBe(join("sub", "app.md"));
+      expect(rulesyncRule.getFrontmatter()).toMatchObject({
+        targets: ["qoder"],
+        description: "App rules",
+        agentsmd: { subprojectPath: "packages/app" },
+        qoder: { trigger: "model_decision" },
+      });
+
+      const regenerated = QoderRule.fromRulesyncRule({ outputRoot: testDir, rulesyncRule });
+      expect(regenerated.getFilePath()).toBe(rule.getFilePath());
+      expect(regenerated.getFrontmatter().trigger).toBe("model_decision");
+    });
+
+    it("should not treat project-root rules or the root file as nested", async () => {
+      await writeFileContent(join(testDir, ".qoder", "rules", "a.md"), "Body\n");
+      const topic = await QoderRule.fromFile({
+        outputRoot: testDir,
+        relativeDirPath: join(".qoder", "rules"),
+        relativeFilePath: "a.md",
+      });
+      const frontmatter = topic.toRulesyncRule().getFrontmatter();
+      expect(frontmatter.targets).toEqual(["*"]);
+      expect(frontmatter.agentsmd).toBeUndefined();
+
+      await writeFileContent(join(testDir, "AGENTS.md"), "# Root\n");
+      const root = await QoderRule.fromFile({
+        outputRoot: testDir,
+        relativeDirPath: ".",
+        relativeFilePath: "AGENTS.md",
+      });
+      expect(root.isRoot()).toBe(true);
+    });
+
+    it("should scan subdirectory .qoder/rules but not the root one or hidden directories", async () => {
+      for (const path of [
+        join(".qoder", "rules", "root.md"),
+        join("packages", "app", ".qoder", "rules", "app.md"),
+        join("packages", "app", ".qoder", "rules", "sub", "deep.md"),
+        join(".worktrees", "feature", ".qoder", "rules", "copy.md"),
+        join("packages", "app", "node_modules", "dep", ".qoder", "rules", "dep.md"),
+        join("dist", ".qoder", "rules", "built.md"),
+      ]) {
+        await writeFileContent(join(testDir, path), "Body\n");
+      }
+      const patterns = QoderRule.getNestedFilePatterns();
+      const matched = await findFilesByGlobs(patterns.include, {
+        cwd: testDir,
+        type: "file",
+        ignore: patterns.ignore,
+      });
+      expect(matched.map((path) => toPosixPath(relative(testDir, path))).toSorted()).toEqual([
+        "packages/app/.qoder/rules/app.md",
+        "packages/app/.qoder/rules/sub/deep.md",
+      ]);
+    });
   });
 
   describe("output-style channel", () => {

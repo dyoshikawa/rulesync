@@ -25,7 +25,7 @@ import {
 
 // looseObject preserves unknown keys during parsing (like passthrough in Zod 3).
 // Factory Droid skills are native SKILL.md files with frontmatter.
-// See https://docs.factory.ai/cli/configuration/skills
+// See https://docs.factory.com/harness/skills
 //   - `name`, `description`: identity fields.
 //   - `user-invocable`, `disable-model-invocation`: optional behavior flags,
 //     passed through verbatim when present.
@@ -70,7 +70,7 @@ export type FactorydroidSkillParams = {
 /**
  * Represents a Factory Droid skill directory.
  * Factory Droid has native skill support — it reads .factory/skills/ directories
- * with SKILL.md files. See https://docs.factory.ai/cli/configuration/skills
+ * with SKILL.md files. See https://docs.factory.com/harness/skills
  *
  * Supports both project mode (.factory/skills/) and global mode (~/.factory/skills/).
  */

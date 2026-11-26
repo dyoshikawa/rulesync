@@ -123,7 +123,7 @@ export const HookDefinitionSchema = z.looseObject({
   // an `Execute` matcher group, e.g. `"^git "`. It belongs to the matcher group
   // rather than to a single hook, but is stored per definition so it survives
   // the canonical, flat list of definitions.
-  // https://docs.factory.ai/reference/hooks-reference
+  // https://docs.factory.com/harness/hooks
   commandRegex: z.optional(safeString),
   // Qwen Code: when true, the hooks within this matcher group run sequentially
   // instead of in parallel (the default). Stored per-definition so it can be
@@ -236,6 +236,11 @@ export const HookDefinitionSchema = z.looseObject({
   // hooks). Defaults to false upstream.
   // https://junie.jetbrains.com/docs/junie-cli-hooks.html
   strictJsonOutput: z.optional(z.boolean()),
+  // Factory Droid PreToolUse hooks: when the hook rewrites an `Execute` command
+  // through `updatedInput`, keep the model's `riskLevel` instead of
+  // re-assessing it. Defaults to false upstream.
+  // https://docs.factory.com/harness/hooks
+  preserveRiskLevel: z.optional(z.boolean()),
 });
 
 export type HookDefinition = z.infer<typeof HookDefinitionSchema>;
@@ -1527,7 +1532,7 @@ export const CANONICAL_TO_FACTORYDROID_EVENT_NAMES: Record<string, string> = {
  * Matches the documented 9-event set (PreToolUse, PostToolUse, UserPromptSubmit,
  * Notification, Stop, SubagentStop, PreCompact, SessionStart, SessionEnd).
  * `Setup` and `PermissionRequest` are NOT valid Droid events and were removed
- * to avoid emitting dead keys. https://docs.factory.ai/reference/hooks-reference
+ * to avoid emitting dead keys. https://docs.factory.com/harness/hooks
  */
 export const FACTORYDROID_HOOK_EVENTS: readonly HookEvent[] = eventsOf(
   CANONICAL_TO_FACTORYDROID_EVENT_NAMES,

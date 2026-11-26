@@ -1071,7 +1071,9 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         // Qoder reads the project-root `AGENTS.md` (plus the per-machine
         // `AGENTS.local.md` overlay) and auto-loads `.qoder/rules/**/*.md` by
         // their `trigger` frontmatter; the user scope mirrors it under
-        // `~/.qoder/`. Commands, subagents and skills are native, so no
+        // `~/.qoder/`. Directory-scoped rules (`agentsmd.subprojectPath`) go to
+        // `<dir>/.qoder/rules/` (imported back via `getNestedFilePatterns`).
+        // Commands, subagents and skills are native, so no
         // simulated additionalConventions are needed.
         // https://docs.qoder.com/en/cli/04-extending-qoder-cli/memory
         extension: "md",

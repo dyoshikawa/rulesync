@@ -7,6 +7,7 @@ import { ToolFile } from "../../types/tool-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import { isRecord } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
   parseSharedConfig,
@@ -23,13 +24,26 @@ import { collectShellCommandRules } from "./shell-command-categories.js";
  */
 const CODEWHALE_ALLOW_SHELL_KEY = "allow_shell";
 
+/**
+ * The `[auto_review]` table of the user `~/.codewhale/config.toml`: the
+ * tool-call review policy (`reviewer_model`, `environment`,
+ * `review_all_shell`, `[[auto_review.allow]]` / `[[auto_review.block]]`
+ * rules, ...). Codewhale reads it from the user and managed config only; a
+ * project-scope `[auto_review]` table is ignored with a warning.
+ * @see https://github.com/codewhale-hq/Codewhale/blob/main/docs/CONFIGURATION.md
+ */
+const CODEWHALE_AUTO_REVIEW_KEY = "auto_review";
+
 export const CODEWHALE_PROJECT_CONFIG_PATHS = {
   relativeDirPath: CODEWHALE_DIR,
   relativeFilePath: CODEWHALE_CONFIG_FILE_NAME,
 } as const;
 
-/** The project `.codewhale/config.toml` overlay, as written by the permissions feature. */
-class CodewhaleProjectConfigFile extends ToolFile {
+/**
+ * A Codewhale `config.toml` as written by the permissions feature: the project
+ * overlay (`allow_shell`) or the user config (`[auto_review]`).
+ */
+class CodewhaleConfigFile extends ToolFile {
   validate(): ValidationResult {
     return { success: true, error: null };
   }
@@ -54,7 +68,7 @@ export function isShellCatchAll(pattern: string): boolean {
   return trimmed === "*" || trimmed === "**";
 }
 
-function projectConfigFilePath(outputRoot: string): string {
+function codewhaleConfigFilePath(outputRoot: string): string {
   return join(
     outputRoot,
     CODEWHALE_PROJECT_CONFIG_PATHS.relativeDirPath,
@@ -106,7 +120,7 @@ export async function readCodewhaleProjectShellDisabled({
   outputRoot: string;
   logger?: Logger;
 }): Promise<boolean> {
-  const filePath = projectConfigFilePath(outputRoot);
+  const filePath = codewhaleConfigFilePath(outputRoot);
   const fileContent = await readFileContentOrNull(filePath);
   if (fileContent === null) return false;
   return disablesShell({ fileContent, filePath, logger });
@@ -132,8 +146,8 @@ export async function createCodewhaleProjectConfigFile({
   outputRoot?: string;
   config: PermissionsConfig;
   logger?: Logger;
-}): Promise<CodewhaleProjectConfigFile | null> {
-  const filePath = projectConfigFilePath(outputRoot);
+}): Promise<CodewhaleConfigFile | null> {
+  const filePath = codewhaleConfigFilePath(outputRoot);
   // Read without initializing so a dry run or `--check` stays side-effect-free.
   const existingContent = await readFileContentOrNull(filePath);
 
@@ -151,7 +165,7 @@ export async function createCodewhaleProjectConfigFile({
   const existing = parseProjectConfig({ fileContent: existingContent ?? "", filePath });
   if (existing[CODEWHALE_ALLOW_SHELL_KEY] === false) return null;
 
-  return new CodewhaleProjectConfigFile({
+  return new CodewhaleConfigFile({
     outputRoot,
     ...CODEWHALE_PROJECT_CONFIG_PATHS,
     fileContent: applySharedConfigPatch({
@@ -163,4 +177,92 @@ export async function createCodewhaleProjectConfigFile({
       logger,
     }),
   });
+}
+
+/**
+ * The `codewhale.auto_review` override of the canonical config, or `undefined`
+ * when it is not set.
+ */
+function authoredAutoReview(config: PermissionsConfig): Record<string, unknown> | undefined {
+  const autoReview = config.codewhale?.auto_review;
+  return isRecord(autoReview) ? autoReview : undefined;
+}
+
+/**
+ * Warn that a `codewhale.auto_review` override is not written in project scope:
+ * Codewhale ignores a project `[auto_review]` table, so a checked-in
+ * repository cannot relax the review of its own tool calls.
+ */
+export function warnAboutProjectAutoReview({
+  config,
+  logger,
+}: {
+  config: PermissionsConfig;
+  logger?: Logger;
+}): void {
+  if (authoredAutoReview(config) === undefined) return;
+  logger?.warn(
+    `Codewhale permissions: skipping codewhale.auto_review in project mode because Codewhale reads [auto_review] only from the user ~/.codewhale/config.toml (a project-scope table is ignored). Run generate with --global to write it.`,
+  );
+}
+
+/**
+ * The user `~/.codewhale/config.toml` with its `[auto_review]` table replaced
+ * by the `codewhale.auto_review` override, or `null` when the override is not
+ * set. Every other table (`[hooks]`, `model`, `projects`, ...) is kept, and a
+ * file that is not valid TOML is an error. Removing the override leaves the
+ * table in place.
+ */
+export async function createCodewhaleUserConfigFile({
+  outputRoot = process.cwd(),
+  config,
+  logger,
+}: {
+  outputRoot?: string;
+  config: PermissionsConfig;
+  logger?: Logger;
+}): Promise<CodewhaleConfigFile | null> {
+  const autoReview = authoredAutoReview(config);
+  if (autoReview === undefined) return null;
+  const filePath = codewhaleConfigFilePath(outputRoot);
+  // Read without initializing so a dry run or `--check` stays side-effect-free.
+  const existingContent = (await readFileContentOrNull(filePath)) ?? "";
+  return new CodewhaleConfigFile({
+    outputRoot,
+    ...CODEWHALE_PROJECT_CONFIG_PATHS,
+    fileContent: applySharedConfigPatch({
+      fileKey: sharedConfigFileKey(CODEWHALE_PROJECT_CONFIG_PATHS),
+      feature: "permissions",
+      existingContent,
+      patch: { [CODEWHALE_AUTO_REVIEW_KEY]: autoReview },
+      filePath,
+      logger,
+    }),
+  });
+}
+
+/**
+ * The `[auto_review]` table of the user `~/.codewhale/config.toml` under
+ * `outputRoot`, for import, or `undefined` when there is none. A file that
+ * cannot be read as TOML is reported and treated as having no table.
+ */
+export async function readCodewhaleUserAutoReview({
+  outputRoot,
+  logger,
+}: {
+  outputRoot: string;
+  logger?: Logger;
+}): Promise<Record<string, unknown> | undefined> {
+  const filePath = codewhaleConfigFilePath(outputRoot);
+  const fileContent = await readFileContentOrNull(filePath);
+  if (fileContent === null) return undefined;
+  try {
+    const autoReview = parseProjectConfig({ fileContent, filePath })[CODEWHALE_AUTO_REVIEW_KEY];
+    return isRecord(autoReview) ? autoReview : undefined;
+  } catch (error) {
+    logger?.warn(
+      `Codewhale permissions: not reading [auto_review] from ${filePath}: ${formatError(error)}`,
+    );
+    return undefined;
+  }
 }
