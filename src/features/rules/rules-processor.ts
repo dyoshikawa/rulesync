@@ -2126,6 +2126,39 @@ As this project's AI coding tool, you must follow the additional conventions bel
     return await this.buildImportRules({ factory, filePaths: scannedPaths });
   }
 
+  /**
+   * Whether import keeps a non-root file that `nonRootImportGlob` matched with
+   * an extension other than the one rulesync writes (e.g. `foo.mdc`). Such a
+   * file imports under the written extension (`foo.md`), so when that twin
+   * also exists the twin wins and this file is skipped with a warning, instead
+   * of the two overwriting each other in an unspecified order.
+   */
+  private keepAlternateExtensionImport({
+    factory,
+    filePath,
+    scannedPaths,
+  }: {
+    factory: ToolRuleFactory;
+    filePath: string;
+    scannedPaths: string[];
+  }): boolean {
+    const writtenExtension = `.${factory.meta.extension}`;
+    if (factory.meta.nonRootImportGlob === undefined || filePath.endsWith(writtenExtension)) {
+      return true;
+    }
+    const twin = join(
+      dirname(filePath),
+      `${basename(filePath).replace(/\.[^.]+$/, "")}${writtenExtension}`,
+    );
+    if (!scannedPaths.includes(twin)) {
+      return true;
+    }
+    this.logger.warn(
+      `Not importing ${this.formatCappedPathList([filePath])} for ${this.toolTarget}: ${this.formatCappedPathList([twin])} imports to the same rulesync rule and is imported instead. Merge any content only it has into that file and delete it.`,
+    );
+    return false;
+  }
+
   /** The non-root rules under the tool's non-root directory, for import or deletion. */
   private async loadNonRootToolRules({
     factory,
@@ -2181,7 +2214,22 @@ As this project's AI coding tool, you must follow the additional conventions bel
         (filePath) =>
           rootFileNameInSameDir === undefined ||
           relative(nonRootOutputRoot, filePath) !== rootFileNameInSameDir,
+      )
+      .filter((filePath) =>
+        this.keepAlternateExtensionImport({ factory, filePath, scannedPaths: nonRootFilePaths }),
       );
+
+    const alternateExtensionPaths = nonRootPathsForImport.filter(
+      (filePath) => !filePath.endsWith(`.${factory.meta.extension}`),
+    );
+    if (alternateExtensionPaths.length > 0) {
+      // Import-only files rulesync never writes nor deletes (e.g. `.mdc` next
+      // to the generated `.md`): the next generate writes a `.md` twin while
+      // the original stays in place, and the tool would load both.
+      this.logger.warn(
+        `Importing ${this.formatCappedPathList(alternateExtensionPaths)} for ${this.toolTarget} as .${factory.meta.extension} rulesync rule(s). Generation writes .${factory.meta.extension} files only and never deletes the originals, so delete them by hand after the next generate, or ${this.toolTarget} loads each rule twice.`,
+      );
+    }
 
     const loadedNonRootRules = await Promise.all(
       nonRootPathsForImport.map(async (filePath) => {

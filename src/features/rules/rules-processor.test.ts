@@ -1383,7 +1383,87 @@ describe("RulesProcessor", () => {
       ]);
     });
 
-    it("should warn when an oh-my-pi .md and .mdc rule import to the same rulesync rule", async () => {
+    it("should import AugmentCode .mdc rules as .md but never delete them", async () => {
+      await writeFileContent(
+        join(testDir, ".augment", "rules", "style.md"),
+        "---\ntype: always_apply\n---\n# Style",
+      );
+      await writeFileContent(
+        join(testDir, ".augment", "rules", "frontend", "legacy.mdc"),
+        "---\ntype: agent_requested\ndescription: Legacy\n---\n# Legacy",
+      );
+
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "augmentcode",
+      });
+
+      // Auggie loads `.augment/rules/**/*.{md,mdc}`.
+      const imported = await processor.loadToolFiles();
+      expect(imported.map((file) => file.getRelativeFilePath()).toSorted()).toEqual([
+        join("frontend", "legacy.mdc"),
+        "style.md",
+      ]);
+      const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(imported);
+      expect(rulesyncFiles.map((file) => file.getRelativeFilePath()).toSorted()).toEqual([
+        join("frontend", "legacy.md"),
+        "style.md",
+      ]);
+      const legacy = rulesyncFiles.find((file) => file.getRelativeFilePath().endsWith("legacy.md"));
+      expect((legacy as RulesyncRule).getFrontmatter().augmentcode).toEqual({
+        type: "agent_requested",
+        description: "Legacy",
+      });
+      // The original stays on disk after generate, so the user is told.
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("legacy.mdc"));
+
+      // Rulesync never writes `.mdc`, so `--delete` must not remove one.
+      const forDeletion = await processor.loadToolFiles({ forDeletion: true });
+      expect(forDeletion.map((file) => file.getRelativeFilePath())).toEqual(["style.md"]);
+    });
+
+    it("should import AugmentCode .mdc rules in global mode", async () => {
+      await writeFileContent(join(testDir, ".augment", "rules", "global.mdc"), "# Global");
+
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "augmentcode",
+        global: true,
+      });
+
+      const imported = await processor.loadToolFiles();
+      const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(imported);
+      expect(rulesyncFiles.map((file) => file.getRelativeFilePath())).toEqual(["global.md"]);
+      const forDeletion = await processor.loadToolFiles({ forDeletion: true });
+      expect(forDeletion).toEqual([]);
+    });
+
+    it("should keep the AugmentCode .md rule and skip a same-named .mdc one", async () => {
+      await writeFileContent(
+        join(testDir, ".augment", "rules", "foo.md"),
+        "---\ntype: always_apply\n---\n# Md",
+      );
+      await writeFileContent(
+        join(testDir, ".augment", "rules", "foo.mdc"),
+        "---\ntype: always_apply\n---\n# Mdc",
+      );
+
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "augmentcode",
+      });
+      const imported = await processor.loadToolFiles();
+
+      expect(imported.map((file) => file.getRelativeFilePath())).toEqual(["foo.md"]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(`Not importing ${join(".augment", "rules", "foo.mdc")}`),
+      );
+    });
+
+    it("should keep the oh-my-pi .md rule and skip a same-named .mdc one", async () => {
       await writeFileContent(
         join(testDir, ".omp", "rules", "foo.md"),
         "---\nalwaysApply: true\n---\n# Md",
@@ -1394,10 +1474,12 @@ describe("RulesProcessor", () => {
       );
 
       const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "omp" });
-      await processor.convertToolFilesToRulesyncFiles(await processor.loadToolFiles());
+      const imported = await processor.loadToolFiles();
 
+      // Both import to `foo.md`; the `.md` one wins deterministically.
+      expect(imported.map((file) => file.getRelativeFilePath())).toEqual(["foo.md"]);
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining(`import to ${join(RULESYNC_RULES_RELATIVE_DIR_PATH, "foo.md")}`),
+        expect.stringContaining(`Not importing ${join(".omp", "rules", "foo.mdc")}`),
       );
     });
 
