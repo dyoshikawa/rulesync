@@ -238,6 +238,72 @@ describe("QoderRule", () => {
       );
     });
 
+    it("should rebase globs onto the subproject and restore them on import", async () => {
+      const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+      const rule = QoderRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule: makeRulesyncRule({
+          globs: ["packages/app/src/**/*.ts", "!packages/app/src/gen/**"],
+          agentsmd: { subprojectPath: "packages/app/" },
+        }),
+      });
+      expect(rule.getRelativeDirPath()).toBe(join("packages", "app", ".qoder", "rules"));
+      expect(rule.getFrontmatter()).toMatchObject({
+        trigger: "glob",
+        glob: ["src/**/*.ts", "!src/gen/**"],
+      });
+      expect(warn).not.toHaveBeenCalled();
+
+      await writeFileContent(rule.getFilePath(), rule.getFileContent());
+      const imported = await QoderRule.fromFile({
+        outputRoot: testDir,
+        relativeDirPath: join("packages", "app", ".qoder", "rules"),
+        relativeFilePath: "topic.md",
+      });
+      const rulesyncRule = imported.toRulesyncRule();
+      expect(rulesyncRule.getFrontmatter()).toMatchObject({
+        globs: ["packages/app/src/**/*.ts", "!packages/app/src/gen/**"],
+        agentsmd: { subprojectPath: "packages/app" },
+      });
+      const regenerated = QoderRule.fromRulesyncRule({ outputRoot: testDir, rulesyncRule });
+      expect(regenerated.getFileContent()).toBe(rule.getFileContent());
+    });
+
+    it("should turn a glob covering the whole subproject into always_on", () => {
+      const rule = QoderRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule: makeRulesyncRule({
+          globs: ["packages/app/**/*"],
+          agentsmd: { subprojectPath: "packages/app" },
+        }),
+      });
+      expect(rule.getFrontmatter().trigger).toBe("always_on");
+      expect(rule.getFrontmatter().glob).toBeUndefined();
+    });
+
+    it("should warn about a glob outside the subproject and keep qoder.glob verbatim", () => {
+      const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+      const outside = QoderRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule: makeRulesyncRule({
+          globs: ["packages/app/**/*.ts", "docs/**/*.md"],
+          agentsmd: { subprojectPath: "packages/app" },
+        }),
+      });
+      expect(outside.getFrontmatter().glob).toEqual(["**/*.ts", "docs/**/*.md"]);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('"docs/**/*.md"'));
+
+      const explicit = QoderRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule: makeRulesyncRule({
+          globs: ["packages/app/**/*.ts"],
+          agentsmd: { subprojectPath: "packages/app" },
+          qoder: { glob: ["lib/**"] },
+        }),
+      });
+      expect(explicit.getFrontmatter().glob).toEqual(["lib/**"]);
+    });
+
     it("should never nest the root rule, a global rule or an output style", () => {
       const root = QoderRule.fromRulesyncRule({
         outputRoot: testDir,
