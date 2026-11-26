@@ -155,7 +155,7 @@ describe("LettacodeSubagent", () => {
     ]);
   });
 
-  it.each(["letta", "claude-code", "codex", "opencode", "cursor", "memory"])(
+  it.each(["antigravity", "letta", "claude-code", "codex", "opencode", "cursor", "memory"])(
     "warns that the reserved name %s is skipped by Letta Code",
     (name) => {
       const logger = createMockLogger();
