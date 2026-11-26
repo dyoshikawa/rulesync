@@ -42,6 +42,7 @@ import { AntigravityIdeSkill } from "./antigravity-ide-skill.js";
 import { AntigravityPluginSkill } from "./antigravity-plugin-skill.js";
 import { AugmentcodePluginSkill } from "./augmentcode-plugin-skill.js";
 import { AugmentcodeSkill } from "./augmentcode-skill.js";
+import { BbSkill } from "./bb-skill.js";
 import { BobSkill } from "./bob-skill.js";
 import { ClaudecodePluginSkill } from "./claudecode-plugin-skill.js";
 import { ClaudecodeSkill } from "./claudecode-skill.js";
@@ -890,6 +891,16 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
       // the managed/local `~/.openclaw/skills/` root (global).
       // https://docs.openclaw.ai/tools/skills
       class: OpenclawSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "bb",
+    {
+      // bb skills are directories (`<name>/SKILL.md`) under `.bb/skills/`
+      // (project) and `<dataDir>/skills/` (global, `~/.bb/skills/` by default).
+      // https://github.com/get-bb/bb/blob/main/docs/configuration.md#skills
+      class: BbSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],

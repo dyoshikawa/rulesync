@@ -349,6 +349,7 @@ rulesync.local.jsonc
 **/.xum/AGENTS.md
 **/.devin/rules/
 **/.rules
+**/.bb/AGENTS.md
 **/.agents/commands/
 **/.agents/workflows/
 **/.augment/commands/
@@ -425,6 +426,7 @@ rulesync.local.jsonc
 **/.xum/skills/
 **/.zcode/skills/
 **/.dsh/skills/
+**/.bb/skills/
 **/.agents/agents/
 **/.augment/agents/
 **/.bob/custom_modes.yaml

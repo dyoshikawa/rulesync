@@ -112,6 +112,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | OpenBitFun                |       |        |     |          |    ✅     |   ✅   |  ✅   |             |        |
 | MiMo Code                 |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | GitLab Duo CLI            |  ✅   |        | ✅  |    ✅    |           |   ✅   |  ✅   |     ✅      |   ✅   |
+| bb                        |  ✅   |        |     |          |           |   ✅   |       |             |        |
 | Cline                     |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Kilo Code                 |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |   ✅   |
 | Kimi Code                 |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
