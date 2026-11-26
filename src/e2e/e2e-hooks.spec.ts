@@ -93,6 +93,8 @@ const hooksKeyedEventNames: Record<string, { sessionStart: string; stop: string 
   // .qoder/settings.json in both scopes; commands are anchored with
   // $QODER_PROJECT_DIR only when they start with `./`.
   qoder: { sessionStart: "SessionStart", stop: "Stop" },
+  // Qoder CN writes the same shape (project file shared with Qoder).
+  qodercn: { sessionStart: "SessionStart", stop: "Stop" },
 };
 
 function assertHooksKeyedEvents({
@@ -226,6 +228,7 @@ const hooksGenerateTargets = [
   { target: "continue", outputPath: join(".continue", "settings.json") },
   { target: "lettacode", outputPath: join(".letta", "settings.json") },
   { target: "qoder", outputPath: join(".qoder", "settings.json") },
+  { target: "qodercn", outputPath: join(".qoder", "settings.json") },
   { target: "gitlabduo", outputPath: join(".gitlab", "duo", "hooks.json") },
   { target: "grokcli", outputPath: join(".grok", "hooks", "rulesync.json") },
   { target: "cline", outputPath: join(".clinerules", "hooks", "rulesync-hooks.json") },
@@ -1436,6 +1439,7 @@ const hooksGlobalTargets = [
   { target: "continue", outputPath: join(".continue", "settings.json") },
   { target: "lettacode", outputPath: join(".letta", "settings.json") },
   { target: "qoder", outputPath: join(".qoder", "settings.json") },
+  { target: "qodercn", outputPath: join(".qoder-cn", "settings.json") },
   { target: "kiro-ide", outputPath: join(".kiro", "hooks", "rulesync.json") },
   { target: "kiro-cli", outputPath: join(".kiro", "hooks", "rulesync.json") },
   { target: "gitlabduo", outputPath: join(".gitlab", "duo", "hooks.json") },

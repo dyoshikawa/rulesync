@@ -1080,6 +1080,65 @@ describe("PermissionsConfigSchema tool keys", () => {
 });
 
 describe("RulesyncPermissions.mergeImportedJson", () => {
+  it("replaces qoder's own block on a qoder import", () => {
+    const merged = RulesyncPermissions.mergeImportedJson({
+      existing: { qoder: { autoMode: { enabled: true }, outputStyle: "terse" } },
+      imported: { qoder: { outputStyle: "verbose" } },
+      toolTarget: "qoder",
+    });
+
+    expect(merged).toEqual({ qoder: { outputStyle: "verbose" } });
+  });
+
+  it("leaves the shared qoder block untouched on a qodercn import and warns about its keys", () => {
+    const logger = createMockLogger();
+    const existing = {
+      permission: { read: { ".env": "deny" } },
+      qoder: {
+        autoMode: { enabled: false },
+        security: { disableYoloMode: true },
+        permission: { bash: { "rm *": "deny" } },
+      },
+    };
+    const merged = RulesyncPermissions.mergeImportedJson({
+      existing,
+      imported: {
+        permission: { bash: { "git *": "allow" } },
+        qoder: { autoMode: { enabled: true }, security: { disableYoloMode: false } },
+      },
+      toolTarget: "qodercn",
+      logger,
+    });
+
+    expect(merged).toEqual({
+      permission: { read: { ".env": "deny" }, bash: { "git *": "allow" } },
+      qoder: existing.qoder,
+    });
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("did not import qoder.autoMode, qoder.security"),
+    );
+  });
+
+  it("does not create the shared qoder block on a qodercn import", () => {
+    const merged = RulesyncPermissions.mergeImportedJson({
+      existing: {},
+      imported: { qoder: { outputStyle: "terse" } },
+      toolTarget: "qodercn",
+    });
+
+    expect(merged).toEqual({});
+  });
+
+  it("keeps the shared qoder block when a qodercn import produces none", () => {
+    const merged = RulesyncPermissions.mergeImportedJson({
+      existing: { qoder: { autoMode: { enabled: true } } },
+      imported: { permission: { bash: { "git *": "allow" } } },
+      toolTarget: "qodercn",
+    });
+
+    expect(merged.qoder).toEqual({ autoMode: { enabled: true } });
+  });
+
   it("replaces imported categories wholesale and keeps the others", () => {
     const merged = RulesyncPermissions.mergeImportedJson({
       existing: {

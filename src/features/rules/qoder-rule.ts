@@ -2,14 +2,10 @@ import { join, posix } from "node:path";
 
 import { z } from "zod/mini";
 
-import {
-  QODER_DIR,
-  QODER_OUTPUT_STYLES_DIR_PATH,
-  QODER_RULE_FILE_NAME,
-  QODER_RULES_DIR_PATH,
-} from "../../constants/qoder-paths.js";
+import { QODER_DIR, QODER_RULE_FILE_NAME } from "../../constants/qoder-paths.js";
 import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
+import type { ToolTarget } from "../../types/tool-targets.js";
 import { splitBraceAwareList } from "../../utils/brace-aware-list.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent, toPosixPath } from "../../utils/file.js";
@@ -100,6 +96,12 @@ const INFERABLE_TRIGGERS = new Set(["always_on", "glob"]);
 const OUTPUT_STYLE_FILE_GLOB = "*.md";
 
 /**
+ * The targets that write Qoder files from the `qoder` frontmatter section:
+ * `qoder` and its China-region variant `qodercn`.
+ */
+const QODER_FAMILY_TOOL_TARGETS: readonly ToolTarget[] = ["qoder", "qodercn"];
+
+/**
  * The subproject directory a nested rule is scoped to, as a POSIX path without
  * a leading `./` or trailing `/`, or `undefined` for the project root.
  */
@@ -185,7 +187,9 @@ function resolveTrigger(frontmatter: QoderRuleFrontmatter): string {
  * - Project scope: the root rule is the project-root `AGENTS.md` (plain
  *   Markdown); non-root rules are one file per rule under `.qoder/rules/`
  *   with `trigger` frontmatter.
- * - Global scope: `~/.qoder/AGENTS.md` and `~/.qoder/rules/*.md`.
+ * - Global scope: `~/.qoder/AGENTS.md` and `~/.qoder/rules/*.md` (the
+ *   `qodercn` subclass swaps `~/.qoder/` for `~/.qoder-cn/` through
+ *   {@link QoderRule.globalConfigDir}).
  *
  * Trigger inference, when the rule has no `qoder.trigger`:
  * - specific (non-universal) globs → `trigger: glob` + `glob: [...]`
@@ -212,6 +216,35 @@ function resolveTrigger(frontmatter: QoderRuleFrontmatter): string {
  */
 export class QoderRule extends ToolRule {
   /**
+   * The user-level config directory (relative to the home directory). The
+   * project tree is always `.qoder/`; Qoder CN reads `~/.qoder-cn/` instead.
+   */
+  protected static readonly globalConfigDir: string = QODER_DIR;
+
+  /** The config directory of the given scope, relative to the output root. */
+  private static configDir(global: boolean): string {
+    return global ? this.globalConfigDir : QODER_DIR;
+  }
+
+  /** The topic-rules directory of the given scope. */
+  private static rulesDir(global: boolean): string {
+    return join(this.configDir(global), "rules");
+  }
+
+  /** The custom output-styles directory of the given scope. */
+  private static outputStylesDir(global: boolean): string {
+    return join(this.configDir(global), "output-styles");
+  }
+
+  /**
+   * Whether `relativeDirPath` is a topic-rules directory of either scope.
+   * Deletion is not told the scope, so both spellings count.
+   */
+  private static isRulesDir(relativeDirPath: string | undefined): boolean {
+    return relativeDirPath === this.rulesDir(false) || relativeDirPath === this.rulesDir(true);
+  }
+
+  /**
    * Build this tool's separate personal local-root file (`localRootMode:
    * "separate-local-file"`), for generation and import. See
    * {@link ToolRuleBuildLocalRootFileParams}.
@@ -225,7 +258,7 @@ export class QoderRule extends ToolRule {
   }: ToolRuleBuildLocalRootFileParams): ToolRule {
     // `AGENTS.local.md` sits next to the project-root `AGENTS.md` Qoder reads,
     // not under `.qoder/`, and is plain markdown with no trigger frontmatter.
-    return new QoderRule({
+    return new this({
       outputRoot,
       relativeDirPath: relativeDirPath ?? ".",
       relativeFilePath: fileName,
@@ -268,7 +301,8 @@ export class QoderRule extends ToolRule {
 
   /**
    * Whether the given path is a custom output style: a direct `.md` child of
-   * `.qoder/output-styles/`, at either scope.
+   * the output-styles directory, at either scope (deletion is not told the
+   * scope, so both spellings count).
    */
   private static isOutputStylePath({
     relativeDirPath,
@@ -277,18 +311,24 @@ export class QoderRule extends ToolRule {
     relativeDirPath: string | undefined;
     relativeFilePath: string;
   }): boolean {
-    return isDirectMarkdownChild({
-      outputStylesDirPath: QODER_OUTPUT_STYLES_DIR_PATH,
-      relativeDirPath,
-      relativeFilePath,
-    });
+    return [false, true].some((global) =>
+      isDirectMarkdownChild({
+        outputStylesDirPath: this.outputStylesDir(global),
+        relativeDirPath,
+        relativeFilePath,
+      }),
+    );
   }
 
   /** See {@link getOutputStyleRuleOptionWarnings}. */
   static getRuleOptionWarnings(rules: RulesyncRule[]): string[] {
     return getOutputStyleRuleOptionWarnings({
       rules,
-      toolTarget: "qoder",
+      sectionKey: "qoder",
+      toolTarget: this.toolTarget,
+      // `qoder` and `qodercn` both read the `qoder` section and write the same
+      // output style, so targeting both of them is not "other tools".
+      outputStyleTargets: QODER_FAMILY_TOOL_TARGETS,
       isTargetedByRulesyncRule: (rule) => this.isTargetedByRulesyncRule(rule),
     });
   }
@@ -305,10 +345,12 @@ export class QoderRule extends ToolRule {
    * `~/.qoder/output-styles/`) that rulesync cannot tell from its own, so
    * `--delete` leaves it alone.
    */
-  static getExtraFixedFiles(_params: { global?: boolean } = {}): ToolRuleExtraFixedFile[] {
+  static getExtraFixedFiles({
+    global = false,
+  }: { global?: boolean } = {}): ToolRuleExtraFixedFile[] {
     return [
       {
-        relativeDirPath: QODER_OUTPUT_STYLES_DIR_PATH,
+        relativeDirPath: this.outputStylesDir(global),
         relativeFilePath: OUTPUT_STYLE_FILE_GLOB,
         importOnly: true,
       },
@@ -328,13 +370,13 @@ export class QoderRule extends ToolRule {
     return {
       root: {
         // The project file sits at the project root; the user file sits inside
-        // `~/.qoder/`, which the processor reaches by supplying the home
-        // directory as outputRoot.
-        relativeDirPath: global ? join(QODER_DIR, ".") : ".",
+        // `~/.qoder/` (`~/.qoder-cn/` for Qoder CN), which the processor
+        // reaches by supplying the home directory as outputRoot.
+        relativeDirPath: global ? join(this.globalConfigDir, ".") : ".",
         relativeFilePath: QODER_RULE_FILE_NAME,
       },
       nonRoot: {
-        relativeDirPath: join(QODER_DIR, "rules"),
+        relativeDirPath: this.rulesDir(global),
       },
     };
   }
@@ -348,11 +390,12 @@ export class QoderRule extends ToolRule {
   }: ToolRuleFromFileParams): Promise<QoderRule> {
     const paths = this.getSettablePaths({ global });
     if (this.isOutputStylePath({ relativeDirPath, relativeFilePath })) {
-      const filePath = join(outputRoot, QODER_OUTPUT_STYLES_DIR_PATH, relativeFilePath);
+      const outputStylesDirPath = this.outputStylesDir(global);
+      const filePath = join(outputRoot, outputStylesDirPath, relativeFilePath);
       const { frontmatter, body } = parseFrontmatter(await readFileContent(filePath), filePath);
-      return new QoderRule({
+      return new this({
         outputRoot,
-        relativeDirPath: QODER_OUTPUT_STYLES_DIR_PATH,
+        relativeDirPath: outputStylesDirPath,
         relativeFilePath,
         frontmatter,
         body: body.trim(),
@@ -373,7 +416,7 @@ export class QoderRule extends ToolRule {
     if (nested) {
       return this.fromTopicRuleFile({
         outputRoot,
-        relativeDirPath: join(nested.subprojectPath, QODER_RULES_DIR_PATH),
+        relativeDirPath: join(nested.subprojectPath, this.rulesDir(false)),
         relativeFilePath: join(nested.innerDirPath, relativeFilePath),
         validate,
       });
@@ -384,7 +427,7 @@ export class QoderRule extends ToolRule {
     // as the root file. Fall back to the file name when the caller omits it.
     const isRoot =
       relativeDirPath !== undefined
-        ? relativeDirPath !== QODER_RULES_DIR_PATH
+        ? relativeDirPath !== paths.nonRoot.relativeDirPath
         : relativeFilePath === paths.root.relativeFilePath;
 
     if (isRoot) {
@@ -392,7 +435,7 @@ export class QoderRule extends ToolRule {
       const fileContent = await readFileContent(
         join(outputRoot, rootDirPath, paths.root.relativeFilePath),
       );
-      return new QoderRule({
+      return new this({
         outputRoot,
         relativeDirPath: rootDirPath,
         relativeFilePath: paths.root.relativeFilePath,
@@ -432,7 +475,7 @@ export class QoderRule extends ToolRule {
       throw new Error(`Invalid frontmatter in ${filePath}: ${formatError(result.error)}`);
     }
 
-    return new QoderRule({
+    return new this({
       outputRoot,
       relativeDirPath,
       relativeFilePath,
@@ -455,11 +498,11 @@ export class QoderRule extends ToolRule {
     const body = rulesyncRule.getBody();
 
     if (this.isOutputStyleRule(rulesyncRule)) {
-      return this.buildOutputStyle({ outputRoot, rulesyncRule, validate });
+      return this.buildOutputStyle({ outputRoot, rulesyncRule, validate, global });
     }
 
     if (root) {
-      return new QoderRule({
+      return new this({
         outputRoot,
         relativeDirPath: paths.root.relativeDirPath,
         relativeFilePath: paths.root.relativeFilePath,
@@ -478,10 +521,10 @@ export class QoderRule extends ToolRule {
       : normalizeSubprojectPath(rulesyncFrontmatter.agentsmd?.subprojectPath);
     const relativeDirPath =
       subprojectPath !== undefined
-        ? join(subprojectPath, QODER_RULES_DIR_PATH)
+        ? join(subprojectPath, this.rulesDir(false))
         : paths.nonRoot.relativeDirPath;
 
-    return new QoderRule({
+    return new this({
       outputRoot,
       relativeDirPath,
       relativeFilePath: rulesyncRule.getRelativeFilePath(),
@@ -505,10 +548,12 @@ export class QoderRule extends ToolRule {
     outputRoot,
     rulesyncRule,
     validate,
+    global,
   }: {
     outputRoot: string;
     rulesyncRule: RulesyncRule;
     validate: boolean;
+    global: boolean;
   }): QoderRule {
     const { description, qoder } = rulesyncRule.getFrontmatter();
     const sourcePath = rulesyncRule.getRelativeFilePath();
@@ -516,9 +561,9 @@ export class QoderRule extends ToolRule {
       sourcePath,
       message: `Rule '${sourcePath}' sets qoder.channel: output-style but is nested in a subdirectory: Qoder reads only the files directly in .qoder/output-styles/, so move it to the top of ${RULESYNC_RULES_RELATIVE_DIR_PATH}.`,
     });
-    return new QoderRule({
+    return new this({
       outputRoot,
-      relativeDirPath: QODER_OUTPUT_STYLES_DIR_PATH,
+      relativeDirPath: this.outputStylesDir(global),
       relativeFilePath: `${stem}.md`,
       frontmatter: buildOutputStyleFrontmatter({ name: qoder?.name, description }),
       body: rulesyncRule.getBody(),
@@ -638,7 +683,7 @@ export class QoderRule extends ToolRule {
         relativeFilePath: this.getRelativeFilePath(),
         frontmatter: {
           root: false,
-          targets: ["qoder"],
+          targets: [(this.constructor as typeof QoderRule).toolTarget],
           ...(typeof description === "string" && { description }),
           qoder: {
             channel: "output-style",
@@ -684,13 +729,14 @@ export class QoderRule extends ToolRule {
     }
 
     // A nested rule carries its directory back through `agentsmd.subprojectPath`
-    // and targets qoder only, so the next generate neither surprises other
+    // and targets this target only, so the next generate neither surprises other
     // tools with new nested files nor folds it into their root files. An
     // always-on rule keeps `**/*` rather than a directory glob, which would
     // turn it into a file-scoped one.
 
     const rulesyncFrontmatter: RulesyncRuleFrontmatter = {
-      targets: subprojectPath === undefined ? ["*"] : ["qoder"],
+      targets:
+        subprojectPath === undefined ? ["*"] : [(this.constructor as typeof QoderRule).toolTarget],
       root: false,
       description,
       globs,
@@ -735,7 +781,7 @@ export class QoderRule extends ToolRule {
     relativeFilePath,
   }: ToolRuleForDeletionParams): QoderRule {
     const outputStyle = this.isOutputStylePath({ relativeDirPath, relativeFilePath });
-    return new QoderRule({
+    return new this({
       outputRoot,
       relativeDirPath,
       relativeFilePath,
@@ -744,7 +790,7 @@ export class QoderRule extends ToolRule {
       validate: false,
       root:
         !outputStyle &&
-        relativeDirPath !== QODER_RULES_DIR_PATH &&
+        !this.isRulesDir(relativeDirPath) &&
         relativeFilePath === QODER_RULE_FILE_NAME,
       outputStyle,
     });
@@ -776,5 +822,5 @@ export class QoderRule extends ToolRule {
     };
   }
 
-  protected static override readonly toolTarget = "qoder";
+  protected static override readonly toolTarget: ToolTarget = "qoder";
 }

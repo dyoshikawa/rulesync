@@ -72,6 +72,7 @@ import { OpenCodeCommand } from "./opencode-command.js";
 import { Opencodev1Command } from "./opencodev1-command.js";
 import { PiCommand } from "./pi-command.js";
 import { QoderCommand } from "./qoder-command.js";
+import { QodercnCommand } from "./qodercn-command.js";
 import { QwencodeCommand } from "./qwencode-command.js";
 import { ReasonixCommand } from "./reasonix-command.js";
 import { RooCommand } from "./roo-command.js";
@@ -802,6 +803,22 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
       // the command (`git/commit.md` -> `/git:commit`).
       // https://docs.qoder.com/en/cli/04-extending-qoder-cli/command
       class: QoderCommand,
+      meta: {
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: true,
+        isSimulated: false,
+        supportsSubdirectory: true,
+      },
+    },
+  ],
+  [
+    "qodercn",
+    {
+      // Qoder CN shares Qoder's `.qoder/commands/` project directory; user
+      // commands live under `~/.qoder-cn/commands/`.
+      // https://docs.qoder.cn/qoder/commands
+      class: QodercnCommand,
       meta: {
         extension: "md",
         supportsProject: true,

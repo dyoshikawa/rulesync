@@ -395,6 +395,7 @@
     "PYTHONPATH",
     "QCLI",
     "qoder",
+    "qodercn",
     "qodercli",
     "qoderignore",
     "qwen",

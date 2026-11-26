@@ -65,6 +65,7 @@ describe("tool targets", () => {
         "pi",
         "pool",
         "qoder",
+        "qodercn",
         "qwencode",
         "reasonix",
         "replit",

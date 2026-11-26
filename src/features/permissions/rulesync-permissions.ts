@@ -135,23 +135,43 @@ export class RulesyncPermissions extends RulesyncFile {
    * Every other top-level key — `$schema` included — is kept unless the import
    * names it, in which case the imported value replaces it. No importer emits
    * another tool's override block, so those blocks are never touched here.
+   *
+   * A target listed in {@link IMPORT_SKIPS_SHARED_OVERRIDE_BLOCK_TARGETS}
+   * reads an override block another target also reads from a *different* file
+   * (Qoder CN shares the `qoder` block but keeps its user settings in
+   * `~/.qoder-cn/`). Its import leaves that block untouched — present or
+   * absent — and imports only the canonical rules, so it never puts its values
+   * into the other target's output. The override keys it skipped are reported
+   * with a warning.
    */
   static mergeImportedJson({
     existing,
     imported,
     toolTarget,
+    logger,
   }: {
     existing: Record<string, unknown>;
     imported: Record<string, unknown>;
     toolTarget: ToolTarget;
+    logger?: Logger;
   }): Record<string, unknown> {
     const ownOverrideKey = PERMISSION_OVERRIDE_KEY_ALIASES[toolTarget] ?? toolTarget;
+    const skipsSharedBlock = IMPORT_SKIPS_SHARED_OVERRIDE_BLOCK_TARGETS.has(toolTarget);
     const merged: Record<string, unknown> = { ...existing };
-    delete merged[ownOverrideKey];
+    if (!skipsSharedBlock) {
+      delete merged[ownOverrideKey];
+    }
     for (const [key, value] of Object.entries(imported)) {
       const current = merged[key];
       if (key === "permission") {
         merged[key] = mergePermissionCategories({ existing: current, imported: value });
+      } else if (skipsSharedBlock && key === ownOverrideKey) {
+        warnSkippedSharedOverrideKeys({
+          block: value,
+          blockKey: ownOverrideKey,
+          toolTarget,
+          logger,
+        });
       } else {
         merged[key] = value;
       }
@@ -275,6 +295,40 @@ export class RulesyncPermissions extends RulesyncFile {
       fileContent: JSON.stringify(merged, null, 2),
     });
   }
+}
+
+/**
+ * Targets whose import never writes the override block they share with
+ * another target (through `PERMISSION_OVERRIDE_KEY_ALIASES`), because the two
+ * read that block from different files. `qodercn` shares the `qoder` block, but
+ * in global mode it imports `~/.qoder-cn/` while `qoder` imports `~/.qoder/`:
+ * writing Qoder CN values there would make the next `qoder` generate apply
+ * them to Qoder too, possibly loosening its settings.
+ */
+const IMPORT_SKIPS_SHARED_OVERRIDE_BLOCK_TARGETS: ReadonlySet<ToolTarget> = new Set<ToolTarget>([
+  "qodercn",
+]);
+
+/** Report the override keys a shared-block import did not bring in. */
+function warnSkippedSharedOverrideKeys({
+  block,
+  blockKey,
+  toolTarget,
+  logger,
+}: {
+  block: unknown;
+  blockKey: string;
+  toolTarget: ToolTarget;
+  logger?: Logger;
+}): void {
+  if (!isRecord(block) || Object.keys(block).length === 0) {
+    return;
+  }
+  const keys = Object.keys(block).map((key) => `${blockKey}.${key}`);
+  warnWithFallback(
+    logger,
+    `Importing ${toolTarget} did not import ${keys.join(", ")}: the "${blockKey}" block is shared with the ${blockKey} target, which reads its own settings file, so ${toolTarget}'s values are not written there. Add them under "${blockKey}" by hand if you want them for both targets.`,
+  );
 }
 
 /**
@@ -563,11 +617,15 @@ const NATIVE_PERMISSION_OVERRIDE_TARGETS: ReadonlySet<ToolTarget> = new Set([
 
 /**
  * Targets that read their tool-scoped override from a differently named key:
- * Kiro IDE/CLI share the `kiro` block (they write the same agent config) and
- * Hermes Agent's established override key is `hermes`.
+ * Kiro IDE/CLI share the `kiro` block (they write the same agent config),
+ * Hermes Agent's established override key is `hermes`, and Qoder CN shares
+ * Qoder's `qoder` block.
  */
 export const PERMISSION_OVERRIDE_KEY_ALIASES: Partial<Record<ToolTarget, string>> = {
   "kiro-cli": "kiro",
   "kiro-ide": "kiro",
   hermesagent: "hermes",
+  // Qoder CN writes Qoder's settings shape (and the same project file), so it
+  // reads the `qoder` block.
+  qodercn: "qoder",
 };

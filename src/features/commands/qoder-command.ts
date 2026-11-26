@@ -1,6 +1,8 @@
+import { join } from "node:path";
+
 import { z } from "zod/mini";
 
-import { QODER_COMMANDS_DIR_PATH } from "../../constants/qoder-paths.js";
+import { QODER_COMMANDS_DIR_PATH, QODER_DIR } from "../../constants/qoder-paths.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { FrontmatterMarkdownToolCommand } from "./frontmatter-markdown-command.js";
 import type { ToolCommandSettablePaths } from "./tool-command.js";
@@ -30,11 +32,14 @@ export type QoderCommandFrontmatter = z.infer<typeof QoderCommandFrontmatterSche
  * @see https://docs.qoder.com/en/cli/04-extending-qoder-cli/command
  */
 export class QoderCommand extends FrontmatterMarkdownToolCommand<QoderCommandFrontmatter> {
-  // Both scopes share the same relative path; the home-directory root is
-  // applied by the generate pipeline in global mode.
-  static getSettablePaths(_options: { global?: boolean } = {}): ToolCommandSettablePaths {
+  /** The user-level config directory; Qoder CN reads `~/.qoder-cn/`. */
+  protected static readonly globalConfigDir: string = QODER_DIR;
+
+  // The home-directory root is applied by the generate pipeline in global
+  // mode, so only the config directory name differs between the scopes.
+  static getSettablePaths({ global = false }: { global?: boolean } = {}): ToolCommandSettablePaths {
     return {
-      relativeDirPath: QODER_COMMANDS_DIR_PATH,
+      relativeDirPath: global ? join(this.globalConfigDir, "commands") : QODER_COMMANDS_DIR_PATH,
     };
   }
 

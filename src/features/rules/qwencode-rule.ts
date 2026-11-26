@@ -368,7 +368,7 @@ export class QwencodeRule extends ToolRule {
   static getRuleOptionWarnings(rules: RulesyncRule[]): string[] {
     const warnings = getOutputStyleRuleOptionWarnings({
       rules,
-      toolTarget: "qwencode",
+      sectionKey: "qwencode",
       isTargetedByRulesyncRule: (rule) => this.isTargetedByRulesyncRule(rule),
     });
     for (const rule of rules) {
