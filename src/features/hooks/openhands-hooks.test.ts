@@ -37,6 +37,7 @@ describe("OpenhandsHooks", () => {
 
   afterEach(async () => {
     await cleanup();
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
   });
 
@@ -105,6 +106,7 @@ describe("OpenhandsHooks", () => {
       ["^Bash$", "^terminal$"],
       ["Edit.*", "(?:file_editor|apply_patch|write_file|edit|planning_file_editor).*"],
       ["github_.*", "github_.*"],
+      ["glob|edit", "glob|edit"],
       ["*", "*"],
       ["terminal", "terminal"],
     ])("should translate the preToolUse matcher %s to %s", async (matcher, expected) => {
@@ -130,6 +132,8 @@ describe("OpenhandsHooks", () => {
               { command: "./guard-regex.sh", matcher: "Web.*" },
               { command: "./guard-mcp.sh", matcher: "mcp__github__.*" },
               { command: "./guard-mcp-tool.sh", matcher: "Bash|mcp__github__create_issue" },
+              { command: "./guard-lower.sh", matcher: "bash" },
+              { command: "./guard-flag.sh", matcher: "(?i)write" },
             ],
           },
         }),
@@ -143,6 +147,8 @@ describe("OpenhandsHooks", () => {
             { type: "command", command: "./guard-regex.sh" },
             { type: "command", command: "./guard-mcp.sh" },
             { type: "command", command: "./guard-mcp-tool.sh" },
+            { type: "command", command: "./guard-lower.sh" },
+            { type: "command", command: "./guard-flag.sh" },
           ],
         },
       ]);
@@ -215,6 +221,40 @@ describe("OpenhandsHooks", () => {
       expect(JSON.parse(hooks.getFileContent())).toEqual({
         stop: [{ hooks: [{ type: "command", command: "echo openhands" }] }],
       });
+    });
+
+    it("should warn that an existing user-level hooks file will be ignored", async () => {
+      const persistenceDir = join(testDir, "persistence");
+      vi.stubEnv("OH_PERSISTENCE_DIR", persistenceDir);
+      await writeFileContent(join(persistenceDir, "hooks.json"), "{}");
+      const logger = createMockLogger();
+      await OpenhandsHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        logger,
+        rulesyncHooks: makeRulesyncHooks({ hooks: { stop: [{ command: "echo stop" }] } }),
+      });
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("makes OpenHands ignore every hook there"),
+      );
+    });
+
+    it("should not warn about the user-level hooks file when no project hooks are generated", async () => {
+      const persistenceDir = join(testDir, "persistence");
+      vi.stubEnv("OH_PERSISTENCE_DIR", persistenceDir);
+      await writeFileContent(join(persistenceDir, "hooks.json"), "{}");
+      const logger = createMockLogger();
+      const hooks = await OpenhandsHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        logger,
+        rulesyncHooks: makeRulesyncHooks({ hooks: { preCompact: [{ command: "echo c" }] } }),
+      });
+
+      expect(JSON.parse(hooks.getFileContent())).toEqual({});
+      // The empty project file is removed rather than written, so the user
+      // file applies again.
+      expect(hooks.shouldRemoveWhenPayloadEmpty()).toBe(true);
+      expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("ignore every hook"));
     });
 
     it("should replace the existing file by default", async () => {
@@ -315,6 +355,25 @@ describe("OpenhandsHooks", () => {
         stop: [{ type: "command", command: "./always.sh" }],
       });
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("never runs there"));
+    });
+
+    it("should warn about OpenHands-native names it imports untranslated", () => {
+      const logger = createMockLogger();
+      const rulesyncHooks = makeOpenhandsHooks({
+        pre_tool_use: [
+          { matcher: "(?i)terminal|browser_navigate", hooks: [{ command: "./a.sh" }] },
+          { matcher: "github_create_issue", hooks: [{ command: "./b.sh" }] },
+        ],
+      }).toRulesyncHooks({ logger });
+
+      expect(rulesyncHooks.getJson().hooks?.preToolUse?.map((def) => def.matcher)).toEqual([
+        "(?i)Bash|browser_navigate",
+        "github_create_issue",
+      ]);
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"browser_navigate"'));
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"github_create_issue"'));
+      expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining('"i"'));
     });
 
     it("should accept PascalCase keys inside the hooks wrapper", () => {

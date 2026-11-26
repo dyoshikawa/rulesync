@@ -403,6 +403,25 @@ describe("E2E: hooks", () => {
     }
   });
 
+  it("should remove .openhands/hooks.json once no OpenHands hooks remain", async () => {
+    const testDir = getTestDir();
+    const hooksPath = join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH);
+    const outputPath = join(testDir, ".openhands", "hooks.json");
+
+    await writeFileContent(hooksPath, JSON.stringify({ hooks: { stop: [{ command: "echo" }] } }));
+    await runGenerate({ target: "openhands", features: "hooks" });
+    expect(await fileExists(outputPath)).toBe(true);
+
+    // An empty project file would still hide ~/.openhands/hooks.json, so it is
+    // removed rather than rewritten as `{}`.
+    await writeFileContent(
+      hooksPath,
+      JSON.stringify({ hooks: { preCompact: [{ command: "echo" }] } }),
+    );
+    await runGenerate({ target: "openhands", features: "hooks" });
+    expect(await fileExists(outputPath)).toBe(false);
+  });
+
   it("should generate hooks from hooks.jsonc (preferred over hooks.json)", async () => {
     const testDir = getTestDir();
 

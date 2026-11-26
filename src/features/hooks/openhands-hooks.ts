@@ -6,7 +6,7 @@ import {
   OPENHANDS_HOOK_EVENTS,
   OPENHANDS_TO_CANONICAL_EVENT_NAMES,
 } from "../../types/hooks.js";
-import { readFileContentOrNull } from "../../utils/file.js";
+import { fileExists, getHomeDirectory, readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { lookupOwn } from "../../utils/own-lookup.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
@@ -98,20 +98,54 @@ const MATCH_ALL_MATCHERS: ReadonlySet<string> = new Set(["*", ".*", ""]);
 
 /** Whole names of a matcher (escapes and character classes excluded). */
 function matcherNames(matcher: string): string[] {
-  return [...matcher.matchAll(MATCHER_TOKEN_PATTERN)]
+  // Inline flag groups (`(?i)`) hold letters that are not tool names.
+  return [...matcher.replace(/\(\?[A-Za-z]+\)/g, "").matchAll(MATCHER_TOKEN_PATTERN)]
     .map(([token]) => token)
     .filter((token) => isMatcherName(token));
 }
 
+/** Every OpenHands tool name the translation table produces. */
+const OPENHANDS_TOOL_NAMES: ReadonlySet<string> = new Set(
+  Object.values(CANONICAL_TO_OPENHANDS_TOOL_NAMES).flat(),
+);
+
+/**
+ * Canonical (Claude Code) tool names, lowercased, so a case variant such as
+ * `bash` or `webfetch` is recognized as meaning a canonical tool rather than an
+ * OpenHands one.
+ */
+const CANONICAL_TOOL_NAMES_LOWER: ReadonlySet<string> = new Set(
+  [
+    ...Object.keys(CANONICAL_TO_OPENHANDS_TOOL_NAMES),
+    "WebFetch",
+    "WebSearch",
+    "NotebookEdit",
+    "NotebookRead",
+    "BashOutput",
+    "KillShell",
+    "Skill",
+    "SlashCommand",
+    "AskUserQuestion",
+    "ExitPlanMode",
+  ].map((name) => name.toLowerCase()),
+);
+
 /**
  * Names OpenHands can never match after translation: a capitalized name (its
- * tool names are lowercase snake_case) or a canonical `mcp__<server>__<tool>`
- * name (OpenHands calls an MCP tool by its own name, or `<server>_<tool>`).
+ * tool names are lowercase snake_case), a lowercase variant of a canonical
+ * name that is not an OpenHands tool (`bash`, `read`; `glob` and `edit` are
+ * real OpenHands tools), or a canonical `mcp__<server>__<tool>` name
+ * (OpenHands calls an MCP tool by its own name, or `<server>_<tool>`).
  */
 function unmatchableNames(matcher: string): string[] {
   return [
     ...new Set(
-      matcherNames(matcher).filter((name) => /^[A-Z]/.test(name) || name.startsWith("mcp__")),
+      matcherNames(matcher).filter(
+        (name) =>
+          /^[A-Z]/.test(name) ||
+          name.startsWith("mcp__") ||
+          (CANONICAL_TOOL_NAMES_LOWER.has(name.toLowerCase()) && !OPENHANDS_TOOL_NAMES.has(name)),
+      ),
     ),
   ];
 }
@@ -348,11 +382,86 @@ function prepareNonToolEventMatchers({
 }
 
 /**
+ * Warn about OpenHands-native names an import carries into canonical tool
+ * matchers untranslated (`browser_navigate`, an MCP `<server>_<tool>` name):
+ * other tools never call a tool by those names, so such a hook will not run
+ * there.
+ */
+function warnUntranslatedImportedNames({
+  hooks,
+  logger,
+}: {
+  hooks: Record<string, unknown>;
+  logger?: Logger;
+}): void {
+  const untranslated = new Set<string>();
+  for (const [eventName, groups] of Object.entries(hooks)) {
+    const canonical = lookupOwn({ record: OPENHANDS_TO_CANONICAL_EVENT_NAMES, key: eventName });
+    if (canonical === undefined || !TOOL_MATCHER_EVENTS.has(canonical) || !Array.isArray(groups)) {
+      continue;
+    }
+    for (const group of groups) {
+      if (!isPlainObject(group) || typeof group.matcher !== "string") continue;
+      if (MATCH_ALL_MATCHERS.has(group.matcher.trim())) continue;
+      for (const name of matcherNames(group.matcher)) {
+        if (/^[a-z]/.test(name) && !Object.hasOwn(OPENHANDS_TO_CANONICAL_TOOL_NAMES, name)) {
+          untranslated.add(name);
+        }
+      }
+    }
+  }
+  if (untranslated.size === 0) return;
+  logger?.warn(
+    `OpenHands hook matchers name ${[...untranslated].map((name) => quoteValueForWarning(name)).join(", ")}, ` +
+      `which rulesync has no canonical tool name for, so they are imported as written and ` +
+      `will likely never match in other tools.`,
+  );
+}
+
+/**
+ * Where the OpenHands SDK looks for user-level hooks when the project has no
+ * `.openhands/hooks.json`: `hooks.json` in `$OH_PERSISTENCE_DIR`, or in
+ * `~/.openhands` when that is unset. `undefined` when no home directory can
+ * be resolved.
+ * @see https://github.com/OpenHands/software-agent-sdk/blob/main/openhands-sdk/openhands/sdk/hooks/config.py
+ */
+function openhandsUserHooksPath(): string | undefined {
+  const persistenceDir = process.env.OH_PERSISTENCE_DIR;
+  if (persistenceDir) {
+    return join(persistenceDir, OPENHANDS_HOOKS_FILE_NAME);
+  }
+  try {
+    return join(getHomeDirectory(), OPENHANDS_DIR, OPENHANDS_HOOKS_FILE_NAME);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Warn when a user-level hooks file exists: OpenHands reads it only when the
+ * project has no `.openhands/hooks.json`, so the generated project file makes
+ * OpenHands ignore every hook (guards included) kept there.
+ */
+async function warnHiddenUserHooks(logger: Logger | undefined): Promise<void> {
+  const userHooksPath = openhandsUserHooksPath();
+  if (userHooksPath === undefined || !(await fileExists(userHooksPath))) {
+    return;
+  }
+  logger?.warn(
+    `OpenHands reads ${quoteValueForWarning(userHooksPath)} only when the project has no ` +
+      `.openhands/hooks.json, so the generated project file makes OpenHands ignore every hook ` +
+      `there, guards included. Move those hooks into the rulesync hooks sources.`,
+  );
+}
+
+/**
  * Hooks generator for OpenHands: `.openhands/hooks.json` in the project root,
  * written with the documented snake_case event keys and no wrapper. OpenHands
  * documents no user-level hooks file, so global mode is not supported. (The
  * SDK loader falls back to `~/.openhands/hooks.json` only when the project has
- * no `.openhands/hooks.json`, so a generated project file hides it.)
+ * no `.openhands/hooks.json`, so a generated project file hides it: rulesync
+ * warns when that file exists, and removes the project file instead of
+ * leaving it empty when no hooks remain.)
  *
  * By default the generated hooks replace the file; with
  * `preserveUnownedHooks`, handlers rulesync did not write are kept and an
@@ -428,6 +537,10 @@ export class OpenhandsHooks extends ToolHooks {
       logger,
     });
 
+    if (Object.keys(merged.hooks).length > 0) {
+      await warnHiddenUserHooks(logger);
+    }
+
     return new OpenhandsHooks({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
@@ -443,8 +556,13 @@ export class OpenhandsHooks extends ToolHooks {
       displayName: "OpenHands",
       parse: (fileContent) => JSON.parse(fileContent),
     });
+    const nativeHooks = prepareNonToolEventMatchers({
+      hooks: normalizeOpenhandsHooks(parsed),
+      logger,
+    });
+    warnUntranslatedImportedNames({ hooks: nativeHooks, logger });
     const hooks = toolHooksToCanonical({
-      hooks: prepareNonToolEventMatchers({ hooks: normalizeOpenhandsHooks(parsed), logger }),
+      hooks: nativeHooks,
       converterConfig: OPENHANDS_CONVERTER_CONFIG,
       logger,
     });
@@ -455,6 +573,15 @@ export class OpenhandsHooks extends ToolHooks {
         2,
       ),
     });
+  }
+
+  /**
+   * The project file hides the user-level hooks file whenever it exists, so
+   * it is removed rather than left holding `{}` once no hooks remain (with
+   * `preserveUnownedHooks`, only when no hand-written handler is left either).
+   */
+  override shouldRemoveWhenPayloadEmpty(): boolean {
+    return true;
   }
 
   static override supportsPreserveUnowned(): boolean {

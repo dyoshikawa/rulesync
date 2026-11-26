@@ -100,6 +100,22 @@ export abstract class FeatureProcessor extends RulesyncSourceConsumer {
         continue;
       }
 
+      // A file whose presence alone changes the tool's behavior is removed
+      // rather than left behind holding an empty payload (and never created
+      // empty).
+      const removal = await this.removeIfPayloadEmpty({
+        aiFile,
+        content: contentWithNewline,
+        existingContent,
+      });
+      if (removal !== "kept") {
+        if (removal === "removed") {
+          changedCount++;
+          changedPaths.push(aiFile.getRelativePathFromCwd());
+        }
+        continue;
+      }
+
       const fileMode = aiFile.getFileMode?.();
 
       if (
@@ -152,6 +168,38 @@ export abstract class FeatureProcessor extends RulesyncSourceConsumer {
       paths: changedPaths,
       ...(keyOperations.length > 0 && { keyOperations }),
     };
+  }
+
+  /**
+   * For a file that opts into {@link AiFile.shouldRemoveWhenPayloadEmpty}:
+   * remove it (`"removed"`) or skip creating it (`"skipped"`) when the
+   * generated payload is empty; `"kept"` lets the normal write go ahead.
+   */
+  private async removeIfPayloadEmpty({
+    aiFile,
+    content,
+    existingContent,
+  }: {
+    aiFile: AiFile;
+    content: string;
+    existingContent: string | null;
+  }): Promise<"kept" | "removed" | "skipped"> {
+    const filePath = aiFile.getFilePath();
+    if (
+      !aiFile.shouldRemoveWhenPayloadEmpty() ||
+      !fileContentIsEmptyPayload({ filePath, content })
+    ) {
+      return "kept";
+    }
+    if (existingContent === null) {
+      return "skipped";
+    }
+    if (this.dryRun) {
+      this.logger.info(`[DRY RUN] Would remove: ${stripControlCharacters(filePath)}`);
+    } else {
+      await removeFile(filePath);
+    }
+    return "removed";
   }
 
   async removeAiFiles(aiFiles: AiFile[]): Promise<void> {
