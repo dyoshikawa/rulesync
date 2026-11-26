@@ -2305,6 +2305,7 @@ Second global content`;
         "openbitfun",
         "xum",
         "zcode",
+        "zero",
       ]);
     });
 
@@ -2385,12 +2386,14 @@ Second global content`;
           "zoocode",
           "rovodev",
           "tabnine",
+          "trae",
           "takt",
           "theia",
           "vibe",
           "vibe-plugin",
           "xum",
           "zcode",
+          "zero",
           "zcode-plugin",
         ]),
       );

@@ -35,7 +35,9 @@ import { QwencodePermissions } from "./qwencode-permissions.js";
 import { ReasonixPermissions } from "./reasonix-permissions.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
+  hasDoubleSlashWithoutScheme,
   honorAllToolsRestrictions,
+  restatesAsCategoryRule,
   stripUrlSchemeKeepingPathCase,
   urlPatternsOverlap,
   withholdAllowsShadowedByAsks,
@@ -152,6 +154,63 @@ describe("honorAllToolsRestrictions", () => {
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("bash: git push *"));
   });
 
+  it("restates '*' path restrictions into a listed category the config lacks", () => {
+    const result = honorAllToolsRestrictions({
+      permission: {
+        "*": { ".env": "deny", "git push *": "ask", "*": "deny" },
+        bash: { ls: "allow" },
+      },
+      toolLabel: "Tool",
+      restateAs: restatesAsCategoryRule(),
+      restateIntoAbsentCategories: ["read", "edit"],
+    });
+
+    expect(result.read).toEqual({ ".env": "deny" });
+    expect(result.edit).toEqual({ ".env": "deny" });
+  });
+
+  it("leaves a listed category out when nothing is restated into it or the config has it", () => {
+    const nothingRestated = honorAllToolsRestrictions({
+      permission: { "*": { "git push *": "ask" }, bash: { ls: "allow" } },
+      toolLabel: "Tool",
+      restateAs: restatesAsCategoryRule(),
+      restateIntoAbsentCategories: ["read"],
+    });
+    expect(Object.hasOwn(nothingRestated, "read")).toBe(false);
+
+    const stated = honorAllToolsRestrictions({
+      permission: { "*": { ".env": "deny" }, read: { "src/**": "allow" } },
+      toolLabel: "Tool",
+      restateAs: restatesAsCategoryRule(),
+      restateIntoAbsentCategories: ["read"],
+    });
+    expect(stated.read).toEqual({ "src/**": "allow", ".env": "deny" });
+  });
+
+  it("writes the '*' catch-all restriction into each category when withheld catch-alls are downgraded", () => {
+    const denied = honorAllToolsRestrictions({
+      permission: { "*": { "*": "deny" }, read: { "src/**": "allow" }, edit: { "*": "ask" } },
+      toolLabel: "Tool",
+      downgradeWithheldCatchAll: true,
+    });
+    expect(denied.read).toEqual({ "*": "deny" });
+    expect(denied.edit).toEqual({ "*": "deny" });
+
+    const asked = honorAllToolsRestrictions({
+      permission: { "*": { "*": "ask" }, read: { "src/**": "allow" }, edit: { "*": "deny" } },
+      toolLabel: "Tool",
+      downgradeWithheldCatchAll: true,
+    });
+    expect(asked.read).toEqual({ "*": "ask" });
+    expect(asked.edit).toEqual({ "*": "deny" });
+
+    const notDowngraded = honorAllToolsRestrictions({
+      permission: { "*": { "*": "deny" }, read: { "src/**": "allow" } },
+      toolLabel: "Tool",
+    });
+    expect(notDowngraded.read).toEqual({});
+  });
+
   it("drops pattern-specific '*' entries but keeps the catch-all when asked to", () => {
     const result = honorAllToolsRestrictions({
       permission: { "*": { "*": "ask", ".env": "deny" } },
@@ -217,6 +276,10 @@ describe("urlPatternsOverlap", () => {
     ["example.com/fil", "example.com/fil?.txt"],
     ["*.pdf", "https://example.com/doc.pdf?dl=1"],
     ["example.com/private/*", "https://a@b@example.com/private/x?y=1#z"],
+    // A pathless allow with a scheme or a port is still every path on its host.
+    ["*.pdf", "https://example.com"],
+    ["*.pdf", "example.com:8080"],
+    ["*.pdf", "example.com/docs/*"],
   ])("%s overlaps %s", (left, right) => {
     expect(urlPatternsOverlap(left, right)).toBe(true);
   });
@@ -241,8 +304,25 @@ describe("urlPatternsOverlap", () => {
     // A `?` in the host is a glob, not a query start.
     ["git", "git?ub.com"],
     ["example.com", "example.com?y=1"],
+    // An allow with a path is not widened to every path on its host.
+    ["*.pdf", "example.com/a.html"],
+    ["*.pdf", "example.com/docs/"],
   ])("%s does not overlap %s", (left, right) => {
     expect(urlPatternsOverlap(left, right)).toBe(false);
+  });
+});
+
+describe("hasDoubleSlashWithoutScheme", () => {
+  it.each([
+    ["evil.com//x", true],
+    ["http*//foo.com", true],
+    ["https://x/y", false],
+    ["http://a//b", false],
+    ["*//x", false],
+    ["//x", false],
+    ["example.com", false],
+  ])("%s -> %s", (pattern, expected) => {
+    expect(hasDoubleSlashWithoutScheme(pattern)).toBe(expected);
   });
 });
 
@@ -541,6 +621,80 @@ describe("translators never leave an allow that covers a restriction they cannot
       });
       expect(content).toContain('pattern = "Bash(rm *)"');
       expect(content).not.toContain('decision = "allow"');
+    });
+
+    it.each([
+      ["CodeBuddy", CodebuddyPermissions, "Read(.env)"],
+      ["Qoder", QoderPermissions, "Read(.env)"],
+      ["Command Code", CommandcodePermissions, "Read(.env)"],
+      ["Letta Code", LettacodePermissions, "Read(.env)"],
+      ["Qwen Code", QwencodePermissions, "Read(.env)"],
+    ] as const)(
+      "%s restates a '*' path deny as a read rule when the config has no read category",
+      async (_, generator, rule) => {
+        const content = await generate({
+          generator,
+          permission: { "*": { ".env": "deny" }, bash: { ls: "allow" } },
+        });
+        const json = JSON.parse(content);
+        expect(json.permissions.deny).toContain(rule);
+      },
+    );
+
+    it.each([
+      ["CodeBuddy", CodebuddyPermissions, ".codebuddy"],
+      ["Qoder", QoderPermissions, ".qoder"],
+      ["Command Code", CommandcodePermissions, ".commandcode"],
+      ["Letta Code", LettacodePermissions, ".letta"],
+      ["Qwen Code", QwencodePermissions, ".qwen"],
+    ] as const)(
+      "%s keeps the existing read entries of a category it only restates into",
+      async (_, generator, dir) => {
+        await writeFileContent(
+          join(testDir, dir, "settings.json"),
+          JSON.stringify({
+            permissions: { deny: ["Read(secrets/**)"], allow: ["Read(docs/**)"] },
+          }),
+        );
+        const content = await generate({
+          generator,
+          permission: { "*": { ".env": "deny" }, bash: { ls: "allow" } },
+        });
+        const json = JSON.parse(content);
+        expect(json.permissions.deny).toEqual(
+          expect.arrayContaining(["Read(secrets/**)", "Read(.env)"]),
+        );
+        expect(json.permissions.allow).toEqual(expect.arrayContaining(["Read(docs/**)"]));
+      },
+    );
+
+    it("Vibe writes a '*' catch-all deny into read even when the config has no read category", async () => {
+      const content = await generate({
+        generator: VibePermissions,
+        permission: { "*": { "*": "deny" }, bash: { ls: "allow" } },
+      });
+      expect(content).toMatch(/\[tools\.read_file\]\npermission = "never"/);
+    });
+
+    it("OpenCode V2 moves an integer-like deny after the looser rule instead of respelling it", async () => {
+      const content = await generate({
+        generator: OpencodePermissions,
+        permission: { bash: { "8080": "deny", "*": "allow" } },
+      });
+      const rules = JSON.parse(content).permissions as Array<Record<string, string>>;
+      expect(rules).toEqual([
+        { action: "shell", resource: "*", effect: "allow" },
+        { action: "shell", resource: "8080", effect: "deny" },
+      ]);
+    });
+
+    it("Vibe writes a '*' catch-all deny into a category whose allows it withholds", async () => {
+      const content = await generate({
+        generator: VibePermissions,
+        permission: { "*": { "*": "deny" }, read: { "src/**": "allow" } },
+      });
+      expect(content).toContain('permission = "never"');
+      expect(content).not.toContain("src/**");
     });
 
     it("Junie and Pool withhold the read allow", async () => {

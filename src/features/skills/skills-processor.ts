@@ -114,6 +114,7 @@ import { XumSkill } from "./xum-skill.js";
 import { ZcodePluginSkill } from "./zcode-plugin-skill.js";
 import { ZcodeSkill } from "./zcode-skill.js";
 import { ZedSkill } from "./zed-skill.js";
+import { ZeroSkill } from "./zero-skill.js";
 import { ZoocodeSkill } from "./zoocode-skill.js";
 
 /**
@@ -876,6 +877,17 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     },
   ],
   [
+    "zero",
+    {
+      // Zero reads skills (`<name>/SKILL.md`) from its user skills root
+      // `~/.local/share/zero/skills/`; project skill directories are not
+      // supported, so the target is global-only.
+      // https://github.com/Twigpine/zero/blob/main/docs/EXTENDING.md#3-skills
+      class: ZeroSkill,
+      meta: { supportsProject: false, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
     "zcode-plugin",
     {
       // `<plugin>/skills/<name>/SKILL.md`. https://zcode.z.ai/en/docs/plugin
@@ -962,7 +974,9 @@ export class SkillsProcessor extends DirFeatureProcessor {
       outputRoot,
       inputRoots,
       dryRun,
-      avoidBlockScalars: toolTarget === "cursor",
+      // Zero (like Cursor) reads skill frontmatter line by line, so a value
+      // folded onto several lines would be cut short.
+      avoidBlockScalars: toolTarget === "cursor" || toolTarget === "zero",
       logger,
     });
     const result = SkillsProcessorToolTargetSchema.safeParse(toolTarget);

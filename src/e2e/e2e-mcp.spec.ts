@@ -13,6 +13,7 @@ import {
 } from "../constants/rulesync-paths.js";
 import { warpcliConfigDir } from "../constants/warp-paths.js";
 import { getZedGlobalDir } from "../constants/zed-paths.js";
+import { zeroGlobalConfigDir } from "../constants/zero-paths.js";
 import { McpProcessor } from "../features/mcp/mcp-processor.js";
 import { fileExists, readFileContent, removeFile, writeFileContent } from "../utils/file.js";
 import { getHermesagentGlobalDir } from "../utils/hermesagent.js";
@@ -85,6 +86,7 @@ const mcpGenerateTargets = [
   { target: "reasonix", outputPath: "reasonix.toml" },
   { target: "rovodev", outputPath: join(".rovodev", "mcp.json") },
   { target: "zcode", outputPath: join(".zcode", "config.json") },
+  { target: "zero", outputPath: join(".zero", "config.json") },
 ] as const;
 
 describe("E2E: mcp", () => {
@@ -1068,6 +1070,20 @@ describe("E2E: mcp (import)", () => {
         2,
       ),
     },
+    // Zero keeps its servers under `mcp.servers` of `.zero/config.json`,
+    // beside provider settings that must not be imported.
+    {
+      target: "zero",
+      sourcePath: join(".zero", "config.json"),
+      sourceContent: JSON.stringify(
+        {
+          defaultModel: "example-model",
+          mcp: { servers: { "test-server": { type: "stdio", command: "echo", args: ["hello"] } } },
+        },
+        null,
+        2,
+      ),
+    },
     // Legacy pre-v3000.3 location: import must fall back to config.json's
     // mcpServers key when no mcp_config.json exists.
     { target: "devin", sourcePath: join(".devin", "config.json") },
@@ -1253,6 +1269,7 @@ const mcpGlobalTargets = [
   { target: "kiro-cli", outputPath: join(".kiro", "settings", "mcp.json") },
   { target: "kiro-ide", outputPath: join(".kiro", "settings", "mcp.json") },
   { target: "zcode", outputPath: join(".zcode", "cli", "config.json") },
+  { target: "zero", outputPath: join(zeroGlobalConfigDir(), "config.json") },
   { target: "dsh", outputPath: join(".dsh", "cordis.patch.yml") },
 ] as const;
 

@@ -41,7 +41,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Rovodev (Atlassian) ⚠️    | rovodev            | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |       |    ✅ 🌏    |   ✅   |
 | Takt                      | takt               | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |       |    ✅ 🌏    | ✅ 🌏  |
 | Theia AI                  | theia              |  ✅   |        |    ✅    |    ✅    |    ✅     | ✅ 🌏  |       |             |        |
-| Trae                      | trae               |  ✅   |   ✅   |    ✅    |  ✅ 🌏   |           | ✅ 🌏  | ✅ 🌏 |     🌏      |        |
+| Trae                      | trae               |  ✅   |   ✅   |    ✅    |  ✅ 🌏   |    ✅     | ✅ 🌏  | ✅ 🌏 |     🌏      |        |
 | Tabnine CLI ⚠️            | tabnine            | ✅ 🌏 |   ✅   | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
 | Continue ⚠️               | continue           | ✅ 🌏 | ✅ 🌏  |  ✅ 🌏   |  ✅ 🌏   |           | ✅ 🌏  | ✅ 🌏 |     🌏      |        |
 | Snowflake Cortex Code     | cortexcode         |  ✅   |        |    🌏    |          |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |             |        |
@@ -75,6 +75,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Zed                       | zed                | ✅ 🌏 | ✅ 🌏  |  ✅ 🌏   |          |           | ✅ 🌏  |       |     🌏      |        |
 | ZCode (Z.ai)              | zcode              | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |             |        |
 | ZCode plugin              | zcode-plugin       |       |        |    ✅    |    ✅    |    ✅     |   ✅   |  ✅   |             |        |
+| Zero                      | zero               | ✅ 🌏 |        |  ✅ 🌏   |          |   ✅ 🌏   |   🌏   | ✅ 🌏 |             |        |
 | Pool (Poolside)           | pool               | ✅ 🌏 |        | ✅ 🌏 🔧 |          |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
 | DeepSeek Harness          | dsh                | ✅ 🌏 |        |    🌏    |          |           | ✅ 🌏  |       |             |        |
 
