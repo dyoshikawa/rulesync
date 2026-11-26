@@ -649,6 +649,7 @@ describe("committedOutput check outputs", () => {
     // Its checks file is committed too, so only the shared `.agents/` trees and
     // its local-only files remain.
     expect(entries.toSorted()).toEqual([
+      "**/.agents/agents/",
       "**/.agents/commands/",
       "**/.agents/skills/",
       "**/.gitlab/duo/chat-rules.md",

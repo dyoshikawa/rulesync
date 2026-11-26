@@ -144,6 +144,28 @@ describe("QodercnRule", () => {
     expect(rule.isRoot()).toBe(false);
   });
 
+  it("should write a directory-scoped rule to <dir>/.qoder/rules/ and import it back for qodercn", async () => {
+    const rule = QodercnRule.fromRulesyncRule({
+      outputRoot: testDir,
+      rulesyncRule: makeRulesyncRule({ agentsmd: { subprojectPath: "packages/app" } }),
+    });
+    expect(rule.getRelativeDirPath()).toBe(join("packages", "app", ".qoder", "rules"));
+
+    await writeFileContent(
+      join(testDir, "packages", "app", ".qoder", "rules", "app.md"),
+      "---\ntrigger: model_decision\ndescription: App rules\n---\nBody\n",
+    );
+    const imported = await QodercnRule.fromFile({
+      outputRoot: testDir,
+      relativeDirPath: join("packages", "app", ".qoder", "rules"),
+      relativeFilePath: "app.md",
+    });
+    expect(imported.toRulesyncRule().getFrontmatter()).toMatchObject({
+      targets: ["qodercn"],
+      agentsmd: { subprojectPath: "packages/app" },
+    });
+  });
+
   it("should not warn about an output style that targets both qoder and qodercn", () => {
     const warnings = QodercnRule.getRuleOptionWarnings([
       makeRulesyncRule({ targets: ["qoder", "qodercn"], qoder: { channel: "output-style" } }),
