@@ -245,6 +245,32 @@ function copyHermesBoolLikeFields(
   return copied;
 }
 
+/**
+ * Reads `single_instance` the way Hermes does: `bool(config.get(...))`, plain
+ * Python truthiness rather than the yes/no parser of
+ * {@link copyHermesBoolLikeFields} (`tools/mcp_tool_server_run.py`). A number
+ * or string is therefore written as the boolean Hermes acts on, with a warning
+ * since that can surprise (`"false"` is a non-empty string, so it reads as
+ * on); dropping it instead would quietly turn a running single-instance guard
+ * off on regenerate. Any other non-boolean is dropped with a warning.
+ */
+function readHermesSingleInstance(value: unknown, logger?: Logger): boolean | undefined {
+  if (value === undefined || value === null || typeof value === "boolean") {
+    return value ?? undefined;
+  }
+  if (typeof value === "number" || typeof value === "string") {
+    const truthy = typeof value === "number" ? value !== 0 : value.length > 0;
+    logger?.warn(
+      `Hermes MCP: single_instance ${describeHermesValue(value)} is not a boolean; Hermes reads it by Python truthiness as ${String(truthy)}, so it is written as ${String(truthy)}.`,
+    );
+    return truthy;
+  }
+  logger?.warn(
+    `Hermes MCP: dropping single_instance ${describeHermesValue(value)}; Hermes expects a boolean.`,
+  );
+  return undefined;
+}
+
 // Per-server mappings Hermes reads as a whole; see `copyHermesAdvancedFields`.
 const HERMES_OPAQUE_MAPPING_KEYS = [
   "sampling",
@@ -321,8 +347,9 @@ function copyHermesAdvancedFields(
   }
   // Only one live child process system-wide for a stdio server (v0.23.3), for
   // a single-writer datastore.
-  if (typeof source.single_instance === "boolean") {
-    target.single_instance = source.single_instance;
+  const singleInstance = readHermesSingleInstance(source.single_instance, logger);
+  if (singleInstance !== undefined) {
+    target.single_instance = singleInstance;
     copied = true;
   }
   // Liveness ping cadence in seconds (v0.20.0; default 180, floored at 5).

@@ -1526,13 +1526,26 @@ export class HooksProcessor extends FeatureProcessor {
     const overrideKey = HOOKS_OVERRIDE_KEY_ALIASES[this.toolTarget] ?? this.toolTarget;
     const overrideHooks = (config[overrideKey] as { hooks?: unknown } | undefined)?.hooks ?? {};
     const effectiveHooks = { ...sharedHooks, ...overrideHooks };
+    const skippedEvents = unsupportedEventNames({ factory, sharedHooks, effectiveHooks });
+    // The hooks on a skipped event are already reported by the skipped-event
+    // warning and produce no output, so the hook-type and matcher warnings
+    // below leave them out rather than reporting the same hooks again. Without
+    // `dropsUnknownOverrideEvents` only the shared block's events are skipped,
+    // so an override key of the same name is still emitted and still checked.
+    const skippedEventSet: ReadonlySet<string> = new Set(skippedEvents);
+    const emittedHooks = Object.fromEntries(
+      Object.entries(effectiveHooks).filter(
+        ([event]) =>
+          !skippedEventSet.has(event) ||
+          (!factory.dropsUnknownOverrideEvents && Object.hasOwn(overrideHooks, event)),
+      ),
+    );
 
     // Warn about unsupported events
     {
       const optInEvents = factory.overrideOptIn?.events ?? {};
       const isOptIn = (e: string): e is HookEvent => Object.hasOwn(optInEvents, e);
       const overrideKeys = new Set(Object.keys(overrideHooks));
-      const skippedEvents = unsupportedEventNames({ factory, sharedHooks, effectiveHooks });
       const skipped = skippedEvents.filter((e) => !isOptIn(e));
       // A shared-block opt-in event, unless the override already authors it
       // under its native name.
@@ -1564,7 +1577,7 @@ export class HooksProcessor extends FeatureProcessor {
     {
       const supportedHookTypes: Set<string> = new Set(factory.supportedHookTypes);
       const unsupportedTypeToEvents = new Map<string, Set<string>>();
-      for (const [event, defs] of Object.entries(effectiveHooks)) {
+      for (const [event, defs] of Object.entries(emittedHooks)) {
         for (const def of defs as unknown[]) {
           const hookDef = def as { type?: string };
           const hookType = hookDef.type ?? "command";
@@ -1586,7 +1599,10 @@ export class HooksProcessor extends FeatureProcessor {
     this.warnAboutDroppedPerHookFields({ factory, sharedHooks, effectiveHooks });
 
     // Warn about unsupported matcher
-    const eventsWithUnsupportedMatcher = unsupportedMatcherEventNames({ factory, effectiveHooks });
+    const eventsWithUnsupportedMatcher = unsupportedMatcherEventNames({
+      factory,
+      effectiveHooks: emittedHooks,
+    });
     if (eventsWithUnsupportedMatcher.length > 0) {
       this.logger.warn(
         `Skipped matcher hook(s) for ${this.toolTarget} (not supported): ${eventsWithUnsupportedMatcher.join(", ")}`,

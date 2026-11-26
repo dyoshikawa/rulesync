@@ -142,6 +142,56 @@ describe("OpenbitfunHooks", () => {
       expect(logger.warn.mock.calls[0]?.[0]).toContain('"MultiEdit"');
     });
 
+    it("should warn about tool-gating matchers spelling a tool name in another case (issue #3971)", async () => {
+      const logger = createMockLogger();
+      const hooks = await OpenbitfunHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        logger,
+        rulesyncHooks: makeRulesyncHooks({
+          hooks: {
+            preToolUse: [
+              { command: "./guard.sh", matcher: "bash" },
+              { command: "./ci-guard.sh", matcher: "(?i)bash" },
+              { command: "./read-guard.sh", matcher: "read|Write" },
+            ],
+            postToolUse: [{ command: "./log.sh", matcher: "bash" }],
+          },
+        }),
+      });
+
+      const parsed = JSON.parse(hooks.getFileContent());
+      expect(parsed.hooks.PreToolUse.map((group: { matcher: string }) => group.matcher)).toEqual([
+        "bash",
+        "(?i)bash",
+        "read|Write",
+      ]);
+      const messages = logger.warn.mock.calls.map(([message]) => String(message));
+      expect(messages).toHaveLength(3);
+      expect(messages[0]).toContain('"bash" in the "preToolUse" matcher "bash" never matches');
+      expect(messages[0]).toContain('"ExecCommand"');
+      expect(messages[1]).toContain('matcher "(?i)bash"');
+      expect(messages[2]).toContain('"read" in the "preToolUse" matcher "read|Write"');
+      expect(messages[2]).toContain('"Read"');
+    });
+
+    it("should not warn about a case-insensitive matcher that still matches OpenBitFun's spelling (issue #3971)", async () => {
+      const logger = createMockLogger();
+      await OpenbitfunHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        logger,
+        rulesyncHooks: makeRulesyncHooks({
+          hooks: {
+            preToolUse: [
+              { command: "./read-guard.sh", matcher: "(?i)read|edit" },
+              { command: "./mcp-guard.sh", matcher: "mcp__github__.*" },
+            ],
+          },
+        }),
+      });
+
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
     it("should skip a handler whose timeout OpenBitFun treats as invalid", async () => {
       const logger = createMockLogger();
       const hooks = await OpenbitfunHooks.fromRulesyncHooks({
@@ -178,6 +228,35 @@ describe("OpenbitfunHooks", () => {
       expect(JSON.parse(hooks.getFileContent())).toEqual({
         hooks: { PostCompact: [{ hooks: [{ type: "command", command: "echo compacted" }] }] },
       });
+    });
+  });
+
+  describe("fromFile", () => {
+    it("should warn about a moved XDG config home when importing globally (issue #3971)", async () => {
+      vi.spyOn(process, "platform", "get").mockReturnValue("linux");
+      vi.stubEnv("HOME_DIR", testDir);
+      vi.stubEnv("XDG_CONFIG_HOME", join("/", "srv", "openbitfun-hooks-import-xdg"));
+      const logger = createMockLogger();
+      try {
+        await OpenbitfunHooks.fromFile({ outputRoot: testDir, global: true, logger });
+      } finally {
+        vi.unstubAllEnvs();
+      }
+
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("$XDG_CONFIG_HOME"));
+    });
+
+    it("should not warn about XDG variables when importing a project", async () => {
+      vi.spyOn(process, "platform", "get").mockReturnValue("linux");
+      vi.stubEnv("XDG_CONFIG_HOME", join("/", "srv", "openbitfun-hooks-project-xdg"));
+      const logger = createMockLogger();
+      try {
+        await OpenbitfunHooks.fromFile({ outputRoot: testDir, logger });
+      } finally {
+        vi.unstubAllEnvs();
+      }
+
+      expect(logger.warn).not.toHaveBeenCalled();
     });
   });
 

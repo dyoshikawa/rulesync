@@ -513,7 +513,6 @@ describe("HermesagentMcp", () => {
         fileContent: JSON.stringify({
           mcpServers: {
             datastore: { command: "uvx", args: ["datastore-mcp"], single_instance: true },
-            invalid: { command: "uvx", args: ["other"], single_instance: "yes" },
           },
         }),
       });
@@ -526,8 +525,6 @@ describe("HermesagentMcp", () => {
       const servers = getMcpServers(mcp.getFileContent());
 
       expect(servers.datastore?.single_instance).toBe(true);
-      // Only booleans are copied, the same as `skip_preflight`.
-      expect(servers.invalid?.single_instance).toBeUndefined();
 
       // A hand-written value in config.yaml survives import, so a regenerate
       // from the imported canonical config keeps it.
@@ -562,6 +559,48 @@ describe("HermesagentMcp", () => {
         global: true,
       });
       expect(getMcpServers(regenerated.getFileContent()).datastore?.single_instance).toBe(true);
+    });
+
+    it("writes a non-boolean single_instance as the boolean Hermes reads by truthiness (issue #3971)", async () => {
+      const logger = createMockLogger();
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            yes: { command: "uvx", single_instance: "yes" },
+            no: { command: "uvx", single_instance: "false" },
+            one: { command: "uvx", single_instance: 1 },
+            zero: { command: "uvx", single_instance: 0 },
+            empty: { command: "uvx", single_instance: "" },
+            list: { command: "uvx", single_instance: ["x"] },
+            unset: { command: "uvx", single_instance: null },
+          },
+        }),
+      });
+
+      const mcp = await HermesagentMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+        logger,
+      });
+      const servers = getMcpServers(mcp.getFileContent());
+
+      expect(servers.yes?.single_instance).toBe(true);
+      // A non-empty string is truthy in Python, so Hermes reads "false" as on.
+      expect(servers.no?.single_instance).toBe(true);
+      expect(servers.one?.single_instance).toBe(true);
+      expect(servers.zero?.single_instance).toBe(false);
+      expect(servers.empty?.single_instance).toBe(false);
+      expect(servers.list?.single_instance).toBeUndefined();
+      expect(servers.unset?.single_instance).toBeUndefined();
+      expect(logger.warn).toHaveBeenCalledWith(
+        'Hermes MCP: single_instance "false" is not a boolean; Hermes reads it by Python truthiness as true, so it is written as true.',
+      );
+      expect(logger.warn).toHaveBeenCalledWith(
+        'Hermes MCP: dropping single_instance ["x"]; Hermes expects a boolean.',
+      );
     });
 
     it("writes and imports the v0.22.3 tool_costs/spend_limit/cost_unit keys (issue #2414)", async () => {
