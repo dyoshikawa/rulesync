@@ -19,10 +19,10 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, toPosixPath } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { getOrCreateOwn, lookupOwn } from "../../utils/own-lookup.js";
-import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isRecord, toRecord } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
+import { skipsReservedPermissionName } from "./reserved-permission-name.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   collectRestrictionLosingSandboxEntries,
@@ -729,7 +729,7 @@ function convertDevinToRulesyncPermissions(params: {
       // prototype-pollution keys before they reach `toCanonicalCategory` (which
       // would otherwise resolve `__proto__`/`constructor` to a non-string via the
       // lookup object) or get used as bracket-notation object keys.
-      if (isPrototypePollutionKey(scope) || isPrototypePollutionKey(pattern)) {
+      if (skipsReservedPermissionName({ toolLabel: "Devin", category: scope, pattern })) {
         continue;
       }
       const canonical = toCanonicalCategory(scope);

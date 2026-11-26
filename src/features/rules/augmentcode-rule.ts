@@ -198,7 +198,8 @@ export class AugmentcodeRule extends ToolRule {
     return new RulesyncRule({
       outputRoot: process.cwd(),
       relativeDirPath: RulesyncRule.getSettablePaths().recommended.relativeDirPath,
-      relativeFilePath: this.getRelativeFilePath(),
+      // Auggie also loads `.mdc` rules; rulesync rules are always `.md`.
+      relativeFilePath: this.getRelativeFilePath().replace(/\.mdc$/, ".md"),
       frontmatter: {
         root: false,
         targets: ["*"],

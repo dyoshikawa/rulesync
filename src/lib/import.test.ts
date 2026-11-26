@@ -15,6 +15,7 @@ import { CommandsProcessor } from "../features/commands/commands-processor.js";
 import { HooksProcessor } from "../features/hooks/hooks-processor.js";
 import { RulesyncHooks } from "../features/hooks/rulesync-hooks.js";
 import { IgnoreProcessor } from "../features/ignore/ignore-processor.js";
+import { RulesyncIgnore } from "../features/ignore/rulesync-ignore.js";
 import { McpProcessor } from "../features/mcp/mcp-processor.js";
 import { RulesyncMcp } from "../features/mcp/rulesync-mcp.js";
 import { PermissionsProcessor } from "../features/permissions/permissions-processor.js";
@@ -31,8 +32,16 @@ import { importFromTool } from "./import.js";
 
 const logger = createMockLogger();
 
+/** A converted rulesync file or directory whose writes are only counted. */
+const createStubRulesyncItem = (label: string) => ({
+  label,
+  withOutputRoot() {
+    return this;
+  },
+});
+
 const createMockProcessor = ({
-  convertedFiles = [{ file: "rulesync" }],
+  convertedFiles = [createStubRulesyncItem("rulesync")],
 }: { convertedFiles?: unknown[] } = {}) => ({
   loadToolFiles: vi.fn().mockResolvedValue([{ file: "tool" }]),
   convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue(convertedFiles),
@@ -42,7 +51,7 @@ const createMockProcessor = ({
 
 const createMockSkillsProcessor = () => ({
   loadToolDirs: vi.fn().mockResolvedValue([{ dir: "tool" }]),
-  convertToolDirsToRulesyncDirs: vi.fn().mockResolvedValue([{ dir: "rulesync" }]),
+  convertToolDirsToRulesyncDirs: vi.fn().mockResolvedValue([createStubRulesyncItem("rulesync")]),
   writeAiDirs: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
 });
 
@@ -473,6 +482,7 @@ describe("importFromTool", () => {
 
     it("should write to an existing MCP JSONC source", async () => {
       const { testDir, cleanup } = await setupTestDirectory();
+      const cwdSpy = vi.spyOn(process, "cwd").mockReturnValue(testDir);
       try {
         await ensureDir(join(testDir, RULESYNC_RELATIVE_DIR_PATH));
         await writeFileContent(
@@ -504,12 +514,14 @@ describe("importFromTool", () => {
         const writtenFiles = mockProcessor.writeAiFiles.mock.calls[0]?.[0] as RulesyncMcp[];
         expect(writtenFiles[0]?.getRelativeFilePath()).toBe("mcp.jsonc");
       } finally {
+        cwdSpy.mockRestore();
         await cleanup();
       }
     });
 
     it("should update an existing legacy MCP JSON source without creating JSONC", async () => {
       const { testDir, cleanup } = await setupTestDirectory();
+      const cwdSpy = vi.spyOn(process, "cwd").mockReturnValue(testDir);
       try {
         await ensureDir(join(testDir, RULESYNC_RELATIVE_DIR_PATH));
         await writeFileContent(
@@ -541,6 +553,7 @@ describe("importFromTool", () => {
         const writtenFiles = mockProcessor.writeAiFiles.mock.calls[0]?.[0] as RulesyncMcp[];
         expect(writtenFiles[0]?.getRelativeFilePath()).toBe("mcp.json");
       } finally {
+        cwdSpy.mockRestore();
         await cleanup();
       }
     });
@@ -884,6 +897,7 @@ describe("importFromTool", () => {
 
     it("should update an existing legacy hooks JSON source without creating JSONC", async () => {
       const { testDir, cleanup } = await setupTestDirectory();
+      const cwdSpy = vi.spyOn(process, "cwd").mockReturnValue(testDir);
       try {
         await ensureDir(join(testDir, RULESYNC_RELATIVE_DIR_PATH));
         await writeFileContent(
@@ -916,6 +930,7 @@ describe("importFromTool", () => {
         const writtenFiles = mockProcessor.writeAiFiles.mock.calls[0]?.[0] as RulesyncHooks[];
         expect(writtenFiles[0]?.getRelativeFilePath()).toBe("hooks.json");
       } finally {
+        cwdSpy.mockRestore();
         await cleanup();
       }
     });
@@ -980,6 +995,7 @@ describe("importFromTool", () => {
 
     it("should update an existing legacy permissions JSON source without creating JSONC", async () => {
       const { testDir, cleanup } = await setupTestDirectory();
+      const cwdSpy = vi.spyOn(process, "cwd").mockReturnValue(testDir);
       try {
         await ensureDir(join(testDir, RULESYNC_RELATIVE_DIR_PATH));
         await writeFileContent(
@@ -1011,12 +1027,14 @@ describe("importFromTool", () => {
         const writtenFiles = mockProcessor.writeAiFiles.mock.calls[0]?.[0] as RulesyncPermissions[];
         expect(writtenFiles[0]?.getRelativeFilePath()).toBe("permissions.json");
       } finally {
+        cwdSpy.mockRestore();
         await cleanup();
       }
     });
 
     it("should merge imported permissions into the existing source per category", async () => {
       const { testDir, cleanup } = await setupTestDirectory();
+      const cwdSpy = vi.spyOn(process, "cwd").mockReturnValue(testDir);
       try {
         await ensureDir(join(testDir, RULESYNC_RELATIVE_DIR_PATH));
         await writeFileContent(
@@ -1081,12 +1099,14 @@ describe("importFromTool", () => {
         });
         expect(written?.getFileContent()).toContain("// Imported from Claude Code earlier.");
       } finally {
+        cwdSpy.mockRestore();
         await cleanup();
       }
     });
 
     it("should refuse to overwrite an existing permissions source that fails validation", async () => {
       const { testDir, cleanup } = await setupTestDirectory();
+      const cwdSpy = vi.spyOn(process, "cwd").mockReturnValue(testDir);
       try {
         await ensureDir(join(testDir, RULESYNC_RELATIVE_DIR_PATH));
         await writeFileContent(
@@ -1120,6 +1140,7 @@ describe("importFromTool", () => {
         );
         expect(mockProcessor.writeAiFiles).not.toHaveBeenCalled();
       } finally {
+        cwdSpy.mockRestore();
         await cleanup();
       }
     });
@@ -1348,6 +1369,64 @@ describe("importFromTool", () => {
           outputRoot: "/custom/path",
         }),
       );
+    });
+
+    it("should write the converted sources under the current working directory, not the output root", async () => {
+      const { testDir, cleanup } = await setupTestDirectory();
+      const cwdSpy = vi.spyOn(process, "cwd").mockReturnValue(testDir);
+      try {
+        const mockProcessor = createMockProcessor({
+          convertedFiles: [
+            new RulesyncIgnore({
+              outputRoot: join(testDir, "sub"),
+              relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+              relativeFilePath: ".aiignore",
+              fileContent: "secret/",
+            }),
+          ],
+        });
+        vi.mocked(IgnoreProcessor).mockImplementation(function () {
+          return mockProcessor as unknown as IgnoreProcessor;
+        });
+        mockConfig.getFeatures.mockReturnValue(["ignore"]);
+        mockConfig.getOutputRoots.mockReturnValue(["sub"]);
+
+        await importFromTool({ logger, config: mockConfig as never, tool: "claudecode" });
+
+        const writtenFiles = mockProcessor.writeAiFiles.mock.calls[0]?.[0] as RulesyncIgnore[];
+        expect(writtenFiles[0]).toBeInstanceOf(RulesyncIgnore);
+        expect(writtenFiles[0]?.getFilePath()).toBe(
+          join(testDir, RULESYNC_RELATIVE_DIR_PATH, ".aiignore"),
+        );
+        expect(writtenFiles[0]?.getFileContent()).toBe("secret/");
+      } finally {
+        cwdSpy.mockRestore();
+        await cleanup();
+      }
+    });
+
+    it("should keep the adapter's output root for the converted sources in global mode", async () => {
+      const mockProcessor = createMockProcessor({
+        convertedFiles: [
+          new RulesyncIgnore({
+            outputRoot: "/home/user",
+            relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+            relativeFilePath: ".aiignore",
+            fileContent: "secret/",
+          }),
+        ],
+      });
+      vi.mocked(IgnoreProcessor).mockImplementation(function () {
+        return mockProcessor as unknown as IgnoreProcessor;
+      });
+      mockConfig.getGlobal.mockReturnValue(true);
+      mockConfig.getFeatures.mockReturnValue(["ignore"]);
+      mockConfig.getOutputRoots.mockReturnValue(["/home/user"]);
+
+      await importFromTool({ logger, config: mockConfig as never, tool: "kiro-cli" });
+
+      const writtenFiles = mockProcessor.writeAiFiles.mock.calls[0]?.[0] as RulesyncIgnore[];
+      expect(writtenFiles[0]?.getOutputRoot()).toBe("/home/user");
     });
 
     it("should fall back to '.' when outputRoots is empty", async () => {

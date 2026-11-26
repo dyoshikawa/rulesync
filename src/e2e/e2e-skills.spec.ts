@@ -69,6 +69,10 @@ const skillsGenerateTargets = [
     outputPath: join(".openbitfun", "skills", "test-skill", "SKILL.md"),
   },
   {
+    target: "bb",
+    outputPath: join(".bb", "skills", "test-skill", "SKILL.md"),
+  },
+  {
     target: "androidstudio",
     outputPath: join(".android-studio", "skills", "test-skill", "SKILL.md"),
   },
@@ -480,6 +484,7 @@ This is the test skill body content.
     { target: "qoder", orphanPath: join(".qoder", "skills", "orphan-skill", "SKILL.md") },
     { target: "xum", orphanPath: join(".xum", "skills", "orphan-skill", "SKILL.md") },
     { target: "openbitfun", orphanPath: join(".openbitfun", "skills", "orphan-skill", "SKILL.md") },
+    { target: "bb", orphanPath: join(".bb", "skills", "orphan-skill", "SKILL.md") },
     {
       target: "androidstudio",
       orphanPath: join(".android-studio", "skills", "orphan-skill", "SKILL.md"),
@@ -596,6 +601,7 @@ describe("E2E: skills (import)", () => {
     { target: "qoder", sourcePath: join(".qoder", "skills", "test-skill", "SKILL.md") },
     { target: "xum", sourcePath: join(".xum", "skills", "test-skill", "SKILL.md") },
     { target: "openbitfun", sourcePath: join(".openbitfun", "skills", "test-skill", "SKILL.md") },
+    { target: "bb", sourcePath: join(".bb", "skills", "test-skill", "SKILL.md") },
     {
       target: "androidstudio",
       sourcePath: join(".android-studio", "skills", "test-skill", "SKILL.md"),
@@ -1247,6 +1253,10 @@ const skillsGlobalTargets = [
   {
     target: "openbitfun",
     outputPath: join(openbitfunGlobalSkillsDir(), "test-skill", "SKILL.md"),
+  },
+  {
+    target: "bb",
+    outputPath: join(".bb", "skills", "test-skill", "SKILL.md"),
   },
   {
     target: "androidstudio",

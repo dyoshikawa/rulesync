@@ -28,6 +28,7 @@ import { AntigravityPluginRule } from "./antigravity-plugin-rule.js";
 import { AugmentcodeLegacyRule } from "./augmentcode-legacy-rule.js";
 import { AugmentcodePluginRule } from "./augmentcode-plugin-rule.js";
 import { AugmentcodeRule } from "./augmentcode-rule.js";
+import { BbRule } from "./bb-rule.js";
 import { BobRule } from "./bob-rule.js";
 import { ClaudecodeLegacyRule } from "./claudecode-legacy-rule.js";
 import { ClaudecodeRule } from "./claudecode-rule.js";
@@ -433,6 +434,11 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
       class: AugmentcodeRule,
       meta: {
         extension: "md",
+        // Auggie loads `.md` and `.mdc` files from `.augment/rules/` and
+        // `~/.augment/rules/`, recursively. Import reads both; generation and
+        // deletion stay on `.md`, so a hand-written `.mdc` is never removed.
+        // https://docs.augmentcode.com/cli/rules
+        nonRootImportGlob: "**/*.{md,mdc}",
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
       },
@@ -1451,6 +1457,23 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         // neither user-global root has a local overlay.
         localRootMode: "separate-local-file",
         localRootFileName: "AGENTS.local.md",
+      },
+    },
+  ],
+  [
+    "bb",
+    {
+      // bb appends `<workspace>/.bb/AGENTS.md` and `<dataDir>/AGENTS.md`
+      // (`~/.bb/AGENTS.md` by default) to every provider-backed thread's system
+      // prompt. It reads only these two files and has no rules directory, so
+      // topic rules fold into the root file.
+      // https://github.com/get-bb/bb/blob/main/docs/configuration.md#agent-instructions
+      class: BbRule,
+      meta: {
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
+        collisionPolicy: "fold",
       },
     },
   ],
