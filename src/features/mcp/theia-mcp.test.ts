@@ -149,8 +149,12 @@ describe("TheiaMcp", () => {
         [KEY]: {
           remote: {
             serverUrl: "https://example.com/mcp",
-            serverAuthTokenHeader: "X-Key",
+            headers: { "X-Team": "a" },
             registryMetadata: { serverId: "a" },
+          },
+          secret: {
+            serverUrl: "https://secret.example.com/mcp",
+            serverAuthToken: "token",
           },
           local: { command: "npx", args: ["a"] },
           bad: null,
@@ -159,10 +163,18 @@ describe("TheiaMcp", () => {
     );
 
     const mcp = await TheiaMcp.fromFile({ outputRoot: testDir });
+    const json = JSON.parse(mcp.toRulesyncMcp().getFileContent());
 
-    expect(mcp.toRulesyncMcp().getMcpServers()).toEqual({
-      remote: { url: "https://example.com/mcp", serverAuthTokenHeader: "X-Key" },
+    expect(json.mcpServers).toEqual({
+      remote: { url: "https://example.com/mcp", headers: { "X-Team": "a" } },
       local: { command: "npx", args: ["a"] },
+    });
+    // Theia-specific keys (a token here) stay in the tool-scoped block, out of
+    // the shared servers every other target generates from.
+    expect(json.theia).toEqual({
+      mcpServers: {
+        secret: { url: "https://secret.example.com/mcp", serverAuthToken: "token" },
+      },
     });
   });
 

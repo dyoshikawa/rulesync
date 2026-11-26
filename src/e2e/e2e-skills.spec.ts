@@ -331,6 +331,41 @@ This is the test skill body content.
     },
   );
 
+  // theia and agentsskills write the same `.agents/skills/` file, so the result
+  // must not depend on which of them runs last.
+  it.each(["agentsskills,theia", "theia,agentsskills"])(
+    "should write the same shared skill for targets %s",
+    async (targets) => {
+      const testDir = getTestDir();
+
+      await writeFileContent(
+        join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "test-skill", "SKILL.md"),
+        `---
+name: test-skill
+description: "A test skill for E2E testing"
+targets: ["*"]
+license: MIT
+compatibility: Requires git
+metadata:
+  author: me
+---
+Body.
+`,
+      );
+
+      await runGenerate({ target: "agentsskills", features: "skills" });
+      const expected = await readFileContent(
+        join(testDir, ".agents", "skills", "test-skill", "SKILL.md"),
+      );
+      expect(expected).toContain("license: MIT");
+
+      await runGenerate({ target: targets, features: "skills" });
+      expect(
+        await readFileContent(join(testDir, ".agents", "skills", "test-skill", "SKILL.md")),
+      ).toBe(expected);
+    },
+  );
+
   // The Agent Skills spec types `allowed-tools` as a space-separated string,
   // `compatibility` as a string and `metadata` as a string→string map, so the
   // legacy rulesync list/object/number spellings must not reach the file.
@@ -1171,7 +1206,7 @@ This is the fallback skill body content.`;
 const skillsGlobalTargets = [
   {
     target: "theia",
-    outputPath: join(".theia", "skills", "test-skill", "SKILL.md"),
+    outputPath: join(".agents", "skills", "test-skill", "SKILL.md"),
   },
   {
     target: "augmentcode",

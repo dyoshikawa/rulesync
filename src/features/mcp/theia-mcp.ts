@@ -173,14 +173,27 @@ function preservedExistingFields({
   );
 }
 
+/**
+ * The Theia server keys that map onto the canonical server schema. A server
+ * carrying any other key (`serverAuthToken`, `oauth`, `autostart`, ...) is
+ * Theia-specific: some of those keys hold credentials, and none of them means
+ * anything to another tool.
+ */
+const THEIA_SHARED_SERVER_KEYS = new Set(["command", "args", "env", "serverUrl", "headers"]);
+
 /** Translate one Theia entry back into a canonical server. */
-function convertServerFromTheiaFormat(server: Record<string, unknown>): Record<string, unknown> {
+function convertServerFromTheiaFormat(server: Record<string, unknown>): {
+  canonical: Record<string, unknown>;
+  theiaOnly: boolean;
+} {
   const canonical: Record<string, unknown> = {};
+  let theiaOnly = false;
   for (const [key, value] of Object.entries(server)) {
     if (THEIA_IMPORT_DROPPED_KEYS.has(key) || isPrototypePollutionKey(key)) continue;
+    if (!THEIA_SHARED_SERVER_KEYS.has(key)) theiaOnly = true;
     canonical[key === "serverUrl" ? "url" : key] = value;
   }
-  return canonical;
+  return { canonical, theiaOnly };
 }
 
 /**
@@ -299,16 +312,28 @@ export class TheiaMcp extends ToolMcp {
   toRulesyncMcp(): RulesyncMcp {
     const servers = this.json[THEIA_MCP_SERVERS_KEY];
     const mcpServers: McpServers = {};
+    const theiaServers: McpServers = {};
     if (isRecord(servers)) {
       for (const [serverName, server] of Object.entries(servers)) {
         // A hand-written file can hold a null or array entry, which is no
         // server at all.
         if (isPrototypePollutionKey(serverName) || !isRecord(server)) continue;
-        mcpServers[serverName] = convertServerFromTheiaFormat(server);
+        const { canonical, theiaOnly } = convertServerFromTheiaFormat(server);
+        // A server with Theia-specific keys goes into the tool-scoped
+        // `theia.mcpServers` block, which replaces a same-named shared server
+        // for Theia only, so a `serverAuthToken` never reaches another tool.
+        (theiaOnly ? theiaServers : mcpServers)[serverName] = canonical;
       }
     }
     return this.toRulesyncMcpDefault({
-      fileContent: JSON.stringify({ mcpServers }, null, 2),
+      fileContent: JSON.stringify(
+        {
+          mcpServers,
+          ...(Object.keys(theiaServers).length > 0 && { theia: { mcpServers: theiaServers } }),
+        },
+        null,
+        2,
+      ),
     });
   }
 

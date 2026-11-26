@@ -900,6 +900,12 @@ Break down tasks into steps.
       "---\nname: other\n---\nNot a Theia agent.\n",
     );
 
+    // Theia skips an agent.md without defaultLLM, and so does the import.
+    await writeFileContent(
+      join(testDir, ".agents", "agents", "broken", "agent.md"),
+      "---\nname: Broken\ndescription: No model\n---\nBody\n",
+    );
+
     await runImport({ target: "theia", features: "subagents" });
 
     const importedContent = await readFileContent(
@@ -911,6 +917,9 @@ Break down tasks into steps.
     expect(await fileExists(join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "other.md"))).toBe(
       false,
     );
+    expect(await fileExists(join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "broken.md"))).toBe(
+      false,
+    );
 
     await removeFile(agentPath);
     await runGenerate({ target: "theia", features: "subagents", deleteFiles: true });
@@ -920,6 +929,8 @@ Break down tasks into steps.
     expect(generated).toContain("defaultLLM: openai/gpt-5");
     expect(generated).toContain("Break down tasks into steps.");
     expect(await fileExists(join(testDir, ".agents", "agents", "other.md"))).toBe(true);
+    // `--delete` sweeps an agent folder no rulesync subagent accounts for.
+    expect(await fileExists(join(testDir, ".agents", "agents", "broken", "agent.md"))).toBe(false);
   });
 
   it("should import a flat devin subagent and default its name to the file name", async () => {

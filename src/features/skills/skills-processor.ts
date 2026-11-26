@@ -787,9 +787,10 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     "theia",
     {
       // Theia AI reads workspace skills from `.prompts/skills/` and the shared
-      // `.agents/skills/` root, and user skills from `~/.theia/skills/` and
-      // `~/.agents/skills/`. Rulesync writes `.agents/skills/` (project) and
-      // `~/.theia/skills/` (global).
+      // `.agents/skills/` root, and user skills from its product-specific
+      // configuration folder and `~/.agents/skills/`. Rulesync writes the
+      // shared roots, read by every Theia-based product: `.agents/skills/`
+      // (project) and `~/.agents/skills/` (global).
       // https://theia-ide.org/docs/user_ai/#agent-skills
       class: TheiaSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },

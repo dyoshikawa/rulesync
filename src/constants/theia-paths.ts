@@ -1,5 +1,3 @@
-import { join } from "node:path";
-
 import { AGENTSMD_SKILLS_DIR_PATH, AGENTSMD_SUBAGENTS_DIR_PATH } from "./agentsmd-paths.js";
 
 // Eclipse Theia AI (the AI layer of the Theia IDE and of the products built on
@@ -28,12 +26,13 @@ export const THEIA_AGENTS_DIR_PATH = AGENTSMD_SUBAGENTS_DIR_PATH;
 export const THEIA_AGENT_FILE_NAME = "agent.md";
 
 // Skills. Workspace skills are read from `.prompts/skills/` and the shared
-// Agent Skills root `.agents/skills/`; user skills from `~/.theia/skills/` and
-// `~/.agents/skills/`. Rulesync writes the shared project root and the
-// Theia-specific user root.
+// Agent Skills root `.agents/skills/`; user skills from the product's
+// configuration folder (`~/.theia/skills/` for the Theia platform,
+// `~/.theia-ide/skills/` for the Theia IDE) and `~/.agents/skills/`. Rulesync
+// writes the shared roots, which every Theia-based product reads, in both
+// scopes.
 // @see https://theia-ide.org/docs/user_ai/#agent-skills
 export const THEIA_SKILLS_DIR_PATH = AGENTSMD_SKILLS_DIR_PATH;
-export const THEIA_GLOBAL_SKILLS_DIR_PATH = join(".theia", "skills");
 
 // MCP. Servers are configured in the `ai-features.mcp.mcpServers` preference.
 // Workspace preferences live in `.theia/settings.json` (Theia's workspace

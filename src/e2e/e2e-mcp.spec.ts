@@ -729,13 +729,22 @@ describe("E2E: mcp", () => {
 
     const imported = JSON.parse(
       await readFileContent(join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH)),
-    ) as { mcpServers: Record<string, Record<string, unknown>> };
-    expect(imported.mcpServers.remote).toEqual({
+    ) as {
+      mcpServers: Record<string, Record<string, unknown>>;
+      theia?: { mcpServers: Record<string, Record<string, unknown>> };
+    };
+    // `deferLoading` is Theia-specific, so the server goes to the tool-scoped
+    // block; generating from the imported source yields the same file.
+    expect(imported.theia?.mcpServers.remote).toEqual({
       deferLoading: true,
       url: "https://example.com/mcp",
       headers: { "X-Team": "a" },
     });
+    expect(imported.mcpServers.remote).toBeUndefined();
     expect(imported.mcpServers.local?.command).toBe("npx");
+
+    await runGenerate({ target: "theia", features: "mcp" });
+    expect(parseJson5(await readFileContent(settingsPath))).toEqual(generated);
   });
 
   it("should run mcp command as daemon without errors", async () => {

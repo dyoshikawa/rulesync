@@ -1051,6 +1051,10 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsSimulated: false,
         supportsGlobal: false,
         filePattern: "*/agent.md",
+        // Theia skips an `agent.md` without string `name`, `description` and
+        // `defaultLLM`, so import does too (with a warning) instead of
+        // aborting on one hand-written file.
+        skipInvalidImportFiles: true,
       },
     },
   ],

@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
+import { AgentsSkillsSkill } from "./agentsskills-skill.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
 import { TheiaSkill } from "./theia-skill.js";
 
@@ -38,34 +39,41 @@ describe("TheiaSkill", () => {
       validate: true,
     });
 
-  it("should use .agents/skills in the project and .theia/skills globally", () => {
+  it("should use the shared .agents/skills root in both scopes", () => {
     expect(TheiaSkill.getSettablePaths()).toEqual({ relativeDirPath: join(".agents", "skills") });
     expect(TheiaSkill.getSettablePaths({ global: true })).toEqual({
-      relativeDirPath: join(".theia", "skills"),
+      relativeDirPath: join(".agents", "skills"),
     });
   });
 
-  it("should write the standard name and description plus theia section keys", () => {
-    const skill = TheiaSkill.fromRulesyncSkill({
-      outputRoot: testDir,
-      rulesyncSkill: makeRulesyncSkill({ frontmatter: { theia: { license: "MIT" } } }),
-    });
+  it.each([false, true])(
+    "should write exactly what agentsskills writes to the shared root (global: %s)",
+    (global) => {
+      const rulesyncSkill = makeRulesyncSkill({
+        frontmatter: {
+          license: "MIT",
+          compatibility: "Requires git",
+          metadata: { author: "me" },
+          agentsskills: { "allowed-tools": ["Read", "Grep"], "disable-model-invocation": true },
+        },
+      });
 
-    expect(skill.getFrontmatter()).toEqual({
-      name: "test-skill",
-      description: "A skill",
-      license: "MIT",
-    });
-  });
+      const theia = TheiaSkill.fromRulesyncSkill({ outputRoot: testDir, rulesyncSkill, global });
+      const agentsskills = AgentsSkillsSkill.fromRulesyncSkill({
+        outputRoot: testDir,
+        rulesyncSkill,
+        global,
+      });
 
-  it("should write the same frontmatter as other .agents/skills writers without a theia section", () => {
-    const skill = TheiaSkill.fromRulesyncSkill({
-      outputRoot: testDir,
-      rulesyncSkill: makeRulesyncSkill({ frontmatter: { "disable-model-invocation": true } }),
-    });
-
-    expect(skill.getFrontmatter()).toEqual({ name: "test-skill", description: "A skill" });
-  });
+      expect(theia.getRelativeDirPath()).toBe(agentsskills.getRelativeDirPath());
+      expect(theia.getFrontmatter()).toEqual(agentsskills.getFrontmatter());
+      expect(theia.getFrontmatter()).toMatchObject({
+        license: "MIT",
+        compatibility: "Requires git",
+        "allowed-tools": "Read Grep",
+      });
+    },
+  );
 
   it("should warn about names and descriptions Theia skips", () => {
     const logger = createMockLogger();
@@ -83,7 +91,7 @@ describe("TheiaSkill", () => {
     expect(warnings.some((w) => w.includes("1025 characters"))).toBe(true);
   });
 
-  it("should round-trip theia-only keys through the theia section", () => {
+  it("should import the standard fields back into the agentsskills section", () => {
     const skill = new TheiaSkill({
       outputRoot: testDir,
       dirName: "test-skill",
@@ -94,7 +102,7 @@ describe("TheiaSkill", () => {
     expect(skill.toRulesyncSkill().getFrontmatter()).toMatchObject({
       name: "test-skill",
       description: "A skill",
-      theia: { license: "MIT" },
+      agentsskills: { license: "MIT" },
     });
   });
 });
