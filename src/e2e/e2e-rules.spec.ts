@@ -81,6 +81,7 @@ const rulesRootTargets = [
   { target: "pool", outputPath: "AGENTS.md" },
   { target: "dsh", outputPath: "AGENTS.md" },
   { target: "firebender", outputPath: join(".firebender", "AGENTS.md") },
+  { target: "bb", outputPath: join(".bb", "AGENTS.md") },
 ] as const;
 
 // Tools that emit every rule as a directory entry.
@@ -1894,6 +1895,7 @@ describe("E2E: rules (import)", () => {
     { target: "codewhale", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "continue", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "dsh", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
+    { target: "bb", sourcePath: join(".bb", "AGENTS.md"), importedFileName: "overview.md" },
     { target: "vibe", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     {
       target: "cline",
@@ -2191,6 +2193,7 @@ const rulesGlobalTargets = [
   { target: "pool", outputPath: join(".config", "poolside", "AGENTS.md") },
   { target: "dsh", outputPath: join(".dsh", "AGENTS.md") },
   { target: "firebender", outputPath: join(".firebender", "AGENTS.md") },
+  { target: "bb", outputPath: join(".bb", "AGENTS.md") },
 ] as const;
 
 describe("E2E: rules (global mode)", () => {

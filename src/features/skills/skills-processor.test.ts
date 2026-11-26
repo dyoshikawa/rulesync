@@ -3019,6 +3019,7 @@ Content that would fail parsing`;
           "antigravity-plugin",
           "augmentcode",
           "augmentcode-plugin",
+          "bb",
           "bob",
           "claudecode",
           "claudecode-plugin",
@@ -3095,6 +3096,7 @@ Content that would fail parsing`;
           "antigravity-plugin",
           "augmentcode",
           "augmentcode-plugin",
+          "bb",
           "bob",
           "claudecode",
           "claudecode-plugin",
@@ -3170,6 +3172,7 @@ Content that would fail parsing`;
           "antigravity-plugin",
           "augmentcode",
           "augmentcode-plugin",
+          "bb",
           "bob",
           "claudecode",
           "claudecode-plugin",
@@ -3308,6 +3311,7 @@ Content that would fail parsing`;
         "zed",
         "dsh",
         "openclaw",
+        "bb",
       ]);
     });
 
