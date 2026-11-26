@@ -111,6 +111,9 @@ export const SHARED_USER_MANAGED_CONFIG_PATHS: readonly string[] = [
   // so the file stays committable. Generation keeps `version` and other
   // top-level keys but replaces the whole `hooks` key.
   ".trae/hooks.json",
+  // Theia workspace preferences: every Theia workspace setting sits beside the
+  // `ai-features.mcp.mcpServers` key rulesync writes.
+  ".theia/settings.json",
   ".vibe/config.toml",
   // ZCode config: the workspace file and the user one under `~/.zcode/cli/`.
   // Both carry the user's own ZCode settings beside the `mcp` block.

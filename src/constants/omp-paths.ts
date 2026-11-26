@@ -24,8 +24,22 @@ export const OMP_EXTENSIONS_DIR_PATH = join(OMP_DIR, "extensions");
 export const OMP_GLOBAL_EXTENSIONS_DIR_PATH = join(OMP_GLOBAL_DIR, "extensions");
 export const OMP_HOOKS_FILE_NAME = "rulesync-hooks.ts";
 
-export const OMP_LAYOUT: PiLayout = {
+/**
+ * Layout of oh-my-pi and its own descendants (Gajae-Code), which share
+ * oh-my-pi's rule, MCP and agent formats beside Pi's skill and command ones.
+ * Their rule, MCP and subagent classes subclass the oh-my-pi ones and override
+ * only this layout. File and directory names under the config directories
+ * (`AGENTS.md`, `rules/`, `agents/`, `mcp.json`) are the same in every fork.
+ */
+export type OmpLayout = PiLayout & {
+  toolTarget: "omp" | "gajaecode";
+  /** Display name used in warnings and error messages. */
+  toolName: string;
+};
+
+export const OMP_LAYOUT: OmpLayout = {
   toolTarget: "omp",
+  toolName: "oh-my-pi",
   dir: OMP_DIR,
   globalDir: OMP_GLOBAL_DIR,
   commandsDirName: "commands",

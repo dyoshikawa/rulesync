@@ -63,7 +63,7 @@ export const RulesyncSkillFrontmatterSchema = z.looseObject({
   description: z.string(),
   targets: z._default(RulesyncTargetsSchema, ["*"]),
   // Default for tools that support the flag (claudecode, codebuddy, copilot, copilotcli, crush,
-  // cursor, zed, pi, omp, qwencode, vibe, grokcli, factorydroid, dsh, reasonix, commandcode,
+  // cursor, zed, pi, omp, gajaecode, qwencode, vibe, grokcli, factorydroid, dsh, reasonix, commandcode,
   // lettacode, opencode, opencodev1, mimocode, xum, firebender, openclaw).
   // A target-section value of the same key overrides this default.
   // `devin` also consumes this root value (mapping `true` onto a user-only
@@ -259,6 +259,8 @@ export const RulesyncSkillFrontmatterSchema = z.looseObject({
   pi: z.optional(piSkillSectionSchema),
   // oh-my-pi keeps Pi's SKILL.md format, so its section mirrors `pi`.
   omp: z.optional(piSkillSectionSchema),
+  // Gajae-Code keeps Pi's SKILL.md format too.
+  gajaecode: z.optional(piSkillSectionSchema),
   zed: z.optional(
     z.looseObject({
       "disable-model-invocation": z.optional(z.boolean()),

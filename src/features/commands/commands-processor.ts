@@ -53,6 +53,7 @@ import { CursorCommand } from "./cursor-command.js";
 import { DevinCommand } from "./devin-command.js";
 import { FactorydroidCommand } from "./factorydroid-command.js";
 import { FirebenderCommand } from "./firebender-command.js";
+import { GajaecodeCommand } from "./gajaecode-command.js";
 import { GitlabduoCommand } from "./gitlabduo-command.js";
 import { GooseCommand } from "./goose-command.js";
 import { GrokcliCommand } from "./grokcli-command.js";
@@ -79,6 +80,7 @@ import { RovodevCommand } from "./rovodev-command.js";
 import { RulesyncCommand } from "./rulesync-command.js";
 import { TabnineCommand } from "./tabnine-command.js";
 import { TaktCommand } from "./takt-command.js";
+import { TheiaCommand } from "./theia-command.js";
 import {
   ToolCommand,
   ToolCommandAfterOrphanSweepParams,
@@ -127,6 +129,14 @@ type ToolCommandFactory = {
       global?: boolean;
       forDeletion?: boolean;
     }): Promise<ToolFile[]> | ToolFile[];
+    /**
+     * Optional import-only filter: whether a file found in the commands
+     * directory is a command at all. Set by a tool whose commands directory
+     * also holds files that are not commands (Theia's `.prompts/` keeps plain
+     * prompt fragments beside the `isCommand: true` templates); the rest are
+     * left out of the import. Absent means every file is a command.
+     */
+    isImportable?(toolCommand: ToolCommand): boolean;
     /** See {@link ToolCommand.afterOrphanSweep}. */
     afterOrphanSweep?(
       params: ToolCommandAfterOrphanSweepParams,
@@ -159,7 +169,7 @@ type ToolCommandFactory = {
   };
   meta: {
     /** File extension for the command file */
-    extension: "json" | "md" | "mdc" | "toml" | "prompt.md" | "yaml";
+    extension: "json" | "md" | "mdc" | "toml" | "prompt.md" | "prompttemplate" | "yaml";
     /** Whether the tool supports project-level commands */
     supportsProject: boolean;
     /** Whether the tool supports global (user-level) commands */
@@ -719,6 +729,21 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
     },
   ],
   [
+    "gajaecode",
+    {
+      // `.gjc/commands/` (project) and `~/.gjc/agent/commands/` (global).
+      // https://github.com/Yeachan-Heo/gajae-code/blob/main/docs/customization.md
+      class: GajaecodeCommand,
+      meta: {
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: true,
+        isSimulated: false,
+        supportsSubdirectory: false,
+      },
+    },
+  ],
+  [
     "omp",
     {
       class: OmpCommand,
@@ -913,6 +938,28 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
         supportsGlobal: true,
         isSimulated: false,
         supportsSubdirectory: false,
+      },
+    },
+  ],
+  [
+    "theia",
+    {
+      // Theia AI slash commands are prompt templates with `isCommand: true`
+      // frontmatter in the workspace template directory (default `.prompts/`,
+      // read at its top level only). User template directories differ per
+      // Theia-based product and are undocumented, so project scope only.
+      // https://theia-ide.org/docs/user_ai/#slash-commands
+      class: TheiaCommand,
+      meta: {
+        extension: "prompttemplate",
+        supportsProject: true,
+        supportsGlobal: false,
+        isSimulated: false,
+        supportsSubdirectory: false,
+        // `.prompts/` also holds hand-written prompt fragments and agent
+        // prompt overrides that no `.rulesync/commands/` source accounts for:
+        // not gitignored, and never swept by `--delete`.
+        committedOutput: true,
       },
     },
   ],
@@ -1400,15 +1447,17 @@ export class CommandsProcessor extends FeatureProcessor {
       return [...toolCommands, ...(auxiliaryFiles ?? [])].filter((file) => file.isDeletable());
     }
 
-    const toolCommands = await Promise.all(
-      commandFilePaths.map((path) =>
-        factory.class.fromFile({
-          outputRoot: this.outputRoot,
-          relativeFilePath: this.safeRelativePath(outputRootFull, path),
-          global: this.global,
-        }),
-      ),
-    );
+    const toolCommands = (
+      await Promise.all(
+        commandFilePaths.map((path) =>
+          factory.class.fromFile({
+            outputRoot: this.outputRoot,
+            relativeFilePath: this.safeRelativePath(outputRootFull, path),
+            global: this.global,
+          }),
+        ),
+      )
+    ).filter((command) => factory.class.isImportable?.(command) ?? true);
 
     // Import-only: merge in commands defined outside the standalone-file layout
     // (e.g. OpenCode's inline `command` block in `opencode.json`). A standalone

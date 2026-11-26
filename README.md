@@ -110,6 +110,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | OpenCode V1               |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | OpenClaw                  |  ✅   |        | ✅  |          |           |   ✅   |       |             |        |
 | OpenBitFun                |       |        |     |          |    ✅     |   ✅   |  ✅   |             |        |
+| OpenHands                 |       |        | ✅  |          |           |        |  ✅   |             |        |
 | MiMo Code                 |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | GitLab Duo CLI            |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |   ✅   |
 | bb                        |  ✅   |        |     |          |           |   ✅   |       |             |        |
@@ -121,6 +122,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | Zoo Code                  |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |       |     ✅      |        |
 | Rovodev (Atlassian) ⚠️    |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |       |     ✅      |   ✅   |
 | Takt                      |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |       |     ✅      |   ✅   |
+| Theia AI                  |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |       |             |        |
 | Trae                      |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Tabnine CLI ⚠️            |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Continue ⚠️               |  ✅   |   ✅   | ✅  |    ✅    |           |   ✅   |  ✅   |     ✅      |        |
@@ -153,6 +155,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | Replit                    |  ✅   |        |     |          |           |   ✅   |       |             |        |
 | Pi Coding Agent           |  ✅   |        | ✅  |    ✅    |           |   ✅   |  ✅   |     ✅      |        |
 | oh-my-pi                  |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
+| Gajae-Code                |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |       |             |        |
 | Zed                       |  ✅   |   ✅   | ✅  |          |           |   ✅   |       |     ✅      |        |
 | ZCode (Z.ai)              |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |             |        |
 | ZCode plugin              |       |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |             |        |

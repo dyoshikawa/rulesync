@@ -63,6 +63,7 @@ import { DevinSkill } from "./devin-skill.js";
 import { DshSkill } from "./dsh-skill.js";
 import { FactorydroidSkill } from "./factorydroid-skill.js";
 import { FirebenderSkill } from "./firebender-skill.js";
+import { GajaecodeSkill } from "./gajaecode-skill.js";
 import { GitlabduoSkill } from "./gitlabduo-skill.js";
 import { GooseSkill } from "./goose-skill.js";
 import { GrokcliSkill } from "./grokcli-skill.js";
@@ -96,6 +97,7 @@ import { SimulatedSkill } from "./simulated-skill.js";
 import { getLocalSkillDirNames, isAddressableSkillName } from "./skills-utils.js";
 import { TabnineSkill } from "./tabnine-skill.js";
 import { TaktSkill } from "./takt-skill.js";
+import { TheiaSkill } from "./theia-skill.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -666,6 +668,16 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     },
   ],
   [
+    "gajaecode",
+    {
+      // `.gjc/skills/<name>/SKILL.md` (project) and
+      // `~/.gjc/agent/skills/<name>/SKILL.md` (global).
+      // https://github.com/Yeachan-Heo/gajae-code/blob/main/docs/skills.md
+      class: GajaecodeSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
     "omp",
     {
       class: OmpSkill,
@@ -792,6 +804,19 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     "takt",
     {
       class: TaktSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "theia",
+    {
+      // Theia AI reads workspace skills from `.prompts/skills/` and the shared
+      // `.agents/skills/` root, and user skills from its product-specific
+      // configuration folder and `~/.agents/skills/`. Rulesync writes the
+      // shared roots, read by every Theia-based product: `.agents/skills/`
+      // (project) and `~/.agents/skills/` (global).
+      // https://theia-ide.org/docs/user_ai/#agent-skills
+      class: TheiaSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],

@@ -103,6 +103,7 @@ import { OmpHooks } from "./omp-hooks.js";
 import { OPENBITFUN_CONVERTER_CONFIG, OpenbitfunHooks } from "./openbitfun-hooks.js";
 import { OpencodeHooks } from "./opencode-hooks.js";
 import { Opencodev1Hooks } from "./opencodev1-hooks.js";
+import { OPENHANDS_CONVERTER_CONFIG, OpenhandsHooks } from "./openhands-hooks.js";
 import { PiHooks } from "./pi-hooks.js";
 import { PoolHooks } from "./pool-hooks.js";
 import { QoderHooks } from "./qoder-hooks.js";
@@ -681,6 +682,23 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
         supportsImport: true,
       },
       ...converterCapabilities(OPENBITFUN_CONVERTER_CONFIG),
+      supportsMatcher: true,
+    },
+  ],
+  [
+    "openhands",
+    {
+      class: OpenhandsHooks,
+      meta: {
+        // `.openhands/hooks.json` in the project root only: OpenHands
+        // documents no user-level hooks file and does not search parent
+        // folders. Only command handlers run.
+        // https://docs.openhands.dev/openhands/usage/customization/hooks
+        supportsProject: true,
+        supportsGlobal: false,
+        supportsImport: true,
+      },
+      ...converterCapabilities(OPENHANDS_CONVERTER_CONFIG),
       supportsMatcher: true,
     },
   ],

@@ -225,6 +225,10 @@ const skillsGenerateTargets = [
     outputPath: join(".agents", "skills", "test-skill", "SKILL.md"),
   },
   {
+    target: "theia",
+    outputPath: join(".agents", "skills", "test-skill", "SKILL.md"),
+  },
+  {
     target: "amp",
     outputPath: join(".agents", "skills", "test-skill", "SKILL.md"),
   },
@@ -261,6 +265,7 @@ const skillsGenerateTargets = [
     outputPath: join(".mimocode", "skills", "test-skill", "SKILL.md"),
   },
   { target: "omp", outputPath: join(".omp", "skills", "test-skill", "SKILL.md") },
+  { target: "gajaecode", outputPath: join(".gjc", "skills", "test-skill", "SKILL.md") },
   {
     target: "opencode",
     outputPath: join(".opencode", "skills", "test-skill", "SKILL.md"),
@@ -332,6 +337,41 @@ This is the test skill body content.
 
       const generatedContent = await readFileContent(join(testDir, outputPath));
       expect(generatedContent).toContain("test skill body content");
+    },
+  );
+
+  // theia and agentsskills write the same `.agents/skills/` file, so the result
+  // must not depend on which of them runs last.
+  it.each(["agentsskills,theia", "theia,agentsskills"])(
+    "should write the same shared skill for targets %s",
+    async (targets) => {
+      const testDir = getTestDir();
+
+      await writeFileContent(
+        join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "test-skill", "SKILL.md"),
+        `---
+name: test-skill
+description: "A test skill for E2E testing"
+targets: ["*"]
+license: MIT
+compatibility: Requires git
+metadata:
+  author: me
+---
+Body.
+`,
+      );
+
+      await runGenerate({ target: "agentsskills", features: "skills" });
+      const expected = await readFileContent(
+        join(testDir, ".agents", "skills", "test-skill", "SKILL.md"),
+      );
+      expect(expected).toContain("license: MIT");
+
+      await runGenerate({ target: targets, features: "skills" });
+      expect(
+        await readFileContent(join(testDir, ".agents", "skills", "test-skill", "SKILL.md")),
+      ).toBe(expected);
     },
   );
 
@@ -485,6 +525,7 @@ This is the test skill body content.
     { target: "replit", orphanPath: join(".agents", "skills", "orphan-skill", "SKILL.md") },
     { target: "agentsskills", orphanPath: join(".agents", "skills", "orphan-skill", "SKILL.md") },
     { target: "aiassistant", orphanPath: join(".agents", "skills", "orphan-skill", "SKILL.md") },
+    { target: "theia", orphanPath: join(".agents", "skills", "orphan-skill", "SKILL.md") },
     { target: "pi", orphanPath: join(".pi", "skills", "orphan-skill", "SKILL.md") },
     { target: "zed", orphanPath: join(".agents", "skills", "orphan-skill", "SKILL.md") },
     { target: "factorydroid", orphanPath: join(".factory", "skills", "orphan-skill", "SKILL.md") },
@@ -581,6 +622,7 @@ describe("E2E: skills (import)", () => {
     { target: "copilot", sourcePath: join(".github", "skills", "test-skill", "SKILL.md") },
     { target: "mimocode", sourcePath: join(".mimocode", "skill", "test-skill", "SKILL.md") },
     { target: "omp", sourcePath: join(".omp", "skills", "test-skill", "SKILL.md") },
+    { target: "gajaecode", sourcePath: join(".gjc", "skills", "test-skill", "SKILL.md") },
     { target: "opencode", sourcePath: join(".opencode", "skill", "test-skill", "SKILL.md") },
     { target: "opencodev1", sourcePath: join(".opencode", "skill", "test-skill", "SKILL.md") },
     { target: "deepagents", sourcePath: join(".deepagents", "skills", "test-skill", "SKILL.md") },
@@ -601,6 +643,7 @@ describe("E2E: skills (import)", () => {
     { target: "antigravity-cli", sourcePath: join(".agents", "skills", "test-skill", "SKILL.md") },
     { target: "junie", sourcePath: join(".junie", "skills", "test-skill", "SKILL.md") },
     { target: "aiassistant", sourcePath: join(".agents", "skills", "test-skill", "SKILL.md") },
+    { target: "theia", sourcePath: join(".agents", "skills", "test-skill", "SKILL.md") },
     { target: "replit", sourcePath: join(".agents", "skills", "test-skill", "SKILL.md") },
     { target: "pi", sourcePath: join(".pi", "skills", "test-skill", "SKILL.md") },
     { target: "zed", sourcePath: join(".agents", "skills", "test-skill", "SKILL.md") },
@@ -1174,6 +1217,10 @@ This is the fallback skill body content.`;
 // Skills written under the pseudo-home dir.
 const skillsGlobalTargets = [
   {
+    target: "theia",
+    outputPath: join(".agents", "skills", "test-skill", "SKILL.md"),
+  },
+  {
     target: "augmentcode",
     outputPath: join(".augment", "skills", "test-skill", "SKILL.md"),
   },
@@ -1246,6 +1293,7 @@ const skillsGlobalTargets = [
     outputPath: join(".config", "mimocode", "skills", "test-skill", "SKILL.md"),
   },
   { target: "omp", outputPath: join(".omp", "agent", "skills", "test-skill", "SKILL.md") },
+  { target: "gajaecode", outputPath: join(".gjc", "agent", "skills", "test-skill", "SKILL.md") },
   {
     target: "opencode",
     outputPath: join(".config", "opencode", "skills", "test-skill", "SKILL.md"),
