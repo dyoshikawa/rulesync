@@ -51,7 +51,7 @@ describe("QodercnMcp", () => {
 
     expect(mcp).toBeInstanceOf(QodercnMcp);
     expect(mcp.getRelativeDirPath()).toBe(".qoder-cn");
-    expect(Object.keys(JSON.parse(mcp.getFileContent()).mcpServers).sort()).toEqual([
+    expect(Object.keys(JSON.parse(mcp.getFileContent()).mcpServers).toSorted()).toEqual([
       "qoderOnly",
       "shared",
     ]);
