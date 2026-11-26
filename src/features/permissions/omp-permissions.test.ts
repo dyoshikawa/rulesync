@@ -215,6 +215,62 @@ describe("OmpPermissions", () => {
     });
   });
 
+  it("should warn about kept scoped entries a mixed deny or a catch-all restriction weakens", async () => {
+    await writeFileContent(
+      join(testDir, ".omp", "config.yml"),
+      [
+        "bash:",
+        "  patterns:",
+        "    - path: ./mixed",
+        "      patterns:",
+        "        - match: git push*",
+        "          approval: deny",
+        "        - match: git *",
+        "          approval: allow",
+        "    - path: ./prompting",
+        "      match: curl *",
+        "      approval: prompt",
+        "",
+      ].join("\n"),
+    );
+    const logger = createLogger();
+
+    const permissions = await OmpPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: rulesyncPermissionsFrom({
+        permission: { bash: { "*": "deny", "ls *": "allow" } },
+      }),
+      logger: logger as never,
+    });
+
+    // Kept whole, so the mixed entry's deny follows rulesync's patterns.
+    expect(loadYaml(permissions.getFileContent())).toEqual({
+      bash: {
+        patterns: [
+          { match: "*", approval: "deny" },
+          { path: "./prompting", match: "curl *", approval: "prompt" },
+          {
+            path: "./mixed",
+            patterns: [
+              { match: "git push*", approval: "deny" },
+              { match: "git *", approval: "allow" },
+            ],
+          },
+          { match: "ls *", approval: "allow" },
+        ],
+      },
+    });
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('scoped to "./mixed" mixes allow and deny rules'),
+    );
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('scoped to "./prompting" was kept after the bash catch-all "*" deny'),
+    );
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('scoped to "./mixed" was kept after the bash catch-all "*" deny'),
+    );
+  });
+
   it("should carry a per-rule env list over to a regenerated rule with the same match and approval", async () => {
     await writeFileContent(
       join(testDir, ".omp", "config.yml"),
@@ -707,6 +763,45 @@ describe("OmpPermissions", () => {
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('scoped to "./service"'));
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"make deploy*"'));
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"rm -rf *", "curl *"'));
+  });
+
+  it("should never let a scope-derived rule beat a later unscoped rule for the same pattern", () => {
+    const logger = createLogger();
+    const json = new OmpPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".omp",
+      relativeFilePath: "config.yml",
+      fileContent: [
+        "bash:",
+        "  patterns:",
+        "    - path: ~/a",
+        "      match: rm *",
+        "      approval: prompt",
+        "    - match: rm *",
+        "      approval: deny",
+        "    - path: ~/b",
+        "      match: curl *",
+        "      approval: deny",
+        "    - match: curl *",
+        "      approval: prompt",
+        "    - path: ~/c",
+        "      match: rm *",
+        "      approval: deny",
+        "    - path: ~/d",
+        "      match: rm *",
+        "      approval: prompt",
+        "",
+      ].join("\n"),
+    })
+      .toRulesyncPermissions({ logger: logger as never })
+      .getJson();
+
+    // The stricter of a scope-derived rule and a later unscoped one wins.
+    expect(json.permission).toEqual({ bash: { "rm *": "deny", "curl *": "deny" } });
+    // The `~/c` and `~/d` rules changed nothing, so no warning lists them.
+    expect(logger.warn).toHaveBeenCalledTimes(2);
+    expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining('"~/c"'));
+    expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining('"~/d"'));
   });
 
   it("should keep a prompt bash policy so a critical command cannot skip an ask rule", async () => {
