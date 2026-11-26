@@ -1047,11 +1047,13 @@ describe("E2E: hooks (import)", () => {
       },
     },
     {
+      // The tool reads only its PascalCase event names; a camelCase key is
+      // ignored there and skipped on import.
       target: "codexcli",
       sourcePath: join(".codex", "hooks.json"),
       sourceContent: {
         hooks: {
-          sessionStart: [
+          SessionStart: [
             { matcher: "", hooks: [{ type: "command", command: "echo session started" }] },
           ],
         },
@@ -1089,11 +1091,13 @@ describe("E2E: hooks (import)", () => {
       },
     },
     {
+      // The tool reads only its PascalCase event names; a camelCase key is
+      // ignored there and skipped on import.
       target: "factorydroid",
       sourcePath: join(".factory", "hooks.json"),
       sourceContent: {
         hooks: {
-          sessionStart: [
+          SessionStart: [
             { matcher: "", hooks: [{ type: "command", command: "echo session started" }] },
           ],
         },

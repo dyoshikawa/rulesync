@@ -15,6 +15,7 @@ import {
   parseSharedConfig,
   sharedConfigFileKey,
 } from "../shared/shared-config-gateway.js";
+import { skipsReservedPermissionName } from "./reserved-permission-name.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   honorAllToolsRestrictions,
@@ -644,8 +645,11 @@ export class QoderPermissions extends ToolPermissions {
         const parsed = fromQoderRule(rule);
         if (
           parsed === null ||
-          isPrototypePollutionKey(parsed.category) ||
-          isPrototypePollutionKey(parsed.pattern)
+          skipsReservedPermissionName({
+            toolLabel: "Qoder",
+            category: parsed.category,
+            pattern: parsed.pattern,
+          })
         ) {
           continue;
         }

@@ -3,6 +3,8 @@ import { describe, expect, it } from "vite-plus/test";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import type { HooksConfig } from "../../types/hooks.js";
 import { ClaudecodeHooks } from "./claudecode-hooks.js";
+import { CODEXCLI_CONVERTER_CONFIG } from "./codexcli-hooks.js";
+import { FACTORYDROID_CONVERTER_CONFIG } from "./factorydroid-hooks.js";
 import {
   buildImportedHooksConfig,
   canonicalToToolHooks,
@@ -1081,4 +1083,82 @@ describe("buildImportedHooksConfig", () => {
       );
     }
   });
+});
+
+describe("toolHooksToCanonical with a native key spelled like a canonical event", () => {
+  it("skips an unmapped canonical-looking key with a warning instead of activating it", () => {
+    const logger = createMockLogger();
+
+    const canonical = toolHooksToCanonical({
+      hooks: {
+        PreToolUse: [{ hooks: [{ type: "command", command: "./guard.sh" }] }],
+        // The tool reads `PreToolUse` only, so this key is inert there.
+        preToolUse: [{ hooks: [{ type: "command", command: "./inert.sh" }] }],
+        // Not an event this tool supports at all.
+        sessionStart: [{ hooks: [{ type: "command", command: "./start.sh" }] }],
+        // Not a canonical name: kept for the tool's override block.
+        PostFileSave: [{ hooks: [{ type: "command", command: "./save.sh" }] }],
+      },
+      converterConfig: BASE_CONFIG,
+      logger,
+    });
+
+    expect(canonical).toEqual({
+      preToolUse: [{ type: "command", command: "./guard.sh" }],
+      PostFileSave: [{ type: "command", command: "./save.sh" }],
+    });
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Skipping imported hooks event "preToolUse"'),
+    );
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Skipping imported hooks event "sessionStart"'),
+    );
+  });
+
+  it("keeps a supported event the tool spells like the canonical name", () => {
+    const logger = createMockLogger();
+    const converterConfig: ToolHooksConverterConfig = {
+      supportedEvents: ["preToolUse", "stop"],
+      canonicalToToolEventNames: { preToolUse: "PreToolUse" },
+      toolToCanonicalEventNames: { PreToolUse: "preToolUse" },
+      projectDirVar: "",
+    };
+
+    const canonical = toolHooksToCanonical({
+      hooks: { stop: [{ hooks: [{ type: "command", command: "./stop.sh" }] }] },
+      converterConfig,
+      logger,
+    });
+
+    expect(canonical).toEqual({ stop: [{ type: "command", command: "./stop.sh" }] });
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+});
+
+describe("toolHooksToCanonical with real converter configs", () => {
+  it.each([
+    ["codexcli", CODEXCLI_CONVERTER_CONFIG],
+    ["factorydroid", FACTORYDROID_CONVERTER_CONFIG],
+  ])(
+    "keeps the native SessionStart of %s and skips camelCase sessionStart",
+    (_, converterConfig) => {
+      const logger = createMockLogger();
+
+      const canonical = toolHooksToCanonical({
+        hooks: {
+          SessionStart: [{ hooks: [{ type: "command", command: "./native.sh" }] }],
+          sessionStart: [{ hooks: [{ type: "command", command: "./inert.sh" }] }],
+        },
+        converterConfig,
+        logger,
+      });
+
+      expect(canonical).toEqual({
+        sessionStart: [{ type: "command", command: "./native.sh" }],
+      });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Skipping imported hooks event "sessionStart"'),
+      );
+    },
+  );
 });

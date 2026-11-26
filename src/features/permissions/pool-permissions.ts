@@ -22,6 +22,7 @@ import {
   parseSharedConfig,
   sharedConfigFileKey,
 } from "../shared/shared-config-gateway.js";
+import { skipsReservedPermissionName } from "./reserved-permission-name.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { honorAllToolsRestrictions } from "./shadowed-allows.js";
 import {
@@ -760,7 +761,12 @@ function convertPoolToRulesync({
     return created;
   };
   for (const [toolName, toolConfig] of Object.entries(tools)) {
-    if (isPrototypePollutionKey(toolName) || !isRecord(toolConfig)) continue;
+    if (
+      skipsReservedPermissionName({ toolLabel: "Pool", category: toolName }) ||
+      !isRecord(toolConfig)
+    ) {
+      continue;
+    }
     importPoolTool({ toolConfig, bucket: bucketFor(toCanonicalToolName(toolName)) });
   }
 
