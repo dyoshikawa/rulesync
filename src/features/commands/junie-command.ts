@@ -5,6 +5,7 @@ import { z } from "zod/mini";
 import { JUNIE_COMMANDS_DIR_PATH } from "../../constants/junie-paths.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { quoteForLog, stripControlCharacters } from "../../utils/control-characters.js";
+import { subdirectoryDepthOf } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { FrontmatterMarkdownToolCommand } from "./frontmatter-markdown-command.js";
 import { RulesyncCommand, type RulesyncCommandFrontmatter } from "./rulesync-command.js";
@@ -91,7 +92,7 @@ export class JunieCommand extends FrontmatterMarkdownToolCommand<JunieCommandFro
     for (const command of rulesyncCommands) {
       if (!this.isTargetedByRulesyncCommand(command)) continue;
       const relativeFilePath = command.getRelativeFilePath();
-      if (relativeFilePath.split(/[/\\]/u).length > 2) continue;
+      if (subdirectoryDepthOf(relativeFilePath) > 1) continue;
       const name = basename(relativeFilePath, ".md");
       pathsByName.set(name, [...(pathsByName.get(name) ?? []), relativeFilePath]);
     }

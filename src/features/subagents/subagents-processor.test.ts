@@ -1400,7 +1400,7 @@ Body from inputRoots[0]`;
       });
     });
 
-    it("imports one subdirectory level from both roots, skipping skills/ and deeper files", async () => {
+    it("imports one subdirectory level of .junie/agents, skipping skills/ and deeper files", async () => {
       const junieDir = join(testDir, ".junie", "agents");
       const sharedDir = join(testDir, ".agents");
       await writeFileContent(join(junieDir, "review", "security.md"), junieSubagentMd("security"));
@@ -1412,6 +1412,7 @@ Body from inputRoots[0]`;
         join(junieDir, "skills", "not-agent.md"),
         junieSubagentMd("not-agent"),
       );
+      // The shared root is imported flat (see the next test).
       await writeFileContent(join(sharedDir, "team", "planner.md"), junieSubagentMd("planner"));
       // `.agents/skills/` is the shared Agent Skills tree, never agents.
       await writeFileContent(join(sharedDir, "skills", "README.md"), junieSubagentMd("readme"));
@@ -1426,16 +1427,25 @@ Body from inputRoots[0]`;
         toolFiles
           .map((file) => join(file.getRelativeDirPath(), file.getRelativeFilePath()))
           .toSorted(),
-      ).toEqual(
-        [
-          join(".junie", "agents", "review", "security.md"),
-          join(".agents", "team", "planner.md"),
-        ].toSorted(),
-      );
+      ).toEqual([join(".junie", "agents", "review", "security.md")]);
       const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(toolFiles);
-      expect(rulesyncFiles.map((file) => file.getRelativeFilePath()).toSorted()).toEqual(
-        [join("review", "security.md"), join("team", "planner.md")].toSorted(),
-      );
+      expect(rulesyncFiles.map((file) => file.getRelativeFilePath()).toSorted()).toEqual([
+        join("review", "security.md"),
+      ]);
+    });
+
+    it("imports the shared .agents root flat, leaving other tools' subdirectories alone", async () => {
+      const sharedDir = join(testDir, ".agents");
+      await writeFileContent(join(sharedDir, "shared.md"), junieSubagentMd("shared"));
+      await writeFileContent(join(sharedDir, "commands", "review.md"), "Review the diff.");
+      await writeFileContent(join(sharedDir, "workflows", "deploy.md"), "Deploy.");
+      await writeFileContent(join(sharedDir, "agents", "foo.md"), junieSubagentMd("foo"));
+
+      const toolFiles = await processor.loadToolFiles();
+
+      expect(
+        toolFiles.map((file) => join(file.getRelativeDirPath(), file.getRelativeFilePath())),
+      ).toEqual([join(".agents", "shared.md")]);
     });
 
     it("names a nested subagent without frontmatter name after its file alone", async () => {

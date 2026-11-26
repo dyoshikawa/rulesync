@@ -23,6 +23,7 @@ import {
   checkPathTraversal,
   directoryExistsStrict,
   findFilesByGlobs,
+  subdirectoryDepthOf,
   toPosixPath,
 } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
@@ -978,15 +979,6 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
 ]);
 
 /**
- * Factory retrieval function type for dependency injection.
- * Allows injecting custom factory implementations for testing purposes.
- */
-/** Number of directory levels in a relative path (`commit.md` is 0, `git/commit.md` is 1). */
-function subdirectoryDepthOf(relativeFilePath: string): number {
-  return relativeFilePath.split(/[/\\]/u).length - 1;
-}
-
-/**
  * The globs that find a tool's command files: flat only, every depth, or up to
  * `maxSubdirectoryDepth` levels (`*.md` and `*\/*.md` for a depth of 1).
  */
@@ -1000,6 +992,10 @@ function toolCommandGlobs(meta: ToolCommandFactory["meta"]): string | string[] {
   );
 }
 
+/**
+ * Factory retrieval function type for dependency injection.
+ * Allows injecting custom factory implementations for testing purposes.
+ */
 type GetFactory = (target: CommandsProcessorToolTarget) => ToolCommandFactory;
 
 const defaultGetFactory: GetFactory = (target) => {

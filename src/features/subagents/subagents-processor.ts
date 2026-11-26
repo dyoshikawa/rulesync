@@ -25,6 +25,8 @@ import {
   directoryExistsStrict,
   findFilesByGlobs,
   isFileSystemError,
+  splitPathSegments,
+  subdirectoryDepthOf,
 } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { AgentsmdSubagent } from "./agentsmd-subagent.js";
@@ -222,17 +224,20 @@ type ToolSubagentFactory = {
      * them are left out of imports and orphan sweeps.
      */
     excludedSubdirectories?: string[];
+    /**
+     * Import pattern for the import-only discovery roots (`importDirPaths`),
+     * replacing the canonical root's patterns there. Junie reads one nested
+     * level in the shared `.agents/` root too, but that root also holds other
+     * tools' trees (`.agents/commands/`, `.agents/workflows/`, ...), so it is
+     * imported flat: only `.junie/agents/` is read one level deep.
+     */
+    importOnlyRootFilePattern?: string;
   };
 };
 
-/** Number of directory levels in a relative path (`a.md` is 0, `x/a.md` is 1). */
-function nestingDepthOf(relativeFilePath: string): number {
-  return relativeFilePath.split(/[/\\]/u).length - 1;
-}
-
 /** The top-level directory of a nested relative path, or `undefined` for a flat one. */
 function topLevelDirOf(relativeFilePath: string): string | undefined {
-  const segments = relativeFilePath.split(/[/\\]/u);
+  const segments = splitPathSegments(relativeFilePath);
   return segments.length > 1 ? segments[0] : undefined;
 }
 
@@ -242,6 +247,22 @@ function topLevelDirOf(relativeFilePath: string): string | undefined {
  */
 function importFilePatternsOf(meta: ToolSubagentFactory["meta"]): string | string[] {
   return meta.importFilePatterns ?? meta.filePattern;
+}
+
+/**
+ * The globs one discovery root is scanned with: the generation pattern for the
+ * orphan sweep, otherwise the import patterns, or, for an import-only root,
+ * {@link ToolSubagentFactory} `importOnlyRootFilePattern` when the tool sets it.
+ */
+function rootFilePatternsOf(
+  meta: ToolSubagentFactory["meta"],
+  { forDeletion, canonical }: { forDeletion: boolean; canonical: boolean },
+): string | string[] {
+  if (forDeletion) return meta.filePattern;
+  if (!canonical && meta.importOnlyRootFilePattern !== undefined) {
+    return meta.importOnlyRootFilePattern;
+  }
+  return importFilePatternsOf(meta);
 }
 
 /** `findFilesByGlobs` options that leave a tool's excluded subdirectories out of a scan. */
@@ -686,6 +707,7 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsNestedPaths: true,
         maxNestingDepth: 1,
         excludedSubdirectories: ["skills"],
+        importOnlyRootFilePattern: "*.md",
       },
     },
   ],
@@ -1212,7 +1234,7 @@ export class SubagentsProcessor extends FeatureProcessor {
         return false;
       }
       const { maxNestingDepth, excludedSubdirectories } = factory.meta;
-      if (maxNestingDepth !== undefined && nestingDepthOf(path) > maxNestingDepth) {
+      if (maxNestingDepth !== undefined && subdirectoryDepthOf(path) > maxNestingDepth) {
         this.logger.warn(
           `Skipping nested subagent "${path}" for ${this.toolTarget}, which only reads subagents up to ${maxNestingDepth} subdirectory level(s) deep.`,
         );
@@ -1473,9 +1495,11 @@ export class SubagentsProcessor extends FeatureProcessor {
     const roots = forDeletion
       ? [paths.relativeDirPath]
       : [paths.relativeDirPath, ...(paths.importDirPaths ?? [])];
-    const filePatterns = forDeletion
-      ? factory.meta.filePattern
-      : importFilePatternsOf(factory.meta);
+    const filePatternsFor = (root: (typeof roots)[number]): string | string[] =>
+      rootFilePatternsOf(factory.meta, {
+        forDeletion,
+        canonical: root === paths.relativeDirPath,
+      });
 
     const toolSubagents: ToolFile[] = [];
     // Track both destination paths and tool-specific logical identities. Claude
@@ -1507,7 +1531,7 @@ export class SubagentsProcessor extends FeatureProcessor {
         }
       }
       const subagentFilePaths = (
-        await findFilesByGlobs(filePatterns, {
+        await findFilesByGlobs(filePatternsFor(root), {
           cwd: baseDir,
           followSymbolicLinks: !forDeletion,
           ...excludedSubdirectoryIgnoreOf(factory.meta),
