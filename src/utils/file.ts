@@ -1,4 +1,4 @@
-import { constants, readdirSync, realpathSync, statSync, type Stats } from "node:fs";
+import { constants, lstatSync, readdirSync, realpathSync, statSync, type Stats } from "node:fs";
 import type { FileHandle } from "node:fs/promises";
 import {
   cp,
@@ -15,7 +15,17 @@ import {
   writeFile,
 } from "node:fs/promises";
 import os from "node:os";
-import { dirname, isAbsolute, join, parse, posix, relative, resolve, sep } from "node:path";
+import {
+  dirname,
+  extname,
+  isAbsolute,
+  join,
+  parse,
+  posix,
+  relative,
+  resolve,
+  sep,
+} from "node:path";
 
 import { kebabCase } from "es-toolkit";
 import { globbySync, isGitIgnoredSync } from "globby";
@@ -424,20 +434,26 @@ export function filterOutPathsInGitIgnoredDirectories({
 
 /**
  * Build a test for whether the project's git ignore rules exclude one entry by
- * name while the directory holding it is not excluded.
+ * name, as opposed to excluding it along with everything around it.
  *
  * This tells a deliberate per-entry exclusion — a `.gitignore` line naming
  * `.cursor/skills/deploy`, often a symbolic link into another repository —
- * apart from a whole tool directory that is ignored as generated output, the
- * `**\/.cursor/skills/` entry `rulesync gitignore` writes. Only the first is
- * reported: when an ancestor directory is ignored, every entry below it is too,
- * and that says nothing about any one of them.
+ * apart from rules that exclude a whole tool directory as generated output:
+ * the `**\/.cursor/skills/` entry `rulesync gitignore` writes, which ignores
+ * the directory, and its `**\/.factory/skills/**` entry, which ignores every
+ * name inside it. Neither says anything about one entry, so an entry counts
+ * only when it is ignored, no directory between it and `rootDir` is, and a
+ * made-up sibling with the same extension is not.
  *
- * An entry is tested both as a file and as a directory (`name` and `name/`),
- * since git matches a symbolic link as a file and a real directory against
- * both. Ignore rules come from the `.gitignore` files at and below `rootDir`,
- * read once, on the first call; unreadable directories are skipped while they
- * are collected. An entry outside `rootDir` is never reported.
+ * The entry is tested the way git tests it: a real directory as `name/`, and
+ * anything else, a symbolic link included, as `name`, so a negation such as
+ * `!keep/` re-includes a directory as it does for git. Ignore rules come from
+ * the `.gitignore` files at and below `rootDir`, collected once, on the first
+ * call, without following symbolic links (as git does; following them lets a
+ * pair of links such as `a -> ..` keep the search running forever) and skipping
+ * directories that cannot be read. `.git/info/exclude`, the global excludes
+ * file and a parent repository's `.gitignore` are not read. An entry outside
+ * `rootDir` is never reported.
  */
 export function createGitIgnoredEntryTest({
   rootDir,
@@ -449,24 +465,45 @@ export function createGitIgnoredEntryTest({
   return (entryPath) => {
     const entry = resolve(entryPath);
     const fromRoot = relative(resolvedRoot, entry);
-    if (fromRoot === "" || fromRoot.startsWith("..") || isAbsolute(fromRoot)) {
+    if (
+      fromRoot === "" ||
+      fromRoot === ".." ||
+      fromRoot.startsWith(`..${sep}`) ||
+      isAbsolute(fromRoot)
+    ) {
       return false;
     }
-    isIgnored ??= isGitIgnoredSync({ cwd: rootDir, suppressErrors: true });
-    const entryPosix = toPosixPath(entry);
-    if (!isIgnored(entryPosix) && !isIgnored(`${entryPosix}/`)) {
+    let isDirectory = false;
+    try {
+      isDirectory = lstatSync(entry).isDirectory();
+    } catch {
+      return false;
+    }
+    const matcher = (isIgnored ??= isGitIgnoredSync({
+      cwd: rootDir,
+      suppressErrors: true,
+      followSymbolicLinks: false,
+    }));
+    const isIgnoredAs = (path: string, directory: boolean): boolean => {
+      const posixPath = toPosixPath(path);
+      return matcher(directory ? `${posixPath}/` : posixPath);
+    };
+    if (!isIgnoredAs(entry, isDirectory)) {
       return false;
     }
     for (
       let directory = dirname(entry);
-      directory !== resolvedRoot;
+      directory !== resolvedRoot && dirname(directory) !== directory;
       directory = dirname(directory)
     ) {
-      if (isIgnored(`${toPosixPath(directory)}/`)) {
+      if (isIgnoredAs(directory, true)) {
         return false;
       }
     }
-    return true;
+    // The probe name is one no skill carries; a rule that also ignores it
+    // covers the directory's contents rather than this entry.
+    const probe = join(dirname(entry), `rulesync-ignore-probe${extname(entry)}`);
+    return !isIgnoredAs(probe, isDirectory);
   };
 }
 

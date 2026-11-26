@@ -1234,9 +1234,12 @@ export class SkillsProcessor extends DirFeatureProcessor {
     // A skill the project's .gitignore names one by one is not its source —
     // typically a symbolic link into another repository that the project
     // keeps out of version control on purpose — so it must not be copied into
-    // version-controlled `.rulesync/skills/`. Not in global mode, where the
-    // output root is the home directory and no project's rules apply.
-    const ignoredEntryTests = new Map<string, (entryPath: string) => boolean>();
+    // version-controlled `.rulesync/skills/`. It is dropped before names are
+    // claimed, as if it were not there. The rules are always read from the
+    // project root, also for a configured root whose own output root is a
+    // folder below it. Not in global mode, where the output root is the home
+    // directory and no project's rules apply.
+    let isIgnoredEntry: ((entryPath: string) => boolean) | undefined;
     const keepUnignored = ({
       names,
       outputRoot,
@@ -1249,18 +1252,13 @@ export class SkillsProcessor extends DirFeatureProcessor {
       if (this.global || names.length === 0) {
         return names;
       }
-      let isIgnoredEntry = ignoredEntryTests.get(outputRoot);
-      if (isIgnoredEntry === undefined) {
-        isIgnoredEntry = createGitIgnoredEntryTest({ rootDir: outputRoot });
-        ignoredEntryTests.set(outputRoot, isIgnoredEntry);
-      }
-      const test = isIgnoredEntry;
+      const test = (isIgnoredEntry ??= createGitIgnoredEntryTest({ rootDir: this.outputRoot }));
       return names.filter((name) => {
         if (!test(join(outputRoot, relativeDirPath, name))) {
           return true;
         }
-        this.logger.info(
-          `Skipping ${quoteForLog(join(relativeDirPath, name))}: the project's .gitignore excludes it, so it is not imported.`,
+        this.logger.warn(
+          `Skipping ${quoteForLog(join(relativeDirPath, name))}: the project's .gitignore names it, so it is not imported.`,
         );
         return false;
       });

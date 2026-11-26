@@ -9,6 +9,7 @@ import {
   RULESYNC_SKILLS_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
 import { TAKT_SKILLS_DIR_PATH } from "../../constants/takt-paths.js";
+import { ALL_GITIGNORE_ENTRIES } from "../../lib/gitignore-entries.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import {
@@ -1212,7 +1213,7 @@ Body from inputRoots[0]`;
       const toolDirs = await processor.loadToolDirs();
 
       expect(toolDirs.map((dir) => dir.getDirName())).toEqual(["local"]);
-      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining("deploy"));
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("deploy"));
     });
 
     it("should skip a real skill directory the project's .gitignore names", async () => {
@@ -1251,6 +1252,27 @@ Body from inputRoots[0]`;
       const toolDirs = await processor.loadToolDirs();
 
       expect(toolDirs.map((dir) => dir.getDirName())).toEqual(["local"]);
+    });
+
+    it("should still import every skill under the .gitignore that rulesync gitignore writes", async () => {
+      // Factory Droid's entry ignores every name inside `.factory/skills/`
+      // (`**/.factory/skills/**`) rather than the directory itself.
+      const processor = new SkillsProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "factorydroid",
+      });
+      for (const name of ["local", "shared"]) {
+        await writeFileContent(
+          join(testDir, ".factory", "skills", name, "SKILL.md"),
+          `---\nname: ${name}\ndescription: Project skill\n---\nBody`,
+        );
+      }
+      await writeFileContent(join(testDir, ".gitignore"), `${ALL_GITIGNORE_ENTRIES.join("\n")}\n`);
+
+      const toolDirs = await processor.loadToolDirs();
+
+      expect(toolDirs.map((dir) => dir.getDirName()).toSorted()).toEqual(["local", "shared"]);
     });
 
     it("should load rovodev skills from .agents/skills when .rovodev/skills is absent", async () => {
