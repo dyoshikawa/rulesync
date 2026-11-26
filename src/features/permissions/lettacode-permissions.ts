@@ -16,8 +16,12 @@ import {
 } from "../shared/shared-config-gateway.js";
 import { skipsReservedPermissionName } from "./reserved-permission-name.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { honorAllToolsRestrictions, restatesAsCategoryRule } from "./shadowed-allows.js";
-import { CATCH_ALL_PATTERN } from "./shell-command-categories.js";
+import {
+  honorAllToolsRestrictions,
+  RESTATED_ABSENT_CATEGORIES,
+  restatesAsCategoryRule,
+} from "./shadowed-allows.js";
+import { ALL_TOOLS_PERMISSION_CATEGORY, CATCH_ALL_PATTERN } from "./shell-command-categories.js";
 import { isStricterAction } from "./single-action-collapse.js";
 import { splitToolRule } from "./tool-pattern-entry.js";
 import {
@@ -223,8 +227,10 @@ function buildLettacodeRuleLists({
     toolLabel: "Letta Code",
     logger,
     // The default for an input with no rule may auto-approve it (reads), so a
-    // `*` path or URL restriction is also written as a rule of each category.
+    // `*` path or URL restriction is also written as a rule of each category,
+    // and as a read rule even when the config has no `read` category.
     restateAs: restatesAsCategoryRule(),
+    restateIntoAbsentCategories: RESTATED_ABSENT_CATEGORIES,
   });
   const ranked = new Map<string, PermissionAction>();
   const managedCategories = new Set<string>();
@@ -233,11 +239,15 @@ function buildLettacodeRuleLists({
       // The all-tools `*` category's restrictions already reached `bash`
       // through `honorAllToolsRestrictions` when that category exists.
       logger?.warn(
-        `Letta Code permissions: skipping the '${category}' category — Letta Code has no permission rule for it.`,
+        category === ALL_TOOLS_PERMISSION_CATEGORY
+          ? `Letta Code permissions: the all-tools '*' category has no Letta Code rule of its own; its deny and ask rules are written as 'bash' rules and, when they read as a path or URL, as 'read' (or 'webfetch') rules, and they withhold the allows they cover.`
+          : `Letta Code permissions: skipping the '${category}' category — Letta Code has no permission rule for it.`,
       );
       continue;
     }
-    managedCategories.add(category);
+    // A category only restated from `*` (see `RESTATED_ABSENT_CATEGORIES`) is
+    // not the config's, so its existing entries are kept beside the rules.
+    if (Object.hasOwn(config.permission, category)) managedCategories.add(category);
     for (const [pattern, action] of Object.entries(rules)) {
       if (isPrototypePollutionKey(pattern)) {
         continue;

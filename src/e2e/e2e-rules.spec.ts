@@ -10,6 +10,7 @@ import {
   RULESYNC_SKILLS_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
 import { getZedGlobalDir } from "../constants/zed-paths.js";
+import { zeroGlobalConfigDir } from "../constants/zero-paths.js";
 import { RulesProcessor } from "../features/rules/rules-processor.js";
 import { buildLanguageInstruction } from "../types/language.js";
 import { fileExists, readFileContent, removeFile, writeFileContent } from "../utils/file.js";
@@ -70,6 +71,7 @@ const rulesRootTargets = [
   { target: "reasonix", outputPath: "REASONIX.md" },
   { target: "musecode", outputPath: "AGENTS.md" },
   { target: "zcode", outputPath: "AGENTS.md" },
+  { target: "zero", outputPath: "ZERO.md" },
   { target: "openclaw", outputPath: "AGENTS.md" },
   { target: "bob", outputPath: "AGENTS.md" },
   { target: "tabnine", outputPath: "TABNINE.md" },
@@ -672,6 +674,59 @@ Start with actionable findings, ordered by severity.
     );
     expect(importedStyle).toContain("channel: output-style");
     expect(importedStyle).toContain("name: Review Notes");
+    expect(importedStyle).toContain("Start with actionable findings, ordered by severity.");
+  });
+
+  it("should write qwencode.channel:output-style rules to .qwen/output-styles/ and round-trip", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+      `---
+root: true
+targets: ["qwencode"]
+description: "Root rule"
+globs: ["**/*"]
+---
+
+# Qwen Code Root Rule
+`,
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "reviewer.md"),
+      `---
+targets: ["qwencode"]
+description: "Put findings before the summary"
+qwencode:
+  channel: output-style
+  name: "Reviewer"
+  keep-coding-instructions: true
+---
+
+Start with actionable findings, ordered by severity.
+`,
+    );
+
+    await runGenerate({ target: "qwencode", features: "rules" });
+
+    // The style gets its own file, not a `.qwen/rules/` context rule.
+    expect(await fileExists(join(testDir, ".qwen", "rules", "reviewer.md"))).toBe(false);
+    const styleContent = await readFileContent(
+      join(testDir, ".qwen", "output-styles", "reviewer.md"),
+    );
+    expect(styleContent).toContain("name: Reviewer");
+    expect(styleContent).toContain("description: Put findings before the summary");
+    expect(styleContent).toContain("keep-coding-instructions: true");
+    expect(styleContent).toContain("Start with actionable findings, ordered by severity.");
+
+    await runImport({ target: "qwencode", features: "rules" });
+
+    const importedStyle = await readFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "reviewer.md"),
+    );
+    expect(importedStyle).toContain("channel: output-style");
+    expect(importedStyle).toContain("name: Reviewer");
+    expect(importedStyle).toContain("keep-coding-instructions: true");
     expect(importedStyle).toContain("Start with actionable findings, ordered by severity.");
   });
 
@@ -1783,6 +1838,7 @@ describe("E2E: rules (import)", () => {
     },
     { target: "amp", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "codexcli", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
+    { target: "zero", sourcePath: "ZERO.md", importedFileName: "overview.md" },
     { target: "commandcode", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "qoder", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "xum", sourcePath: join(".xum", "AGENTS.md"), importedFileName: "overview.md" },
@@ -2024,6 +2080,62 @@ This is a test project for E2E testing.
     expect(generated).toContain("description: API rules");
     expect(await fileExists(join(testDir, ".trae", "rules", "api.md"))).toBe(false);
   });
+
+  // Qoder loads `.qoder/rules/` in any project subdirectory on demand.
+  // https://docs.qoder.com/cli/memory
+  it("should import nested qoder rules and round-trip their subproject scope", async () => {
+    const testDir = getTestDir();
+
+    // The entry `rulesync gitignore` writes for Qoder must not hide the nested
+    // rules directories from the import scan.
+    await writeFileContent(join(testDir, ".gitignore"), "**/.qoder/rules/\nvendored/\n");
+    await writeFileContent(
+      join(testDir, "vendored", "dep", ".qoder", "rules", "dep.md"),
+      "# Vendored\n",
+    );
+
+    await writeFileContent(join(testDir, "AGENTS.md"), "# Project Overview\n");
+    await writeFileContent(
+      join(testDir, "packages", "app", ".qoder", "rules", "app.md"),
+      "---\ntrigger: model_decision\ndescription: App rules\n---\n# App Instructions\n",
+    );
+    // A glob rule in a subfolder: its glob is relative to `packages/app`.
+    await writeFileContent(
+      join(testDir, "packages", "app", ".qoder", "rules", "sub", "lint.md"),
+      "---\ntrigger: glob\nglob:\n  - src/**/*.ts\n---\n# Lint Instructions\n",
+    );
+
+    await runImport({ target: "qoder", features: "rules" });
+
+    const importedGlob = await readFileContent(
+      join(testDir, ".rulesync", "rules", "sub", "lint.md"),
+    );
+    expect(importedGlob).toContain("packages/app/src/**/*.ts");
+    expect(importedGlob).toContain("subprojectPath: packages/app");
+
+    const importedNested = await readFileContent(join(testDir, ".rulesync", "rules", "app.md"));
+    expect(importedNested).toContain("App Instructions");
+    expect(importedNested).toContain("subprojectPath: packages/app");
+    expect(await fileExists(join(testDir, ".rulesync", "rules", "dep.md"))).toBe(false);
+
+    await removeFile(join(testDir, "packages", "app", ".qoder", "rules", "app.md"));
+    await removeFile(join(testDir, "packages", "app", ".qoder", "rules", "sub", "lint.md"));
+    await runGenerate({ target: "qoder", features: "rules" });
+
+    const generatedGlob = await readFileContent(
+      join(testDir, "packages", "app", ".qoder", "rules", "sub", "lint.md"),
+    );
+    expect(generatedGlob).toContain("trigger: glob");
+    expect(generatedGlob).toContain("src/**/*.ts");
+    expect(generatedGlob).not.toContain("packages/app/src");
+
+    const generated = await readFileContent(
+      join(testDir, "packages", "app", ".qoder", "rules", "app.md"),
+    );
+    expect(generated).toContain("App Instructions");
+    expect(generated).toContain("trigger: model_decision");
+    expect(await fileExists(join(testDir, ".qoder", "rules", "app.md"))).toBe(false);
+  });
 });
 
 const rulesGlobalTargets = [
@@ -2071,6 +2183,7 @@ const rulesGlobalTargets = [
   { target: "kiro-ide", outputPath: join(".kiro", "steering", "product.md") },
   { target: "reasonix", outputPath: join(".reasonix", "REASONIX.md") },
   { target: "zcode", outputPath: join(".zcode", "AGENTS.md") },
+  { target: "zero", outputPath: join(zeroGlobalConfigDir(), "ZERO.md") },
   { target: "openclaw", outputPath: join(".openclaw", "workspace", "AGENTS.md") },
   { target: "bob", outputPath: join(".bob", "AGENTS.md") },
   { target: "tabnine", outputPath: join(".tabnine", "agent", "TABNINE.md") },

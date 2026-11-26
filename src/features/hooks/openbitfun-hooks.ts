@@ -16,11 +16,17 @@ import {
   CODEXCLI_CONVERTER_CONFIG,
   codexStyleHooksToRulesyncContent,
 } from "./codexcli-hooks.js";
-import { capitalizedMatcherNames, replaceMatcherNames } from "./hook-matcher-tool-names.js";
+import {
+  capitalizedMatcherNames,
+  isMatcherName,
+  MATCHER_TOKEN_PATTERN,
+  replaceMatcherNames,
+} from "./hook-matcher-tool-names.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import type { ToolHooksConverterConfig } from "./tool-hooks-converter.js";
 import {
   ToolHooks,
+  type ToolHooksFromFileParams,
   type ToolHooksFromRulesyncHooksParams,
   type ToolHooksSettablePaths,
 } from "./tool-hooks.js";
@@ -82,6 +88,50 @@ const TOOL_GATING_EVENTS: ReadonlySet<string> = new Set([
   "PermissionRequest",
 ]);
 
+/**
+ * Lowercased tool names mapped to the spelling OpenBitFun matches against:
+ * its own built-in names, and the canonical names it renames (`bash` ->
+ * `ExecCommand`).
+ */
+const KNOWN_TOOL_NAMES_BY_LOWERCASE: ReadonlyMap<string, string> = new Map([
+  ...[...OPENBITFUN_TOOL_NAMES].map((name): [string, string] => [name.toLowerCase(), name]),
+  ...Object.entries(CANONICAL_TO_OPENBITFUN_TOOL_NAMES).map(
+    ([canonical, tool]): [string, string] => [canonical.toLowerCase(), tool],
+  ),
+]);
+
+/**
+ * An inline flag group that turns case-insensitive matching on: `(?i)`,
+ * `(?is)`, `(?i:...)`, `(?xi-s)`. A group that only turns it off (`(?-i)`) or
+ * names other flags (`(?s)`) does not.
+ */
+const CASE_INSENSITIVE_FLAG_PATTERN = /\(\?[a-zA-Z]*i[a-zA-Z]*(?:-[a-zA-Z]*)?[):]/;
+
+/**
+ * Lowercase whole names in a matcher that spell a known tool in another case
+ * (`bash`, `read`). OpenBitFun compiles the matcher as a case-sensitive regex
+ * anchored to the runtime tool name, so such a name never matches, unless an
+ * inline flag group before it (`(?i)`, `(?i:...)`) makes the match
+ * case-insensitive and the name is OpenBitFun's own spelling (`(?i)read`
+ * matches `Read`, but `(?i)bash` still does not match `ExecCommand`).
+ * @see https://github.com/openBitFun/OpenBitFun/blob/main/src/crates/execution/agent-runtime/src/native_hooks/settings.rs
+ */
+function wrongCaseToolNames(matcher: string): Array<{ name: string; tool: string }> {
+  const flag = CASE_INSENSITIVE_FLAG_PATTERN.exec(matcher);
+  const caseInsensitiveFrom = flag ? flag.index + flag[0].length : Number.POSITIVE_INFINITY;
+  const found = new Map<string, string>();
+  for (const match of matcher.matchAll(MATCHER_TOKEN_PATTERN)) {
+    const [token] = match;
+    if (!isMatcherName(token) || !/^[a-z]/.test(token)) continue;
+    const tool = KNOWN_TOOL_NAMES_BY_LOWERCASE.get(token.toLowerCase());
+    if (tool === undefined) continue;
+    const caseInsensitive = match.index >= caseInsensitiveFrom;
+    if (caseInsensitive && tool.toLowerCase() === token.toLowerCase()) continue;
+    found.set(token, tool);
+  }
+  return [...found].map(([name, tool]) => ({ name, tool }));
+}
+
 function canonicalToOpenbitfunMatcher({
   matcher,
   eventName,
@@ -101,6 +151,16 @@ function canonicalToOpenbitfunMatcher({
         `${unknown.map((name) => quoteValueForWarning(name)).join(", ")} in the "${eventName}" ` +
           `matcher ${quoteValueForWarning(matcher)} is not an OpenBitFun built-in tool, so it is ` +
           `written as-is and will likely never match there, and the hook will not run for that tool.`,
+      );
+    }
+    const wrongCase = wrongCaseToolNames(translated);
+    if (wrongCase.length > 0) {
+      warn(
+        `${wrongCase.map(({ name }) => quoteValueForWarning(name)).join(", ")} in the "${eventName}" ` +
+          `matcher ${quoteValueForWarning(matcher)} never matches on OpenBitFun, which matches tool ` +
+          `names case-sensitively against ${wrongCase.map(({ tool }) => quoteValueForWarning(tool)).join(", ")}, ` +
+          `so the hook will not run for that tool. Spell the tool name as OpenBitFun does ` +
+          `(the canonical "Bash" is translated to "ExecCommand").`,
       );
     }
   }
@@ -208,6 +268,18 @@ export class OpenbitfunHooks extends ToolHooks {
       ownedHookRefs: preserveUnowned ? owned : undefined,
       validate,
     });
+  }
+
+  /**
+   * `import --global` reads the same XDG-default location that generation
+   * writes, so it warns about a moved user tree as well; otherwise the import
+   * would silently find nothing there.
+   */
+  static override async fromFile(params: ToolHooksFromFileParams): Promise<ToolHooks> {
+    if (params.global) {
+      warnOpenbitfunXdgOverride({ kind: "config", logger: params.logger });
+    }
+    return super.fromFile(params);
   }
 
   toRulesyncHooks({ logger }: { logger?: Logger } = {}): RulesyncHooks {

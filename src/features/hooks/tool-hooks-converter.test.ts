@@ -950,6 +950,95 @@ describe("booleanPassthroughFields events restriction", () => {
   });
 });
 
+describe("eventHookTypes (per-event hook types)", () => {
+  const EVENT_CONFIG: ToolHooksConverterConfig = {
+    ...BASE_CONFIG,
+    supportedEvents: ["preToolUse", "notification"],
+    canonicalToToolEventNames: { preToolUse: "PreToolUse", notification: "Notification" },
+    toolToCanonicalEventNames: { PreToolUse: "preToolUse", Notification: "notification" },
+    supportedHookTypes: new Set(["command", "prompt"]),
+    eventHookTypes: { notification: new Set(["command"]) },
+    groupPassthroughFields: [{ canonical: "metadata", tool: "metadata" }],
+  };
+
+  const emit = ({
+    hooks,
+    toolOverrideHooks,
+    converterConfig = EVENT_CONFIG,
+  }: {
+    hooks: HooksConfig["hooks"];
+    toolOverrideHooks?: HooksConfig["hooks"];
+    converterConfig?: ToolHooksConverterConfig;
+  }) => {
+    const logger = createMockLogger();
+    const emitted = canonicalToToolHooks({
+      config: { version: 1, hooks },
+      toolOverrideHooks,
+      converterConfig,
+      logger,
+    });
+    return { emitted, logger };
+  };
+
+  it("skips a type the event does not run, deriving group fields from the remaining hooks", () => {
+    const { emitted, logger } = emit({
+      hooks: {
+        notification: [
+          { type: "prompt", prompt: "Summarize", metadata: { from: "prompt" } },
+          { type: "command", command: "notify.sh", metadata: { from: "command" } },
+        ],
+        preToolUse: [{ type: "prompt", prompt: "Check" }],
+      },
+    });
+
+    expect(emitted.Notification).toEqual([
+      { metadata: { from: "command" }, hooks: [{ type: "command", command: "notify.sh" }] },
+    ]);
+    // Events without an entry keep every supported type.
+    expect(emitted.PreToolUse).toEqual([{ hooks: [{ type: "prompt", prompt: "Check" }] }]);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'Skipping a "notification" prompt hook ("Summarize"): this tool does not run prompt hooks on this event (supported types: command).',
+      ),
+    );
+    expect(logger.warn).not.toHaveBeenCalledWith(
+      expect.stringContaining("belongs to the whole matcher group"),
+    );
+  });
+
+  it("looks a tool-native override key up under its canonical event name", () => {
+    const { emitted, logger } = emit({
+      hooks: {},
+      toolOverrideHooks: { Notification: [{ type: "prompt", prompt: "Summarize" }] },
+    });
+
+    expect(emitted).not.toHaveProperty("Notification");
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Skipping a "Notification" prompt hook'),
+    );
+  });
+
+  it("keeps the hook with a warning on an event the tool fails closed on", () => {
+    const { emitted, logger } = emit({
+      hooks: { notification: [{ type: "prompt", prompt: "Summarize", metadata: { k: 1 } }] },
+      converterConfig: {
+        ...EVENT_CONFIG,
+        failClosedEventHookTypeEvents: new Set(["notification"]),
+      },
+    });
+
+    expect(emitted.Notification).toEqual([
+      { metadata: { k: 1 }, hooks: [{ type: "prompt", prompt: "Summarize" }] },
+    ]);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'Keeping a "notification" prompt hook ("Summarize") although this tool cannot run prompt hooks on this event',
+      ),
+    );
+    expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("Skipping"));
+  });
+});
+
 describe("buildImportedHooksConfig", () => {
   it("should move non-canonical event keys under the override block", () => {
     const config = buildImportedHooksConfig({

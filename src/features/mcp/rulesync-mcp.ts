@@ -675,7 +675,8 @@ export class RulesyncMcp extends RulesyncFile {
           // `poolAllow` is Pool's approval allowlist, re-merged by the pool
           // generator the same way; it is an approval decision only Pool reads.
           // `zcodeOauth` is ZCode's OAuth block, re-merged by the zcode
-          // generators the same way; it may carry a client secret.
+          // generators the same way; it may carry a client secret. `zeroOauth`
+          // is the same arrangement for Zero.
           // `enabled` is stripped because OpenCode, Kilo, Grok CLI
           // and Goose have a NATIVE `enabled` field with different semantics a
           // leaked value would silently collide with.
@@ -701,6 +702,7 @@ export class RulesyncMcp extends RulesyncFile {
               "crushChannelReply",
               "poolAllow",
               "zcodeOauth",
+              "zeroOauth",
               "oauth_client_id",
               "oauth_client_secret",
               "oauth_callback_port",
