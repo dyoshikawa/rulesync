@@ -10,7 +10,6 @@ import {
 import type { ValidationResult } from "../../types/ai-file.js";
 import {
   isBlankPermissionKey,
-  isPermissionAction,
   type PermissionsConfig,
   RulesyncPermissionsFileSchema,
 } from "../../types/permissions.js";
@@ -30,7 +29,6 @@ import {
   type RulesyncSourceSettablePaths,
 } from "../../utils/rulesync-source-path.js";
 import { isRecord } from "../../utils/type-guards.js";
-import { isStricterAction } from "./single-action-collapse.js";
 
 export type RulesyncPermissionsParams = RulesyncFileParams;
 
@@ -138,11 +136,13 @@ export class RulesyncPermissions extends RulesyncFile {
    * names it, in which case the imported value replaces it. No importer emits
    * another tool's override block, so those blocks are never touched here.
    *
-   * A target listed in {@link SHARED_OVERRIDE_BLOCK_IMPORT_TARGETS} reads an
-   * override block another target also reads from a *different* file (Qoder CN
-   * shares the `qoder` block but keeps its user settings in `~/.qoder-cn/`), so
-   * its import must not discard what the other target's import contributed:
-   * the block is merged instead (see {@link mergeSharedOverrideBlock}).
+   * A target listed in {@link IMPORT_SKIPS_SHARED_OVERRIDE_BLOCK_TARGETS}
+   * reads an override block another target also reads from a *different* file
+   * (Qoder CN shares the `qoder` block but keeps its user settings in
+   * `~/.qoder-cn/`). Its import leaves that block untouched — present or
+   * absent — and imports only the canonical rules, so it never puts its values
+   * into the other target's output. The override keys it skipped are reported
+   * with a warning.
    */
   static mergeImportedJson({
     existing,
@@ -156,19 +156,18 @@ export class RulesyncPermissions extends RulesyncFile {
     logger?: Logger;
   }): Record<string, unknown> {
     const ownOverrideKey = PERMISSION_OVERRIDE_KEY_ALIASES[toolTarget] ?? toolTarget;
-    const mergesSharedBlock = SHARED_OVERRIDE_BLOCK_IMPORT_TARGETS.has(toolTarget);
+    const skipsSharedBlock = IMPORT_SKIPS_SHARED_OVERRIDE_BLOCK_TARGETS.has(toolTarget);
     const merged: Record<string, unknown> = { ...existing };
-    if (!mergesSharedBlock) {
+    if (!skipsSharedBlock) {
       delete merged[ownOverrideKey];
     }
     for (const [key, value] of Object.entries(imported)) {
       const current = merged[key];
       if (key === "permission") {
         merged[key] = mergePermissionCategories({ existing: current, imported: value });
-      } else if (mergesSharedBlock && key === ownOverrideKey) {
-        merged[key] = mergeSharedOverrideBlock({
-          existing: current,
-          imported: value,
+      } else if (skipsSharedBlock && key === ownOverrideKey) {
+        warnSkippedSharedOverrideKeys({
+          block: value,
           blockKey: ownOverrideKey,
           toolTarget,
           logger,
@@ -299,108 +298,37 @@ export class RulesyncPermissions extends RulesyncFile {
 }
 
 /**
- * Targets whose import merges into the override block they share with another
- * target (through `PERMISSION_OVERRIDE_KEY_ALIASES`) instead of replacing it,
- * because the two targets read that block from different files. `qodercn`
- * shares the `qoder` block, but in global mode it imports `~/.qoder-cn/` while
- * `qoder` imports `~/.qoder/`, so a replace would drop Qoder's settings.
+ * Targets whose import never writes the override block they share with
+ * another target (through `PERMISSION_OVERRIDE_KEY_ALIASES`), because the two
+ * read that block from different files. `qodercn` shares the `qoder` block, but
+ * in global mode it imports `~/.qoder-cn/` while `qoder` imports `~/.qoder/`:
+ * writing Qoder CN values there would make the next `qoder` generate apply
+ * them to Qoder too, possibly loosening its settings.
  */
-const SHARED_OVERRIDE_BLOCK_IMPORT_TARGETS: ReadonlySet<ToolTarget> = new Set<ToolTarget>([
+const IMPORT_SKIPS_SHARED_OVERRIDE_BLOCK_TARGETS: ReadonlySet<ToolTarget> = new Set<ToolTarget>([
   "qodercn",
 ]);
 
-/**
- * Merge an imported override block into the existing one without deleting
- * anything: keys only the existing block has are kept. In the tool-scoped
- * `permission` map, a pattern both sides define keeps the stricter action
- * (deny > ask > allow), so an import never loosens a restriction. Any other
- * key both sides define takes the imported value (record values one level
- * deep, so sibling settings survive), with a warning when that changes it.
- */
-function mergeSharedOverrideBlock({
-  existing,
-  imported,
+/** Report the override keys a shared-block import did not bring in. */
+function warnSkippedSharedOverrideKeys({
+  block,
   blockKey,
   toolTarget,
   logger,
 }: {
-  existing: unknown;
-  imported: unknown;
+  block: unknown;
   blockKey: string;
   toolTarget: ToolTarget;
   logger?: Logger;
-}): unknown {
-  if (!isRecord(existing) || !isRecord(imported)) {
-    return imported === undefined ? existing : imported;
+}): void {
+  if (!isRecord(block) || Object.keys(block).length === 0) {
+    return;
   }
-  const overwritten: string[] = [];
-  const merged: Record<string, unknown> = { ...existing };
-  for (const [key, value] of Object.entries(imported)) {
-    const current = merged[key];
-    if (key === "permission" && isRecord(current) && isRecord(value)) {
-      merged[key] = mergeStricterPermissionMap({ existing: current, imported: value });
-    } else if (isRecord(current) && isRecord(value)) {
-      const group: Record<string, unknown> = { ...current };
-      for (const [innerKey, innerValue] of Object.entries(value)) {
-        if (
-          Object.hasOwn(group, innerKey) &&
-          JSON.stringify(group[innerKey]) !== JSON.stringify(innerValue)
-        ) {
-          overwritten.push(`${key}.${innerKey}`);
-        }
-        group[innerKey] = innerValue;
-      }
-      merged[key] = group;
-    } else {
-      if (current !== undefined && JSON.stringify(current) !== JSON.stringify(value)) {
-        overwritten.push(key);
-      }
-      merged[key] = value;
-    }
-  }
-  if (overwritten.length > 0) {
-    warnWithFallback(
-      logger,
-      `Importing ${toolTarget} replaced ${overwritten.map((key) => `${blockKey}.${key}`).join(", ")} in the shared "${blockKey}" permissions block with the ${toolTarget} value; the next generate for ${blockKey} writes it too. Review the block if the two configurations differ on purpose.`,
-    );
-  }
-  return merged;
-}
-
-/**
- * Union two tool-scoped `permission` maps (category → pattern → action),
- * keeping the stricter action where both define the same pattern.
- */
-function mergeStricterPermissionMap({
-  existing,
-  imported,
-}: {
-  existing: Record<string, unknown>;
-  imported: Record<string, unknown>;
-}): Record<string, unknown> {
-  const merged: Record<string, unknown> = { ...existing };
-  for (const [category, rules] of Object.entries(imported)) {
-    const current = merged[category];
-    if (!isRecord(current) || !isRecord(rules)) {
-      merged[category] = current === undefined ? rules : current;
-      continue;
-    }
-    const patterns: Record<string, unknown> = { ...current };
-    for (const [pattern, action] of Object.entries(rules)) {
-      const existingAction = patterns[pattern];
-      if (existingAction === undefined) {
-        patterns[pattern] = action;
-      } else if (
-        isPermissionAction(action) &&
-        isPermissionAction(existingAction) &&
-        isStricterAction({ action, existing: existingAction })
-      ) {
-        patterns[pattern] = action;
-      }
-    }
-    merged[category] = patterns;
-  }
-  return merged;
+  const keys = Object.keys(block).map((key) => `${blockKey}.${key}`);
+  warnWithFallback(
+    logger,
+    `Importing ${toolTarget} did not import ${keys.join(", ")}: the "${blockKey}" block is shared with the ${blockKey} target, which reads its own settings file, so ${toolTarget}'s values are not written there. Add them under "${blockKey}" by hand if you want them for both targets.`,
+  );
 }
 
 /**

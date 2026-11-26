@@ -1090,35 +1090,43 @@ describe("RulesyncPermissions.mergeImportedJson", () => {
     expect(merged).toEqual({ qoder: { outputStyle: "verbose" } });
   });
 
-  it("merges a qodercn import into the shared qoder block without dropping keys", () => {
+  it("leaves the shared qoder block untouched on a qodercn import and warns about its keys", () => {
     const logger = createMockLogger();
-    const merged = RulesyncPermissions.mergeImportedJson({
-      existing: {
-        qoder: {
-          autoMode: { enabled: true },
-          security: { sandbox: "strict", network: "off" },
-          permission: { bash: { "rm *": "deny", "git *": "ask" } },
-        },
+    const existing = {
+      permission: { read: { ".env": "deny" } },
+      qoder: {
+        autoMode: { enabled: false },
+        security: { disableYoloMode: true },
+        permission: { bash: { "rm *": "deny" } },
       },
+    };
+    const merged = RulesyncPermissions.mergeImportedJson({
+      existing,
       imported: {
-        qoder: {
-          security: { sandbox: "relaxed" },
-          permission: { bash: { "rm *": "allow", "git *": "deny", "ls *": "allow" } },
-        },
+        permission: { bash: { "git *": "allow" } },
+        qoder: { autoMode: { enabled: true }, security: { disableYoloMode: false } },
       },
       toolTarget: "qodercn",
       logger,
     });
 
     expect(merged).toEqual({
-      qoder: {
-        autoMode: { enabled: true },
-        security: { sandbox: "relaxed", network: "off" },
-        // A pattern both sides define keeps the stricter action.
-        permission: { bash: { "rm *": "deny", "git *": "deny", "ls *": "allow" } },
-      },
+      permission: { read: { ".env": "deny" }, bash: { "git *": "allow" } },
+      qoder: existing.qoder,
     });
-    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("qoder.security.sandbox"));
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("did not import qoder.autoMode, qoder.security"),
+    );
+  });
+
+  it("does not create the shared qoder block on a qodercn import", () => {
+    const merged = RulesyncPermissions.mergeImportedJson({
+      existing: {},
+      imported: { qoder: { outputStyle: "terse" } },
+      toolTarget: "qodercn",
+    });
+
+    expect(merged).toEqual({});
   });
 
   it("keeps the shared qoder block when a qodercn import produces none", () => {
