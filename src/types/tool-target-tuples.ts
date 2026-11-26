@@ -281,6 +281,7 @@ export const subagentsProcessorToolTargetTuple = [
   "rovodev",
   "tabnine",
   "takt",
+  "trae",
   "vibe",
   "vibe-plugin",
   "xum",
