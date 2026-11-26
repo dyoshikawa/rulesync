@@ -98,12 +98,13 @@ describe("OpenhandsHooks", () => {
 
     it.each([
       ["Bash", "terminal"],
-      ["Write|Edit", "file_editor|apply_patch"],
-      ["Read|Bash", "file_editor|terminal"],
-      ["Glob|Grep|TodoWrite|Task", "glob|grep|task_tracker|task"],
+      ["Write|Edit", "file_editor|apply_patch|write_file|edit|planning_file_editor"],
+      ["MultiEdit", "file_editor|apply_patch|write_file|edit|planning_file_editor"],
+      ["Read|Bash", "file_editor|read_file|planning_file_editor|terminal"],
+      ["Glob|Grep|TodoWrite|Task|LS", "glob|grep|task_tracker|task|list_directory"],
       ["^Bash$", "^terminal$"],
-      ["Edit.*", "(?:file_editor|apply_patch).*"],
-      ["mcp__github__.*", "mcp__github__.*"],
+      ["Edit.*", "(?:file_editor|apply_patch|write_file|edit|planning_file_editor).*"],
+      ["github_.*", "github_.*"],
       ["*", "*"],
       ["terminal", "terminal"],
     ])("should translate the preToolUse matcher %s to %s", async (matcher, expected) => {
@@ -127,6 +128,8 @@ describe("OpenhandsHooks", () => {
             preToolUse: [
               { command: "./guard-web.sh", matcher: "Bash|WebFetch" },
               { command: "./guard-regex.sh", matcher: "Web.*" },
+              { command: "./guard-mcp.sh", matcher: "mcp__github__.*" },
+              { command: "./guard-mcp-tool.sh", matcher: "Bash|mcp__github__create_issue" },
             ],
           },
         }),
@@ -138,6 +141,8 @@ describe("OpenhandsHooks", () => {
           hooks: [
             { type: "command", command: "./guard-web.sh" },
             { type: "command", command: "./guard-regex.sh" },
+            { type: "command", command: "./guard-mcp.sh" },
+            { type: "command", command: "./guard-mcp-tool.sh" },
           ],
         },
       ]);
@@ -176,18 +181,24 @@ describe("OpenhandsHooks", () => {
       );
     });
 
-    it("should skip a handler whose timeout is not a whole number", async () => {
+    it("should round a fractional timeout up and keep the hook", async () => {
       const logger = createMockLogger();
       const hooks = await OpenhandsHooks.fromRulesyncHooks({
         outputRoot: testDir,
         logger,
         rulesyncHooks: makeRulesyncHooks({
-          hooks: { stop: [{ command: "./a.sh", timeout: 1.5 }, { command: "./b.sh" }] },
+          hooks: {
+            preToolUse: [{ command: "./guard.sh", matcher: "Bash", timeout: 1.5 }],
+            stop: [{ command: "./b.sh", timeout: 30 }],
+          },
         }),
       });
 
       expect(JSON.parse(hooks.getFileContent())).toEqual({
-        stop: [{ hooks: [{ type: "command", command: "./b.sh" }] }],
+        pre_tool_use: [
+          { matcher: "terminal", hooks: [{ type: "command", command: "./guard.sh", timeout: 2 }] },
+        ],
+        stop: [{ hooks: [{ type: "command", command: "./b.sh", timeout: 30 }] }],
       });
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("whole number"));
     });
@@ -271,7 +282,9 @@ describe("OpenhandsHooks", () => {
             matcher: "terminal",
             hooks: [{ type: "command", command: "./block.sh", timeout: 10 }],
           },
-          { matcher: "file_editor|apply_patch", hooks: [{ command: "./edit-guard.sh" }] },
+          { matcher: "file_editor", hooks: [{ command: "./edit-guard.sh" }] },
+          { matcher: "apply_patch|write_file", hooks: [{ command: "./write-guard.sh" }] },
+          { matcher: "/terminal|browser_.*/", hooks: [{ command: "./regex-guard.sh" }] },
         ],
         post_tool_use: [{ matcher: "*", hooks: [{ command: "./log.sh", async: true }] }],
         stop: [{ matcher: "*", hooks: [{ command: "./lint.sh", timeout: 120 }] }],
@@ -280,11 +293,28 @@ describe("OpenhandsHooks", () => {
       expect(rulesyncHooks.getJson().hooks).toEqual({
         preToolUse: [
           { type: "command", command: "./block.sh", timeout: 10, matcher: "Bash" },
-          { type: "command", command: "./edit-guard.sh", matcher: "Edit" },
+          { type: "command", command: "./edit-guard.sh", matcher: "Read|Write|Edit|MultiEdit" },
+          { type: "command", command: "./write-guard.sh", matcher: "Write|Edit|MultiEdit" },
+          { type: "command", command: "./regex-guard.sh", matcher: "Bash|browser_.*" },
         ],
         postToolUse: [{ type: "command", command: "./log.sh", async: true, matcher: "*" }],
         stop: [{ type: "command", command: "./lint.sh", timeout: 120 }],
       });
+    });
+
+    it("should skip a non-tool-event group whose matcher never runs in OpenHands", () => {
+      const logger = createMockLogger();
+      const rulesyncHooks = makeOpenhandsHooks({
+        stop: [
+          { matcher: "terminal", hooks: [{ command: "./never.sh" }] },
+          { hooks: [{ command: "./always.sh" }] },
+        ],
+      }).toRulesyncHooks({ logger });
+
+      expect(rulesyncHooks.getJson().hooks).toEqual({
+        stop: [{ type: "command", command: "./always.sh" }],
+      });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("never runs there"));
     });
 
     it("should accept PascalCase keys inside the hooks wrapper", () => {
