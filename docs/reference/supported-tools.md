@@ -31,7 +31,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | OpenClaw                  | openclaw           | ✅ 🌏 |        |  🌏 🔧   |          |           | ✅ 🌏  |       |             |        |
 | OpenBitFun                | openbitfun         |       |        |          |          |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |             |        |
 | MiMo Code                 | mimocode           | ✅ 🌏 |        | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
-| GitLab Duo CLI            | gitlabduo          | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |           | ✅ 🌏  | ✅ 🌏 |     🌏      |   ✅   |
+| GitLab Duo CLI            | gitlabduo          | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |    ✅     | ✅ 🌏  | ✅ 🌏 |     🌏      |   ✅   |
 | bb                        | bb                 | ✅ 🌏 |        |          |          |           | ✅ 🌏  |       |             |        |
 | Cline                     | cline              | ✅ 🌏 |   ✅   |    🌏    |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |     ✅      |        |
 | Kilo Code                 | kilo               | ✅ 🌏 | ✅ 🌏  | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |   ✅   |
@@ -41,7 +41,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Zoo Code                  | zoocode            | ✅ 🌏 |   ✅   |  ✅ 🔧   |  ✅ 🌏   |    ✅     | ✅ 🌏  |       |     ✅      |        |
 | Rovodev (Atlassian) ⚠️    | rovodev            | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |       |    ✅ 🌏    |   ✅   |
 | Takt                      | takt               | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |       |    ✅ 🌏    | ✅ 🌏  |
-| Trae                      | trae               |  ✅   |   ✅   |    ✅    |  ✅ 🌏   |           | ✅ 🌏  | ✅ 🌏 |     🌏      |        |
+| Trae                      | trae               |  ✅   |   ✅   |    ✅    |  ✅ 🌏   |    ✅     | ✅ 🌏  | ✅ 🌏 |     🌏      |        |
 | Tabnine CLI ⚠️            | tabnine            | ✅ 🌏 |   ✅   | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
 | Continue ⚠️               | continue           | ✅ 🌏 | ✅ 🌏  |  ✅ 🌏   |  ✅ 🌏   |           | ✅ 🌏  | ✅ 🌏 |     🌏      |        |
 | Snowflake Cortex Code     | cortexcode         |  ✅   |        |    🌏    |          |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |             |        |
@@ -75,6 +75,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Zed                       | zed                | ✅ 🌏 | ✅ 🌏  |  ✅ 🌏   |          |           | ✅ 🌏  |       |     🌏      |        |
 | ZCode (Z.ai)              | zcode              | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |             |        |
 | ZCode plugin              | zcode-plugin       |       |        |    ✅    |    ✅    |    ✅     |   ✅   |  ✅   |             |        |
+| Zero                      | zero               | ✅ 🌏 |        |  ✅ 🌏   |          |   ✅ 🌏   |   🌏   | ✅ 🌏 |             |        |
 | Pool (Poolside)           | pool               | ✅ 🌏 |        | ✅ 🌏 🔧 |          |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
 | DeepSeek Harness          | dsh                | ✅ 🌏 |        |    🌏    |          |           | ✅ 🌏  |       |             |        |
 

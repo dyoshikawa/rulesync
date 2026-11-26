@@ -348,6 +348,7 @@ rulesync.local.jsonc
 **/.trae/rules/
 **/.xum/AGENTS.md
 **/.devin/rules/
+**/ZERO.md
 **/.rules
 **/.bb/AGENTS.md
 **/.agents/commands/
@@ -459,10 +460,12 @@ rulesync.local.jsonc
 **/.rovodev/subagents/
 **/.tabnine/agent/agents/
 **/.takt/facets/personas/
+**/.trae/agents/
 **/.vibe/agents/
 **/.openbitfun/agents/
 **/.xum/agents/
 **/.zcode/agents/
+**/.zero/specialists/
 **/.ai/mcp/mcp.json
 **/.agents/mcp_config.json
 **/.augment/settings.json

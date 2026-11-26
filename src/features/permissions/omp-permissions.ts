@@ -41,7 +41,16 @@ import {
 
 type OmpApproval = "allow" | "prompt" | "deny";
 
-type OmpBashPattern = { match: string; approval: OmpApproval };
+type OmpBashPattern = { match: string; approval: OmpApproval; env?: unknown };
+
+// Keys that scope a `bash.patterns` entry to working directories (v18.20.1+).
+// An entry naming a folder under any of them applies only there; one whose
+// keys hold no string (such as YAML's `path: ~`) is unscoped.
+// https://github.com/can1357/oh-my-pi/blob/ce36c879d72b5a9ddf7d0b8dd10bb8e1bc62c4a4/packages/coding-agent/src/config/settings.ts
+const PATH_SCOPE_KEYS = ["path", "paths", "pathPrefix", "pathPrefixes"] as const;
+
+// Keys a path-scoped `bash.patterns` entry nests its rules under.
+const SCOPED_RULE_LIST_KEYS = ["patterns", "values", "items"] as const;
 
 // The `tools` key holding oh-my-pi's approval mode, authored through the
 // `omp.approvalMode` override.
@@ -131,7 +140,18 @@ const MANAGED_OMP_TOOLS: ReadonlySet<string> = new Set([
  * `config.yml` carries every other oh-my-pi setting, so only `tools.approval`
  * (the keys rulesync manages), `bash.patterns` and an authored
  * `tools.approvalMode` or `tools.restrictedFolders` are rewritten; sibling
- * keys such as `bash.enabled` are kept, and the file is never deleted.
+ * keys such as `bash.enabled` and `bash.allowedEnvVars` are kept, and the file
+ * is never deleted.
+ *
+ * Within `bash.patterns`, rulesync owns only the unscoped entries. Entries
+ * scoped to folders (`path` / `paths` / `pathPrefix` / `pathPrefixes`) have no
+ * canonical form, so they are kept on generate — placed so that none of their
+ * rules can loosen a rulesync deny or prompt rule (see `mergeBashPatterns`) —
+ * and a regenerated entry keeps the `env` list of the existing entry with the
+ * same `match` and `approval`. On import, a scoped entry's deny and prompt
+ * rules become global rules (stricter than the scope) and its allow rules are
+ * skipped, both with a warning, so a folder-only allow never comes back as a
+ * global one.
  *
  * @see https://github.com/can1357/oh-my-pi/blob/main/docs/settings.md
  * @see https://github.com/can1357/oh-my-pi/blob/main/docs/approval-mode.md
@@ -214,7 +234,13 @@ export class OmpPermissions extends ToolPermissions {
 
     const existingBash = toRecord(existing.bash);
     const bashSiblings = withoutKey(existingBash, "patterns");
-    const nextBash = patterns.length > 0 ? { ...bashSiblings, patterns } : bashSiblings;
+    const nextPatterns = mergeBashPatterns({
+      generated: patterns,
+      existing: existingBash.patterns,
+      logger,
+    });
+    const nextBash =
+      nextPatterns.length > 0 ? { ...bashSiblings, patterns: nextPatterns } : bashSiblings;
 
     return new OmpPermissions({
       outputRoot,
@@ -237,7 +263,7 @@ export class OmpPermissions extends ToolPermissions {
     });
   }
 
-  toRulesyncPermissions(): RulesyncPermissions {
+  toRulesyncPermissions({ logger }: { logger?: Logger } = {}): RulesyncPermissions {
     let config: Record<string, unknown>;
     try {
       config = parseSharedConfig({ format: "yaml", fileContent: this.getFileContent() });
@@ -249,7 +275,7 @@ export class OmpPermissions extends ToolPermissions {
     }
 
     return this.toRulesyncPermissionsDefault({
-      fileContent: JSON.stringify(convertOmpToRulesync(config), null, 2),
+      fileContent: JSON.stringify(convertOmpToRulesync(config, logger), null, 2),
     });
   }
 }
@@ -513,38 +539,288 @@ function importBashPolicy(
   }
 }
 
-/** `bash.patterns` as canonical `bash` rules, in first-match order. */
-function importBashPatterns(value: unknown): Record<string, PermissionAction> {
+/**
+ * The folders a `bash.patterns` entry is scoped to, read the way oh-my-pi's
+ * `pathScopePrefixes` reads them: every string under a path key. Empty for an
+ * unscoped entry.
+ */
+function pathScopePrefixes(entry: Record<string, unknown>): string[] {
+  return PATH_SCOPE_KEYS.flatMap((key) => {
+    const value = entry[key];
+    if (typeof value === "string") {
+      return [value];
+    }
+    return Array.isArray(value)
+      ? value.filter((item): item is string => typeof item === "string")
+      : [];
+  });
+}
+
+function describeScope(entry: Record<string, unknown>): string {
+  return pathScopePrefixes(entry)
+    .map((prefix) => JSON.stringify(prefix))
+    .join(", ");
+}
+
+function isPathScopedEntry(entry: Record<string, unknown>): boolean {
+  return pathScopePrefixes(entry).length > 0;
+}
+
+/**
+ * Every rule a path-scoped entry contributes inside its scope: its own
+ * `match` / `approval`, then the rules nested under `patterns` / `values` /
+ * `items` (recursively; a nested scope only narrows the outer one).
+ */
+function scopedEntryRules(entry: Record<string, unknown>): Record<string, unknown>[] {
+  const rules: Record<string, unknown>[] = [entry];
+  for (const key of SCOPED_RULE_LIST_KEYS) {
+    const nested = entry[key];
+    if (Array.isArray(nested)) {
+      for (const item of nested) {
+        if (isRecord(item)) {
+          rules.push(...scopedEntryRules(item));
+        }
+      }
+    }
+  }
+  return rules;
+}
+
+/** A rule's `match` with whitespace runs collapsed, as oh-my-pi matches it. */
+function normalizedMatch(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const match = value.trim().replace(/\s+/gu, " ");
+  return match === "" ? undefined : match;
+}
+
+/**
+ * The generated `bash.patterns` merged with the path-scoped entries of the
+ * existing list, which rulesync does not own and keeps verbatim.
+ *
+ * First match wins, so where a kept entry goes decides what it can override.
+ * Each one is placed by the most permissive approval among its rules: one
+ * holding only deny rules leads the list; one whose loosest rule prompts goes
+ * after rulesync's deny rules; one with an allow rule goes after rulesync's
+ * prompt rules, ahead of its allow rules. So no folder-scoped rule can turn a
+ * rulesync deny or prompt into something looser, while a scoped restriction
+ * still beats a rulesync allow. An entry is kept whole rather than split, so
+ * the deny rules of an entry that also allows land after rulesync's prompt
+ * rules (a matching rulesync prompt then prompts inside the scope), and an
+ * entry placed after a rulesync catch-all `*` restriction is never reached;
+ * both are reported with a warning.
+ *
+ * A generated unscoped rule also keeps the `env` list (oh-my-pi's per-rule
+ * env-var allowlist) of the first existing unscoped entry with the same
+ * `match`, when that entry has the same approval.
+ */
+function mergeBashPatterns({
+  generated,
+  existing,
+  logger,
+}: {
+  generated: OmpBashPattern[];
+  existing: unknown;
+  logger?: Logger;
+}): unknown[] {
+  const existingEntries = Array.isArray(existing) ? existing : [];
+
+  const existingEnv = new Map<string, { approval: OmpApproval | undefined; env: unknown }>();
+  for (const entry of existingEntries) {
+    if (!isRecord(entry) || isPathScopedEntry(entry)) {
+      continue;
+    }
+    const match = normalizedMatch(entry.match);
+    if (match !== undefined && !existingEnv.has(match)) {
+      existingEnv.set(match, { approval: toOmpApproval(entry.approval), env: entry.env });
+    }
+  }
+  const withEnv = generated.map((pattern) => {
+    const previous = existingEnv.get(normalizedMatch(pattern.match) ?? "");
+    return previous !== undefined &&
+      previous.approval === pattern.approval &&
+      previous.env !== undefined
+      ? { ...pattern, env: previous.env }
+      : pattern;
+  });
+
+  const kept: Record<OmpApproval, unknown[]> = { deny: [], prompt: [], allow: [] };
+  for (const entry of existingEntries) {
+    if (!isRecord(entry) || !isPathScopedEntry(entry)) {
+      continue;
+    }
+    const approvals = new Set(scopedEntryRules(entry).map((rule) => toOmpApproval(rule.approval)));
+    const loosest: OmpApproval = approvals.has("allow")
+      ? "allow"
+      : approvals.has("prompt")
+        ? "prompt"
+        : "deny";
+    if (loosest === "allow" && approvals.has("deny")) {
+      logger?.warn(
+        `The oh-my-pi bash.patterns entry scoped to ${describeScope(entry)} mixes allow and ` +
+          "deny rules, so it was kept after rulesync's prompt patterns: inside that scope a " +
+          "command matching both one of its deny rules and a rulesync prompt pattern prompts " +
+          "instead of being denied.",
+      );
+    }
+    kept[loosest].push(entry);
+  }
+
+  const byApproval = (approval: OmpApproval): OmpBashPattern[] =>
+    withEnv.filter((pattern) => pattern.approval === approval);
+  warnShadowedScopedEntries({ generated: withEnv, kept, logger });
+  return [
+    ...kept.deny,
+    ...byApproval("deny"),
+    ...kept.prompt,
+    ...byApproval("prompt"),
+    ...kept.allow,
+    ...byApproval("allow"),
+  ];
+}
+
+/**
+ * Warn about kept scoped entries placed after a generated catch-all `*`
+ * restriction: it matches every command, so nothing after it is consulted.
+ */
+function warnShadowedScopedEntries({
+  generated,
+  kept,
+  logger,
+}: {
+  generated: OmpBashPattern[];
+  kept: Record<OmpApproval, unknown[]>;
+  logger?: Logger;
+}): void {
+  const catchAll = generated.find(
+    (pattern) => pattern.match === CATCH_ALL_PATTERN && pattern.approval !== "allow",
+  );
+  if (catchAll === undefined) {
+    return;
+  }
+  const shadowed = catchAll.approval === "deny" ? [...kept.prompt, ...kept.allow] : kept.allow;
+  for (const entry of shadowed) {
+    if (isRecord(entry)) {
+      logger?.warn(
+        `The oh-my-pi bash.patterns entry scoped to ${describeScope(entry)} was kept after the ` +
+          `bash catch-all "*" ${catchAll.approval} pattern, so oh-my-pi never reaches it.`,
+      );
+    }
+  }
+}
+
+/**
+ * `bash.patterns` as canonical `bash` rules, in first-match order.
+ *
+ * A path-scoped entry has no canonical form. Its deny and prompt rules are
+ * imported as global rules — stricter than the scope, but a restriction is
+ * never lost — and its allow rules are skipped, since a global allow would
+ * approve the command everywhere. Both are reported with a warning.
+ */
+function importBashPatterns(value: unknown, logger?: Logger): Record<string, PermissionAction> {
   const bashRules: Record<string, PermissionAction> = {};
   if (!Array.isArray(value)) {
     return bashRules;
   }
-  for (const entry of value) {
-    if (!isRecord(entry) || typeof entry.match !== "string") {
-      continue;
-    }
+  // Patterns whose rule so far came only from a scoped entry. Such a rule
+  // holds no first-match slot outside its scope, so a later rule for the same
+  // pattern still counts there, and the stricter of the two is kept.
+  const fromScope = new Set<string>();
+  const addRule = (rawMatch: unknown, rawApproval: unknown, scoped: boolean): boolean => {
     // oh-my-pi collapses whitespace runs before matching, so `git  status`
     // and `git status` are one pattern.
-    const match = entry.match.trim().replace(/\s+/gu, " ");
-    const approval = toOmpApproval(entry.approval);
-    // First match wins, so a later duplicate of a pattern is never consulted.
-    if (match === "" || approval === undefined || Object.hasOwn(bashRules, match)) {
+    const match = normalizedMatch(rawMatch);
+    const approval = toOmpApproval(rawApproval);
+    if (match === undefined || approval === undefined || isPrototypePollutionKey(match)) {
+      return false;
+    }
+    const action = OMP_APPROVAL_TO_ACTION[approval];
+    if (!Object.hasOwn(bashRules, match)) {
+      bashRules[match] = action;
+      if (scoped) {
+        fromScope.add(match);
+      }
+      return true;
+    }
+    // First match wins, so a later duplicate of an unscoped pattern is never
+    // consulted.
+    if (!fromScope.has(match)) {
+      return false;
+    }
+    if (!scoped) {
+      fromScope.delete(match);
+    }
+    const previous = bashRules[match];
+    bashRules[match] = stricter(previous, action);
+    return bashRules[match] !== previous;
+  };
+  for (const entry of value) {
+    if (!isRecord(entry)) {
       continue;
     }
-    if (isPrototypePollutionKey(match)) {
+    if (isPathScopedEntry(entry)) {
+      importScopedBashEntry({
+        entry,
+        addRule: (match, approval) => addRule(match, approval, true),
+        logger,
+      });
       continue;
     }
-    bashRules[match] = OMP_APPROVAL_TO_ACTION[approval];
+    addRule(entry.match, entry.approval, false);
   }
   return bashRules;
 }
 
-function convertOmpToRulesync(config: Record<string, unknown>): PermissionsConfig {
+function importScopedBashEntry({
+  entry,
+  addRule,
+  logger,
+}: {
+  entry: Record<string, unknown>;
+  addRule: (match: string, approval: OmpApproval) => boolean;
+  logger?: Logger;
+}): void {
+  const scope = describeScope(entry);
+  const restrictions: string[] = [];
+  const skippedAllows: string[] = [];
+  for (const rule of scopedEntryRules(entry)) {
+    const match = normalizedMatch(rule.match);
+    const approval = toOmpApproval(rule.approval);
+    if (match === undefined || approval === undefined) {
+      continue;
+    }
+    if (approval === "allow") {
+      skippedAllows.push(match);
+      continue;
+    }
+    // Only a rule that changed the imported rules is reported.
+    if (addRule(match, approval)) {
+      restrictions.push(match);
+    }
+  }
+  if (restrictions.length > 0) {
+    logger?.warn(
+      `oh-my-pi bash.patterns rules scoped to ${scope} have no rulesync equivalent, so their ` +
+        `deny/prompt patterns (${restrictions.map((m) => JSON.stringify(m)).join(", ")}) were ` +
+        "imported as global bash rules.",
+    );
+  }
+  if (skippedAllows.length > 0) {
+    logger?.warn(
+      `oh-my-pi bash.patterns rules scoped to ${scope} have no rulesync equivalent, so their ` +
+        `allow patterns (${skippedAllows.map((m) => JSON.stringify(m)).join(", ")}) were skipped ` +
+        "rather than allowed everywhere.",
+    );
+  }
+}
+
+function convertOmpToRulesync(config: Record<string, unknown>, logger?: Logger): PermissionsConfig {
   const permission: Record<string, Record<string, PermissionAction>> = {};
   const tools = toRecord(config.tools);
   const bash = toRecord(config.bash);
 
-  const bashRules = importBashPatterns(bash.patterns);
+  const bashRules = importBashPatterns(bash.patterns, logger);
   const approvals = toRecord(tools.approval);
   const bashApproval = toOmpApproval(approvals.bash);
   importBashPolicy(

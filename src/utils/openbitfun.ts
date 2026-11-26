@@ -15,8 +15,9 @@ const XDG_OVERRIDES = {
  * On Linux OpenBitFun resolves its user root through the `dirs` crate
  * (`dirs::config_dir()`, and `dirs::data_local_dir()` for skills), which
  * follows `$XDG_CONFIG_HOME` / `$XDG_DATA_HOME` when set to an absolute path.
- * rulesync writes global files relative to the home directory, at the XDG
- * default location, so a non-default value means OpenBitFun reads elsewhere.
+ * rulesync writes (and `import --global` reads) global files relative to the
+ * home directory, at the XDG default location, so a non-default value means
+ * OpenBitFun reads elsewhere.
  * macOS and Windows do not use these variables.
  *
  * @see https://github.com/openBitFun/OpenBitFun/blob/main/src/crates/assembly/core/src/infrastructure/app_paths/path_manager.rs
@@ -44,7 +45,7 @@ export function warnOpenbitfunXdgOverride({
   warnOnceWithFallback(
     logger,
     `$${envVar} is set to ${value}, so OpenBitFun reads its user files from ` +
-      `${join(value, "openbitfun")}, but rulesync writes OpenBitFun's global files under ` +
+      `${join(value, "openbitfun")}, but rulesync reads and writes OpenBitFun's global files under ` +
       `${join("~", defaultDir, "openbitfun")}. Move them there or unset $${envVar} for OpenBitFun.`,
   );
 }

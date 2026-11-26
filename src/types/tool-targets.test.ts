@@ -78,6 +78,7 @@ describe("tool targets", () => {
         "devin",
         "devin-plugin",
         "zcode",
+        "zero",
         "zed",
         "zoocode",
         "dsh",

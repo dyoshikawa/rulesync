@@ -103,6 +103,14 @@ export class DevinHooks extends ToolHooks {
     };
   }
 
+  /**
+   * The converter config for this file. The plugin bundle overrides it to
+   * anchor relative commands to the plugin root.
+   */
+  protected static getConverterConfig(): ToolHooksConverterConfig {
+    return DEVIN_CONVERTER_CONFIG;
+  }
+
   protected static override getMissingFileContent(): string {
     return "{}";
   }
@@ -128,7 +136,7 @@ export class DevinHooks extends ToolHooks {
     const devinHooks = canonicalToToolHooks({
       config,
       toolOverrideHooks: config.devin?.hooks,
-      converterConfig: DEVIN_CONVERTER_CONFIG,
+      converterConfig: this.getConverterConfig(),
       logger,
     });
 
@@ -178,7 +186,7 @@ export class DevinHooks extends ToolHooks {
 
     const hooks = toolHooksToCanonical({
       hooks: events,
-      converterConfig: DEVIN_CONVERTER_CONFIG,
+      converterConfig: (this.constructor as typeof DevinHooks).getConverterConfig(),
       logger,
     });
     return this.toRulesyncHooksDefault({

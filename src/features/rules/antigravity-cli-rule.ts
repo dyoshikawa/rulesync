@@ -18,10 +18,12 @@ import {
   extractAntigravitySubprojectPath,
   getAntigravityNestedFilePatterns,
   resolveAntigravityNonRootFile,
+  isAntigravitySubprojectPathDerived,
   resolveAntigravitySubprojectPath,
-  toAntigravityNestedRulesDirPath,
+  scopeAntigravityFrontmatterToSubproject,
   toGlobalRuleFileName,
-  toNestedRuleFileName,
+  toSubprojectRelativeGlobs,
+  toSubprojectRuleFileName,
 } from "./antigravity-rule.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
@@ -173,28 +175,41 @@ export class AntigravityCliRule extends ToolRule {
     // valid `trigger` is discarded, so derive it the same way the IDE does for
     // its non-root rules (a plain rule becomes `always_on`).
     const rulesyncFrontmatter = rulesyncRule.getFrontmatter();
-    const frontmatter = toTriggerToolFrontmatter({
+    const triggerFrontmatter = toTriggerToolFrontmatter({
       strategies: STRATEGIES,
       stored: rulesyncFrontmatter.antigravity,
       rulesyncFrontmatter,
     });
 
-    const fileContent = stringifyFrontmatter(rulesyncRule.getBody(), frontmatter);
     if (!global) {
-      // A subproject-scoped rule goes to that subproject's own `.agents/rules/`,
-      // the same file the IDE writes for it.
+      // A subproject-scoped rule goes to the project-root `.agents/rules/` as a
+      // rule limited to that subproject, the same file the IDE writes for it.
       const subprojectPath = resolveAntigravitySubprojectPath({ rulesyncRule, global });
+      if (subprojectPath === undefined) {
+        return new AntigravityCliRule({
+          ...params,
+          fileContent: stringifyFrontmatter(rulesyncRule.getBody(), triggerFrontmatter),
+          global,
+        });
+      }
+      const frontmatter = scopeAntigravityFrontmatterToSubproject({
+        frontmatter: triggerFrontmatter,
+        subprojectPath,
+        globsIncludeSubproject: isAntigravitySubprojectPathDerived(rulesyncRule),
+        rulePath: rulesyncRule.getRelativePathFromCwd(),
+      });
       return new AntigravityCliRule({
         ...params,
-        ...(subprojectPath !== undefined && {
-          relativeDirPath: toAntigravityNestedRulesDirPath(subprojectPath),
-          relativeFilePath: toNestedRuleFileName(params.relativeFilePath),
+        relativeFilePath: toSubprojectRuleFileName({
+          subprojectPath,
+          relativeFilePath: params.relativeFilePath,
         }),
-        fileContent,
+        fileContent: stringifyFrontmatter(rulesyncRule.getBody(), frontmatter),
         global,
       });
     }
 
+    const fileContent = stringifyFrontmatter(rulesyncRule.getBody(), triggerFrontmatter);
     return new AntigravityCliRule({
       ...params,
       relativeFilePath: toGlobalRuleFileName(params.relativeFilePath),
@@ -227,7 +242,9 @@ export class AntigravityCliRule extends ToolRule {
       frontmatter: {
         root: false,
         targets: subprojectPath === undefined ? ["*"] : [...ANTIGRAVITY_NESTED_RULE_TARGETS],
-        ...rulesyncData,
+        ...(subprojectPath === undefined
+          ? rulesyncData
+          : toSubprojectRelativeGlobs(rulesyncData, subprojectPath)),
         ...(subprojectPath !== undefined && { agentsmd: { subprojectPath } }),
       },
       body,
@@ -235,8 +252,9 @@ export class AntigravityCliRule extends ToolRule {
   }
 
   /**
-   * The `.agents/rules/` folders of project subdirectories, imported back as
-   * directory-scoped rules.
+   * The legacy `.agents/rules/` folders of project subdirectories, which
+   * Antigravity no longer loads, imported back as directory-scoped rules so
+   * the next generate moves them into the project-root `.agents/rules/`.
    * @see https://antigravity.google/docs/rules
    */
   static getNestedFilePatterns(): ToolRuleNestedFilePatterns {

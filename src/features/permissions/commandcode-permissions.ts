@@ -20,7 +20,11 @@ import {
   sharedConfigFileKey,
 } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { honorAllToolsRestrictions, restatesAsCategoryRule } from "./shadowed-allows.js";
+import {
+  honorAllToolsRestrictions,
+  RESTATED_ABSENT_CATEGORIES,
+  restatesAsCategoryRule,
+} from "./shadowed-allows.js";
 import {
   ALL_TOOLS_PERMISSION_CATEGORY,
   CATCH_ALL_PATTERN,
@@ -531,16 +535,21 @@ function buildCommandcodeRuleLists({
     toolLabel: "Command Code",
     logger,
     // The default for an input with no rule may auto-approve it (reads), so a
-    // `*` path or URL restriction is also written as a rule of each category.
+    // `*` path or URL restriction is also written as a rule of each category,
+    // and as a read rule even when the config has no `read` category.
     restateAs: restatesAsCategoryRule(),
+    restateIntoAbsentCategories: RESTATED_ABSENT_CATEGORIES,
     writesAllToolsCatchAll: true,
   });
   const ranked = new Map<string, PermissionAction>();
   const managedCategories = new Set<string>();
   for (const [category, rules] of Object.entries(permission)) {
+    // A category only restated from `*` (see `RESTATED_ABSENT_CATEGORIES`) is
+    // not the config's, so its existing entries are kept beside the rules.
+    const managed = Object.hasOwn(config.permission, category);
     const categoryRule = buildCommandcodeRule(category, CATCH_ALL_PATTERN);
     const managedCategory = categoryRule === null ? null : parseCommandcodeRule(categoryRule);
-    if (managedCategory !== null) {
+    if (managed && managedCategory !== null) {
       managedCategories.add(managedCategory.category);
     }
     for (const [pattern, action] of Object.entries(rules)) {
@@ -559,7 +568,7 @@ function buildCommandcodeRuleLists({
         }
         continue;
       }
-      managedCategories.add(emitted.category);
+      if (managed) managedCategories.add(emitted.category);
       const written = writableCommandcodeRule({ rule, emitted, action, logger });
       if (written !== null) {
         rankCommandcodeRule({ ranked, rule: written, action, logger });

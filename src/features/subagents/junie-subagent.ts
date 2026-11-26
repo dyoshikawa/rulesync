@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { basename, join } from "node:path";
 
 import { z } from "zod/mini";
 
@@ -26,7 +26,8 @@ import {
 } from "./tool-subagent.js";
 
 /**
- * Frontmatter for Junie CLI custom subagents (`.junie/agents/*.md`). Junie
+ * Frontmatter for Junie CLI custom subagents (`.junie/agents/*.md`, plus one
+ * subdirectory level). Junie
  * documents these fields; the schema stays loose (and the list fields accept a
  * single string or an array) for forward compatibility.
  *
@@ -88,10 +89,11 @@ function isMissingDescription(value: unknown): boolean {
 
 /**
  * Junie's fallback subagent name: the file name without its `.agent.md` or
- * `.md` extension.
+ * `.md` extension. A file in a subdirectory (`review/security.md`) is named
+ * after the file alone (`security`); Junie documents no directory prefix.
  */
 function nameFromFileName(relativeFilePath: string): string {
-  return relativeFilePath.replace(/(\.agent)?\.md$/, "");
+  return basename(relativeFilePath).replace(/(\.agent)?\.md$/, "");
 }
 
 /**

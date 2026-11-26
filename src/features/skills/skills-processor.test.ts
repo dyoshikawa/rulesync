@@ -3307,6 +3307,7 @@ Content that would fail parsing`;
         "xum",
         "devin",
         "zcode",
+        "zero",
         "zed",
         "dsh",
         "openclaw",

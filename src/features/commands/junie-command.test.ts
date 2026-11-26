@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { stringifyFrontmatter } from "../../utils/frontmatter.js";
@@ -461,6 +462,66 @@ describe("JunieCommand", () => {
           relativeFilePath,
         }),
       ).rejects.toThrow(/Invalid frontmatter/);
+    });
+  });
+
+  describe("validateRulesyncCommands", () => {
+    const command = (relativeFilePath: string, targets: string[] = ["*"]) =>
+      new RulesyncCommand({
+        outputRoot: testDir,
+        relativeDirPath: join(".rulesync", "commands"),
+        relativeFilePath,
+        frontmatter: { targets: targets as never, description: relativeFilePath },
+        body: "content",
+      });
+
+    it("warns when a nested and a top-level command share a file name", () => {
+      const logger = createMockLogger();
+
+      JunieCommand.validateRulesyncCommands({
+        rulesyncCommands: [
+          command("commit.md"),
+          command(join("git", "commit.md")),
+          command("push.md"),
+        ],
+        logger,
+      });
+
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("are all /commit"));
+    });
+
+    it("ignores commands that are not targeted or nested deeper than Junie reads", () => {
+      const logger = createMockLogger();
+
+      JunieCommand.validateRulesyncCommands({
+        rulesyncCommands: [
+          command("commit.md"),
+          command(join("git", "commit.md"), ["claudecode"]),
+          command(join("git", "deep", "commit.md")),
+        ],
+        logger,
+      });
+
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("fromFile (nested)", () => {
+    it("imports a command from an immediate subdirectory under its relative path", async () => {
+      const commandsDir = join(testDir, ".junie", "commands", "git");
+      await ensureDir(commandsDir);
+      await writeFileContent(
+        join(commandsDir, "commit.md"),
+        "---\ndescription: Commit\n---\nCommit changes",
+      );
+
+      const junieCommand = await JunieCommand.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: join("git", "commit.md"),
+      });
+
+      expect(junieCommand.toRulesyncCommand().getRelativeFilePath()).toBe(join("git", "commit.md"));
     });
   });
 

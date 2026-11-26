@@ -147,6 +147,42 @@ describe("ClaudecodePluginHooks", () => {
       expect(parsed.hooks.TaskCreated[0].matcher).toBeUndefined();
     });
 
+    it("should inherit the Claude Code per-event hook types", async () => {
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            permissionRequest: [
+              { type: "agent", prompt: "Decide" },
+              { type: "command", command: "./scripts/decide.sh" },
+            ],
+            preSkillShellCommand: [
+              { type: "command", command: "./scripts/guard.sh", matcher: "Bash|PowerShell" },
+            ],
+          },
+        }),
+        validate: false,
+      });
+
+      const pluginHooks = await ClaudecodePluginHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const parsed = JSON.parse(pluginHooks.getFileContent());
+      expect(parsed.hooks.PermissionRequest[0].hooks).toEqual([
+        { type: "command", command: '"$CLAUDE_PLUGIN_ROOT"/scripts/decide.sh' },
+      ]);
+      expect(parsed.hooks.PreSkillShellCommand[0]).toEqual({
+        matcher: "Bash|PowerShell",
+        hooks: [{ type: "command", command: '"$CLAUDE_PLUGIN_ROOT"/scripts/guard.sh' }],
+      });
+    });
+
     it("should replace previous plugin hooks even when preserveUnowned is set", async () => {
       await ensureDir(join(testDir, "hooks"));
       await writeFileContent(

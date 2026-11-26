@@ -2,12 +2,28 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vite-plus/test";
 
+import { GOOSE_GLOBAL_DIR, GOOSE_MCP_FILE_NAME } from "../constants/goose-paths.js";
+import { HERMESAGENT_CONFIG_FILE_NAME } from "../constants/hermesagent-paths.js";
 import {
+  RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
   RULESYNC_MCP_RELATIVE_FILE_PATH,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
-import { fileExists, readFileContent, removeFile, writeFileContent } from "../utils/file.js";
-import { execFileAsync, rulesyncArgs, rulesyncCmd, useTestDirectory } from "./e2e-helper.js";
+import {
+  fileExists,
+  readFileContent,
+  removeFile,
+  toPosixPath,
+  writeFileContent,
+} from "../utils/file.js";
+import { getHermesagentGlobalDir } from "../utils/hermesagent.js";
+import {
+  execFileAsync,
+  rulesyncArgs,
+  rulesyncCmd,
+  useGlobalTestDirectories,
+  useTestDirectory,
+} from "./e2e-helper.js";
 
 const ROOT_RULE = `---
 root: true
@@ -37,7 +53,11 @@ type GenerateJsonDocument = {
 
 async function runGenerateJson(
   extraArgs: string[],
-  { target = "claudecode", feature = "rules" }: { target?: string; feature?: string } = {},
+  {
+    target = "claudecode",
+    feature = "rules",
+    env = {},
+  }: { target?: string; feature?: string; env?: Record<string, string> } = {},
 ): Promise<GenerateJsonDocument> {
   const args = [
     ...rulesyncArgs,
@@ -52,7 +72,7 @@ async function runGenerateJson(
   ];
   try {
     const { stdout } = await execFileAsync(rulesyncCmd, args, {
-      env: { ...process.env, NODE_ENV: "e2e" },
+      env: { ...process.env, NODE_ENV: "e2e", ...env },
     });
     return JSON.parse(stdout);
   } catch (error) {
@@ -204,5 +224,76 @@ describe("E2E: generate --json mutation plan", () => {
     expect(apply.data?.plan).toEqual(expectedPlan);
     // The key is retracted rather than left as an empty object.
     expect(JSON.parse(await readFileContent(settingsPath))).toEqual({ theme: "dark" });
+  });
+});
+
+describe("E2E: generate --json mutation plan for rewrites the --delete sweep makes", () => {
+  const { getProjectDir, getHomeDir } = useGlobalTestDirectories();
+
+  it("should list the Hermes Agent and Goose config rewrites that follow the last removed command", async () => {
+    const homeDir = getHomeDir();
+    const commandSourcePath = join(
+      getProjectDir(),
+      RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+      "review.md",
+    );
+    const hermesConfigPath = toPosixPath(
+      join(getHermesagentGlobalDir(), HERMESAGENT_CONFIG_FILE_NAME),
+    );
+    const gooseConfigPath = toPosixPath(join(GOOSE_GLOBAL_DIR, GOOSE_MCP_FILE_NAME));
+    // `HERMES_HOME` cleared so Hermes writes below the pseudo-home directory.
+    const run = (extraArgs: string[]) =>
+      runGenerateJson(["--global", ...extraArgs], {
+        target: "hermesagent,goose",
+        feature: "commands",
+        env: { HOME_DIR: homeDir, HERMES_HOME: "" },
+      });
+
+    await writeFileContent(join(homeDir, hermesConfigPath), "model: hermes-large\n");
+    await writeFileContent(join(homeDir, gooseConfigPath), "GOOSE_PROVIDER: openai\n");
+    await writeFileContent(
+      commandSourcePath,
+      ["---", 'description: "Review"', 'targets: ["*"]', "---", "Review it."].join("\n"),
+    );
+    expect((await run([])).success).toBe(true);
+
+    // With no command left, the sweep deletes the generated files and rewrites
+    // both configs; those rewrites are part of the plan like any other write.
+    await removeFile(commandSourcePath);
+    const sweepWrites = [
+      { action: "write", kind: "file", feature: "commands", path: gooseConfigPath },
+      { action: "write", kind: "file", feature: "commands", path: hermesConfigPath },
+      {
+        action: "delete",
+        kind: "key",
+        feature: "commands",
+        path: gooseConfigPath,
+        key: "slash_commands",
+      },
+      { action: "write", kind: "key", feature: "commands", path: hermesConfigPath, key: "plugins" },
+    ];
+
+    const preview = await run(["--dry-run"]);
+    expect(preview.success).toBe(true);
+    const expectedPlan = preview.data?.plan as { operations: unknown[] };
+    expect(expectedPlan.operations.slice(0, sweepWrites.length)).toEqual(sweepWrites);
+    expect(expectedPlan.operations.slice(sweepWrites.length)).toEqual(
+      expectedPlan.operations
+        .slice(sweepWrites.length)
+        .map(() => expect.objectContaining({ action: "delete", kind: "file" })),
+    );
+    expect((await run(["--check"])).error?.details?.plan).toEqual(expectedPlan);
+
+    const apply = await run([]);
+    expect(apply.success).toBe(true);
+    expect(apply.data?.plan).toEqual(expectedPlan);
+    expect(await readFileContent(join(homeDir, hermesConfigPath))).not.toContain(
+      "rulesync-commands",
+    );
+    expect(await readFileContent(join(homeDir, gooseConfigPath))).not.toContain("slash_commands");
+
+    const settled = await run(["--check"]);
+    expect(settled.success).toBe(true);
+    expect(settled.data?.plan).toEqual({ version: 2, operations: [] });
   });
 });
