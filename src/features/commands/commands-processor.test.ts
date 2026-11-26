@@ -1870,10 +1870,39 @@ describe("CommandsProcessor Goose slash-command retraction", () => {
       logger: createMockLogger(),
     });
 
-    await processor.removeOrphanAiFiles([], []);
+    expect(await processor.removeOrphanAiFiles([], [])).toBe(1);
 
     expect(await readFileContent(configPath)).toContain("my-recipes/mine.yaml");
     expect(await readFileContent(configPath)).not.toContain("removed.yaml");
+    // Reported so the mutation plan lists the rewrite like any other write.
+    expect(processor.getSweepWrites()).toEqual({
+      paths: [".config/goose/config.yaml"],
+      keyOperations: [
+        { action: "write", path: ".config/goose/config.yaml", key: "slash_commands" },
+      ],
+    });
+  });
+
+  it("reports the same rewrite under --dry-run without writing it", async () => {
+    const configPath = await writeConfig();
+    const before = await readFileContent(configPath);
+    const processor = new CommandsProcessor({
+      outputRoot: testDir,
+      toolTarget: "goose",
+      global: true,
+      dryRun: true,
+      logger: createMockLogger(),
+    });
+
+    expect(await processor.removeOrphanAiFiles([], [])).toBe(1);
+
+    expect(await readFileContent(configPath)).toBe(before);
+    expect(processor.getSweepWrites()).toEqual({
+      paths: [".config/goose/config.yaml"],
+      keyOperations: [
+        { action: "write", path: ".config/goose/config.yaml", key: "slash_commands" },
+      ],
+    });
   });
 
   it("does not rewrite a config that carries no managed registration", async () => {
@@ -1894,9 +1923,10 @@ describe("CommandsProcessor Goose slash-command retraction", () => {
       logger: createMockLogger(),
     });
 
-    await processor.removeOrphanAiFiles([], []);
+    expect(await processor.removeOrphanAiFiles([], [])).toBe(0);
 
     expect(await readFileContent(configPath)).toBe(before);
+    expect(processor.getSweepWrites()).toEqual({ paths: [], keyOperations: [] });
   });
 
   it("leaves the config untouched in project scope", async () => {

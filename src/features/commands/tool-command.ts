@@ -1,8 +1,10 @@
-import type { DeletedPath } from "../../lib/orphan-sweep.js";
+import type { DeletedPath, KeyOperation } from "../../lib/orphan-sweep.js";
 import { AiFile, AiFileFromFileParams, AiFileParams } from "../../types/ai-file.js";
 import type { ToolFile } from "../../types/tool-file.js";
 import { isTargetedByTargets, type ToolTarget } from "../../types/tool-targets.js";
+import { toPosixPath } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import { diffSharedConfigOwnedKeys } from "../shared/shared-config-gateway.js";
 import type { RulesyncCommand } from "./rulesync-command.js";
 
 export type ToolCommandFromRulesyncCommandParams = Omit<
@@ -30,6 +32,43 @@ export type ToolCommandAfterOrphanSweepParams = {
   /** What this sweep removed, or would remove under `--check`. */
   removedPaths: readonly DeletedPath[];
 };
+
+/**
+ * What a {@link ToolCommand.afterOrphanSweep} hook wrote (or would write under
+ * `--dry-run`/`--check`), so the run's mutation plan lists it like any other
+ * write: `paths` relative to the output root with `/` separators, and the
+ * owned top-level keys those writes add, change or remove.
+ */
+export type ToolCommandAfterOrphanSweepResult = {
+  paths: string[];
+  keyOperations: KeyOperation[];
+};
+
+/**
+ * The {@link ToolCommandAfterOrphanSweepResult} of rewriting one shared config
+ * file from `existingContent` to `newContent`. Computed from the same two
+ * contents in a dry run and a real one, as `FeatureProcessor.writeAiFiles`
+ * does, so a preview reports exactly what the run it previews writes.
+ */
+export function describeAfterOrphanSweepWrite({
+  relativePath,
+  existingContent,
+  newContent,
+}: {
+  relativePath: string;
+  existingContent: string;
+  newContent: string;
+}): ToolCommandAfterOrphanSweepResult {
+  const path = toPosixPath(relativePath);
+  return {
+    paths: [path],
+    keyOperations: diffSharedConfigOwnedKeys({
+      fileKey: path,
+      existingContent,
+      newContent,
+    }).map(({ action, key }) => ({ action, path, key })),
+  };
+}
 
 export type ToolCommandForDeletionParams = {
   outputRoot?: string;
@@ -108,12 +147,14 @@ export abstract class ToolCommand extends AiFile {
    * Optional hook run once the processor has swept this target's orphaned
    * command files, for shared config outside them that must follow the sweep
    * (e.g. Goose's `slash_commands` registrations, Hermes Agent's commands
-   * plugin switch). Returns the number of files it changed (or would change
-   * under `--dry-run`). Most tools don't need this and inherit the no-op
-   * default.
+   * plugin switch). Returns what it wrote (or would write under `--dry-run`)
+   * so the mutation plan lists it. Most tools don't need this and inherit the
+   * no-op default.
    */
-  static async afterOrphanSweep(_params: ToolCommandAfterOrphanSweepParams): Promise<number> {
-    return 0;
+  static async afterOrphanSweep(
+    _params: ToolCommandAfterOrphanSweepParams,
+  ): Promise<ToolCommandAfterOrphanSweepResult> {
+    return { paths: [], keyOperations: [] };
   }
 
   /**
