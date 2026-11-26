@@ -58,7 +58,7 @@ export const FACTORYDROID_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   // "Additional regex filter for Execute commands. It matches the actual shell
   // command string when Droid has one. Invalid regex values are skipped." It
   // sits next to `matcher` on the group, so it is carried at group level.
-  // https://docs.factory.ai/harness/hooks
+  // https://docs.factory.com/harness/hooks
   // It narrows when a hook fires, so hooks that disagree get their own matcher
   // entry rather than inheriting a neighboring hook's filter and going quiet.
   groupPassthroughFields: [
@@ -86,6 +86,13 @@ export const FACTORYDROID_CONVERTER_CONFIG: ToolHooksConverterConfig = {
       events: new Set(["preToolUse", "postToolUse", "beforeSubmitPrompt", "preCompact"]),
     },
   ],
+  // "`PreToolUse` only. When this hook rewrites an `Execute` command through
+  // `updatedInput`, keep the model's `riskLevel`." Droid spells it the same as
+  // the canonical field; a `true` on any other event is dropped with a warning.
+  // https://docs.factory.com/harness/hooks
+  booleanPassthroughFields: [
+    { canonical: "preserveRiskLevel", tool: "preserveRiskLevel", events: new Set(["preToolUse"]) },
+  ],
 };
 
 /** Droid's nine event names, the keys a standalone `hooks.json` is made of. */
@@ -108,7 +115,7 @@ export class FactorydroidHooks extends ToolHooks {
     // `~/.factory/hooks.json` (global). The home directory is resolved by the
     // harness via outputRoot in global mode. The legacy `.factory/settings.json`
     // `hooks` key is only a read-time fallback (see fromFile).
-    // https://docs.factory.ai/harness/hooks
+    // https://docs.factory.com/harness/hooks
     return { relativeDirPath: FACTORYDROID_DIR, relativeFilePath: FACTORYDROID_HOOKS_FILE_NAME };
   }
 
@@ -126,7 +133,7 @@ export class FactorydroidHooks extends ToolHooks {
     // then to the pre-1.0 `.factory/hooks/hooks.json`. That layout is last
     // because Droid renames it to `hooks.migrated.json` once it has migrated
     // the file, so a copy still sitting there is the least likely to be live.
-    // https://docs.factory.ai/harness/hooks
+    // https://docs.factory.com/harness/hooks
     let fileContent = await readFileContentOrNull(filePath);
     if (fileContent === null) {
       // Probed quietly: the overlay warns about whatever the machine-local
@@ -191,7 +198,7 @@ export class FactorydroidHooks extends ToolHooks {
     // A standalone `hooks.json` is keyed directly by event name; the `hooks`
     // wrapper belongs to `settings.json` only. Writing the wrapped shape here
     // left Droid with no known event key at the top level, so no generated hook
-    // ever fired. https://docs.factory.ai/harness/hooks
+    // ever fired. https://docs.factory.com/harness/hooks
     const fileContent = JSON.stringify(factorydroidHooks, null, 2);
     return new FactorydroidHooks({
       outputRoot,

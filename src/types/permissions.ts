@@ -948,7 +948,7 @@ const FactorydroidPermissionRulesSchema = z.looseObject({
 const FactorydroidPermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
   commandBlocklist: z.optional(z.array(z.string())),
-  // Skill names Droid must not load. https://docs.factory.ai/cli/configuration/settings
+  // Skill names Droid must not load. https://docs.factory.com/droid-cli/settings
   disabledSkills: z.optional(z.array(z.string())),
   // Native versioned allow/ask/block command rules, written verbatim. Loose so
   // upstream rule fields pass through; Droid itself rejects unknown fields and
