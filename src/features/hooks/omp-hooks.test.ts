@@ -182,6 +182,21 @@ describe("OmpHooks", () => {
       expect(content).not.toContain("continueAfterStopHook");
     });
 
+    it("should also run sessionStart commands on session_clear", async () => {
+      const markerPath = join(testDir, "marker.txt");
+      const { registeredEvents, handlerFor } = await loadOmpExtension({
+        testDir,
+        config: {
+          version: 1,
+          hooks: { sessionStart: [{ command: `echo started >> ${JSON.stringify(markerPath)}` }] },
+        },
+      });
+
+      expect(registeredEvents).toEqual(["session_start", "session_clear", "session_shutdown"]);
+      await handlerFor("session_clear")({ type: "session_clear" });
+      expect(await readFileContent(markerPath)).toBe("started\n");
+    });
+
     it("should not map notification, which has no oh-my-pi equivalent", () => {
       const content = generate({
         testDir,
