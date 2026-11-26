@@ -150,7 +150,7 @@ export const toolCheckFactories = new Map<ChecksProcessorToolTarget, ToolCheckFa
       // reads a skill named `review-guidelines`, so every check targeting
       // Factory Droid collapses into
       // `.factory/skills/review-guidelines/SKILL.md`.
-      // https://docs.factory.ai/software-factory/code-review-ci
+      // https://docs.factory.com/automations/code-review-ci
       class: FactorydroidCheck,
       // `committedOutput`: Droid reads the skill from the checked-out
       // repository, so the derived .gitignore must not ignore it — including
