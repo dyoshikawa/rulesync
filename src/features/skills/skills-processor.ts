@@ -68,6 +68,7 @@ import { GitlabduoSkill } from "./gitlabduo-skill.js";
 import { GooseSkill } from "./goose-skill.js";
 import { GrokcliSkill } from "./grokcli-skill.js";
 import { HermesagentSkill } from "./hermesagent-skill.js";
+import { JcodeSkill } from "./jcode-skill.js";
 import { JunieSkill } from "./junie-skill.js";
 import { KiloSkill } from "./kilo-skill.js";
 import { KimiCodePluginSkill } from "./kimi-code-plugin-skill.js";
@@ -873,6 +874,16 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
       // (project) / `~/.xum/skills/` (user).
       // https://xum.cdr.dev/agents/agent-skills
       class: XumSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "jcode",
+    {
+      // jcode skills are directories (`<name>/SKILL.md`) under
+      // `.jcode/skills/` (project) / `~/.jcode/skills/` (user).
+      // https://github.com/1jehuang/jcode/blob/master/crates/jcode-app-core/src/tool/skill.rs
+      class: JcodeSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],

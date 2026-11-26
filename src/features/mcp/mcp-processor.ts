@@ -42,6 +42,7 @@ import { GitlabduoMcp } from "./gitlabduo-mcp.js";
 import { GooseMcp } from "./goose-mcp.js";
 import { GrokcliMcp } from "./grokcli-mcp.js";
 import { HermesagentMcp } from "./hermesagent-mcp.js";
+import { JcodeMcp } from "./jcode-mcp.js";
 import { JunieMcp } from "./junie-mcp.js";
 import { KiloMcp } from "./kilo-mcp.js";
 import { KimiCodeMcp } from "./kimi-code-mcp.js";
@@ -1077,6 +1078,23 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
         supportsProject: true,
         supportsGlobal: true,
         supportsEnabledTools: true,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    "jcode",
+    {
+      // jcode reads `~/.jcode/mcp.json` (user) and, per project,
+      // `.jcode/mcp.json` before `.mcp.json`: a Claude Code style
+      // `mcpServers` map (stdio, Streamable HTTP and SSE servers). There is no
+      // per-server tool allow or deny list.
+      // https://github.com/1jehuang/jcode/blob/master/docs/MCP_REMOTE.md
+      class: JcodeMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
         supportsDisabledTools: false,
       },
     },

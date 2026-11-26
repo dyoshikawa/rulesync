@@ -38,6 +38,7 @@ const rulesRootTargets = [
   { target: "qoder", outputPath: "AGENTS.md" },
   { target: "qodercn", outputPath: "AGENTS.md" },
   { target: "xum", outputPath: join(".xum", "AGENTS.md") },
+  { target: "jcode", outputPath: join(".jcode", "prompt-overlay.md") },
   { target: "grokcli", outputPath: "AGENTS.md" },
   { target: "gitlabduo", outputPath: join(".gitlab", "duo", "chat-rules.md") },
   { target: "hermesagent", outputPath: ".hermes.md" },
@@ -1848,6 +1849,11 @@ describe("E2E: rules (import)", () => {
     { target: "qoder", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "xum", sourcePath: join(".xum", "AGENTS.md"), importedFileName: "overview.md" },
     {
+      target: "jcode",
+      sourcePath: join(".jcode", "prompt-overlay.md"),
+      importedFileName: "overview.md",
+    },
+    {
       target: "copilot",
       sourcePath: join(".github", "copilot-instructions.md"),
       importedFileName: "copilot-instructions.md",
@@ -2161,6 +2167,7 @@ const rulesGlobalTargets = [
   { target: "qoder", outputPath: join(".qoder", "AGENTS.md") },
   { target: "qodercn", outputPath: join(".qoder-cn", "AGENTS.md") },
   { target: "xum", outputPath: join(".xum", "AGENTS.md") },
+  { target: "jcode", outputPath: join(".jcode", "prompt-overlay.md") },
   { target: "grokcli", outputPath: join(".grok", "AGENTS.md") },
   { target: "gitlabduo", outputPath: join(".gitlab", "duo", "chat-rules.md") },
   { target: "amp", outputPath: join(".config", "amp", "AGENTS.md") },
@@ -2370,6 +2377,7 @@ globs: ["src/**/*"]
     { target: "junie", outputPath: join(".junie", "AGENTS.md") },
     { target: "pi", outputPath: join(".pi", "agent", "AGENTS.md") },
     { target: "xum", outputPath: join(".xum", "AGENTS.md") },
+    { target: "jcode", outputPath: join(".jcode", "prompt-overlay.md") },
   ] as const)(
     "should fold $target non-root rules into its global root file",
     async ({ target, outputPath }) => {

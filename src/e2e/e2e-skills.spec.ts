@@ -69,6 +69,10 @@ const skillsGenerateTargets = [
     outputPath: join(".xum", "skills", "test-skill", "SKILL.md"),
   },
   {
+    target: "jcode",
+    outputPath: join(".jcode", "skills", "test-skill", "SKILL.md"),
+  },
+  {
     target: "openbitfun",
     outputPath: join(".openbitfun", "skills", "test-skill", "SKILL.md"),
   },
@@ -488,6 +492,7 @@ This is the test skill body content.
     },
     { target: "qoder", orphanPath: join(".qoder", "skills", "orphan-skill", "SKILL.md") },
     { target: "xum", orphanPath: join(".xum", "skills", "orphan-skill", "SKILL.md") },
+    { target: "jcode", orphanPath: join(".jcode", "skills", "orphan-skill", "SKILL.md") },
     { target: "openbitfun", orphanPath: join(".openbitfun", "skills", "orphan-skill", "SKILL.md") },
     { target: "bb", orphanPath: join(".bb", "skills", "orphan-skill", "SKILL.md") },
     {
@@ -605,6 +610,7 @@ describe("E2E: skills (import)", () => {
     },
     { target: "qoder", sourcePath: join(".qoder", "skills", "test-skill", "SKILL.md") },
     { target: "xum", sourcePath: join(".xum", "skills", "test-skill", "SKILL.md") },
+    { target: "jcode", sourcePath: join(".jcode", "skills", "test-skill", "SKILL.md") },
     { target: "openbitfun", sourcePath: join(".openbitfun", "skills", "test-skill", "SKILL.md") },
     { target: "bb", sourcePath: join(".bb", "skills", "test-skill", "SKILL.md") },
     {
@@ -1259,6 +1265,10 @@ const skillsGlobalTargets = [
   {
     target: "xum",
     outputPath: join(".xum", "skills", "test-skill", "SKILL.md"),
+  },
+  {
+    target: "jcode",
+    outputPath: join(".jcode", "skills", "test-skill", "SKILL.md"),
   },
   {
     target: "openbitfun",

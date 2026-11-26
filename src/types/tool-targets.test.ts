@@ -49,6 +49,7 @@ describe("tool targets", () => {
         "grokcli",
         "gitlabduo",
         "hermesagent",
+        "jcode",
         "junie",
         "kilo",
         "kimi-code",

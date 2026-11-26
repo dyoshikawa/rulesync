@@ -321,6 +321,7 @@ rulesync.local.jsonc
 **/.factory/threat-model.md
 **/.firebender/AGENTS.md
 **/.firebender/rules/
+**/.jcode/prompt-overlay.md
 **/.goosehints
 **/.hermes.md
 **/.gitlab/duo/chat-rules.md
@@ -431,6 +432,7 @@ rulesync.local.jsonc
 **/.vibe/skills/
 **/.openbitfun/skills/
 **/.xum/skills/
+**/.jcode/skills/
 **/.zcode/skills/
 **/.dsh/skills/
 **/.bb/skills/
@@ -499,6 +501,7 @@ rulesync.local.jsonc
 **/.trae/mcp.json
 **/.warp/.mcp.json
 **/.xum/mcp.jsonc
+**/.jcode/mcp.json
 **/.devin/mcp_config.json
 **/.amp/plugins/rulesync-hooks.ts
 **/.agents/hooks.json

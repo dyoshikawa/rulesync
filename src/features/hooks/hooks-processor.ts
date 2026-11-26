@@ -23,6 +23,8 @@ import {
   CLINE_HOOK_EVENTS,
   CRUSH_HOOK_EVENTS,
   HERMESAGENT_HOOK_EVENTS,
+  JCODE_HOOK_EVENTS,
+  JCODE_NATIVE_ONLY_HOOK_EVENTS,
   KILO_HOOK_EVENTS,
   KIMI_CODE_HOOK_EVENTS,
   KIRO_HOOK_EVENTS,
@@ -91,6 +93,7 @@ import { GITLABDUO_CONVERTER_CONFIG, GitlabduoHooks } from "./gitlabduo-hooks.js
 import { GOOSE_CONVERTER_CONFIG, GooseHooks } from "./goose-hooks.js";
 import { GROKCLI_CONVERTER_CONFIG, GrokcliHooks } from "./grokcli-hooks.js";
 import { HermesagentHooks } from "./hermesagent-hooks.js";
+import { JcodeHooks } from "./jcode-hooks.js";
 import { JUNIE_CONVERTER_CONFIG, JunieHooks } from "./junie-hooks.js";
 import { KiloHooks } from "./kilo-hooks.js";
 import { KimiCodeHooks } from "./kimi-code-hooks.js";
@@ -951,6 +954,25 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportsMatcher: true,
       // Hermes-native event names are valid in the target override block and
       // are emitted verbatim after adapter validation.
+    },
+  ],
+  [
+    "jcode",
+    {
+      class: JcodeHooks,
+      // jcode reads hooks only from the `[hooks]` table of the user config
+      // `~/.jcode/config.toml`; there is no project-scoped hooks file.
+      // https://github.com/1jehuang/jcode/blob/master/docs/HOOKS.md
+      meta: { supportsProject: false, supportsGlobal: true, supportsImport: true },
+      supportedEvents: JCODE_HOOK_EVENTS,
+      // Hook commands are split shell-style and executed directly.
+      supportedHookTypes: ["command"],
+      // jcode hooks have no matcher. The adapter widens a matcher-scoped hook
+      // to every tool (with a warning) instead of dropping it, so a `pre_tool`
+      // guard is never lost; reporting it as skipped here would be wrong.
+      supportsMatcher: true,
+      dropsUnknownOverrideEvents: true,
+      overrideOnlyEvents: JCODE_NATIVE_ONLY_HOOK_EVENTS,
     },
   ],
   [
