@@ -92,4 +92,5 @@ export const TOOL_DISPLAY: ReadonlyArray<ToolDisplayEntry> = [
   { key: "zero", label: "Zero", group: "ai" },
   { key: "pool", label: "Pool (Poolside)", group: "ai" },
   { key: "dsh", label: "DeepSeek Harness", group: "ai" },
+  { key: "deepcode", label: "DeepCode", group: "ai" },
 ];

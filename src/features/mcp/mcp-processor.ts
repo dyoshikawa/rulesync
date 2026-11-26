@@ -32,6 +32,7 @@ import { CortexcodeMcp } from "./cortexcode-mcp.js";
 import { CrushMcp } from "./crush-mcp.js";
 import { CursorMcp } from "./cursor-mcp.js";
 import { DeepagentsMcp } from "./deepagents-mcp.js";
+import { DeepcodeMcp } from "./deepcode-mcp.js";
 import { DevinMcp } from "./devin-mcp.js";
 import { DevinPluginMcp } from "./devin-plugin-mcp.js";
 import { DshMcp } from "./dsh-mcp.js";
@@ -1186,6 +1187,22 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
         supportsGlobal: true,
         supportsEnabledTools: false,
         supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    "deepcode",
+    {
+      class: DeepcodeMcp,
+      meta: {
+        // DeepCode reads top-level `mcpServers` from the project
+        // `deepcode_config.json` and `~/.deepcode/deepcode_config.json`, with
+        // per-server `enabledTools` / `disabledTools` filters.
+        // https://github.com/HKUDS/DeepCode/blob/main/docs/integrations/MCP.md
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: true,
+        supportsDisabledTools: true,
       },
     },
   ],

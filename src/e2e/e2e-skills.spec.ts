@@ -306,6 +306,10 @@ const skillsGenerateTargets = [
     target: "openclaw",
     outputPath: join(".agents", "skills", "test-skill", "SKILL.md"),
   },
+  {
+    target: "deepcode",
+    outputPath: join(".agents", "skills", "test-skill", "SKILL.md"),
+  },
 ] as const;
 
 describe("E2E: skills", () => {
@@ -536,6 +540,7 @@ This is the test skill body content.
     { target: "factorydroid", orphanPath: join(".factory", "skills", "orphan-skill", "SKILL.md") },
     { target: "vibe", orphanPath: join(".vibe", "skills", "orphan-skill", "SKILL.md") },
     { target: "openclaw", orphanPath: join(".agents", "skills", "orphan-skill", "SKILL.md") },
+    { target: "deepcode", orphanPath: join(".agents", "skills", "orphan-skill", "SKILL.md") },
   ])(
     "should fail in check mode when delete would remove an orphan $target skill file",
     async ({ target, orphanPath }) => {
@@ -658,6 +663,7 @@ describe("E2E: skills (import)", () => {
     { target: "dsh", sourcePath: join(".dsh", "skills", "test-skill", "SKILL.md") },
     { target: "pool", sourcePath: join(".poolside", "skills", "test-skill", "SKILL.md") },
     { target: "openclaw", sourcePath: join(".agents", "skills", "test-skill", "SKILL.md") },
+    { target: "deepcode", sourcePath: join(".agents", "skills", "test-skill", "SKILL.md") },
   ])("should import $target skills", async ({ target, sourcePath }) => {
     const testDir = getTestDir();
 
@@ -1475,6 +1481,11 @@ const skillsGlobalTargets = [
     // OpenClaw reads managed/local skills from ~/.openclaw/skills/ (default state dir).
     target: "openclaw",
     outputPath: join(".openclaw", "skills", "test-skill", "SKILL.md"),
+  },
+  {
+    // DeepCode reads user skills from the cross-tool ~/.agents/skills/.
+    target: "deepcode",
+    outputPath: join(".agents", "skills", "test-skill", "SKILL.md"),
   },
   {
     // Goose reads global skills from ~/.config/goose/skills/ (and ~/.agents/skills/,

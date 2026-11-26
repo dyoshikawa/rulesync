@@ -55,6 +55,7 @@ import { CopilotcliSubagent } from "./copilotcli-subagent.js";
 import { CortexcodeSubagent } from "./cortexcode-subagent.js";
 import { CursorSubagent } from "./cursor-subagent.js";
 import { DeepagentsSubagent } from "./deepagents-subagent.js";
+import { DeepcodeSubagent } from "./deepcode-subagent.js";
 import { DevinPluginSubagent } from "./devin-plugin-subagent.js";
 import { DevinSubagent } from "./devin-subagent.js";
 import { FactorydroidSubagent } from "./factorydroid-subagent.js";
@@ -1214,6 +1215,21 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsProject: true,
         supportsSimulated: false,
         supportsGlobal: false,
+        filePattern: "*.md",
+      },
+    },
+  ],
+  [
+    "deepcode",
+    {
+      // DeepCode agent presets are Markdown + YAML front matter under
+      // `.agents/presets/` (project) and `~/.deepcode/agent-presets/` (global).
+      // https://github.com/HKUDS/DeepCode/blob/main/docs/guide/configuration.md#agent-presets
+      class: DeepcodeSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
         filePattern: "*.md",
       },
     },

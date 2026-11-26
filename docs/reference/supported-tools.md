@@ -83,6 +83,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Zero                      | zero               | ✅ 🌏 |        |  ✅ 🌏   |          |   ✅ 🌏   |   🌏   | ✅ 🌏 |             |        |
 | Pool (Poolside)           | pool               | ✅ 🌏 |        | ✅ 🌏 🔧 |          |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
 | DeepSeek Harness          | dsh                | ✅ 🌏 |        |    🌏    |          |           | ✅ 🌏  |       |             |        |
+| DeepCode                  | deepcode           | ✅ 🌏 |        | ✅ 🌏 🔧 |          |   ✅ 🌏   | ✅ 🌏  |       |    ✅ 🌏    |        |
 
 <!-- SUPPORTED_TOOLS_DOCS:END -->
 

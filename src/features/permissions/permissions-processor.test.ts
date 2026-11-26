@@ -115,6 +115,7 @@ describe("PermissionsProcessor", () => {
         "takt",
         "vibe",
         "zoocode",
+        "deepcode",
       ]);
     });
 
@@ -165,6 +166,7 @@ describe("PermissionsProcessor", () => {
         "warpcli",
         "zed",
         "trae",
+        "deepcode",
       ]);
     });
 
@@ -208,6 +210,7 @@ describe("PermissionsProcessor", () => {
         "takt",
         "vibe",
         "zoocode",
+        "deepcode",
       ]);
     });
   });

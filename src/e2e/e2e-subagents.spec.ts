@@ -253,6 +253,7 @@ const subagentsGenerateTargets = [
     target: "zero",
     outputPath: join(".zero", "specialists", "planner.md"),
   },
+  { target: "deepcode", outputPath: join(".agents", "presets", "planner.md") },
 ] as const;
 
 const subagentsGlobalTargets = [
@@ -317,6 +318,7 @@ const subagentsGlobalTargets = [
   },
   { target: "zcode", outputPath: join(".zcode", "agents", "planner.md") },
   { target: "zero", outputPath: join(zeroGlobalSpecialistsDir(), "planner.md") },
+  { target: "deepcode", outputPath: join(".deepcode", "agent-presets", "planner.md") },
 ] as const;
 
 describe("E2E: subagents", () => {
@@ -509,6 +511,7 @@ You are a subagent-only helper.
     { target: "qoder", orphanPath: join(".qoder", "agents", "orphan.md") },
     { target: "xum", orphanPath: join(".xum", "agents", "orphan.md") },
     { target: "openbitfun", orphanPath: join(".openbitfun", "agents", "orphan.md") },
+    { target: "deepcode", orphanPath: join(".agents", "presets", "orphan.md") },
     { target: "codexcli", orphanPath: join(".codex", "agents", "orphan.toml") },
     { target: "copilot", orphanPath: join(".github", "agents", "orphan.md") },
     { target: "deepagents", orphanPath: join(".deepagents", "agents", "orphan", "AGENTS.md") },
@@ -877,6 +880,7 @@ describe("E2E: subagents (import)", () => {
     { target: "devin", sourcePath: join(".devin", "agents", "planner", "AGENT.md") },
     { target: "zcode", sourcePath: join(".zcode", "agents", "planner.md") },
     { target: "zero", sourcePath: join(".zero", "specialists", "planner.md") },
+    { target: "deepcode", sourcePath: join(".agents", "presets", "planner.md") },
   ])("should import $target subagents", async ({ target, sourcePath }) => {
     const testDir = getTestDir();
 

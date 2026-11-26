@@ -2965,6 +2965,7 @@ Content that would fail parsing`;
         "zed",
         "dsh",
         "bb",
+        "deepcode",
       ]);
     });
 
@@ -3037,7 +3038,8 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("xum");
       expect(globalTargets).toContain("jcode");
       expect(globalTargets).toContain("gajaecode");
-      expect(globalTargets.length).toBe(56);
+      expect(globalTargets).toContain("deepcode");
+      expect(globalTargets.length).toBe(57);
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");
@@ -6245,6 +6247,7 @@ targets: ["factorydroid"]
         "zero",
         "dsh",
         "bb",
+        "deepcode",
       ]);
     });
 

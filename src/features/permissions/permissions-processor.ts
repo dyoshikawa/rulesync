@@ -30,6 +30,7 @@ import { CopilotcliPermissions } from "./copilotcli-permissions.js";
 import { CrushPermissions } from "./crush-permissions.js";
 import { CursorPermissions } from "./cursor-permissions.js";
 import { DeepagentsPermissions } from "./deepagents-permissions.js";
+import { DeepcodePermissions } from "./deepcode-permissions.js";
 import { DevinPermissions } from "./devin-permissions.js";
 import { FactorydroidPermissions } from "./factorydroid-permissions.js";
 import { GitlabduoPermissions } from "./gitlabduo-permissions.js";
@@ -728,6 +729,19 @@ export const toolPermissionsFactories = new Map<
         // model, so only project scope is supported.
         supportsProject: true,
         supportsGlobal: false,
+      },
+    },
+  ],
+  [
+    "deepcode",
+    {
+      class: DeepcodePermissions,
+      meta: {
+        // DeepCode reads `security.permissions` from the project
+        // `deepcode_config.json` and `~/.deepcode/deepcode_config.json`.
+        // https://github.com/HKUDS/DeepCode/blob/main/docs/guide/configuration.md#permission-rules
+        supportsProject: true,
+        supportsGlobal: true,
       },
     },
   ],
