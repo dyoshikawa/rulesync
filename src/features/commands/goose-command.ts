@@ -29,8 +29,10 @@ import {
 } from "../shared/shared-config-gateway.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
+  describeAfterOrphanSweepWrite,
   ToolCommand,
   ToolCommandAfterOrphanSweepParams,
+  ToolCommandAfterOrphanSweepResult,
   ToolCommandForDeletionParams,
   ToolCommandFromFileParams,
   ToolCommandFromRulesyncCommandParams,
@@ -343,11 +345,13 @@ export class GooseCommand extends ToolCommand {
     dryRun,
     logger,
     generatedFiles,
-  }: ToolCommandAfterOrphanSweepParams): Promise<number> {
-    if (!global) return 0;
-    if (generatedFiles.some((file) => file instanceof GooseCommand)) return 0;
+  }: ToolCommandAfterOrphanSweepParams): Promise<ToolCommandAfterOrphanSweepResult> {
+    const unchanged: ToolCommandAfterOrphanSweepResult = { paths: [], keyOperations: [] };
+    if (!global) return unchanged;
+    if (generatedFiles.some((file) => file instanceof GooseCommand)) return unchanged;
 
-    const configPath = join(outputRoot, GOOSE_GLOBAL_DIR, GOOSE_MCP_FILE_NAME);
+    const relativeConfigPath = join(GOOSE_GLOBAL_DIR, GOOSE_MCP_FILE_NAME);
+    const configPath = join(outputRoot, relativeConfigPath);
     if (
       await refusesWriteOutsideRoot({
         logger,
@@ -355,14 +359,14 @@ export class GooseCommand extends ToolCommand {
         targetPath: configPath,
       })
     ) {
-      return 0;
+      return unchanged;
     }
     const currentContent = await readFileContentOrNull(configPath);
     // Rewriting a config that holds no managed registration would reformat the
     // user's file (dropping their comments) for no gain.
-    if (currentContent === null || !hasManagedGooseSlashCommands(currentContent)) return 0;
+    if (currentContent === null || !hasManagedGooseSlashCommands(currentContent)) return unchanged;
     const nextContent = getGooseSlashCommandsConfigContent({ currentContent, entries: [] });
-    if (nextContent === currentContent) return 0;
+    if (nextContent === currentContent) return unchanged;
 
     await warnIfWriteFollowsLink({ logger, rootPath: outputRoot, targetPath: configPath });
     if (dryRun) {
@@ -370,7 +374,11 @@ export class GooseCommand extends ToolCommand {
     } else {
       await writeFileContent(configPath, nextContent);
     }
-    return 1;
+    return describeAfterOrphanSweepWrite({
+      relativePath: relativeConfigPath,
+      existingContent: currentContent,
+      newContent: nextContent,
+    });
   }
 
   static fromRulesyncCommand({

@@ -1944,6 +1944,43 @@ describe("CommandsProcessor secondary import roots", () => {
       join("git", "commit.md"),
     ]);
   });
+
+  it("imports a .txt command but never offers it for deletion", async () => {
+    // Auggie 1.x also loads `.augment/commands/*.txt`. Import reads them, but
+    // rulesync never writes `.txt`, so the orphan sweep must leave them alone.
+    const actualFile =
+      await vi.importActual<typeof import("../../utils/file.js")>("../../utils/file.js");
+    vi.mocked(findFilesByGlobs).mockImplementation(actualFile.findFilesByGlobs);
+    await ensureDir(join(testDir, ".augment", "commands"));
+    await writeFileContent(
+      join(testDir, ".augment", "commands", "notes.txt"),
+      "Summarize the notes.\n",
+    );
+    await writeFileContent(
+      join(testDir, ".augment", "commands", "review.md"),
+      ["---", "description: Review", "---", "", "Review it.", ""].join("\n"),
+    );
+
+    const processor = new CommandsProcessor({
+      outputRoot: testDir,
+      toolTarget: "augmentcode",
+      logger: createMockLogger(),
+    });
+
+    const loaded = await processor.loadToolFiles();
+    expect(loaded.map((file) => file.getRelativeFilePath()).toSorted()).toEqual([
+      "notes.md",
+      "review.md",
+    ]);
+    const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(loaded);
+    expect(rulesyncFiles.map((file) => file.getRelativeFilePath()).toSorted()).toEqual([
+      "notes.md",
+      "review.md",
+    ]);
+
+    const forDeletion = await processor.loadToolFiles({ forDeletion: true });
+    expect(forDeletion.map((file) => file.getRelativeFilePath())).toEqual(["review.md"]);
+  });
 });
 
 describe("CommandsProcessor Goose slash-command retraction", () => {
@@ -1986,10 +2023,39 @@ describe("CommandsProcessor Goose slash-command retraction", () => {
       logger: createMockLogger(),
     });
 
-    await processor.removeOrphanAiFiles([], []);
+    expect(await processor.removeOrphanAiFiles([], [])).toBe(1);
 
     expect(await readFileContent(configPath)).toContain("my-recipes/mine.yaml");
     expect(await readFileContent(configPath)).not.toContain("removed.yaml");
+    // Reported so the mutation plan lists the rewrite like any other write.
+    expect(processor.getSweepWrites()).toEqual({
+      paths: [".config/goose/config.yaml"],
+      keyOperations: [
+        { action: "write", path: ".config/goose/config.yaml", key: "slash_commands" },
+      ],
+    });
+  });
+
+  it("reports the same rewrite under --dry-run without writing it", async () => {
+    const configPath = await writeConfig();
+    const before = await readFileContent(configPath);
+    const processor = new CommandsProcessor({
+      outputRoot: testDir,
+      toolTarget: "goose",
+      global: true,
+      dryRun: true,
+      logger: createMockLogger(),
+    });
+
+    expect(await processor.removeOrphanAiFiles([], [])).toBe(1);
+
+    expect(await readFileContent(configPath)).toBe(before);
+    expect(processor.getSweepWrites()).toEqual({
+      paths: [".config/goose/config.yaml"],
+      keyOperations: [
+        { action: "write", path: ".config/goose/config.yaml", key: "slash_commands" },
+      ],
+    });
   });
 
   it("does not rewrite a config that carries no managed registration", async () => {
@@ -2010,9 +2076,10 @@ describe("CommandsProcessor Goose slash-command retraction", () => {
       logger: createMockLogger(),
     });
 
-    await processor.removeOrphanAiFiles([], []);
+    expect(await processor.removeOrphanAiFiles([], [])).toBe(0);
 
     expect(await readFileContent(configPath)).toBe(before);
+    expect(processor.getSweepWrites()).toEqual({ paths: [], keyOperations: [] });
   });
 
   it("leaves the config untouched in project scope", async () => {

@@ -304,6 +304,7 @@ export const HOOK_EVENTS = [
   "sessionDelete",
   "preModelSwitch",
   "postModelSwitch",
+  "preSkillShellCommand",
 ] as const;
 
 /** All canonical hook event names. */
@@ -1262,6 +1263,7 @@ export const HooksConfigSchema = z.looseObject({
     }),
   ),
   zcode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  zero: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   crush: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   pool: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   bob: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
@@ -1329,6 +1331,12 @@ export const CANONICAL_TO_CLAUDE_EVENT_NAMES: Record<string, string> = {
   // https://code.claude.com/docs/en/hooks
   preModelSwitch: "PreModelSwitch",
   postModelSwitch: "PostModelSwitch",
+  // Added in 2.1.332. Runs before a shell command injected by a loading skill
+  // (`!`<command>``) and can block it; `PreToolUse` does not fire for those.
+  // The matcher selects the tool that runs the command (`Bash`, `PowerShell`).
+  // Older Claude Code versions show an "Unknown hook event" dialog for it.
+  // https://code.claude.com/docs/en/hooks#preskillshellcommand
+  preSkillShellCommand: "PreSkillShellCommand",
 } satisfies Partial<Record<HookEvent, string>>;
 
 /**
@@ -1989,6 +1997,39 @@ export const CODEXCLI_HOOK_EVENTS: readonly HookEvent[] = eventsOf(
  */
 export const CODEXCLI_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
   CANONICAL_TO_CODEXCLI_EVENT_NAMES,
+);
+
+/**
+ * Map canonical camelCase event names to Zero's camelCase events. Zero fires
+ * `beforeTool` / `afterTool` (matcher = tool name), `sessionStart` /
+ * `sessionEnd` (no matcher) and `specialistStart` / `specialistStop`
+ * (matcher = specialist name).
+ * @see https://github.com/Twigpine/zero/blob/main/docs/EXTENDING.md#4-hooks
+ * @see https://github.com/Twigpine/zero/blob/main/internal/hooks/hooks.go
+ */
+export const CANONICAL_TO_ZERO_EVENT_NAMES: Record<string, string> = {
+  preToolUse: "beforeTool",
+  postToolUse: "afterTool",
+  sessionStart: "sessionStart",
+  sessionEnd: "sessionEnd",
+  subagentStart: "specialistStart",
+  subagentStop: "specialistStop",
+} satisfies Partial<Record<HookEvent, string>>;
+
+/** Hook events supported by Zero. */
+export const ZERO_HOOK_EVENTS: readonly HookEvent[] = eventsOf(CANONICAL_TO_ZERO_EVENT_NAMES);
+
+/** Canonical events on which Zero accepts a matcher. */
+export const ZERO_MATCHER_EVENTS: readonly HookEvent[] = [
+  "preToolUse",
+  "postToolUse",
+  "subagentStart",
+  "subagentStop",
+];
+
+/** Map Zero event names to canonical camelCase. */
+export const ZERO_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
+  CANONICAL_TO_ZERO_EVENT_NAMES,
 );
 
 /**

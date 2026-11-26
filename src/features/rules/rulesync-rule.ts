@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { z } from "zod/mini";
 
+import { QWENCODE_MAX_OUTPUT_STYLE_NAME_LENGTH } from "../../constants/qwencode-paths.js";
 import {
   RULESYNC_RELATIVE_DIR_PATH,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
@@ -172,6 +173,27 @@ export const RulesyncRuleFrontmatterSchema = z.object({
       // The output style's `name` frontmatter. Only read with
       // `channel: output-style`; Qoder defaults it to the file name.
       name: z.optional(z.string().check(z.trim(), z.minLength(1))),
+    }),
+  ),
+  qwencode: z.optional(
+    z.looseObject({
+      // `output-style` writes this non-root rule as a custom output style,
+      // `.qwen/output-styles/<rule file name>.md`, at project and global
+      // scope, instead of a `.qwen/rules/` context rule.
+      // @see https://github.com/QwenLM/qwen-code/blob/main/docs/users/features/output-styles.md
+      channel: z.optional(z.enum(["output-style"])),
+      // The output style's `name` frontmatter. Only read with
+      // `channel: output-style`; Qwen Code defaults it to the file name and
+      // skips a name longer than 64 characters.
+      name: z.optional(
+        z
+          .string()
+          .check(z.trim(), z.minLength(1), z.maxLength(QWENCODE_MAX_OUTPUT_STYLE_NAME_LENGTH)),
+      ),
+      // The output style's `keep-coding-instructions` frontmatter: `true`
+      // keeps the built-in software-engineering guidance alongside the style.
+      // Only read with `channel: output-style`.
+      "keep-coding-instructions": z.optional(z.boolean()),
     }),
   ),
   augmentcode: z.optional(

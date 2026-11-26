@@ -27,6 +27,23 @@ import { ToolFile } from "./tool-file.js";
 import { ToolTarget } from "./tool-targets.js";
 
 export abstract class FeatureProcessor extends RulesyncSourceConsumer {
+  /**
+   * Files the `--delete` sweep rewrote rather than deleted (or would rewrite
+   * under `--dry-run`/`--check`) — shared config that has to follow the
+   * removed files — relative to the output root like the paths
+   * `writeAiFiles` reports, with the owned top-level keys those rewrites
+   * touched. Recorded so the run's mutation plan lists every write.
+   */
+  protected readonly sweepWrites: { paths: string[]; keyOperations: KeyOperation[] } = {
+    paths: [],
+    keyOperations: [],
+  };
+
+  /** See {@link FeatureProcessor.sweepWrites}. */
+  getSweepWrites(): { paths: readonly string[]; keyOperations: readonly KeyOperation[] } {
+    return this.sweepWrites;
+  }
+
   abstract loadRulesyncFiles(): Promise<RulesyncFile[]>;
 
   abstract loadToolFiles(params?: { forDeletion?: boolean }): Promise<ToolFile[]>;
