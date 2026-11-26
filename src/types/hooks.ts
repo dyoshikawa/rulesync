@@ -1262,6 +1262,7 @@ export const HooksConfigSchema = z.looseObject({
     }),
   ),
   zcode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  zero: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   crush: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   pool: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   bob: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
@@ -1596,11 +1597,18 @@ export const CANONICAL_TO_KILO_EVENT_NAMES: Record<string, string> =
  *
  * The shell events reuse the tool hooks gated on the `shell` tool (V1 named it
  * `bash`), and `postToolUse` / `postToolUseFailure` split `execute.after` by
- * its `status`; see `opencode-v2-plugin-generator.ts`. `stop` maps to
- * `session.execution.succeeded` because V2 deprecated `session.idle` and no
- * longer publishes it.
+ * its `status`; see `opencode-v2-plugin-generator.ts`. `stop` maps to the
+ * `experimental.idle` session hook (OpenCode 2.2.1+), which runs when a
+ * Session finishes model work with no pending input, just before it goes idle,
+ * and lets a plugin admit input that continues the same execution. That makes
+ * it an actionable stop boundary like Pi's `agent_before_settle`: a stop
+ * command exiting with code 2 continues the agent once. Before 2.2.1 the hook
+ * never runs, so the generated plugin falls back to the observe-only
+ * `session.execution.succeeded` event earlier versions mapped `stop` to, until
+ * the idle hook has run once (see `opencode-v2-plugin-generator.ts`).
  *
  * @see https://opencode.ai/v2/docs/build/plugins/
+ * @see https://github.com/anomalyco/opencode/blob/v2.4.2/packages/plugin/src/README.md
  */
 export const CANONICAL_TO_OPENCODE_V2_EVENT_NAMES: Record<string, string> = {
   sessionStart: "event:session.created",
@@ -1615,7 +1623,7 @@ export const CANONICAL_TO_OPENCODE_V2_EVENT_NAMES: Record<string, string> = {
   preModelInvocation: "session:context",
   preCompact: "session:compaction",
   postCompact: "event:session.compaction.ended",
-  stop: "event:session.execution.succeeded",
+  stop: "session:experimental.idle",
   afterError: "event:session.execution.failed",
   permissionRequest: "event:permission.asked",
   // `permission.replied` fires for every reply; the handler gates on `reject`.
@@ -1715,7 +1723,9 @@ export const PI_HOOK_EVENTS: readonly HookEvent[] = eventsOf(CANONICAL_TO_PI_EVE
 /**
  * Map canonical camelCase event names to oh-my-pi extension event names. They
  * are Pi's names (see CANONICAL_TO_PI_EVENT_NAMES) for the events oh-my-pi
- * kept, plus `session_stop` for `stop`. Note that oh-my-pi runs
+ * kept, plus `session_stop` for `stop`. `sessionStart` handlers also
+ * subscribe to `session_clear` (see `OMP_EXTENSION_DIALECT.extraEventNames`),
+ * since oh-my-pi fires no `session_start` after `/clear`. Note that oh-my-pi runs
  * `session_shutdown` handlers with a 2-second budget, and fails a `tool_call`
  * closed when its handler exceeds `extensionHandlers.toolCallTimeoutMs`
  * (30 seconds by default).
@@ -1980,6 +1990,39 @@ export const CODEXCLI_HOOK_EVENTS: readonly HookEvent[] = eventsOf(
  */
 export const CODEXCLI_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
   CANONICAL_TO_CODEXCLI_EVENT_NAMES,
+);
+
+/**
+ * Map canonical camelCase event names to Zero's camelCase events. Zero fires
+ * `beforeTool` / `afterTool` (matcher = tool name), `sessionStart` /
+ * `sessionEnd` (no matcher) and `specialistStart` / `specialistStop`
+ * (matcher = specialist name).
+ * @see https://github.com/Twigpine/zero/blob/main/docs/EXTENDING.md#4-hooks
+ * @see https://github.com/Twigpine/zero/blob/main/internal/hooks/hooks.go
+ */
+export const CANONICAL_TO_ZERO_EVENT_NAMES: Record<string, string> = {
+  preToolUse: "beforeTool",
+  postToolUse: "afterTool",
+  sessionStart: "sessionStart",
+  sessionEnd: "sessionEnd",
+  subagentStart: "specialistStart",
+  subagentStop: "specialistStop",
+} satisfies Partial<Record<HookEvent, string>>;
+
+/** Hook events supported by Zero. */
+export const ZERO_HOOK_EVENTS: readonly HookEvent[] = eventsOf(CANONICAL_TO_ZERO_EVENT_NAMES);
+
+/** Canonical events on which Zero accepts a matcher. */
+export const ZERO_MATCHER_EVENTS: readonly HookEvent[] = [
+  "preToolUse",
+  "postToolUse",
+  "subagentStart",
+  "subagentStop",
+];
+
+/** Map Zero event names to canonical camelCase. */
+export const ZERO_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
+  CANONICAL_TO_ZERO_EVENT_NAMES,
 );
 
 /**

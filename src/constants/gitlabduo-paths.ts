@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import { AGENTSMD_SKILLS_DIR_PATH } from "./agentsmd-paths.js";
+import { AGENTSMD_SKILLS_DIR_PATH, AGENTSMD_SUBAGENTS_DIR_PATH } from "./agentsmd-paths.js";
 
 /**
  * GitLab Duo CLI keeps its project configuration under `.gitlab/duo/` and its
@@ -55,3 +55,13 @@ export const GITLABDUO_SKILLS_DIR = AGENTSMD_SKILLS_DIR_PATH;
 export const GITLABDUO_LEGACY_SKILLS_DIR = "skills";
 /** User skills (requires `--enable-global-skills` / `GITLAB_ENABLE_GLOBAL_SKILLS`). */
 export const GITLABDUO_GLOBAL_SKILLS_DIR = join(GITLABDUO_DIR, "skills");
+
+/**
+ * Workspace subagents (Developer Flow, GA in GitLab 19.6) load only from the
+ * project's cross-tool `.agents/agents/` directory -- the same files the
+ * Antigravity, Muse Code and simulated `agentsmd` writers render. Files in
+ * subdirectories are ignored, and no user-level location is documented.
+ *
+ * @see https://docs.gitlab.com/user/duo_agent_platform/customize/workspace_subagents/
+ */
+export const GITLABDUO_SUBAGENTS_DIR = AGENTSMD_SUBAGENTS_DIR_PATH;
