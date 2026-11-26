@@ -119,6 +119,12 @@ type PiExtensionDialect = {
   editTextKeys: { old: string; new: string };
   /** Body of `absoluteToolPath`, mirroring how the host resolves a tool `path`. */
   pathResolverLines: readonly string[];
+  /**
+   * Host events a canonical event's handlers also subscribe to, beyond the one
+   * its event map names (for example oh-my-pi's `session_clear` for
+   * `sessionStart`).
+   */
+  extraEventNames: Readonly<Record<string, readonly string[]>>;
 };
 
 /**
@@ -247,6 +253,7 @@ const PI_EXTENSION_DIALECT: PiExtensionDialect = {
   toolNames: { ...SHARED_CANONICAL_TOOL_NAMES, find: "Glob" },
   editTextKeys: { old: "oldText", new: "newText" },
   pathResolverLines: PI_PATH_RESOLVER_LINES,
+  extraEventNames: {},
 };
 
 /**
@@ -270,6 +277,11 @@ export const OMP_EXTENSION_DIALECT: PiExtensionDialect = {
   // https://github.com/can1357/oh-my-pi/blob/main/packages/coding-agent/src/edit/schemas.ts
   editTextKeys: { old: "old_string", new: "new_string" },
   pathResolverLines: OMP_PATH_RESOLVER_LINES,
+  // Canonical SessionStart also fires after a context clear. oh-my-pi keeps
+  // the session id on `/clear` and emits `session_clear` (v18.20.1+) rather
+  // than `session_start`; its handlers are awaited and cannot cancel the reset.
+  // https://github.com/can1357/oh-my-pi/blob/ce36c879d72b5a9ddf7d0b8dd10bb8e1bc62c4a4/docs/extensions.md
+  extraEventNames: { sessionStart: ["session_clear"] },
 };
 
 /**
@@ -702,40 +714,57 @@ type HandlerGroup = Record<string, Handler[]>;
 function collectPiHandlers({
   effectiveHooks,
   eventMap,
+  extraEventNames,
 }: {
   effectiveHooks: HooksConfig["hooks"];
   eventMap: Record<string, string>;
+  extraEventNames: Readonly<Record<string, readonly string[]>>;
 }): HandlerGroup {
   const handlerGroups: HandlerGroup = {};
   for (const [canonicalEvent, definitions] of Object.entries(effectiveHooks)) {
     const piEvent = eventMap[canonicalEvent];
     if (!piEvent) continue;
-
-    const handlers: Handler[] = [];
-    for (const def of definitions) {
-      if ((def.type ?? "command") !== "command") continue;
-      if (!def.command) continue;
-      handlers.push({
-        command: def.command,
-        matcher: def.matcher ? def.matcher : undefined,
-        onlyOnError: PI_ERROR_GATED_CANONICAL_EVENTS.has(canonicalEvent),
-        ...hookTimingOf(def),
-        ...(PI_TOOL_EVENTS.has(piEvent) && STDIN_PAYLOAD_EVENTS[canonicalEvent]
-          ? { payload: STDIN_PAYLOAD_EVENTS[canonicalEvent] }
-          : {}),
-      });
-    }
-
-    if (handlers.length > 0) {
-      const existing = handlerGroups[piEvent];
-      if (existing) {
-        existing.push(...handlers);
-      } else {
-        handlerGroups[piEvent] = handlers;
-      }
+    for (const event of [piEvent, ...(extraEventNames[canonicalEvent] ?? [])]) {
+      addHandlers({ handlerGroups, canonicalEvent, piEvent: event, definitions });
     }
   }
   return handlerGroups;
+}
+
+function addHandlers({
+  handlerGroups,
+  canonicalEvent,
+  piEvent,
+  definitions,
+}: {
+  handlerGroups: HandlerGroup;
+  canonicalEvent: string;
+  piEvent: string;
+  definitions: NonNullable<HooksConfig["hooks"][string]>;
+}): void {
+  const handlers: Handler[] = [];
+  for (const def of definitions) {
+    if ((def.type ?? "command") !== "command") continue;
+    if (!def.command) continue;
+    handlers.push({
+      command: def.command,
+      matcher: def.matcher ? def.matcher : undefined,
+      onlyOnError: PI_ERROR_GATED_CANONICAL_EVENTS.has(canonicalEvent),
+      ...hookTimingOf(def),
+      ...(PI_TOOL_EVENTS.has(piEvent) && STDIN_PAYLOAD_EVENTS[canonicalEvent]
+        ? { payload: STDIN_PAYLOAD_EVENTS[canonicalEvent] }
+        : {}),
+    });
+  }
+
+  if (handlers.length > 0) {
+    const existing = handlerGroups[piEvent];
+    if (existing) {
+      existing.push(...handlers);
+    } else {
+      handlerGroups[piEvent] = handlers;
+    }
+  }
 }
 
 function buildCommandLines({
@@ -992,7 +1021,11 @@ export function generatePiExtensionCode({
     if (supported.has(event)) effectiveHooks[event] = defs;
   }
 
-  const handlerGroups = collectPiHandlers({ effectiveHooks, eventMap });
+  const handlerGroups = collectPiHandlers({
+    effectiveHooks,
+    eventMap,
+    extraEventNames: dialect.extraEventNames,
+  });
   const subscriptionLines = buildSubscriptionLines(handlerGroups, dialect);
   const hasPromptGate = Boolean(handlerGroups[PI_PROMPT_BLOCKING_EVENT]);
   const hasSettleGate = Boolean(handlerGroups[PI_SETTLE_BLOCKING_EVENT]);
