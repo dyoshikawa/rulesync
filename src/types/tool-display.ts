@@ -39,6 +39,7 @@ export const TOOL_DISPLAY: ReadonlyArray<ToolDisplayEntry> = [
   { key: "opencodev1", label: "OpenCode V1", group: "ai" },
   { key: "openclaw", label: "OpenClaw", group: "ai" },
   { key: "openbitfun", label: "OpenBitFun", group: "ai" },
+  { key: "openhands", label: "OpenHands", group: "ai" },
   { key: "mimocode", label: "MiMo Code", group: "ai" },
   { key: "gitlabduo", label: "GitLab Duo CLI", group: "ai" },
   { key: "bb", label: "bb", group: "ai" },
