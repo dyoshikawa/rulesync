@@ -248,6 +248,11 @@ describe("shared-file write derivation", () => {
           "permissions",
           "subagents",
         ],
+        ".qoder-cn/settings.json": [
+          "hooks",
+          "mcp",
+          "permissions",
+        ],
         ".qoder/settings.json": [
           "hooks",
           "mcp",

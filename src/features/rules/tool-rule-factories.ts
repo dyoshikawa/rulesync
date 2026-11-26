@@ -57,6 +57,7 @@ import { GooseRule } from "./goose-rule.js";
 import { GrokcliRule } from "./grokcli-rule.js";
 import { HermesagentRule } from "./hermesagent-rule.js";
 import { ProjectInstructionBudget } from "./instruction-budget.js";
+import { JcodeRule } from "./jcode-rule.js";
 import { JunieRule } from "./junie-rule.js";
 import { KiloRule } from "./kilo-rule.js";
 import { KimiCodePluginRule } from "./kimi-code-plugin-rule.js";
@@ -73,6 +74,7 @@ import { Opencodev1Rule } from "./opencodev1-rule.js";
 import { PiRule } from "./pi-rule.js";
 import { PoolRule } from "./pool-rule.js";
 import { QoderRule } from "./qoder-rule.js";
+import { QodercnRule } from "./qodercn-rule.js";
 import { QwencodeRule } from "./qwencode-rule.js";
 import { ReasonixRule } from "./reasonix-rule.js";
 import { ReplitRule } from "./replit-rule.js";
@@ -770,6 +772,23 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
     },
   ],
   [
+    "jcode",
+    {
+      // jcode appends `.jcode/prompt-overlay.md` (project) and
+      // `~/.jcode/prompt-overlay.md` (user) to its system prompt after
+      // `AGENTS.md`. There is no rules directory, so topic rules fold into
+      // that single file.
+      // https://github.com/1jehuang/jcode/blob/master/docs/SYSTEM_PROMPT_CONFIG.md
+      class: JcodeRule,
+      meta: {
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
+        collisionPolicy: "fold",
+      },
+    },
+  ],
+  [
     "goose",
     {
       // Goose reads the `.goosehints` / `AGENTS.md` instruction-file family
@@ -1101,6 +1120,22 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         // Commands, subagents and skills are native, so no
         // simulated additionalConventions are needed.
         // https://docs.qoder.com/en/cli/04-extending-qoder-cli/memory
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
+        localRootMode: "separate-local-file",
+        localRootFileName: QODER_LOCAL_RULE_FILE_NAME,
+      },
+    },
+  ],
+  [
+    "qodercn",
+    {
+      class: QodercnRule,
+      meta: {
+        // Qoder CN (CLI CN and the desktop app) reads the same project files as
+        // Qoder; the user scope lives under `~/.qoder-cn/` instead.
+        // https://docs.qoder.cn/cli/memory
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",

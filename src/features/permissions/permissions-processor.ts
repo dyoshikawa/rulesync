@@ -50,6 +50,7 @@ import { Opencodev1Permissions } from "./opencodev1-permissions.js";
 import { PiPermissions } from "./pi-permissions.js";
 import { PoolPermissions } from "./pool-permissions.js";
 import { QoderPermissions } from "./qoder-permissions.js";
+import { QodercnPermissions } from "./qodercn-permissions.js";
 import { QwencodePermissions } from "./qwencode-permissions.js";
 import { ReasonixPermissions } from "./reasonix-permissions.js";
 import { RooPermissions } from "./roo-permissions.js";
@@ -546,6 +547,18 @@ export const toolPermissionsFactories = new Map<
     "qoder",
     {
       class: QoderPermissions,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+      },
+    },
+  ],
+  [
+    "qodercn",
+    {
+      // Same `.qoder/settings.json` project file as Qoder; the user file is
+      // `~/.qoder-cn/settings.json`.
+      class: QodercnPermissions,
       meta: {
         supportsProject: true,
         supportsGlobal: true,

@@ -69,6 +69,7 @@ import { GitlabduoSkill } from "./gitlabduo-skill.js";
 import { GooseSkill } from "./goose-skill.js";
 import { GrokcliSkill } from "./grokcli-skill.js";
 import { HermesagentSkill } from "./hermesagent-skill.js";
+import { JcodeSkill } from "./jcode-skill.js";
 import { JunieSkill } from "./junie-skill.js";
 import { KiloSkill } from "./kilo-skill.js";
 import { KimiCodePluginSkill } from "./kimi-code-plugin-skill.js";
@@ -87,6 +88,7 @@ import { Opencodev1Skill } from "./opencodev1-skill.js";
 import { PiSkill } from "./pi-skill.js";
 import { PoolSkill } from "./pool-skill.js";
 import { QoderSkill } from "./qoder-skill.js";
+import { QodercnSkill } from "./qodercn-skill.js";
 import { QwencodeSkill } from "./qwencode-skill.js";
 import { ReasonixSkill } from "./reasonix-skill.js";
 import { ReplitSkill } from "./replit-skill.js";
@@ -727,6 +729,16 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     },
   ],
   [
+    "qodercn",
+    {
+      // Qoder CN shares Qoder's `.qoder/skills/` project directory; user skills
+      // live under `~/.qoder-cn/skills/`.
+      // https://docs.qoder.cn/user-guide/skills
+      class: QodercnSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
     "qwencode",
     {
       // Qwen Code Agent Skills are directories (`<name>/SKILL.md`) under
@@ -863,6 +875,16 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
       // (project) / `~/.xum/skills/` (user).
       // https://xum.cdr.dev/agents/agent-skills
       class: XumSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "jcode",
+    {
+      // jcode skills are directories (`<name>/SKILL.md`) under
+      // `.jcode/skills/` (project) / `~/.jcode/skills/` (user).
+      // https://github.com/1jehuang/jcode/blob/master/crates/jcode-app-core/src/tool/skill.rs
+      class: JcodeSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],

@@ -43,6 +43,7 @@ import { GitlabduoMcp } from "./gitlabduo-mcp.js";
 import { GooseMcp } from "./goose-mcp.js";
 import { GrokcliMcp } from "./grokcli-mcp.js";
 import { HermesagentMcp } from "./hermesagent-mcp.js";
+import { JcodeMcp } from "./jcode-mcp.js";
 import { JunieMcp } from "./junie-mcp.js";
 import { KiloMcp } from "./kilo-mcp.js";
 import { KimiCodeMcp } from "./kimi-code-mcp.js";
@@ -57,6 +58,7 @@ import { OpenhandsMcp } from "./openhands-mcp.js";
 import { PiMcp } from "./pi-mcp.js";
 import { PoolMcp } from "./pool-mcp.js";
 import { QoderMcp } from "./qoder-mcp.js";
+import { QodercnMcp } from "./qodercn-mcp.js";
 import { QwencodeMcp } from "./qwencode-mcp.js";
 import { ReasonixMcp } from "./reasonix-mcp.js";
 import { RooMcp } from "./roo-mcp.js";
@@ -837,6 +839,21 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
     },
   ],
   [
+    "qodercn",
+    {
+      // Qoder CN reads the same project `.mcp.json`; user servers live under
+      // the `mcpServers` key of `~/.qoder-cn/settings.json`.
+      // https://docs.qoder.cn/cli/mcp-reference
+      class: QodercnMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
     "qwencode",
     {
       // Qwen Code reads MCP servers from the `mcpServers` key of
@@ -1062,6 +1079,23 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
         supportsProject: true,
         supportsGlobal: true,
         supportsEnabledTools: true,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    "jcode",
+    {
+      // jcode reads `~/.jcode/mcp.json` (user) and, per project,
+      // `.jcode/mcp.json` before `.mcp.json`: a Claude Code style
+      // `mcpServers` map (stdio, Streamable HTTP and SSE servers). There is no
+      // per-server tool allow or deny list.
+      // https://github.com/1jehuang/jcode/blob/master/docs/MCP_REMOTE.md
+      class: JcodeMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
         supportsDisabledTools: false,
       },
     },

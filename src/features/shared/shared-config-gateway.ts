@@ -706,6 +706,44 @@ const KIMI_CODE_CONFIG_DECLARATION: SharedConfigFileDeclaration = {
 };
 
 /**
+ * Qoder settings: the project file (`.qoder/settings.json`) and the user file
+ * (`~/.qoder/settings.json`) share one layout and carry every other Qoder
+ * setting (model, theme, trust, ...), so both are edited in place and an
+ * unparseable root is refused rather than replaced with generated output.
+ * MCP owns `mcpServers` (user scope only; project servers go to `.mcp.json`),
+ * hooks own `hooks`, and permissions own `permissions` (the adapter
+ * re-spreads the sibling keys of that object: `additionalDirectories`,
+ * `trustDirectories`, ...) plus the top-level keys the `qoder` override
+ * authors (`outputStyle`, `autoMode`, `agentsMdExcludes`, and the `general`,
+ * `tools`, `mcp`, `agents` and `security` groups, re-spread by the adapter so their other
+ * keys are kept). Each is only in the patch when authored, so a value the
+ * user set by hand survives an unrelated regeneration.
+ * Qoder CN keeps the same file at `~/.qoder-cn/settings.json`.
+ */
+const QODER_SETTINGS_DECLARATION: SharedConfigFileDeclaration = {
+  format: "json",
+  invalidRootPolicy: "error",
+  features: {
+    mcp: { kind: "replace-owned-keys", ownedKeys: ["mcpServers"] },
+    hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
+    permissions: {
+      kind: "replace-owned-keys",
+      ownedKeys: [
+        "permissions",
+        "outputStyle",
+        "general",
+        "tools",
+        "mcp",
+        "agents",
+        "security",
+        "autoMode",
+        "agentsMdExcludes",
+      ],
+    },
+  },
+};
+
+/**
  * Pool settings (`.poolside/settings.yaml` / `~/.config/poolside/settings.yaml`):
  * the user's primary Pool settings file, so an unparseable root fails closed
  * rather than being replaced with generated output. `mcp_servers` is owned as
@@ -1377,6 +1415,31 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
   // ever set to `false`, and global permissions own the `[auto_review]` table
   // of the user config, replaced only when the `codewhale.auto_review`
   // override is set. An unparseable root is refused rather than replaced.
+  // jcode user config (`~/.jcode/config.toml`): hooks own the `[hooks]` table,
+  // and the adapter re-spreads that table's settings and the command keys it
+  // does not author. Every other jcode setting lives in the same file, so an
+  // unparseable root is refused rather than replaced.
+  // https://github.com/1jehuang/jcode/blob/master/docs/HOOKS.md
+  ".jcode/config.toml": {
+    format: "toml",
+    invalidRootPolicy: "error",
+    features: {
+      hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
+    },
+  },
+  // jcode MCP config (`.jcode/mcp.json` in a repo, `~/.jcode/mcp.json` for the
+  // user): the server map lives under `mcpServers` or jcode's historical
+  // `servers` key (one of the two; jcode rejects a file with both), and jcode's
+  // own `jcode mcp` commands rewrite the file, so every other key is kept and a
+  // file that does not parse is refused rather than replaced.
+  // https://github.com/1jehuang/jcode/blob/master/docs/MCP_REMOTE.md
+  ".jcode/mcp.json": {
+    format: "json",
+    invalidRootPolicy: "error",
+    features: {
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcpServers", "servers"] },
+    },
+  },
   [CODEWHALE_CONFIG_SHARED_FILE_KEY]: {
     format: "toml",
     invalidRootPolicy: "error",
@@ -1419,40 +1482,10 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
     },
   },
-  // Qoder settings: the project file (`.qoder/settings.json`) and the user file
-  // (`~/.qoder/settings.json`) share one layout and carry every other Qoder
-  // setting (model, theme, trust, ...), so both are edited in place and an
-  // unparseable root is refused rather than replaced with generated output.
-  // MCP owns `mcpServers` (user scope only; project servers go to `.mcp.json`),
-  // hooks own `hooks`, and permissions own `permissions` (the adapter
-  // re-spreads the sibling keys of that object: `additionalDirectories`,
-  // `trustDirectories`, ...) plus the top-level keys the `qoder` override
-  // authors (`outputStyle`, `autoMode`, `agentsMdExcludes`, and the `general`,
-  // `tools`, `mcp`, `agents` and `security` groups, re-spread by the adapter so their other
-  // keys are kept). Each is only in the patch when authored, so a value the
-  // user set by hand survives an unrelated regeneration.
-  ".qoder/settings.json": {
-    format: "json",
-    invalidRootPolicy: "error",
-    features: {
-      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcpServers"] },
-      hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
-      permissions: {
-        kind: "replace-owned-keys",
-        ownedKeys: [
-          "permissions",
-          "outputStyle",
-          "general",
-          "tools",
-          "mcp",
-          "agents",
-          "security",
-          "autoMode",
-          "agentsMdExcludes",
-        ],
-      },
-    },
-  },
+  // Qoder settings (project and user); see {@link QODER_SETTINGS_DECLARATION}.
+  ".qoder/settings.json": QODER_SETTINGS_DECLARATION,
+  // Qoder CN user settings (`~/.qoder-cn/settings.json`), the same layout.
+  ".qoder-cn/settings.json": QODER_SETTINGS_DECLARATION,
   // TRAE hooks (`.trae/hooks.json`, project and user scope): `hooks` is the
   // only rulesync-owned key, so `version` and any other top-level key the IDE
   // writes survive, and an unparseable root is refused rather than replaced.

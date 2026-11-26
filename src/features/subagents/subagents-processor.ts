@@ -81,6 +81,7 @@ import { OpenCodeSubagent } from "./opencode-subagent.js";
 import { Opencodev1Subagent } from "./opencodev1-subagent.js";
 import { PoolSubagent } from "./pool-subagent.js";
 import { QoderSubagent } from "./qoder-subagent.js";
+import { QodercnSubagent } from "./qodercn-subagent.js";
 import { QwencodeSubagent } from "./qwencode-subagent.js";
 import { ReasonixSubagent } from "./reasonix-subagent.js";
 import { RooSubagent } from "./roo-subagent.js";
@@ -949,6 +950,21 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
       // `.qoder/agents/` (project) and `~/.qoder/agents/` (user/global).
       // https://docs.qoder.com/en/cli/04-extending-qoder-cli/subagent
       class: QoderSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.md",
+      },
+    },
+  ],
+  [
+    "qodercn",
+    {
+      // Qoder CN shares Qoder's `.qoder/agents/` project directory; user
+      // subagents live under `~/.qoder-cn/agents/`.
+      // https://docs.qoder.cn/user-guide/custom-agent
+      class: QodercnSubagent,
       meta: {
         supportsProject: true,
         supportsSimulated: false,

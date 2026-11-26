@@ -1183,6 +1183,36 @@ export const HERMESAGENT_TO_CANONICAL_EVENT_NAMES: Record<string, string> = inve
   CANONICAL_TO_HERMESAGENT_EVENT_NAMES,
 );
 
+/**
+ * Map canonical camelCase event names to jcode's `[hooks]` keys in
+ * `~/.jcode/config.toml`. `pre_tool` is a gate (exit 2 or a `deny` JSON
+ * decision blocks the call); the others are fire-and-forget observers.
+ * @see https://github.com/1jehuang/jcode/blob/master/docs/HOOKS.md
+ */
+export const CANONICAL_TO_JCODE_EVENT_NAMES: Record<string, string> = {
+  sessionStart: "session_start",
+  sessionEnd: "session_end",
+  preToolUse: "pre_tool",
+  postToolUse: "post_tool",
+  beforeSubmitPrompt: "turn_start",
+  stop: "turn_end",
+} satisfies Partial<Record<HookEvent, string>>;
+
+/** Canonical hook events the jcode adapter emits. */
+export const JCODE_HOOK_EVENTS: readonly HookEvent[] = eventsOf(CANONICAL_TO_JCODE_EVENT_NAMES);
+
+/** Map jcode's `[hooks]` keys back to canonical camelCase. */
+export const JCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
+  CANONICAL_TO_JCODE_EVENT_NAMES,
+);
+
+/**
+ * jcode hook keys with no canonical counterpart. They are authored, and
+ * imported, under the `jcode.hooks` override block by their native name.
+ * @see https://github.com/1jehuang/jcode/blob/master/docs/HOOKS.md
+ */
+export const JCODE_NATIVE_ONLY_HOOK_EVENTS = ["pre_tool_transform", "post_tool_feedback"] as const;
+
 const hooksRecordSchema = z.record(z.string(), z.array(HookDefinitionSchema));
 
 const HOOK_EVENT_SET: ReadonlySet<string> = new Set(HOOK_EVENTS);
@@ -1249,6 +1279,7 @@ export const HooksConfigSchema = z.looseObject({
   "antigravity-ide": z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   "antigravity-cli": z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   hermesagent: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  jcode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   junie: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   gitlabduo: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   vibe: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),

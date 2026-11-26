@@ -110,9 +110,17 @@ export class QoderHooks extends SettingsJsonHooks {
     return QODER_SPEC;
   }
 
-  static override getSettablePaths(_options: { global?: boolean } = {}): ToolHooksSettablePaths {
+  /** The user-level config directory; Qoder CN reads `~/.qoder-cn/`. */
+  protected static readonly globalConfigDir: string = QODER_DIR;
+
+  static override getSettablePaths({
+    global = false,
+  }: { global?: boolean } = {}): ToolHooksSettablePaths {
     // The user file mirrors the project one under the home directory, which
     // the processor supplies as outputRoot in global mode.
-    return { relativeDirPath: QODER_DIR, relativeFilePath: QODER_SETTINGS_FILE_NAME };
+    return {
+      relativeDirPath: global ? this.globalConfigDir : QODER_DIR,
+      relativeFilePath: QODER_SETTINGS_FILE_NAME,
+    };
   }
 }

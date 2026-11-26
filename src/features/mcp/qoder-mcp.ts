@@ -39,16 +39,19 @@ const EMPTY_MCP_CONFIG = JSON.stringify({ mcpServers: {} }, null, 2);
  */
 function parseQoderMcpConfig({
   fileContent,
-  relativePath,
+  relativeDirPath,
+  relativeFilePath,
   global,
 }: {
   fileContent: string;
-  relativePath: string;
+  relativeDirPath: string;
+  relativeFilePath: string;
   global: boolean;
 }): Record<string, unknown> {
+  const relativePath = join(relativeDirPath, relativeFilePath);
   if (global) {
     return parseSharedConfigFile({
-      fileKey: sharedConfigFileKey(QoderMcp.getSettablePaths({ global })),
+      fileKey: sharedConfigFileKey({ relativeDirPath, relativeFilePath }),
       fileContent: fileContent || "{}",
       filePath: relativePath,
     });
@@ -102,7 +105,8 @@ export class QoderMcp extends ToolMcp {
     super(params);
     this.json = parseQoderMcpConfig({
       fileContent: this.fileContent,
-      relativePath: join(this.relativeDirPath, this.relativeFilePath),
+      relativeDirPath: this.relativeDirPath,
+      relativeFilePath: this.relativeFilePath,
       global: this.global,
     });
   }
@@ -115,11 +119,15 @@ export class QoderMcp extends ToolMcp {
     return !this.global;
   }
 
+  /** The user-level config directory; Qoder CN reads `~/.qoder-cn/`. */
+  protected static readonly globalConfigDir: string = QODER_DIR;
+
   static getSettablePaths({ global = false }: { global?: boolean } = {}): ToolMcpSettablePaths {
-    // Project: `<project>/.mcp.json`; global: `~/.qoder/settings.json` (the
-    // processor supplies the home directory as outputRoot in global mode).
+    // Project: `<project>/.mcp.json`; global: `~/.qoder/settings.json`, or
+    // `~/.qoder-cn/settings.json` for Qoder CN (the processor supplies the
+    // home directory as outputRoot in global mode).
     return global
-      ? { relativeDirPath: QODER_DIR, relativeFilePath: QODER_SETTINGS_FILE_NAME }
+      ? { relativeDirPath: this.globalConfigDir, relativeFilePath: QODER_SETTINGS_FILE_NAME }
       : { relativeDirPath: ".", relativeFilePath: QODER_PROJECT_MCP_FILE_NAME };
   }
 
@@ -132,7 +140,7 @@ export class QoderMcp extends ToolMcp {
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const fileContent = (await readFileContentOrNull(filePath)) ?? EMPTY_MCP_CONFIG;
 
-    return new QoderMcp({
+    return new this({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
@@ -170,7 +178,8 @@ export class QoderMcp extends ToolMcp {
           {
             ...parseQoderMcpConfig({
               fileContent: existingContent,
-              relativePath: join(paths.relativeDirPath, paths.relativeFilePath),
+              relativeDirPath: paths.relativeDirPath,
+              relativeFilePath: paths.relativeFilePath,
               global,
             }),
             mcpServers,
@@ -179,7 +188,7 @@ export class QoderMcp extends ToolMcp {
           2,
         );
 
-    return new QoderMcp({
+    return new this({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
@@ -202,7 +211,7 @@ export class QoderMcp extends ToolMcp {
     relativeFilePath,
     global = false,
   }: ToolMcpForDeletionParams): QoderMcp {
-    return new QoderMcp({
+    return new this({
       outputRoot,
       relativeDirPath,
       relativeFilePath,

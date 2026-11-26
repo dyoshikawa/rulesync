@@ -37,6 +37,8 @@ import {
   GOOSE_HOOK_EVENTS,
   GROKCLI_HOOK_EVENTS,
   HERMESAGENT_HOOK_EVENTS,
+  JCODE_HOOK_EVENTS,
+  JCODE_NATIVE_ONLY_HOOK_EVENTS,
   JUNIE_HOOK_EVENTS,
   KILO_HOOK_EVENTS,
   KIMI_CODE_HOOK_EVENTS,
@@ -417,6 +419,30 @@ describe("HooksProcessor", () => {
       await expect(processor.convertRulesyncFilesToToolFiles([])).rejects.toThrow(
         `No ${RULESYNC_HOOKS_RELATIVE_FILE_PATH} found.`,
       );
+    });
+
+    it("should warn that a qodercn hooks block is ignored and apply the qoder block", async () => {
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {},
+          qoder: { hooks: { stop: [{ command: "echo qoder" }] } },
+          qodercn: { hooks: { stop: [{ command: "echo ignored" }] } },
+        }),
+        validate: false,
+      });
+
+      const processor = new HooksProcessor({ logger, outputRoot: testDir, toolTarget: "qodercn" });
+      const [file] = await processor.convertRulesyncFilesToToolFiles([rulesyncHooks]);
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('The "qodercn.hooks" block'),
+      );
+      expect(file?.getFileContent()).toContain("echo qoder");
+      expect(file?.getFileContent()).not.toContain("echo ignored");
     });
 
     it("should log warning when config has events not supported by target", async () => {
@@ -1185,6 +1211,7 @@ describe("HooksProcessor", () => {
         "vibe-plugin",
         "pool",
         "qoder",
+        "qodercn",
         "qwencode",
         "reasonix",
         "grokcli",
@@ -1221,6 +1248,7 @@ describe("HooksProcessor", () => {
         "cline",
         "goose",
         "hermesagent",
+        "jcode",
         "kimi-code",
         "deepagents",
         "kiro-cli",
@@ -1238,6 +1266,7 @@ describe("HooksProcessor", () => {
         "vibe",
         "pool",
         "qoder",
+        "qodercn",
         "qwencode",
         "reasonix",
         "grokcli",
@@ -1300,6 +1329,7 @@ describe("HooksProcessor", () => {
         "vibe-plugin",
         "pool",
         "qoder",
+        "qodercn",
         "qwencode",
         "reasonix",
         "grokcli",
@@ -1328,6 +1358,7 @@ describe("HooksProcessor", () => {
         "factorydroid",
         "goose",
         "hermesagent",
+        "jcode",
         "kimi-code",
         "deepagents",
         "kiro-cli",
@@ -1345,6 +1376,7 @@ describe("HooksProcessor", () => {
         "vibe",
         "pool",
         "qoder",
+        "qodercn",
         "qwencode",
         "reasonix",
         "grokcli",
@@ -1809,6 +1841,17 @@ describe("toolHooksFactories capability table", () => {
       },
     ],
     [
+      "jcode",
+      {
+        meta: { supportsProject: false, supportsGlobal: true, supportsImport: true },
+        supportedEvents: JCODE_HOOK_EVENTS,
+        supportedHookTypes: ["command"],
+        supportsMatcher: true,
+        dropsUnknownOverrideEvents: true,
+        overrideOnlyEvents: JCODE_NATIVE_ONLY_HOOK_EVENTS,
+      },
+    ],
+    [
       "kimi-code",
       {
         meta: { supportsProject: false, supportsGlobal: true, supportsImport: true },
@@ -2047,6 +2090,37 @@ describe("toolHooksFactories capability table", () => {
     ],
     [
       "qoder",
+      {
+        meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+        supportedEvents: QODER_HOOK_EVENTS,
+        supportedHookTypes: ["command", "http", "prompt", "agent"],
+        supportsMatcher: true,
+        supportsPerHookIf: true,
+        matcherEvents: [
+          "sessionStart",
+          "sessionEnd",
+          "preToolUse",
+          "postToolUse",
+          "postToolUseFailure",
+          "stopFailure",
+          "subagentStart",
+          "subagentStop",
+          "preCompact",
+          "postCompact",
+          "notification",
+          "configChange",
+          "instructionsLoaded",
+          "fileChanged",
+          "elicitation",
+          "elicitationResult",
+          "permissionRequest",
+          "permissionDenied",
+          "setup",
+        ],
+      },
+    ],
+    [
+      "qodercn",
       {
         meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
         supportedEvents: QODER_HOOK_EVENTS,

@@ -126,6 +126,10 @@ describe("registry derivation", () => {
       // ZCode user config: emitted in GLOBAL scope only (project scope writes
       // `.zcode/config.json` instead), so project derivation never yields it.
       "**/.zcode/cli/config.json",
+      // Qoder CN user settings: emitted in GLOBAL scope only (project scope
+      // writes Qoder's `.qoder/settings.json`), kept listed so a global generate
+      // with nothing to contribute does not create `{}` in the home directory.
+      "**/.qoder-cn/settings.json",
       // Pool user settings: emitted in GLOBAL scope only (project scope writes
       // `.poolside/settings.yaml` instead), so project derivation never yields
       // it. It stays listed as a shared user-managed config so a global

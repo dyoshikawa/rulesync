@@ -85,6 +85,9 @@ export const SHARED_USER_MANAGED_CONFIG_PATHS: readonly string[] = [
   // `.qoder/settings.json` layout and carry the user's own Qoder settings
   // beside the `mcpServers` (user only), `hooks` and `permissions` blocks.
   ".qoder/settings.json",
+  // Qoder CN's user settings (`~/.qoder-cn/settings.json`, global scope only),
+  // the same layout.
+  ".qoder-cn/settings.json",
   // oh-my-pi config: the project file and the user one under `~/.omp/agent/`
   // carry every omp setting beside the `tools.approval` and `bash.patterns`
   // permissions keys.

@@ -2929,6 +2929,7 @@ Content that would fail parsing`;
         "deepagents",
         "factorydroid",
         "firebender",
+        "jcode",
         "goose",
         "gitlabduo",
         "grokcli",
@@ -2947,6 +2948,7 @@ Content that would fail parsing`;
         "pi",
         "pool",
         "qoder",
+        "qodercn",
         "qwencode",
         "reasonix",
         "roo",
@@ -3034,9 +3036,10 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("openclaw");
       expect(globalTargets).toContain("qoder");
       expect(globalTargets).toContain("xum");
+      expect(globalTargets).toContain("jcode");
       expect(globalTargets).toContain("gajaecode");
       expect(globalTargets).toContain("deepcode");
-      expect(globalTargets.length).toBe(55);
+      expect(globalTargets.length).toBe(57);
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");
@@ -6227,6 +6230,7 @@ targets: ["factorydroid"]
         "commandcode",
         "crush",
         "deepagents",
+        "jcode",
         "goose",
         "gitlabduo",
         // `grokcli` left this list when it gained `.grok/rules/`.

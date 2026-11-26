@@ -426,7 +426,7 @@ function buildQoderOverridePatch({
       }
     } else {
       logger?.warn(
-        `Qoder permissions: skipping qoder.autoMode in project mode — Qoder reads autoMode from the user settings only. Run 'rulesync generate --global' to write it to ~/.qoder/settings.json.`,
+        `Qoder permissions: skipping qoder.autoMode in project mode — Qoder reads autoMode from the user settings only. Run 'rulesync generate --global' to write it to ~/.qoder/settings.json (~/.qoder-cn/settings.json for Qoder CN).`,
       );
     }
   }
@@ -543,10 +543,18 @@ export class QoderPermissions extends ToolPermissions {
     });
   }
 
-  static getSettablePaths(_options: { global?: boolean } = {}): ToolPermissionsSettablePaths {
-    // The same relative path is used for both scopes; the processor supplies
-    // the home directory as outputRoot in global mode.
-    return { relativeDirPath: QODER_DIR, relativeFilePath: QODER_SETTINGS_FILE_NAME };
+  /** The user-level config directory; Qoder CN reads `~/.qoder-cn/`. */
+  protected static readonly globalConfigDir: string = QODER_DIR;
+
+  static getSettablePaths({
+    global = false,
+  }: { global?: boolean } = {}): ToolPermissionsSettablePaths {
+    // The processor supplies the home directory as outputRoot in global mode,
+    // so only the config directory name differs between the scopes.
+    return {
+      relativeDirPath: global ? this.globalConfigDir : QODER_DIR,
+      relativeFilePath: QODER_SETTINGS_FILE_NAME,
+    };
   }
 
   static async fromFile({
@@ -554,10 +562,10 @@ export class QoderPermissions extends ToolPermissions {
     validate = true,
     global = false,
   }: ToolPermissionsFromFileParams): Promise<QoderPermissions> {
-    const paths = QoderPermissions.getSettablePaths({ global });
+    const paths = this.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const fileContent = (await readFileContentOrNull(filePath)) ?? "{}";
-    return new QoderPermissions({
+    return new this({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
@@ -573,7 +581,7 @@ export class QoderPermissions extends ToolPermissions {
     global = false,
     logger,
   }: ToolPermissionsFromRulesyncPermissionsParams): Promise<QoderPermissions> {
-    const paths = QoderPermissions.getSettablePaths({ global });
+    const paths = this.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     // Read without initializing so this stays side-effect-free under
     // `--dry-run`/`--check`; the actual write happens later in `writeAiFiles`.
@@ -604,7 +612,7 @@ export class QoderPermissions extends ToolPermissions {
       }
     }
 
-    return new QoderPermissions({
+    return new this({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
