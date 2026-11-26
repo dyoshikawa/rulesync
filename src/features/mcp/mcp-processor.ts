@@ -37,6 +37,7 @@ import { DevinPluginMcp } from "./devin-plugin-mcp.js";
 import { DshMcp } from "./dsh-mcp.js";
 import { FactorydroidMcp } from "./factorydroid-mcp.js";
 import { FirebenderMcp } from "./firebender-mcp.js";
+import { GajaecodeMcp } from "./gajaecode-mcp.js";
 import { GitlabduoMcp } from "./gitlabduo-mcp.js";
 import { GooseMcp } from "./goose-mcp.js";
 import { GrokcliMcp } from "./grokcli-mcp.js";
@@ -715,6 +716,20 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
       class: MusecodeMcp,
       meta: {
         supportsProject: false,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    "gajaecode",
+    {
+      // `.gjc/mcp.json` (project) and `~/.gjc/agent/mcp.json` (global).
+      // https://github.com/Yeachan-Heo/gajae-code/blob/main/docs/standalone-mcp.md
+      class: GajaecodeMcp,
+      meta: {
+        supportsProject: true,
         supportsGlobal: true,
         supportsEnabledTools: false,
         supportsDisabledTools: false,

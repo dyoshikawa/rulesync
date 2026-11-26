@@ -151,6 +151,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | Replit                    |  ✅   |        |     |          |           |   ✅   |       |             |        |
 | Pi Coding Agent           |  ✅   |        | ✅  |    ✅    |           |   ✅   |  ✅   |     ✅      |        |
 | oh-my-pi                  |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
+| Gajae-Code                |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |       |             |        |
 | Zed                       |  ✅   |   ✅   | ✅  |          |           |   ✅   |       |     ✅      |        |
 | ZCode (Z.ai)              |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |             |        |
 | ZCode plugin              |       |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |             |        |

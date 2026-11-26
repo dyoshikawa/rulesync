@@ -3,10 +3,10 @@ import { join } from "node:path";
 import { z } from "zod/mini";
 
 import {
-  OMP_DIR,
-  OMP_GLOBAL_DIR,
+  OMP_LAYOUT,
   OMP_RULE_FILE_NAME,
   OMP_RULES_DIR_NAME,
+  type OmpLayout,
 } from "../../constants/omp-paths.js";
 import {
   RULESYNC_OVERVIEW_FILE_NAME,
@@ -96,9 +96,15 @@ function normalizeGlobs(globs: string | string[] | undefined): string[] {
  * replacement) are never emitted.
  *
  * @see https://github.com/can1357/oh-my-pi/blob/main/docs/context-files.md
+ * Descendants of oh-my-pi with the same rule discovery (Gajae-Code) subclass
+ * this and override only {@link OmpRule.layout} and `toolTarget`.
+ *
  * @see https://github.com/can1357/oh-my-pi/blob/main/docs/rulebook-matching-pipeline.md
  */
 export class OmpRule extends ToolRule {
+  /** Directory layout; oh-my-pi descendants (Gajae-Code) override it. */
+  protected static readonly layout: OmpLayout = OMP_LAYOUT;
+
   private readonly frontmatter: OmpRuleFrontmatter;
   private readonly body: string;
 
@@ -107,7 +113,7 @@ export class OmpRule extends ToolRule {
   }: {
     global?: boolean;
   } = {}): OmpRuleSettablePaths {
-    const dir = global ? OMP_GLOBAL_DIR : OMP_DIR;
+    const dir = global ? this.layout.globalDir : this.layout.dir;
     return {
       root: {
         relativeDirPath: join(dir, "."),
@@ -160,7 +166,7 @@ export class OmpRule extends ToolRule {
       const fileContent = await readFileContent(
         join(outputRoot, paths.root.relativeDirPath, paths.root.relativeFilePath),
       );
-      return new OmpRule({
+      return new this({
         outputRoot,
         relativeDirPath: paths.root.relativeDirPath,
         relativeFilePath: paths.root.relativeFilePath,
@@ -179,7 +185,7 @@ export class OmpRule extends ToolRule {
       throw new Error(`Invalid frontmatter in ${filePath}: ${formatError(result.error)}`);
     }
 
-    return new OmpRule({
+    return new this({
       outputRoot,
       relativeDirPath: paths.nonRoot.relativeDirPath,
       relativeFilePath,
@@ -197,7 +203,7 @@ export class OmpRule extends ToolRule {
     global = false,
   }: ToolRuleForDeletionParams): OmpRule {
     const paths = this.getSettablePaths({ global });
-    return new OmpRule({
+    return new this({
       outputRoot,
       relativeDirPath,
       relativeFilePath,
@@ -221,7 +227,7 @@ export class OmpRule extends ToolRule {
     const body = rulesyncRule.getBody();
 
     if (rulesyncFrontmatter.root) {
-      return new OmpRule({
+      return new this({
         outputRoot,
         relativeDirPath: paths.root.relativeDirPath,
         relativeFilePath: paths.root.relativeFilePath,
@@ -244,7 +250,7 @@ export class OmpRule extends ToolRule {
             globs: scopedGlobs,
           };
 
-    return new OmpRule({
+    return new this({
       outputRoot,
       relativeDirPath: paths.nonRoot.relativeDirPath,
       relativeFilePath: rulesyncRule.getRelativeFilePath().split(/[\\/]/).join("-"),
@@ -302,5 +308,5 @@ export class OmpRule extends ToolRule {
     return this.body;
   }
 
-  protected static override readonly toolTarget = "omp";
+  protected static override readonly toolTarget: OmpLayout["toolTarget"] = "omp";
 }

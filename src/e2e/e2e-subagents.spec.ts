@@ -170,6 +170,7 @@ const subagentsGenerateTargets = [
     outputPath: join(".agents", "agents", "planner.md"),
   },
   { target: "omp", outputPath: join(".omp", "agents", "planner.md") },
+  { target: "gajaecode", outputPath: join(".gjc", "agents", "planner.md") },
   {
     target: "opencode",
     outputPath: join(".opencode", "agents", "planner.md"),
@@ -268,6 +269,7 @@ const subagentsGlobalTargets = [
   { target: "mimocode", outputPath: join(".config", "mimocode", "agents", "planner.md") },
   { target: "musecode", outputPath: join(".config", "muse", "agents", "planner.md") },
   { target: "omp", outputPath: join(".omp", "agent", "agents", "planner.md") },
+  { target: "gajaecode", outputPath: join(".gjc", "agent", "agents", "planner.md") },
   { target: "opencode", outputPath: join(".config", "opencode", "agents", "planner.md") },
   { target: "opencodev1", outputPath: join(".config", "opencode", "agents", "planner.md") },
   { target: "pool", outputPath: join(".config", "poolside", "settings.yaml") },
@@ -843,6 +845,7 @@ describe("E2E: subagents (import)", () => {
     { target: "gitlabduo", sourcePath: join(".agents", "agents", "planner.md") },
     { target: "musecode", sourcePath: join(".agents", "agents", "planner.md") },
     { target: "omp", sourcePath: join(".omp", "agents", "planner.md") },
+    { target: "gajaecode", sourcePath: join(".gjc", "agents", "planner.md") },
     { target: "opencode", sourcePath: join(".opencode", "agents", "planner.md") },
     { target: "opencodev1", sourcePath: join(".opencode", "agents", "planner.md") },
     { target: "deepagents", sourcePath: join(".deepagents", "agents", "planner", "AGENTS.md") },

@@ -71,6 +71,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Replit                    | replit             |  ✅   |        |          |          |           | ✅ 🌏  |       |             |        |
 | Pi Coding Agent           | pi                 | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |           | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
 | oh-my-pi                  | omp                | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
+| Gajae-Code                | gajaecode          | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |       |             |        |
 | Zed                       | zed                | ✅ 🌏 | ✅ 🌏  |  ✅ 🌏   |          |           | ✅ 🌏  |       |     🌏      |        |
 | ZCode (Z.ai)              | zcode              | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |             |        |
 | ZCode plugin              | zcode-plugin       |       |        |    ✅    |    ✅    |    ✅     |   ✅   |  ✅   |             |        |

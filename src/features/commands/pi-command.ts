@@ -43,7 +43,7 @@ export class PiCommand extends FrontmatterMarkdownToolCommand<PiCommandFrontmatt
     };
   }
 
-  /** Also the tool-scoped section (`pi:` / `omp:`) of the Rulesync frontmatter. */
+  /** Also the tool-scoped section (`pi:` / `omp:` / `gajaecode:`) of the Rulesync frontmatter. */
   protected static override getToolTarget(): ToolTarget {
     return this.layout.toolTarget;
   }

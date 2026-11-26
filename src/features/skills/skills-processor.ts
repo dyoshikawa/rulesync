@@ -62,6 +62,7 @@ import { DevinSkill } from "./devin-skill.js";
 import { DshSkill } from "./dsh-skill.js";
 import { FactorydroidSkill } from "./factorydroid-skill.js";
 import { FirebenderSkill } from "./firebender-skill.js";
+import { GajaecodeSkill } from "./gajaecode-skill.js";
 import { GitlabduoSkill } from "./gitlabduo-skill.js";
 import { GooseSkill } from "./goose-skill.js";
 import { GrokcliSkill } from "./grokcli-skill.js";
@@ -659,6 +660,16 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
       // XDG-default `~/.config/muse/skills` is emitted at global scope.
       // https://dev.meta.ai/docs/muse-code/extending.md
       class: MusecodeSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "gajaecode",
+    {
+      // `.gjc/skills/<name>/SKILL.md` (project) and
+      // `~/.gjc/agent/skills/<name>/SKILL.md` (global).
+      // https://github.com/Yeachan-Heo/gajae-code/blob/main/docs/skills.md
+      class: GajaecodeSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],

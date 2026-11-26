@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import { OMP_DIR, OMP_GLOBAL_DIR, OMP_MCP_FILE_NAME } from "../../constants/omp-paths.js";
+import { OMP_LAYOUT, OMP_MCP_FILE_NAME, type OmpLayout } from "../../constants/omp-paths.js";
 import { isMcpServers, type McpServers } from "../../types/mcp.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
@@ -43,14 +43,16 @@ const CONSUMED_CANONICAL_KEYS = new Set([
 function parseOmpMcpConfig({
   fileContent,
   relativePath,
+  toolName,
 }: {
   fileContent: string;
   relativePath: string;
+  toolName: string;
 }): Record<string, unknown> {
   return parseMcpJsonObjectOrThrow({
     fileContent,
     relativePath,
-    label: "oh-my-pi",
+    label: toolName,
     parse: JSON.parse,
   });
 }
@@ -65,6 +67,7 @@ function parseOmpMcpConfig({
  */
 function convertToOmpFormat(
   mcpServers: McpServers,
+  toolName: string,
   logger?: Logger,
 ): Record<string, Record<string, unknown>> {
   const result: Record<string, Record<string, unknown>> = {};
@@ -73,7 +76,7 @@ function convertToOmpFormat(
     if (PROTOTYPE_POLLUTION_KEYS.has(serverName) || !isRecord(serverConfig)) continue;
 
     if (declaresNoTransport(serverConfig)) {
-      warnAndSkipMcpServer({ toolName: "oh-my-pi", serverName, reason: "no transport", logger });
+      warnAndSkipMcpServer({ toolName, serverName, reason: "no transport", logger });
       continue;
     }
 
@@ -83,7 +86,7 @@ function convertToOmpFormat(
       const stated = serverConfig.type ?? serverConfig.transport;
       if (!url) {
         warnAndSkipMcpServer({
-          toolName: "oh-my-pi",
+          toolName,
           serverName,
           reason: "a remote transport without a url",
           logger,
@@ -92,9 +95,9 @@ function convertToOmpFormat(
       }
       if (stated === "ws") {
         warnAndSkipMcpServer({
-          toolName: "oh-my-pi",
+          toolName,
           serverName,
-          reason: "a WebSocket transport, which oh-my-pi does not support",
+          reason: `a WebSocket transport, which ${toolName} does not support`,
           logger,
         });
         continue;
@@ -105,7 +108,7 @@ function convertToOmpFormat(
       const [command, ...args] = resolveLocalMcpCommand(serverConfig);
       if (!command) {
         warnAndSkipMcpServer({
-          toolName: "oh-my-pi",
+          toolName,
           serverName,
           reason: "a stdio transport without a command",
           logger,
@@ -158,6 +161,9 @@ function convertFromOmpFormat(mcpServers: McpServers): McpServers {
  * @see https://github.com/can1357/oh-my-pi/blob/main/docs/mcp-config.md
  */
 export class OmpMcp extends ToolMcp {
+  /** Directory layout; oh-my-pi descendants (Gajae-Code) override it. */
+  protected static readonly layout: OmpLayout = OMP_LAYOUT;
+
   private readonly json: Record<string, unknown>;
 
   constructor(params: ToolMcpParams) {
@@ -167,8 +173,22 @@ export class OmpMcp extends ToolMcp {
         ? parseOmpMcpConfig({
             fileContent: this.fileContent,
             relativePath: join(this.relativeDirPath, this.relativeFilePath),
+            toolName: (new.target as typeof OmpMcp).layout.toolName,
           })
         : {};
+  }
+
+  /**
+   * Combine the generated `mcpServers` map with the one already in the file.
+   * oh-my-pi's adapter owns the map: the generated servers replace it.
+   */
+  protected static mergeMcpServers({
+    generated,
+  }: {
+    generated: Record<string, Record<string, unknown>>;
+    existing: unknown;
+  }): Record<string, unknown> {
+    return generated;
   }
 
   getJson(): Record<string, unknown> {
@@ -182,7 +202,7 @@ export class OmpMcp extends ToolMcp {
 
   static getSettablePaths({ global }: { global?: boolean } = {}): ToolMcpSettablePaths {
     return {
-      relativeDirPath: global ? OMP_GLOBAL_DIR : OMP_DIR,
+      relativeDirPath: global ? this.layout.globalDir : this.layout.dir,
       relativeFilePath: OMP_MCP_FILE_NAME,
     };
   }
@@ -198,7 +218,7 @@ export class OmpMcp extends ToolMcp {
         join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
       )) ?? '{"mcpServers":{}}';
 
-    return new OmpMcp({
+    return new this({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
@@ -219,15 +239,22 @@ export class OmpMcp extends ToolMcp {
     const relativePath = join(paths.relativeDirPath, paths.relativeFilePath);
     const existingContent = await readFileContentOrNull(join(outputRoot, relativePath));
     const existing = existingContent
-      ? parseOmpMcpConfig({ fileContent: existingContent, relativePath })
+      ? parseOmpMcpConfig({
+          fileContent: existingContent,
+          relativePath,
+          toolName: this.layout.toolName,
+        })
       : {};
 
     const ompConfig = {
       ...existing,
-      mcpServers: convertToOmpFormat(rulesyncMcp.getMcpServers(), logger),
+      mcpServers: this.mergeMcpServers({
+        generated: convertToOmpFormat(rulesyncMcp.getMcpServers(), this.layout.toolName, logger),
+        existing: existing.mcpServers,
+      }),
     };
 
-    return new OmpMcp({
+    return new this({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
@@ -250,7 +277,7 @@ export class OmpMcp extends ToolMcp {
     relativeFilePath,
     global = false,
   }: ToolMcpForDeletionParams): OmpMcp {
-    return new OmpMcp({
+    return new this({
       outputRoot,
       relativeDirPath,
       relativeFilePath,

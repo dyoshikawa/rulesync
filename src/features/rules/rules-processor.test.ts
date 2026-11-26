@@ -2715,6 +2715,7 @@ Content that would fail parsing`;
         "kiro-cli",
         "kiro-ide",
         "mimocode",
+        "gajaecode",
         "omp",
         "opencode",
         "opencodev1",
@@ -2805,7 +2806,8 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("openclaw");
       expect(globalTargets).toContain("qoder");
       expect(globalTargets).toContain("xum");
-      expect(globalTargets.length).toBe(51);
+      expect(globalTargets).toContain("gajaecode");
+      expect(globalTargets.length).toBe(52);
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");
