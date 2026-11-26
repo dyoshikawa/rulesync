@@ -61,6 +61,10 @@ const skillsGenerateTargets = [
     outputPath: join(".qoder", "skills", "test-skill", "SKILL.md"),
   },
   {
+    target: "qodercn",
+    outputPath: join(".qoder", "skills", "test-skill", "SKILL.md"),
+  },
+  {
     target: "xum",
     outputPath: join(".xum", "skills", "test-skill", "SKILL.md"),
   },
@@ -1253,6 +1257,10 @@ const skillsGlobalTargets = [
   {
     target: "qoder",
     outputPath: join(".qoder", "skills", "test-skill", "SKILL.md"),
+  },
+  {
+    target: "qodercn",
+    outputPath: join(".qoder-cn", "skills", "test-skill", "SKILL.md"),
   },
   {
     target: "xum",

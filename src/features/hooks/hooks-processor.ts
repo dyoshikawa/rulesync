@@ -56,6 +56,7 @@ import { isFileNotFoundError } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { getRulesyncSourceCandidates } from "../../utils/rulesync-source-path.js";
+import { isRecord } from "../../utils/type-guards.js";
 import { isPlainObject } from "../../utils/type-guards.js";
 import { AmpHooks } from "./amp-hooks.js";
 import {
@@ -109,6 +110,7 @@ import { OPENHANDS_CONVERTER_CONFIG, OpenhandsHooks } from "./openhands-hooks.js
 import { PiHooks } from "./pi-hooks.js";
 import { PoolHooks } from "./pool-hooks.js";
 import { QoderHooks } from "./qoder-hooks.js";
+import { QodercnHooks } from "./qodercn-hooks.js";
 import { QwencodeHooks } from "./qwencode-hooks.js";
 import { ReasonixHooks } from "./reasonix-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
@@ -313,6 +315,9 @@ export const HOOKS_OVERRIDE_KEY_ALIASES: Partial<Record<ToolTarget, string>> = {
   "augmentcode-plugin": "augmentcode",
   "kiro-cli": KIRO_HOOKS_OVERRIDE_KEY,
   "kiro-ide": KIRO_HOOKS_OVERRIDE_KEY,
+  // Qoder CN writes Qoder's hook shape (and the same project settings file),
+  // so it reads the `qoder` block.
+  qodercn: "qoder",
   // A ZCode plugin's hooks are ZCode hooks, so it reads the `zcode` block.
   "zcode-plugin": "zcode",
   // A Vibe plugin's hooks are Vibe hooks, so it reads the `vibe` block.
@@ -320,6 +325,39 @@ export const HOOKS_OVERRIDE_KEY_ALIASES: Partial<Record<ToolTarget, string>> = {
   // A Devin plugin's hooks are Devin hooks, so it reads the `devin` block.
   "devin-plugin": "devin",
 };
+
+/**
+ * Targets whose own-name hooks block is read by nothing because they read
+ * another target's block (see {@link HOOKS_OVERRIDE_KEY_ALIASES}), and that
+ * warn about it here. The Kiro targets warn about theirs in their adapter.
+ */
+const WARN_IGNORED_ALIAS_SOURCE_TARGETS: ReadonlySet<ToolTarget> = new Set<ToolTarget>(["qodercn"]);
+
+/**
+ * Warn about a hooks block authored under an alias SOURCE name (e.g.
+ * `qodercn` instead of `qoder`) instead of silently ignoring it.
+ */
+function warnIgnoredAliasSourceBlock({
+  config,
+  toolTarget,
+  logger,
+}: {
+  config: Record<string, unknown>;
+  toolTarget: ToolTarget;
+  logger: Logger;
+}): void {
+  const overrideKey = HOOKS_OVERRIDE_KEY_ALIASES[toolTarget];
+  if (
+    overrideKey === undefined ||
+    !WARN_IGNORED_ALIAS_SOURCE_TARGETS.has(toolTarget) ||
+    !isRecord(config[toolTarget])
+  ) {
+    return;
+  }
+  logger.warn(
+    `The "${toolTarget}.hooks" block in ${RULESYNC_HOOKS_RELATIVE_FILE_PATH} is ignored. Author it under the "${overrideKey}.hooks" key instead (the ${toolTarget} target reads that block).`,
+  );
+}
 
 /**
  * The hooks that reach the target's file, for the warnings about what in them
@@ -402,6 +440,50 @@ function converterCapabilities(
     supportedHookTypes: [...config.supportedHookTypes],
     ...(passesThroughEnabled ? { supportsPerHookEnabled: true } : {}),
     ...(passesThroughIf ? { supportsPerHookIf: true } : {}),
+  };
+}
+
+/**
+ * The factory of a Qoder-family hooks target: `qoder` and `qodercn` share the
+ * converter, the event set and the matcher rules, and differ only in the user
+ * settings file their class writes.
+ */
+function qoderHooksFactory(hooksClass: typeof QoderHooks): ToolHooksFactory {
+  return {
+    // Qoder hooks live under the `hooks` key of `.qoder/settings.json`
+    // (project) / `~/.qoder/settings.json` (global) in the Claude-Code shape.
+    // UserPromptSubmit, Stop, CwdChanged, WorktreeCreate/Remove and the
+    // task/teammate events carry no matcher.
+    // https://docs.qoder.com/en/cli/hooks
+    class: hooksClass,
+    meta: {
+      supportsProject: true,
+      supportsGlobal: true,
+      supportsImport: true,
+    },
+    ...converterCapabilities(hooksClass.getConverterConfig()),
+    supportsMatcher: true,
+    matcherEvents: [
+      "sessionStart",
+      "sessionEnd",
+      "preToolUse",
+      "postToolUse",
+      "postToolUseFailure",
+      "stopFailure",
+      "subagentStart",
+      "subagentStop",
+      "preCompact",
+      "postCompact",
+      "notification",
+      "configChange",
+      "instructionsLoaded",
+      "fileChanged",
+      "elicitation",
+      "elicitationResult",
+      "permissionRequest",
+      "permissionDenied",
+      "setup",
+    ],
   };
 }
 
@@ -1286,45 +1368,11 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       // filed there) are emitted verbatim by the adapter.
     },
   ],
-  [
-    "qoder",
-    {
-      // Qoder hooks live under the `hooks` key of `.qoder/settings.json`
-      // (project) / `~/.qoder/settings.json` (global) in the Claude-Code shape.
-      // UserPromptSubmit, Stop, CwdChanged, WorktreeCreate/Remove and the
-      // task/teammate events carry no matcher.
-      // https://docs.qoder.com/en/cli/hooks
-      class: QoderHooks,
-      meta: {
-        supportsProject: true,
-        supportsGlobal: true,
-        supportsImport: true,
-      },
-      ...converterCapabilities(QoderHooks.getConverterConfig()),
-      supportsMatcher: true,
-      matcherEvents: [
-        "sessionStart",
-        "sessionEnd",
-        "preToolUse",
-        "postToolUse",
-        "postToolUseFailure",
-        "stopFailure",
-        "subagentStart",
-        "subagentStop",
-        "preCompact",
-        "postCompact",
-        "notification",
-        "configChange",
-        "instructionsLoaded",
-        "fileChanged",
-        "elicitation",
-        "elicitationResult",
-        "permissionRequest",
-        "permissionDenied",
-        "setup",
-      ],
-    },
-  ],
+  ["qoder", qoderHooksFactory(QoderHooks)],
+  // Qoder CN shares Qoder's project `.qoder/settings.json` and hook shape; the
+  // user file is `~/.qoder-cn/settings.json`.
+  // https://docs.qoder.cn/user-guide/hooks
+  ["qodercn", qoderHooksFactory(QodercnHooks)],
   [
     "qwencode",
     {
@@ -1618,6 +1666,7 @@ export class HooksProcessor extends FeatureProcessor {
     const config = rulesyncHooks.getJson();
     const sharedHooks = config.hooks;
     const overrideKey = HOOKS_OVERRIDE_KEY_ALIASES[this.toolTarget] ?? this.toolTarget;
+    warnIgnoredAliasSourceBlock({ config, toolTarget: this.toolTarget, logger: this.logger });
     const overrideHooks = (config[overrideKey] as { hooks?: unknown } | undefined)?.hooks ?? {};
     const effectiveHooks = { ...sharedHooks, ...overrideHooks };
     const skippedEvents = unsupportedEventNames({ factory, sharedHooks, effectiveHooks });

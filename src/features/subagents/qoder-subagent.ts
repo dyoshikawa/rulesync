@@ -2,9 +2,10 @@ import { join } from "node:path";
 
 import { z } from "zod/mini";
 
-import { QODER_AGENTS_DIR_PATH } from "../../constants/qoder-paths.js";
+import { QODER_AGENTS_DIR_PATH, QODER_DIR } from "../../constants/qoder-paths.js";
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
 import {
@@ -65,6 +66,12 @@ export type QoderSubagentParams = {
  * @see https://docs.qoder.com/en/cli/04-extending-qoder-cli/subagent
  */
 export class QoderSubagent extends ToolSubagent {
+  /** The user-level config directory; Qoder CN reads `~/.qoder-cn/`. */
+  protected static readonly globalConfigDir: string = QODER_DIR;
+
+  /** The target name `targets` is matched against. */
+  protected static readonly toolTarget: ToolTarget = "qoder";
+
   private readonly frontmatter: QoderSubagentFrontmatter;
   private readonly body: string;
 
@@ -86,11 +93,13 @@ export class QoderSubagent extends ToolSubagent {
     this.body = body;
   }
 
-  // Both scopes share the same relative path; the home-directory root is
-  // applied by the processor in global mode.
-  static getSettablePaths(_options: { global?: boolean } = {}): ToolSubagentSettablePaths {
+  // The home-directory root is applied by the processor in global mode, so
+  // only the config directory name differs between the scopes.
+  static getSettablePaths({
+    global = false,
+  }: { global?: boolean } = {}): ToolSubagentSettablePaths {
     return {
-      relativeDirPath: QODER_AGENTS_DIR_PATH,
+      relativeDirPath: global ? join(this.globalConfigDir, "agents") : QODER_AGENTS_DIR_PATH,
     };
   }
 
@@ -145,13 +154,13 @@ export class QoderSubagent extends ToolSubagent {
         description: rulesyncFrontmatter.description,
         ...qoderSection,
       },
-      toolTarget: "qoder",
+      toolTarget: this.toolTarget,
       rulesyncSubagent,
     });
 
     const body = rulesyncSubagent.getBody();
 
-    return new QoderSubagent({
+    return new this({
       outputRoot,
       frontmatter: qoderFrontmatter,
       body,
@@ -178,7 +187,7 @@ export class QoderSubagent extends ToolSubagent {
   static isTargetedByRulesyncSubagent(rulesyncSubagent: RulesyncSubagent): boolean {
     return this.isTargetedByRulesyncSubagentDefault({
       rulesyncSubagent,
-      toolTarget: "qoder",
+      toolTarget: this.toolTarget,
     });
   }
 
@@ -198,7 +207,7 @@ export class QoderSubagent extends ToolSubagent {
       throw new Error(`Invalid frontmatter in ${filePath}: ${formatError(result.error)}`);
     }
 
-    return new QoderSubagent({
+    return new this({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath,
@@ -214,7 +223,7 @@ export class QoderSubagent extends ToolSubagent {
     relativeDirPath,
     relativeFilePath,
   }: ToolSubagentForDeletionParams): QoderSubagent {
-    return new QoderSubagent({
+    return new this({
       outputRoot,
       relativeDirPath,
       relativeFilePath,

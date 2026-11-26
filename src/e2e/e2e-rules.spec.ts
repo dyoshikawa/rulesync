@@ -36,6 +36,7 @@ const rulesRootTargets = [
   { target: "codexcli", outputPath: "AGENTS.md" },
   { target: "commandcode", outputPath: "AGENTS.md" },
   { target: "qoder", outputPath: "AGENTS.md" },
+  { target: "qodercn", outputPath: "AGENTS.md" },
   { target: "xum", outputPath: join(".xum", "AGENTS.md") },
   { target: "jcode", outputPath: join(".jcode", "prompt-overlay.md") },
   { target: "grokcli", outputPath: "AGENTS.md" },
@@ -2164,6 +2165,7 @@ const rulesGlobalTargets = [
   { target: "codexcli", outputPath: join(".codex", "AGENTS.md") },
   { target: "commandcode", outputPath: join(".commandcode", "AGENTS.md") },
   { target: "qoder", outputPath: join(".qoder", "AGENTS.md") },
+  { target: "qodercn", outputPath: join(".qoder-cn", "AGENTS.md") },
   { target: "xum", outputPath: join(".xum", "AGENTS.md") },
   { target: "jcode", outputPath: join(".jcode", "prompt-overlay.md") },
   { target: "grokcli", outputPath: join(".grok", "AGENTS.md") },
@@ -2510,11 +2512,16 @@ globs: ["src/**/*.ts"]
     expect(nonRootContent).toContain("src/**/*.ts");
   });
 
-  it("should generate qoder non-root rules into ~/.qoder/rules in global mode", async () => {
-    const projectDir = getProjectDir();
-    const homeDir = getHomeDir();
+  it.each([
+    { target: "qoder", homeDirName: ".qoder" },
+    { target: "qodercn", homeDirName: ".qoder-cn" },
+  ])(
+    "should generate $target non-root rules into ~/$homeDirName/rules in global mode",
+    async ({ target, homeDirName }) => {
+      const projectDir = getProjectDir();
+      const homeDir = getHomeDir();
 
-    const rootRuleContent = `---
+      const rootRuleContent = `---
 root: true
 targets: ["*"]
 description: "Root rule"
@@ -2523,7 +2530,7 @@ globs: ["**/*"]
 
 # Root Rule Content
 `;
-    const nonRootRuleContent = `---
+      const nonRootRuleContent = `---
 targets: ["*"]
 description: "Global coding guidelines"
 globs: ["src/**/*.ts"]
@@ -2531,34 +2538,35 @@ globs: ["src/**/*.ts"]
 
 # Global Non-Root Rule
 `;
-    await writeFileContent(
-      join(projectDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
-      rootRuleContent,
-    );
-    await writeFileContent(
-      join(projectDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "coding-guidelines.md"),
-      nonRootRuleContent,
-    );
+      await writeFileContent(
+        join(projectDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+        rootRuleContent,
+      );
+      await writeFileContent(
+        join(projectDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "coding-guidelines.md"),
+        nonRootRuleContent,
+      );
 
-    await runGenerate({
-      target: "qoder",
-      features: "rules",
-      global: true,
-      env: { HOME_DIR: homeDir },
-    });
+      await runGenerate({
+        target,
+        features: "rules",
+        global: true,
+        env: { HOME_DIR: homeDir },
+      });
 
-    // Root memory file -> ~/.qoder/AGENTS.md
-    const rootContent = await readFileContent(join(homeDir, ".qoder", "AGENTS.md"));
-    expect(rootContent).toContain("Root Rule Content");
+      // Root memory file -> ~/<home>/AGENTS.md
+      const rootContent = await readFileContent(join(homeDir, homeDirName, "AGENTS.md"));
+      expect(rootContent).toContain("Root Rule Content");
 
-    // Non-root rule -> ~/.qoder/rules/*.md with `trigger: glob` frontmatter
-    const nonRootContent = await readFileContent(
-      join(homeDir, ".qoder", "rules", "coding-guidelines.md"),
-    );
-    expect(nonRootContent).toContain("Global Non-Root Rule");
-    expect(nonRootContent).toContain("trigger: glob");
-    expect(nonRootContent).toContain("src/**/*.ts");
-  });
+      // Non-root rule -> ~/<home>/rules/*.md with `trigger: glob` frontmatter
+      const nonRootContent = await readFileContent(
+        join(homeDir, homeDirName, "rules", "coding-guidelines.md"),
+      );
+      expect(nonRootContent).toContain("Global Non-Root Rule");
+      expect(nonRootContent).toContain("trigger: glob");
+      expect(nonRootContent).toContain("src/**/*.ts");
+    },
+  );
 
   it.each(["antigravity-cli", "antigravity-ide"])(
     "should generate %s non-root rules into ~/.gemini/config/rules in global mode",

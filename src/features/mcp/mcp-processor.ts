@@ -57,6 +57,7 @@ import { OpenhandsMcp } from "./openhands-mcp.js";
 import { PiMcp } from "./pi-mcp.js";
 import { PoolMcp } from "./pool-mcp.js";
 import { QoderMcp } from "./qoder-mcp.js";
+import { QodercnMcp } from "./qodercn-mcp.js";
 import { QwencodeMcp } from "./qwencode-mcp.js";
 import { ReasonixMcp } from "./reasonix-mcp.js";
 import { RooMcp } from "./roo-mcp.js";
@@ -828,6 +829,21 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
       // filters are not documented for these files.
       // https://docs.qoder.com/en/cli/04-extending-qoder-cli/mcp-servers
       class: QoderMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    "qodercn",
+    {
+      // Qoder CN reads the same project `.mcp.json`; user servers live under
+      // the `mcpServers` key of `~/.qoder-cn/settings.json`.
+      // https://docs.qoder.cn/cli/mcp-reference
+      class: QodercnMcp,
       meta: {
         supportsProject: true,
         supportsGlobal: true,

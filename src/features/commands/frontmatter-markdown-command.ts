@@ -86,6 +86,15 @@ export class FrontmatterMarkdownToolCommand<
     throw new Error("Please implement this method in the subclass.");
   }
 
+  /**
+   * The key of the tool's section in the Rulesync frontmatter. Defaults to the
+   * tool target; a variant target that shares another target's file format
+   * (`qodercn` reading `qoder`) overrides it.
+   */
+  protected static getSectionKey(): string {
+    return this.getToolTarget();
+  }
+
   protected static getFrontmatterSchema(): z.ZodMiniType<FrontmatterMarkdownToolCommandFrontmatter> {
     throw new Error("Please implement this method in the subclass.");
   }
@@ -104,7 +113,7 @@ export class FrontmatterMarkdownToolCommand<
   protected static toToolFrontmatter(
     rulesyncFrontmatter: RulesyncCommandFrontmatter,
   ): FrontmatterMarkdownToolCommandFrontmatter {
-    const toolFields = rulesyncFrontmatter[this.getToolTarget()] ?? {};
+    const toolFields = rulesyncFrontmatter[this.getSectionKey()] ?? {};
     return {
       description: rulesyncFrontmatter.description,
       ...toolFields,
@@ -137,14 +146,14 @@ export class FrontmatterMarkdownToolCommand<
   /** The Rulesync frontmatter this tool command imports as. */
   protected toRulesyncFrontmatter(): RulesyncCommandFrontmatter {
     const toolCommandClass = this.constructor as typeof FrontmatterMarkdownToolCommand;
-    const toolTarget = toolCommandClass.getToolTarget();
+    const sectionKey = toolCommandClass.getSectionKey();
     const { description, ...restFields } = this.frontmatter;
 
     return {
       targets: toolCommandClass.getImportTargets(),
       description,
       // Preserve extra fields in the tool's section
-      ...(Object.keys(restFields).length > 0 && { [toolTarget]: restFields }),
+      ...(Object.keys(restFields).length > 0 && { [sectionKey]: restFields }),
     };
   }
 

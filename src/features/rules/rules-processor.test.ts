@@ -2948,6 +2948,7 @@ Content that would fail parsing`;
         "pi",
         "pool",
         "qoder",
+        "qodercn",
         "qwencode",
         "reasonix",
         "roo",
@@ -3036,7 +3037,7 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("xum");
       expect(globalTargets).toContain("jcode");
       expect(globalTargets).toContain("gajaecode");
-      expect(globalTargets.length).toBe(55);
+      expect(globalTargets.length).toBe(56);
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");

@@ -272,7 +272,7 @@ export class FactorydroidRule extends ToolRule {
   static getRuleOptionWarnings(rules: RulesyncRule[]): string[] {
     return getOutputStyleRuleOptionWarnings({
       rules,
-      toolTarget: "factorydroid",
+      sectionKey: "factorydroid",
       isTargetedByRulesyncRule: (rule) => this.isTargetedByRulesyncRule(rule),
     });
   }

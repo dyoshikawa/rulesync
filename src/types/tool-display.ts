@@ -60,6 +60,7 @@ export const TOOL_DISPLAY: ReadonlyArray<ToolDisplayEntry> = [
   { key: "vibe", label: "Vibe Code", group: "ai" },
   { key: "vibe-plugin", label: "Vibe Code plugin", group: "ai" },
   { key: "qoder", label: "Qoder", group: "ai" },
+  { key: "qodercn", label: "Qoder CN", group: "ai" },
   { key: "qwencode", label: "Qwen Code", group: "ai" },
   { key: "musecode", label: "Meta Muse Code", group: "ai" },
   { key: "reasonix", label: "Reasonix", group: "ai" },
