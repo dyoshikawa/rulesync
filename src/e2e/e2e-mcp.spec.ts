@@ -1121,6 +1121,7 @@ const mcpGlobalTargets = [
   { target: "mimocode", outputPath: join(".config", "mimocode", "mimocode.jsonc") },
   { target: "omp", outputPath: join(".omp", "agent", "mcp.json") },
   { target: "openclaw", outputPath: join(".openclaw", "openclaw.json") },
+  { target: "openhands", outputPath: join(".openhands", "mcp.json") },
   { target: "opencode", outputPath: join(".config", "opencode", "opencode.jsonc") },
   { target: "opencodev1", outputPath: join(".config", "opencode", "opencode.jsonc") },
   { target: "pi", outputPath: join(".pi", "agent", "mcp.json") },

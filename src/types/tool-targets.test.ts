@@ -84,6 +84,7 @@ describe("tool targets", () => {
         "androidstudio",
         "lettacode",
         "claudecode-plugin",
+        "openhands",
         "vibe-plugin",
         "warpcli",
         "zcode-plugin",

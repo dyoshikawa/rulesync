@@ -1237,6 +1237,7 @@ export const HooksConfigSchema = z.looseObject({
   factorydroid: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   codexcli: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   openbitfun: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  openhands: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   goose: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   deepagents: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   kiro: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
@@ -2013,6 +2014,33 @@ export const OPENBITFUN_HOOK_EVENTS: readonly HookEvent[] = eventsOf(
  */
 export const OPENBITFUN_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
   CANONICAL_TO_OPENBITFUN_EVENT_NAMES,
+);
+
+/**
+ * Map canonical camelCase event names to the snake_case keys of OpenHands'
+ * `.openhands/hooks.json` (its documented native spelling; the PascalCase
+ * Claude Code names are accepted too and folded back on import).
+ * @see https://docs.openhands.dev/openhands/usage/customization/hooks
+ */
+export const CANONICAL_TO_OPENHANDS_EVENT_NAMES: Record<string, string> = {
+  preToolUse: "pre_tool_use",
+  postToolUse: "post_tool_use",
+  beforeSubmitPrompt: "user_prompt_submit",
+  stop: "stop",
+  sessionStart: "session_start",
+  sessionEnd: "session_end",
+} satisfies Partial<Record<HookEvent, string>>;
+
+/** Hook events supported by OpenHands. */
+export const OPENHANDS_HOOK_EVENTS: readonly HookEvent[] = eventsOf(
+  CANONICAL_TO_OPENHANDS_EVENT_NAMES,
+);
+
+/**
+ * Map OpenHands snake_case event keys to canonical camelCase.
+ */
+export const OPENHANDS_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
+  CANONICAL_TO_OPENHANDS_EVENT_NAMES,
 );
 
 /**

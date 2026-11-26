@@ -30,6 +30,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | OpenCode V1               | opencodev1         | ✅ 🌏 |        | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
 | OpenClaw                  | openclaw           | ✅ 🌏 |        |  🌏 🔧   |          |           | ✅ 🌏  |       |             |        |
 | OpenBitFun                | openbitfun         |       |        |          |          |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |             |        |
+| OpenHands                 | openhands          |       |        |    🌏    |          |           |        |  ✅   |             |        |
 | MiMo Code                 | mimocode           | ✅ 🌏 |        | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
 | GitLab Duo CLI            | gitlabduo          | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |    ✅     | ✅ 🌏  | ✅ 🌏 |     🌏      |   ✅   |
 | Cline                     | cline              | ✅ 🌏 |   ✅   |    🌏    |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |     ✅      |        |
@@ -132,6 +133,15 @@ without `name`). Two outputs still reach pinned 0.x users only, and generate
 warns about each: `augmentcode-plugin` rules (1.x no longer loads `rules/` from
 plugins) and the `recommendedMarketplaces` permissions override (1.x no longer
 reads the key).
+
+## OpenHands coverage
+
+The `openhands` target covers the two OpenHands surfaces that are not shared
+with other tools: project hooks (`.openhands/hooks.json`) and global MCP servers
+(`~/.openhands/mcp.json`). OpenHands reads rules from `AGENTS.md` and skills
+from `.agents/skills/`, so use the `agentsmd` and `agentsskills` targets
+alongside it for those; the `openhands` target does not write them again. See
+[File Formats](./file-formats.md) for the hook and MCP details.
 
 ## Deprecation notes
 

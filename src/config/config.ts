@@ -132,7 +132,7 @@ const ConfigParamsSchema = z.object({
   simulateSkills: optional(z.boolean()),
   // Keep hook entries a third party wrote into a destination rulesync also
   // writes (`.claude/settings.json`, `.codex/hooks.json`, `.cursor/hooks.json`,
-  // `.openbitfun/config/hooks.json`, `.qwen/settings.json`) instead of replacing the list. Off by default: with it on, rulesync records
+  // `.openbitfun/config/hooks.json`, `.openhands/hooks.json`, `.qwen/settings.json`) instead of replacing the list. Off by default: with it on, rulesync records
   // what it generated in a `.rulesync-hooks-lock.json` beside the destination so
   // it can still retract its own hooks, and everything else is left alone.
   preserveUnownedHooks: optional(z.boolean()),
