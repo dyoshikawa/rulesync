@@ -50,13 +50,14 @@ export const ZERO_RULESYNC_HOOK_ID_PREFIX = "rulesync-";
  * Zero matches a matcher case-sensitively against its own tool names, which
  * are lowercase snake_case, so `Bash` must become `bash` or a guard on it
  * never runs. A canonical name with several Zero counterparts expands to all
- * of them, so a guard on `Edit` also covers `apply_patch` and one on `Read`
- * also covers `read_minified_file`.
+ * of them, so a guard on `Bash` also covers `exec_command` and `write_stdin`
+ * (Zero's other default shell tools), one on `Edit` also covers `apply_patch`
+ * and one on `Read` also covers `read_minified_file`.
  * @see https://github.com/Twigpine/zero/tree/main/internal/tools
  * @see https://github.com/Twigpine/zero/blob/main/docs/SPECIALISTS.md#tool-selection
  */
 const CANONICAL_TO_ZERO_TOOL_NAMES: Readonly<Record<string, readonly string[]>> = {
-  Bash: ["bash"],
+  Bash: ["bash", "exec_command", "write_stdin"],
   Read: ["read_file", "read_minified_file"],
   Write: ["write_file"],
   Edit: ["edit_file", "apply_patch"],
@@ -73,6 +74,8 @@ const CANONICAL_TO_ZERO_TOOL_NAMES: Readonly<Record<string, readonly string[]>> 
 /** Zero tool names mapped back to the canonical name, for import. */
 const ZERO_TO_CANONICAL_TOOL_NAMES: Readonly<Record<string, string>> = {
   bash: "Bash",
+  exec_command: "Bash",
+  write_stdin: "Bash",
   read_file: "Read",
   read_minified_file: "Read",
   write_file: "Write",
@@ -132,16 +135,24 @@ function sanitizeMcpNamePart(value: string): string {
     .replace(/^_+|_+$/g, "");
 }
 
+/** A `*` glob as an anchored, case-sensitive regex. */
+function globToRegExp(glob: string): RegExp {
+  const escaped = glob
+    .split("*")
+    .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .join(".*");
+  return new RegExp(`^${escaped}$`);
+}
+
 /**
  * Translate one plain matcher alternative (a name or a `*` glob) to the Zero
- * names it stands for. Canonical MCP names (`mcp__<server>__<tool>`) become
- * Zero's `mcp_<server>_<tool>`.
+ * names it stands for, or `undefined` when it names no known tool. A glob is
+ * expanded against the canonical names (`Bash*` covers everything `Bash`
+ * does). Canonical MCP names (`mcp__<server>__<tool>`) become Zero's
+ * `mcp_<server>_<tool>`. A name or glob without capitals is taken as already
+ * spelled the Zero way.
  */
-function translateToolName(name: string): string[] {
-  if (!name.includes("*")) {
-    const mapped = lookupOwn({ record: CANONICAL_TO_ZERO_TOOL_NAMES, key: name });
-    if (mapped !== undefined) return [...mapped];
-  }
+function translateToolName(name: string): string[] | undefined {
   if (name.startsWith("mcp__")) {
     const rest = name.slice("mcp__".length);
     const separator = rest.indexOf("__");
@@ -149,17 +160,30 @@ function translateToolName(name: string): string[] {
       separator < 0 ? [rest] : [rest.slice(0, separator), rest.slice(separator + "__".length)];
     return [`mcp_${parts.map((part) => sanitizeMcpNamePart(part)).join("_")}`];
   }
-  return [name];
+  if (!name.includes("*")) {
+    const mapped = lookupOwn({ record: CANONICAL_TO_ZERO_TOOL_NAMES, key: name });
+    if (mapped !== undefined) return [...mapped];
+    return /[A-Z]/.test(name) && !ZERO_TOOL_NAMES.has(name) ? undefined : [name];
+  }
+  const pattern = globToRegExp(name);
+  const expanded = Object.entries(CANONICAL_TO_ZERO_TOOL_NAMES)
+    .filter(([canonical]) => pattern.test(canonical))
+    .flatMap(([, zeroNames]) => zeroNames);
+  if (expanded.length > 0) return expanded;
+  return /[A-Z]/.test(name) ? undefined : [name];
 }
 
 /**
  * Convert a canonical matcher (a regex over the tool name) to Zero matchers.
- * Zero's matcher is an exact name or a `*` glob, with no alternation, so a
- * `Write|Edit` matcher becomes one Zero hook per name.
+ * Zero's matcher is an exact name or a `*` glob, case-sensitive, with no
+ * alternation, so a `Write|Edit` matcher becomes one Zero hook per name.
  *
  * Returns `undefined` when the hook should run for every tool (no matcher),
- * the list of Zero matchers otherwise, or `null` when the matcher cannot be
- * expressed and the hook is skipped (with a warning).
+ * or the list of Zero matchers. A `preToolUse` guard whose matcher Zero cannot
+ * express, or that names no Zero tool through a glob, runs on every tool
+ * instead (failing closed, with a warning); on other events such a matcher is
+ * written as-is or, when it is not expressible at all, dropped with a warning
+ * (`null`).
  */
 function canonicalToZeroMatchers({
   matcher,
@@ -179,6 +203,14 @@ function canonicalToZeroMatchers({
     );
     return undefined;
   }
+  const isGuard = event === "preToolUse";
+  const failClosed = (reason: string): undefined => {
+    warn(
+      `The "${event}" matcher ${quoteValueForWarning(trimmed)} ${reason}, so the guard is ` +
+        `written without a matcher and runs before every Zero tool call.`,
+    );
+    return undefined;
+  };
 
   const result: string[] = [];
   for (const alternative of trimmed.split("|")) {
@@ -186,10 +218,14 @@ function canonicalToZeroMatchers({
     if (plain === "" || plain === ".*" || plain === "*") return undefined;
     const glob = plain.replaceAll(".*", "*");
     if (!/^[A-Za-z0-9_*-]+$/.test(glob)) {
+      if (isGuard) {
+        return failClosed(
+          `uses regex syntax Zero cannot express (Zero matches an exact name or a "*" glob)`,
+        );
+      }
       warn(
         `The "${event}" matcher ${quoteValueForWarning(trimmed)} uses regex syntax Zero cannot ` +
-          `express (Zero matches an exact name or a "*" glob), so the hook was skipped` +
-          (event === "preToolUse" ? " and that guard will not run in Zero." : "."),
+          `express (Zero matches an exact name or a "*" glob), so the hook was skipped.`,
       );
       return null;
     }
@@ -197,21 +233,20 @@ function canonicalToZeroMatchers({
       result.push(glob);
       continue;
     }
-    for (const name of translateToolName(glob)) {
-      if (
-        event === "preToolUse" &&
-        !name.includes("*") &&
-        !name.startsWith("mcp_") &&
-        !ZERO_TOOL_NAMES.has(name)
-      ) {
-        warn(
-          `${quoteValueForWarning(name)} in the "${event}" matcher ${quoteValueForWarning(trimmed)} ` +
-            `is not a Zero built-in tool, so it is written as-is and will likely never match ` +
-            `there, and the hook will not run for that tool.`,
-        );
-      }
-      result.push(name);
+    const names = translateToolName(glob);
+    if (names !== undefined) {
+      result.push(...names);
+      continue;
     }
+    if (isGuard && glob.includes("*")) {
+      return failClosed(`has ${quoteValueForWarning(glob)}, which matches no Zero tool`);
+    }
+    warn(
+      `${quoteValueForWarning(glob)} in the "${event}" matcher ${quoteValueForWarning(trimmed)} ` +
+        `is not a Zero built-in tool, so it is written as-is and will likely never match ` +
+        `there, and the hook will not run for that tool.`,
+    );
+    result.push(glob);
   }
   return [...new Set(result)];
 }
@@ -249,6 +284,16 @@ function zeroCommandLine(entry: Record<string, unknown>): string | undefined {
     return args[1];
   }
   return [entry.command, ...args].map((word) => quotePosixWord(word)).join(" ");
+}
+
+/**
+ * What a Zero hook does, for spotting a generated entry that repeats a
+ * hand-written one: its event, matcher, shell command line and enabled flag.
+ */
+function zeroEntryIdentity(entry: unknown): string | undefined {
+  if (!isRecord(entry)) return undefined;
+  const matcher = typeof entry.matcher === "string" ? entry.matcher.trim() : "";
+  return JSON.stringify([entry.event, matcher, zeroCommandLine(entry), entry.enabled !== false]);
 }
 
 /**
@@ -406,15 +451,18 @@ function isRulesyncEntry(entry: unknown): boolean {
  *   written as `command: "sh", args: ["-c", <command>]`. The hook payload is
  *   Zero's own JSON on stdin (`event`, `tool`, `args`, ...), not Claude Code's.
  * - A matcher is an exact tool name or a `*` glob against Zero's lowercase
- *   tool names, so canonical names are translated (`Bash` -> `bash`) and an
- *   alternation becomes one hook per name.
+ *   tool names, so canonical names are translated (`Bash` -> `bash`,
+ *   `exec_command`, `write_stdin`) and an alternation becomes one hook per
+ *   name. A `preToolUse` guard Zero cannot scope fails closed (no matcher).
  * - Hook ids are `rulesync-<project|user>-<event>-<n>`: Zero merges the user
  *   and project layers by id (the project wins), so the scope keeps the two
  *   layers apart, and the zero-padded counter keeps Zero's id-sorted run order
  *   equal to the authored order.
  * - `zero hooks` edits the same file, so generation keeps every entry whose id
- *   does not start with `rulesync-` and the top-level `enabled` flag, and the
- *   file is never deleted.
+ *   does not start with `rulesync-` and skips generating an entry identical to
+ *   one of them (as an import followed by a generate would otherwise do). The
+ *   top-level `enabled` flag is kept as found and never added, and the file is
+ *   never deleted.
  *
  * @see https://github.com/Twigpine/zero/blob/main/docs/EXTENDING.md#4-hooks
  * @see https://github.com/Twigpine/zero/blob/main/internal/hooks/hooks.go
@@ -458,21 +506,19 @@ export class ZeroHooks extends ToolHooks {
     const kept = Array.isArray(existing.hooks)
       ? existing.hooks.filter((entry) => !isRulesyncEntry(entry))
       : [];
+    // A hand-written entry that an import brought into the rulesync source
+    // comes back here as a generated one; it is not written twice.
+    const keptKeys = new Set(kept.map((entry) => zeroEntryIdentity(entry)));
     const generated = canonicalToZeroEntries({
       config: rulesyncHooks.getJson(),
       scope: global ? "user" : "project",
       logger,
-    });
+    }).filter((entry) => !keptKeys.has(zeroEntryIdentity(entry)));
 
-    const fileContent = JSON.stringify(
-      {
-        ...existing,
-        enabled: typeof existing.enabled === "boolean" ? existing.enabled : true,
-        hooks: [...kept, ...generated],
-      },
-      null,
-      2,
-    );
+    // The top-level `enabled` is only written when the file already states
+    // it: Zero lets a layer that states it override the other layer, so an
+    // added `enabled: true` would switch on hooks the user layer turned off.
+    const fileContent = JSON.stringify({ ...existing, hooks: [...kept, ...generated] }, null, 2);
 
     return new ZeroHooks({
       outputRoot,

@@ -372,8 +372,9 @@ describe("E2E: hooks", () => {
       } else if (target === "zero") {
         // Zero reads a flat hook list; a canonical command runs through
         // `sh -c` because Zero spawns `command` without a shell. `stop` has no
-        // Zero event, so audit.sh is dropped.
-        expect(parsed.enabled).toBe(true);
+        // Zero event, so audit.sh is dropped. No top-level `enabled` is
+        // added, so the project layer never overrides the user layer's flag.
+        expect(parsed.enabled).toBeUndefined();
         expect(parsed.hooks).toEqual([
           {
             id: "rulesync-project-sessionStart-001",

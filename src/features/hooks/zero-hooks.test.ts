@@ -27,7 +27,7 @@ async function generate({
   config: unknown;
   global?: boolean;
   logger?: ReturnType<typeof createMockLogger>;
-}): Promise<{ enabled: boolean; hooks: Array<Record<string, unknown>> }> {
+}): Promise<{ enabled?: boolean; hooks: Array<Record<string, unknown>> }> {
   const hooks = await ZeroHooks.fromRulesyncHooks({
     outputRoot: testDir,
     rulesyncHooks: makeRulesyncHooks(config),
@@ -81,8 +81,8 @@ describe("ZeroHooks", () => {
         },
       });
 
+      // No top-level `enabled` is added: stating it would override the user layer.
       expect(parsed).toEqual({
-        enabled: true,
         hooks: [
           {
             id: "rulesync-project-sessionStart-001",
@@ -103,14 +103,41 @@ describe("ZeroHooks", () => {
       });
     });
 
-    it("should translate a Bash guard to Zero's bash tool", async () => {
+    it("should attach a Bash guard to every Zero shell tool", async () => {
       const parsed = await generate({
         testDir,
         config: { hooks: { preToolUse: [{ command: "guard.sh", matcher: "Bash" }] } },
       });
-      expect(parsed.hooks).toEqual([
-        expect.objectContaining({ event: "beforeTool", matcher: "bash" }),
+      expect(parsed.hooks.map((hook) => [hook.event, hook.matcher])).toEqual([
+        ["beforeTool", "bash"],
+        ["beforeTool", "exec_command"],
+        ["beforeTool", "write_stdin"],
       ]);
+    });
+
+    it("should expand a glob over the canonical names", async () => {
+      const parsed = await generate({
+        testDir,
+        config: { hooks: { preToolUse: [{ command: "guard.sh", matcher: "Bash.*|Writ.*" }] } },
+      });
+      expect(parsed.hooks.map((hook) => hook.matcher)).toEqual([
+        "bash",
+        "exec_command",
+        "write_stdin",
+        "write_file",
+      ]);
+    });
+
+    it("should run a guard whose glob matches no Zero tool on every tool, with a warning", async () => {
+      const logger = createMockLogger();
+      const parsed = await generate({
+        testDir,
+        config: { hooks: { preToolUse: [{ command: "guard.sh", matcher: "Notebook.*" }] } },
+        logger,
+      });
+      expect(parsed.hooks).toHaveLength(1);
+      expect(parsed.hooks[0]).not.toHaveProperty("matcher");
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("matches no Zero tool"));
     });
 
     it("should split an alternation into one hook per Zero tool", async () => {
@@ -141,15 +168,56 @@ describe("ZeroHooks", () => {
       expect(parsed.hooks[0]).not.toHaveProperty("matcher");
     });
 
-    it("should skip a hook whose matcher Zero cannot express, with a warning", async () => {
+    it("should fail closed for a guard whose matcher Zero cannot express", async () => {
       const logger = createMockLogger();
       const parsed = await generate({
         testDir,
         config: { hooks: { preToolUse: [{ command: "guard.sh", matcher: "Bash(git .*)" }] } },
         logger,
       });
+      expect(parsed.hooks).toHaveLength(1);
+      expect(parsed.hooks[0]).not.toHaveProperty("matcher");
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("runs before every Zero tool call"),
+      );
+    });
+
+    it("should skip a non-guard hook whose matcher Zero cannot express, with a warning", async () => {
+      const logger = createMockLogger();
+      const parsed = await generate({
+        testDir,
+        config: { hooks: { postToolUse: [{ command: "log.sh", matcher: "Bash(git .*)" }] } },
+        logger,
+      });
       expect(parsed.hooks).toEqual([]);
-      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("guard will not run"));
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("hook was skipped"));
+    });
+
+    it("should not generate an entry identical to a kept hand-written one", async () => {
+      await writeFileContent(
+        join(testDir, ".zero", "hooks.json"),
+        JSON.stringify({
+          hooks: [{ id: "my-guard", event: "beforeTool", matcher: "bash", command: "/bin/guard" }],
+        }),
+      );
+
+      const hooks = await ZeroHooks.fromFile({ outputRoot: testDir });
+      const imported = hooks.toRulesyncHooks().getJson();
+      const parsed = await generate({
+        testDir,
+        config: imported,
+      });
+
+      expect(imported.hooks.preToolUse).toEqual([
+        { type: "command", command: "/bin/guard", matcher: "Bash" },
+      ]);
+      // The `bash` entry is the kept hand-written one; only the other shell
+      // tools the canonical `Bash` covers are added.
+      expect(parsed.hooks.map((hook) => [hook.id, hook.matcher])).toEqual([
+        ["my-guard", "bash"],
+        ["rulesync-project-beforeTool-002", "exec_command"],
+        ["rulesync-project-beforeTool-003", "write_stdin"],
+      ]);
     });
 
     it("should warn about a preToolUse matcher naming no Zero tool", async () => {

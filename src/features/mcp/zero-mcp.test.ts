@@ -96,6 +96,41 @@ describe("ZeroMcp", () => {
       });
     });
 
+    it("should write zeroOauth as oauth and carry over unmanaged keys of existing servers", async () => {
+      await writeFileContent(
+        join(testDir, ".zero", "config.json"),
+        JSON.stringify({
+          mcp: {
+            servers: {
+              github: { type: "http", url: "https://old", oauth: { scope: "repo" }, extra: 1 },
+              docs: { type: "http", url: "https://docs", oauth: { scope: "x" } },
+            },
+          },
+        }),
+      );
+
+      const mcp = await ZeroMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp: makeRulesyncMcp({
+          github: { type: "http", url: "https://api.example.com/mcp" },
+          docs: { command: "docs-mcp" },
+          linear: { type: "http", url: "https://linear", zeroOauth: { clientId: "id" } },
+        }),
+      });
+
+      expect(JSON.parse(mcp.getFileContent()).mcp.servers).toEqual({
+        github: {
+          type: "http",
+          url: "https://api.example.com/mcp",
+          oauth: { scope: "repo" },
+          extra: 1,
+        },
+        // `oauth` is not carried onto a server that became stdio.
+        docs: { type: "stdio", command: "docs-mcp" },
+        linear: { type: "http", url: "https://linear", oauth: { clientId: "id" } },
+      });
+    });
+
     it("should skip sse servers and invalid names with a warning", async () => {
       const logger = createMockLogger();
       const mcp = await ZeroMcp.fromRulesyncMcp({
@@ -143,7 +178,13 @@ describe("ZeroMcp", () => {
           mcp: {
             servers: {
               docs: { type: "stdio", command: "docs-mcp", args: ["a"] },
-              github: { type: "http", url: "https://x", auth: "oauth", disabled: true },
+              github: {
+                type: "http",
+                url: "https://x",
+                auth: "oauth",
+                oauth: { scope: "repo" },
+                disabled: true,
+              },
             },
           },
         }),
@@ -155,7 +196,13 @@ describe("ZeroMcp", () => {
       expect(imported.apiKey).toBeUndefined();
       expect(imported.mcpServers).toEqual({
         docs: { type: "stdio", command: "docs-mcp", args: ["a"] },
-        github: { type: "http", url: "https://x", auth: "oauth", disabled: true },
+        github: {
+          type: "http",
+          url: "https://x",
+          auth: "oauth",
+          zeroOauth: { scope: "repo" },
+          disabled: true,
+        },
       });
     });
   });

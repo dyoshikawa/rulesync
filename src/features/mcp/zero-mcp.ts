@@ -12,6 +12,7 @@ import type { SharedWritePath } from "../../lib/shared-file-derive.js";
 import { McpServers } from "../../types/mcp.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { type Logger } from "../../utils/logger.js";
+import { lookupOwn } from "../../utils/own-lookup.js";
 import { PROTOTYPE_POLLUTION_KEYS } from "../../utils/prototype-pollution.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isRecord, isStringArray } from "../../utils/type-guards.js";
@@ -57,6 +58,48 @@ function copyStringMap(value: unknown): Record<string, string> | undefined {
   return entries.length > 0 ? Object.fromEntries(entries) : undefined;
 }
 
+/** The namespaced canonical key that carries Zero's per-server `oauth`. */
+const ZERO_OAUTH_CANONICAL_KEY = "zeroOauth";
+
+/** Server keys rulesync writes itself, so an existing value never survives. */
+const ZERO_MANAGED_SERVER_KEYS: ReadonlySet<string> = new Set([
+  "type",
+  "command",
+  "args",
+  "env",
+  "url",
+  "headers",
+  "auth",
+  "disabled",
+]);
+
+/**
+ * Copy the keys of an existing same-named server that rulesync does not
+ * manage (an `oauth` block written by `zero mcp`, a key a newer Zero reads)
+ * onto the generated server. `oauth` is only kept on a remote server, since
+ * Zero rejects it on a stdio one.
+ */
+function carryOverUnmanagedKeys({
+  converted,
+  existing,
+}: {
+  converted: Record<string, unknown>;
+  existing: unknown;
+}): void {
+  if (!isRecord(existing)) return;
+  for (const [key, value] of Object.entries(existing)) {
+    if (
+      PROTOTYPE_POLLUTION_KEYS.has(key) ||
+      ZERO_MANAGED_SERVER_KEYS.has(key) ||
+      Object.hasOwn(converted, key) ||
+      (key === "oauth" && converted.type !== "http")
+    ) {
+      continue;
+    }
+    converted[key] = value;
+  }
+}
+
 /**
  * Convert canonical rulesync servers to Zero's `mcp.servers` entries: stdio
  * servers carry `type: "stdio"`, `command`, `args` and `env`; remote servers
@@ -67,7 +110,11 @@ function copyStringMap(value: unknown): Record<string, string> | undefined {
  *
  * Zero validates every server when it loads the config and refuses the whole
  * MCP setup on the first invalid one, so the output stays a whitelist of
- * documented keys (`cwd`, `timeout`, tool filters are not written).
+ * documented keys (`cwd`, `timeout`, tool filters are not written). A remote
+ * server's `oauth` block comes from the namespaced `zeroOauth` key (read from
+ * the authored server, since `getMcpServers()` strips it). Keys rulesync does
+ * not manage on a same-named server of the existing file (such as an `oauth`
+ * block written by `zero mcp`) are carried over.
  *
  * @see https://github.com/Twigpine/zero/blob/main/docs/EXTENDING.md#5-mcp--model-context-protocol
  * @see https://github.com/Twigpine/zero/blob/main/internal/mcp/config.go
@@ -75,9 +122,13 @@ function copyStringMap(value: unknown): Record<string, string> | undefined {
 export function convertToZeroFormat({
   mcpServers,
   logger,
+  rawServerOf,
+  existingServers = {},
 }: {
   mcpServers: McpServers;
   logger?: Logger;
+  rawServerOf?: (name: string) => unknown;
+  existingServers?: Record<string, unknown>;
 }): Record<string, Record<string, unknown>> {
   const result: Record<string, Record<string, unknown>> = {};
 
@@ -103,6 +154,17 @@ export function convertToZeroFormat({
       : toZeroStdioServer({ name, config, skip, logger });
     if (converted === undefined) continue;
     if (config.disabled === true) converted.disabled = true;
+    if (converted.type === "http") {
+      const raw = rawServerOf?.(name);
+      const oauth = isRecord(raw)
+        ? raw[ZERO_OAUTH_CANONICAL_KEY]
+        : config[ZERO_OAUTH_CANONICAL_KEY];
+      if (isRecord(oauth)) converted.oauth = oauth;
+    }
+    carryOverUnmanagedKeys({
+      converted,
+      existing: lookupOwn({ record: existingServers, key: name }),
+    });
     result[name] = converted;
   }
 
@@ -183,6 +245,9 @@ export function convertFromZeroFormat(servers: Record<string, unknown>): McpServ
       const headers = copyStringMap(config.headers);
       if (headers) server.headers = headers;
       if (config.auth === "oauth") server.auth = "oauth";
+      // Imported under the namespaced key so a client secret never reaches
+      // another tool's config.
+      if (isRecord(config.oauth)) server[ZERO_OAUTH_CANONICAL_KEY] = config.oauth;
     } else if (typeof config.command === "string") {
       server.type = "stdio";
       server.command = config.command;
@@ -300,14 +365,20 @@ export class ZeroMcp extends ToolMcp {
           "they are written literally. Use a wrapper script or a secret manager instead.",
       );
     }
-    const converted = convertToZeroFormat({ mcpServers, logger });
-
     // `mcp` is owned as a whole key, so any non-`servers` sibling is carried
     // over from the existing file before the servers snapshot replaces
     // `servers`.
     const existingMcp = isRecord(existing[ZERO_MCP_CONFIG_KEY])
       ? existing[ZERO_MCP_CONFIG_KEY]
       : {};
+    const converted = convertToZeroFormat({
+      mcpServers,
+      logger,
+      rawServerOf: (name) => rulesyncMcp.getRawMcpServer(name),
+      existingServers: isRecord(existingMcp[ZERO_MCP_SERVERS_KEY])
+        ? existingMcp[ZERO_MCP_SERVERS_KEY]
+        : {},
+    });
 
     return new ZeroMcp({
       outputRoot,
