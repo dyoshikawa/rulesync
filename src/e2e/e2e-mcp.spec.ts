@@ -60,6 +60,7 @@ const mcpGenerateTargets = [
   { target: "crush", outputPath: "crush.json" },
   { target: "mimocode", outputPath: join(".mimocode", "mimocode.jsonc") },
   { target: "omp", outputPath: join(".omp", "mcp.json") },
+  { target: "gajaecode", outputPath: join(".gjc", "mcp.json") },
   { target: "opencode", outputPath: "opencode.jsonc" },
   { target: "opencodev1", outputPath: "opencode.jsonc" },
   { target: "pi", outputPath: join(".pi", "mcp.json") },
@@ -652,6 +653,12 @@ describe("E2E: mcp", () => {
       outputPath: join(".theia", "settings.json"),
       content: JSON.stringify({ "editor.fontSize": 14 }, null, 2),
     },
+    {
+      // `gjc mcp add --project` writes here too, so the file is never deleted.
+      target: "gajaecode",
+      outputPath: join(".gjc", "mcp.json"),
+      content: JSON.stringify({ mcpServers: { added: { command: "echo" } } }, null, 2),
+    },
   ])(
     "should succeed in check mode when a $target mcp file is non-deletable",
     async ({ target, outputPath, content }) => {
@@ -747,6 +754,54 @@ describe("E2E: mcp", () => {
 
     await runGenerate({ target: "theia", features: "mcp" });
     expect(parseJson5(await readFileContent(settingsPath))).toEqual(generated);
+  });
+
+  it("should keep gajaecode servers added outside rulesync and their credentials", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".rulesync", "mcp.json"),
+      JSON.stringify({ mcpServers: { managed: { command: "managed-server" } } }),
+    );
+    await writeFileContent(
+      join(testDir, ".gjc", "mcp.json"),
+      JSON.stringify({
+        disabledServers: ["other"],
+        mcpServers: {
+          managed: {
+            command: "managed-server",
+            autoload: false,
+            auth: { type: "oauth", credentialId: "cred" },
+          },
+          added: { type: "http", url: "https://example.com/mcp" },
+        },
+      }),
+    );
+
+    await runGenerate({ target: "gajaecode", features: "mcp", deleteFiles: true });
+
+    expect(JSON.parse(await readFileContent(join(testDir, ".gjc", "mcp.json")))).toEqual({
+      disabledServers: ["other"],
+      mcpServers: {
+        // `autoload` follows the source; the credential binding stays
+        // because the server still runs the same command.
+        managed: {
+          type: "stdio",
+          command: "managed-server",
+          auth: { type: "oauth", credentialId: "cred" },
+        },
+        added: { type: "http", url: "https://example.com/mcp" },
+      },
+    });
+
+    // Importing and generating again rewrites each server in place.
+    await runImport({ target: "gajaecode", features: "mcp" });
+    await runGenerate({ target: "gajaecode", features: "mcp" });
+    const servers = JSON.parse(await readFileContent(join(testDir, ".gjc", "mcp.json"))).mcpServers;
+    expect(Object.keys(servers).toSorted()).toEqual(["added", "managed"]);
+    expect(servers.managed.auth).toEqual({ type: "oauth", credentialId: "cred" });
+    // The credential binding is never copied into the rulesync source.
+    expect(await readFileContent(join(testDir, ".rulesync", "mcp.json"))).not.toContain("cred");
   });
 
   it("should run mcp command as daemon without errors", async () => {
@@ -1009,6 +1064,7 @@ describe("E2E: mcp (import)", () => {
     { target: "trae", sourcePath: join(".trae", "mcp.json") },
     { target: "codewhale", sourcePath: join(".codewhale", "mcp.json") },
     { target: "omp", sourcePath: join(".omp", "mcp.json") },
+    { target: "gajaecode", sourcePath: join(".gjc", "mcp.json") },
     { target: "pi", sourcePath: join(".pi", "mcp.json") },
     // copilot MCP uses VS Code-specific format — excluded from import test
     { target: "copilotcli", sourcePath: join(".github", "mcp.json") },
@@ -1219,6 +1275,7 @@ const mcpGlobalTargets = [
   { target: "hermesagent", outputPath: join(getHermesagentGlobalDir(), "config.yaml") },
   { target: "mimocode", outputPath: join(".config", "mimocode", "mimocode.jsonc") },
   { target: "omp", outputPath: join(".omp", "agent", "mcp.json") },
+  { target: "gajaecode", outputPath: join(".gjc", "agent", "mcp.json") },
   { target: "openclaw", outputPath: join(".openclaw", "openclaw.json") },
   { target: "opencode", outputPath: join(".config", "opencode", "opencode.jsonc") },
   { target: "opencodev1", outputPath: join(".config", "opencode", "opencode.jsonc") },

@@ -44,6 +44,7 @@ describe("tool targets", () => {
         "deepagents",
         "factorydroid",
         "firebender",
+        "gajaecode",
         "goose",
         "grokcli",
         "gitlabduo",

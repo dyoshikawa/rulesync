@@ -59,6 +59,7 @@ import { DevinPluginSubagent } from "./devin-plugin-subagent.js";
 import { DevinSubagent } from "./devin-subagent.js";
 import { FactorydroidSubagent } from "./factorydroid-subagent.js";
 import { FirebenderSubagent } from "./firebender-subagent.js";
+import { GajaecodeSubagent } from "./gajaecode-subagent.js";
 import { GitlabduoSubagent, GITLABDUO_MAX_SUBAGENTS } from "./gitlabduo-subagent.js";
 import { GooseSubagent } from "./goose-subagent.js";
 import { GrokcliSubagent } from "./grokcli-subagent.js";
@@ -862,6 +863,20 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
       // `.agents/agents/` (project) and `~/.config/muse/agents/` (global).
       // https://dev.meta.ai/docs/muse-code/agents
       class: MusecodeSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.md",
+      },
+    },
+  ],
+  [
+    "gajaecode",
+    {
+      // `.gjc/agents/*.md` (project) and `~/.gjc/agent/agents/*.md` (global).
+      // https://github.com/Yeachan-Heo/gajae-code/blob/main/docs/customization.md
+      class: GajaecodeSubagent,
       meta: {
         supportsProject: true,
         supportsSimulated: false,

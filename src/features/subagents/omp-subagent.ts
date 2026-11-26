@@ -2,7 +2,7 @@ import { join } from "node:path";
 
 import { z } from "zod/mini";
 
-import { OMP_AGENTS_DIR_NAME, OMP_DIR, OMP_GLOBAL_DIR } from "../../constants/omp-paths.js";
+import { OMP_AGENTS_DIR_NAME, OMP_LAYOUT, type OmpLayout } from "../../constants/omp-paths.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { FrontmatterMarkdownToolSubagent } from "./frontmatter-markdown-subagent.js";
 import type {
@@ -28,17 +28,23 @@ type OmpSubagentFrontmatter = z.infer<typeof OmpSubagentFrontmatterSchema>;
  * `~/.omp/agent/agents/*.md` (global, default profile). Keys under the `omp:`
  * section of a rulesync subagent are copied into the frontmatter verbatim.
  *
+ * Descendants of oh-my-pi with the same agent discovery (Gajae-Code) subclass
+ * this and override only {@link OmpSubagent.layout}.
+ *
  * @see https://github.com/can1357/oh-my-pi/blob/main/docs/task-agent-discovery.md
  */
 export class OmpSubagent extends FrontmatterMarkdownToolSubagent<OmpSubagentFrontmatter> {
+  /** Directory layout; oh-my-pi descendants (Gajae-Code) override it. */
+  protected static readonly layout: OmpLayout = OMP_LAYOUT;
+
   static getSettablePaths({ global }: { global?: boolean } = {}): ToolSubagentSettablePaths {
     return {
-      relativeDirPath: join(global ? OMP_GLOBAL_DIR : OMP_DIR, OMP_AGENTS_DIR_NAME),
+      relativeDirPath: join(global ? this.layout.globalDir : this.layout.dir, OMP_AGENTS_DIR_NAME),
     };
   }
 
   protected static override getToolTarget(): ToolTarget {
-    return "omp";
+    return this.layout.toolTarget;
   }
 
   protected static override getFrontmatterSchema() {
@@ -52,7 +58,7 @@ export class OmpSubagent extends FrontmatterMarkdownToolSubagent<OmpSubagentFron
     "rulesyncSubagent" | "logger"
   >): OmpSubagentFrontmatter {
     const rulesyncFrontmatter = rulesyncSubagent.getFrontmatter();
-    const ompSection = rulesyncFrontmatter.omp ?? {};
+    const ompSection = rulesyncFrontmatter[this.layout.toolTarget] ?? {};
 
     return {
       name: rulesyncFrontmatter.name,
