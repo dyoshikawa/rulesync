@@ -1317,6 +1317,31 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
   // ever set to `false`, and global permissions own the `[auto_review]` table
   // of the user config, replaced only when the `codewhale.auto_review`
   // override is set. An unparseable root is refused rather than replaced.
+  // jcode user config (`~/.jcode/config.toml`): hooks own the `[hooks]` table,
+  // and the adapter re-spreads that table's settings and the command keys it
+  // does not author. Every other jcode setting lives in the same file, so an
+  // unparseable root is refused rather than replaced.
+  // https://github.com/1jehuang/jcode/blob/master/docs/HOOKS.md
+  ".jcode/config.toml": {
+    format: "toml",
+    invalidRootPolicy: "error",
+    features: {
+      hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
+    },
+  },
+  // jcode MCP config (`.jcode/mcp.json` in a repo, `~/.jcode/mcp.json` for the
+  // user): the server map lives under `mcpServers` or jcode's historical
+  // `servers` key (one of the two; jcode rejects a file with both), and jcode's
+  // own `jcode mcp` commands rewrite the file, so every other key is kept and a
+  // file that does not parse is refused rather than replaced.
+  // https://github.com/1jehuang/jcode/blob/master/docs/MCP_REMOTE.md
+  ".jcode/mcp.json": {
+    format: "json",
+    invalidRootPolicy: "error",
+    features: {
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcpServers", "servers"] },
+    },
+  },
   [CODEWHALE_CONFIG_SHARED_FILE_KEY]: {
     format: "toml",
     invalidRootPolicy: "error",

@@ -137,6 +137,7 @@ export const RulesyncMcpFileSchema = z.looseObject({
   goose: z.optional(toolScopedMcpSchema),
   grokcli: z.optional(toolScopedMcpSchema),
   hermesagent: z.optional(toolScopedMcpSchema),
+  jcode: z.optional(toolScopedMcpSchema),
   junie: z.optional(toolScopedMcpSchema),
   kilo: z.optional(toolScopedMcpSchema),
   "kimi-code": z.optional(kimiCodeScopedMcpSchema),

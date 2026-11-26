@@ -53,6 +53,7 @@ import { GooseRule } from "./goose-rule.js";
 import { GrokcliRule } from "./grokcli-rule.js";
 import { HermesagentRule } from "./hermesagent-rule.js";
 import { ProjectInstructionBudget } from "./instruction-budget.js";
+import { JcodeRule } from "./jcode-rule.js";
 import { JunieRule } from "./junie-rule.js";
 import { KiloRule } from "./kilo-rule.js";
 import { KimiCodePluginRule } from "./kimi-code-plugin-rule.js";
@@ -755,6 +756,23 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         extension: "mdc",
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
+      },
+    },
+  ],
+  [
+    "jcode",
+    {
+      // jcode appends `.jcode/prompt-overlay.md` (project) and
+      // `~/.jcode/prompt-overlay.md` (user) to its system prompt after
+      // `AGENTS.md`. There is no rules directory, so topic rules fold into
+      // that single file.
+      // https://github.com/1jehuang/jcode/blob/master/docs/SYSTEM_PROMPT_CONFIG.md
+      class: JcodeRule,
+      meta: {
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
+        collisionPolicy: "fold",
       },
     },
   ],

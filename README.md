@@ -101,6 +101,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | Crush                     |  ✅   |   ✅   | ✅  |          |           |   ✅   |  ✅   |     ✅      |        |
 | Goose                     |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |   ✅   |
 | Hermes Agent              |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |   ✅   |
+| jcode                     |  ✅   |        | ✅  |          |           |   ✅   |  ✅   |             |        |
 | Grok CLI                  |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Cursor                    |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |   ✅   |
 | deepagents-cli            |  ✅   |        | ✅  |          |    ✅     |   ✅   |  ✅   |     ✅      |        |

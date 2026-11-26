@@ -30,6 +30,7 @@ export const TOOL_DISPLAY: ReadonlyArray<ToolDisplayEntry> = [
   { key: "crush", label: "Crush", group: "ai" },
   { key: "goose", label: "Goose", group: "ai" },
   { key: "hermesagent", label: "Hermes Agent", group: "ai" },
+  { key: "jcode", label: "jcode", group: "ai" },
   { key: "grokcli", label: "Grok CLI", group: "ai" },
   { key: "cursor", label: "Cursor", group: "ai" },
   { key: "deepagents", label: "deepagents-cli", group: "ai" },

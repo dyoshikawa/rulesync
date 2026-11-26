@@ -1384,6 +1384,7 @@ const hooksGlobalStandaloneTargets = [
   "devin",
   "vibe",
   "hermesagent",
+  "jcode",
   "kimi-code",
   "reasonix",
   "pool",
@@ -1809,6 +1810,65 @@ describe("E2E: hooks (global mode)", () => {
       hooks: [{ event: "turn_end", command: ".rulesync/hooks/audit.sh" }],
     });
     expect(await fileExists(join(homeDir, ".codewhale", "hooks.toml"))).toBe(false);
+  });
+
+  it("should generate jcode hooks into the [hooks] table of the user config", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(homeDir, ".jcode", "config.toml"),
+      ['model = "claude"', "", "[hooks]", "pre_tool_timeout_ms = 5000", ""].join("\n"),
+    );
+    await writeFileContent(
+      join(projectDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH),
+      JSON.stringify({
+        version: 1,
+        hooks: {
+          preToolUse: [{ command: ".rulesync/hooks/guard.sh", matcher: "Bash" }],
+          stop: [{ command: ".rulesync/hooks/notify.sh" }],
+        },
+      }),
+    );
+
+    await runGenerate({
+      target: "jcode",
+      features: "hooks",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const parsed = smolToml.parse(await readFileContent(join(homeDir, ".jcode", "config.toml")));
+    expect(parsed.model).toBe("claude");
+    // jcode has no matcher, so the Bash guard runs before every tool call.
+    expect(parsed.hooks).toEqual({
+      pre_tool_timeout_ms: 5000,
+      pre_tool: ".rulesync/hooks/guard.sh",
+      turn_end: ".rulesync/hooks/notify.sh",
+    });
+  });
+
+  it("should import jcode hooks, keeping native-only keys in the jcode block", async () => {
+    const homeDir = getHomeDir();
+    await writeFileContent(
+      join(homeDir, ".jcode", "config.toml"),
+      ["[hooks]", 'session_start = "start.sh"', 'post_tool_feedback = ["vale.sh"]', ""].join("\n"),
+    );
+
+    await runImport({
+      target: "jcode",
+      features: "hooks",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const imported = JSON.parse(
+      await readFileContent(join(homeDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH)),
+    );
+    expect(imported.hooks.sessionStart).toEqual([{ type: "command", command: "start.sh" }]);
+    expect(imported.jcode.hooks.post_tool_feedback).toEqual([
+      { type: "command", command: "vale.sh" },
+    ]);
   });
 
   it("should generate vibe hooks in home directory", async () => {
