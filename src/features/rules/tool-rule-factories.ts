@@ -50,6 +50,7 @@ import { DevinRule } from "./devin-rule.js";
 import { DshRule } from "./dsh-rule.js";
 import { FactorydroidRule } from "./factorydroid-rule.js";
 import { FirebenderRule } from "./firebender-rule.js";
+import { GajaecodeRule } from "./gajaecode-rule.js";
 import { GitlabduoRule } from "./gitlabduo-rule.js";
 import { GooseRule } from "./goose-rule.js";
 import { GrokcliRule } from "./grokcli-rule.js";
@@ -962,6 +963,22 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         supportsGlobal: false,
         ruleDiscoveryMode: "auto",
         collisionPolicy: "fold",
+      },
+    },
+  ],
+  [
+    "gajaecode",
+    {
+      class: GajaecodeRule,
+      meta: {
+        // Gajae-Code loads `.gjc/AGENTS.md` plus `.gjc/rules/*.{md,mdc}`
+        // natively, and `~/.gjc/agent/AGENTS.md` plus
+        // `~/.gjc/agent/rules/*.{md,mdc}` globally, like oh-my-pi.
+        // https://github.com/Yeachan-Heo/gajae-code/blob/main/docs/rulebook-matching-pipeline.md
+        extension: "md",
+        nonRootImportGlob: "*.{md,mdc}",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
       },
     },
   ],
