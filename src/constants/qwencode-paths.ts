@@ -22,3 +22,18 @@ export const QWENCODE_PROJECT_MCP_FILE_NAME = ".mcp.json";
 // AGENTS.md / QWEN.md). PR reviews read it from the base branch.
 // https://qwenlm.github.io/qwen-code-docs/en/users/features/code-review/
 export const QWENCODE_REVIEW_RULES_FILE_NAME = "review-rules.md";
+// Custom output styles: Markdown files read from the direct `*.md` children of
+// `<project>/.qwen/output-styles/` (trusted workspaces only) and
+// `~/.qwen/output-styles/`, with optional `name` / `description` /
+// `keep-coding-instructions` frontmatter. Selected with `general.outputStyle`,
+// `--output-style` or `/output-style`.
+// https://github.com/QwenLM/qwen-code/blob/main/docs/users/features/output-styles.md
+export const QWENCODE_OUTPUT_STYLES_DIR_PATH = join(QWENCODE_DIR, "output-styles");
+// Qwen Code reserves the built-in `default` style name (compared
+// case-insensitively) and skips a custom style that uses it.
+export const QWENCODE_RESERVED_OUTPUT_STYLE_NAMES: ReadonlyArray<string> = ["default"];
+// Qwen Code skips a style file larger than 25 kB ("a style is a prompt, not a
+// document") or a style name longer than 64 characters.
+// https://github.com/QwenLM/qwen-code/blob/main/packages/core/src/core/output-style-files.ts
+export const QWENCODE_MAX_OUTPUT_STYLE_FILE_BYTES = 25_000;
+export const QWENCODE_MAX_OUTPUT_STYLE_NAME_LENGTH = 64;
