@@ -24,7 +24,7 @@ import {
 
 // looseObject preserves unknown keys during parsing (like passthrough in Zod 3).
 // Factory Droid custom droids are native Markdown files with frontmatter.
-// See https://docs.factory.ai/cli/configuration/custom-droids
+// See https://docs.factory.com/harness/subagents
 //   - `name`, `description`: identity fields.
 //   - `model`, `reasoningEffort`, `tools`, `mcpServers`: optional configuration
 //     fields, passed through verbatim when present.

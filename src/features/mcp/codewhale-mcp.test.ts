@@ -157,6 +157,44 @@ describe("CodewhaleMcp", () => {
     });
   });
 
+  describe("project MCP approval reminder", () => {
+    const servers = { tool: { command: "npx", args: ["-y", "tool"] } };
+
+    const generate = async (global: boolean) => {
+      const logger = createMockLogger();
+      const mcp = await CodewhaleMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp: buildRulesyncMcp(servers),
+        global,
+        logger,
+      });
+      return { mcp, logger };
+    };
+
+    it("reminds to re-approve when a project generate changes mcp.json", async () => {
+      await writeFileContent(join(testDir, ".codewhale", "mcp.json"), '{"servers":{}}');
+
+      const { logger } = await generate(false);
+
+      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining("/mcp approve <digest>"));
+    });
+
+    it("stays quiet when the project mcp.json is unchanged", async () => {
+      const { mcp } = await generate(false);
+      await writeFileContent(join(testDir, ".codewhale", "mcp.json"), `${mcp.getFileContent()}\n`);
+
+      const { logger } = await generate(false);
+
+      expect(logger.info).not.toHaveBeenCalled();
+    });
+
+    it("does not remind in global mode, where no approval is needed", async () => {
+      const { logger } = await generate(true);
+
+      expect(logger.info).not.toHaveBeenCalled();
+    });
+  });
+
   describe("toRulesyncMcp", () => {
     it("should convert Codewhale servers back to the canonical shape", async () => {
       await writeFileContent(
