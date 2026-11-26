@@ -34,6 +34,7 @@ import {
   ALL_TOOLS_PERMISSION_CATEGORY,
   bashRulesHonoringAllTools,
   CATCH_ALL_PATTERN,
+  createShadowingRestrictionsTest,
 } from "./shell-command-categories.js";
 import { isStricterAction } from "./single-action-collapse.js";
 import {
@@ -661,13 +662,16 @@ function addCodexFilesystemRules({
 //   result. `:root` and `/**` do not count here: they are not table entries,
 //   and the `:workspace` baseline re-grants the workspace above them, so
 //   `.git` still needs the carve-out; or
-// - the all-tools `*` category holds a deny (or an ask other than the
-//   catch-all, which is the documented default idiom) that covers `.git`
-//   (`{"*": {"*": "deny"}}`, `{"*": {".git/**": "deny"}}`). Codex has no
-//   all-tools rule, so such a restriction may be written nowhere in the
-//   profile, and the carve-out would grant write access to what it covers.
-//   Like the table check, only a restriction covering the whole subtree
-//   counts; a narrower one (`.git/config`) leaves the carve-out as before.
+// - a deny (or an ask other than the catch-all, which is the documented
+//   default idiom) under the all-tools `*` category names any path in `.git`
+//   (`{"*": {"*": "deny"}}`, `{"*": {".git/hooks/**": "deny"}}`,
+//   `{"*": {".g*": "deny"}}`). Codex has no all-tools rule, so such a
+//   restriction may be written nowhere in the profile, and the carve-out
+//   would grant write access to it (`.git/hooks` writable is code execution
+//   on the next git command). The patterns are compared as globs the way
+//   every `*` restriction is (a `*` crosses `/`), exactly as if the carve-out
+//   were a `.git/**` allow the restriction withholds; a command (a pattern
+//   with whitespace) names no path and is left out.
 function applyDefaultGitWriteRules({
   config,
   filesystem,
@@ -688,30 +692,14 @@ function applyDefaultGitWriteRules({
   if (typeof filesystem[CODEX_WORKSPACE_ROOTS_KEY] === "string") {
     return;
   }
-  const allToolsRestrictions = Object.fromEntries(
-    Object.entries(
-      lookupOwn({ record: config.permission, key: ALL_TOOLS_PERMISSION_CATEGORY }) ?? {},
-    )
-      .filter(
-        ([pattern, action]) =>
-          action === "deny" || (action === "ask" && pattern !== CATCH_ALL_PATTERN),
-      )
-      .map(([pattern]): [string, PermissionAction] => [pattern, "deny"]),
-  );
+  const allToolsRestriction = restrictedByAllToolsCategory(config);
   for (const [pattern, access] of Object.entries(CODEX_GIT_WRITE_RULES)) {
     if (workspaceRootFilesystem[pattern] !== undefined) {
       continue;
     }
-    // A catch-all names every path, and the carve-out's own spelling names it
-    // exactly; the coverage check skips both (it compares against other table
-    // entries, where `*` is not a recursive glob).
-    if (
-      Object.hasOwn(allToolsRestrictions, CATCH_ALL_PATTERN) ||
-      Object.hasOwn(allToolsRestrictions, pattern) ||
-      isCoveredByReadRestriction({ pattern, readRules: allToolsRestrictions })
-    ) {
+    if (allToolsRestriction !== undefined) {
       logger?.warn(
-        `Skipping the default Codex CLI "${pattern}" = "${access}" carve-out: ".git" is covered by a deny or ask rule under the all-tools '*' category, which the carve-out would reopen. To keep it, author read and edit allows for "${pattern}"; to silence this warning, set codexcli.git_write_rules to false.`,
+        `Skipping the default Codex CLI "${pattern}" = "${access}" carve-out: the all-tools '*' rule "${allToolsRestriction}" restricts paths in ".git", which the carve-out would reopen. To keep it, author read and edit allows for "${pattern}"; to silence this warning, set codexcli.git_write_rules to false.`,
       );
       continue;
     }
@@ -723,6 +711,25 @@ function applyDefaultGitWriteRules({
     }
     workspaceRootFilesystem[pattern] = access;
   }
+}
+
+// The first deny (or non-catch-all ask) path pattern under the all-tools `*`
+// category that names a path in `.git`; see applyDefaultGitWriteRules.
+function restrictedByAllToolsCategory(config: PermissionsConfig): string | undefined {
+  const restrictions = Object.entries(
+    lookupOwn({ record: config.permission, key: ALL_TOOLS_PERMISSION_CATEGORY }) ?? {},
+  )
+    .filter(
+      ([pattern, action]) =>
+        !/\s/.test(pattern) &&
+        (action === "deny" || (action === "ask" && pattern !== CATCH_ALL_PATTERN)),
+    )
+    .map(([pattern]) => ({ pattern, fromAllToolsCategory: true }));
+  if (restrictions.length === 0) return undefined;
+  const shadowing = createShadowingRestrictionsTest(restrictions);
+  return [".git", ".git/**", "./.git/**", "/.git/**"]
+    .flatMap((gitPath) => shadowing(gitPath))
+    .at(0);
 }
 
 // Whether the most specific other entry of a `:workspace_roots` table that

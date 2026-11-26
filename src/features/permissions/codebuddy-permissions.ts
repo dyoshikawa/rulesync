@@ -164,7 +164,7 @@ function buildCodebuddyRule({
       return CATCH_ALL_PATTERN;
     }
     logger?.warn(
-      `CodeBuddy permissions: skipping the all-tools '*' rule '${pattern}' — CodeBuddy's standalone '*' rule takes no specifier. Write it under the category it is meant for (for example 'bash' or 'read').`,
+      `CodeBuddy permissions: the all-tools '*' rule '${pattern}' was not written as a standalone '*' rule — CodeBuddy's standalone '*' rule takes no specifier. A deny or ask there is still written as a 'bash' rule and, when it reads as a path or URL, as a 'read' (or 'webfetch') rule, and it withholds the allows it covers; write it under the category it is meant for (for example 'bash' or 'read') to control exactly where it applies.`,
     );
     return null;
   }

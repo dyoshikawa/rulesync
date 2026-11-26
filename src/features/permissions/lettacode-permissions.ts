@@ -20,7 +20,7 @@ import {
   RESTATED_ABSENT_CATEGORIES,
   restatesAsCategoryRule,
 } from "./shadowed-allows.js";
-import { CATCH_ALL_PATTERN } from "./shell-command-categories.js";
+import { ALL_TOOLS_PERMISSION_CATEGORY, CATCH_ALL_PATTERN } from "./shell-command-categories.js";
 import { isStricterAction } from "./single-action-collapse.js";
 import { splitToolRule } from "./tool-pattern-entry.js";
 import {
@@ -238,7 +238,9 @@ function buildLettacodeRuleLists({
       // The all-tools `*` category's restrictions already reached `bash`
       // through `honorAllToolsRestrictions` when that category exists.
       logger?.warn(
-        `Letta Code permissions: skipping the '${category}' category — Letta Code has no permission rule for it.`,
+        category === ALL_TOOLS_PERMISSION_CATEGORY
+          ? `Letta Code permissions: the all-tools '*' category has no Letta Code rule of its own; its deny and ask rules are written as 'bash' rules and, when they read as a path or URL, as 'read' (or 'webfetch') rules, and they withhold the allows they cover.`
+          : `Letta Code permissions: skipping the '${category}' category — Letta Code has no permission rule for it.`,
       );
       continue;
     }

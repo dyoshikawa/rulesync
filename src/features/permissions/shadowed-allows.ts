@@ -391,6 +391,7 @@ export function honorAllToolsRestrictions({
       categories: restateIntoAbsentCategories,
       restrictions: restrictionRules,
       restateAs,
+      downgradeWithheldCatchAll,
     }),
   );
 
@@ -414,16 +415,26 @@ function restateIntoAbsent({
   categories,
   restrictions,
   restateAs,
+  downgradeWithheldCatchAll,
 }: {
   permission: Permission;
   categories: readonly string[];
   restrictions: { pattern: string; action: PermissionAction }[];
   restateAs: RestateAs;
+  downgradeWithheldCatchAll: boolean;
 }): Permission {
   const added: Permission = {};
+  // With `downgradeWithheldCatchAll`, a catch-all restriction is written into
+  // the absent category too, as it is into a stated one (see `honorInCategory`).
+  const catchAll = downgradeWithheldCatchAll ? catchAllRestriction(restrictions) : undefined;
   for (const category of categories) {
     if (Object.hasOwn(permission, category) || isPrototypePollutionKey(category)) continue;
-    const restated = restateInCategory({ category, rules: {}, restrictions, restateAs });
+    const restated = restateInCategory({
+      category,
+      rules: catchAll === undefined ? {} : { [CATCH_ALL_PATTERN]: catchAll },
+      restrictions,
+      restateAs,
+    });
     if (Object.keys(restated).length > 0) {
       added[category] = restated;
     }
@@ -469,6 +480,17 @@ export function restatesAsCategoryRule(
   };
 }
 
+/** The action of the catch-all `*` restriction (`deny` if any catch-all denies), if any. */
+function catchAllRestriction(
+  restrictions: readonly { pattern: string; action: PermissionAction }[],
+): PermissionAction | undefined {
+  const actions = restrictions
+    .filter(({ pattern }) => pattern === CATCH_ALL_PATTERN)
+    .map(({ action }) => action);
+  if (actions.includes("deny")) return "deny";
+  return actions.length > 0 ? "ask" : undefined;
+}
+
 /** One non-shell category with the `*` restrictions honored; see the caller. */
 function honorInCategory({
   category,
@@ -491,11 +513,7 @@ function honorInCategory({
   });
   // A catch-all `*` deny covers every input, so the downgraded catch-all is a
   // deny then; any other restriction leaves the rest of the inputs to a prompt.
-  const downgradedAction: PermissionAction = restrictions.some(
-    ({ pattern, action }) => pattern === CATCH_ALL_PATTERN && action === "deny",
-  )
-    ? "deny"
-    : "ask";
+  const downgradedAction: PermissionAction = catchAllRestriction(restrictions) ?? "ask";
   const kept: Record<string, PermissionAction> = {};
   for (const [pattern, action] of Object.entries(rules)) {
     if (action === "allow" && shadowingRestrictions(pattern)) {
@@ -511,7 +529,7 @@ function honorInCategory({
   // auto-approve them, so the catch-all restriction is written there too.
   if (
     downgradeWithheldCatchAll &&
-    restrictions.some(({ pattern }) => pattern === CATCH_ALL_PATTERN) &&
+    catchAllRestriction(restrictions) !== undefined &&
     isStricterAction({
       action: downgradedAction,
       existing: Object.hasOwn(kept, CATCH_ALL_PATTERN) ? kept[CATCH_ALL_PATTERN] : undefined,

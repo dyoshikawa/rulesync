@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vite-plus/test";
 
-import { restateAllToolsRestrictionsLast } from "./last-match-restate.js";
+import {
+  orderIntegerLikeRestrictionsLast,
+  restateAllToolsRestrictionsLast,
+} from "./last-match-restate.js";
 
 describe("restateAllToolsRestrictionsLast", () => {
   it("puts all-tools denies after catch-all allows on last-match-wins tools", () => {
@@ -146,6 +149,39 @@ describe("restateAllToolsRestrictionsLast", () => {
 
     expect(result).toEqual(sharedPermission);
     expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  it("leaves integer-like keys to the caller when the output is an ordered array", () => {
+    const logger = { warn: vi.fn() };
+    const result = restateAllToolsRestrictionsLast({
+      sharedPermission: { bash: { "8080": "deny", "*": "allow" } },
+      toolTarget: "opencode",
+      respellIntegerLikeKeys: false,
+      logger: logger as any,
+    });
+
+    expect(Object.entries(result.bash ?? {})).toEqual([
+      ["8080", "deny"],
+      ["*", "allow"],
+    ]);
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  it("moves an integer-like restriction as written when not respelling", () => {
+    expect(
+      orderIntegerLikeRestrictionsLast({
+        entries: Object.entries({ "8080": "deny", "80": "ask", "*": "allow", other: "custom" }),
+        respell: false,
+      }),
+    ).toEqual({
+      entries: [
+        ["*", "allow"],
+        ["other", "custom"],
+        ["80", "ask"],
+        ["8080", "deny"],
+      ],
+      moved: ["80", "8080"],
+    });
   });
 
   it("keeps a __proto__ pattern in the all-tools key", () => {

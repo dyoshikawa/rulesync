@@ -19,6 +19,7 @@ import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-co
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   honorAllToolsRestrictions,
+  RESTATED_ABSENT_CATEGORIES,
   restatesAsCategoryRule,
   withholdAllowsShadowedByAsks,
 } from "./shadowed-allows.js";
@@ -286,6 +287,9 @@ export class VibePermissions extends ToolPermissions {
         toolLabel: "Vibe",
         logger,
         restateAs: restatesAsCategoryRule(["deny"]),
+        // Vibe's read default may be "always", so `read` gets the `*`
+        // restrictions even when the config has no `read` category.
+        restateIntoAbsentCategories: RESTATED_ABSENT_CATEGORIES,
         downgradeWithheldCatchAll: true,
       }),
       toolLabel: "Vibe",

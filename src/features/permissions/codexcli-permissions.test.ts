@@ -3698,18 +3698,26 @@ command = "node"
         ["a '.git/**' deny", { "*": { ".git/**": "deny" } }],
         ["a '.git' deny", { "*": { ".git": "deny" } }],
         ["a '**' ask", { "*": { "**": "ask" } }],
+        ["a '.git/*' deny", { "*": { ".git/*": "deny" } }],
+        ["a '**/.git/**' deny", { "*": { "**/.git/**": "deny" } }],
+        ["a '.g*' deny", { "*": { ".g*": "deny" } }],
+        ["a narrower '.git/config' deny", { "*": { ".git/config": "deny" } }],
+        [
+          "a '.git/hooks/**' deny written nowhere else",
+          { "*": { ".git/hooks/**": "deny" }, bash: { ls: "allow" } },
+        ],
       ])("%s", async (_label, permission) => {
         const logger = createMockLogger();
         const fileContent = await generateFile({ permission, logger });
-        expect(fileContent).not.toContain(".git/**");
+        expect(fileContent).not.toContain('".git/**" = "write"');
         expect(logger.warn).toHaveBeenCalledWith(
-          expect.stringContaining("under the all-tools '*' category"),
+          expect.stringContaining('restricts paths in ".git"'),
         );
       });
 
       it.each([
         ["a catch-all ask (the default idiom)", { "*": { "*": "ask" } }],
-        ["a narrower '.git/config' deny", { "*": { ".git/config": "deny" } }],
+        ["a path deny outside .git", { "*": { "src/**": "deny" } }],
         ["a command ask", { "*": { "git push *": "ask" } }],
       ])("keeps the carve-out for %s", async (_label, permission) => {
         const logger = createMockLogger();

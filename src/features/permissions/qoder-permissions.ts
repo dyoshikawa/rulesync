@@ -174,7 +174,7 @@ function toQoderRule({
       return CATCH_ALL_PATTERN;
     }
     logger?.warn(
-      `Qoder permissions: skipping the all-tools '*' rule '${pattern}' — a Qoder rule with a payload names one tool. Write it under the categories it is meant for (for example 'bash' or 'read').`,
+      `Qoder permissions: the all-tools '*' rule '${pattern}' was not written as a standalone '*' rule — a Qoder rule with a payload names one tool. A deny or ask there is still written as a 'bash' rule and, when it reads as a path or URL, as a 'read' (or 'webfetch') rule, and it withholds the allows it covers; write it under the categories it is meant for (for example 'bash' or 'read') to control exactly where it applies.`,
     );
     return null;
   }

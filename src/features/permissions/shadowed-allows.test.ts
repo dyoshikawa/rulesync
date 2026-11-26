@@ -641,20 +641,51 @@ describe("translators never leave an allow that covers a restriction they cannot
       },
     );
 
-    it("CodeBuddy keeps the existing read entries of a category it only restates into", async () => {
-      await writeFileContent(
-        join(testDir, ".codebuddy", "settings.json"),
-        JSON.stringify({ permissions: { deny: ["Read(secrets/**)"], allow: ["Read(docs/**)"] } }),
-      );
+    it.each([
+      ["CodeBuddy", CodebuddyPermissions, ".codebuddy"],
+      ["Qoder", QoderPermissions, ".qoder"],
+      ["Command Code", CommandcodePermissions, ".commandcode"],
+      ["Letta Code", LettacodePermissions, ".letta"],
+      ["Qwen Code", QwencodePermissions, ".qwen"],
+    ] as const)(
+      "%s keeps the existing read entries of a category it only restates into",
+      async (_, generator, dir) => {
+        await writeFileContent(
+          join(testDir, dir, "settings.json"),
+          JSON.stringify({
+            permissions: { deny: ["Read(secrets/**)"], allow: ["Read(docs/**)"] },
+          }),
+        );
+        const content = await generate({
+          generator,
+          permission: { "*": { ".env": "deny" }, bash: { ls: "allow" } },
+        });
+        const json = JSON.parse(content);
+        expect(json.permissions.deny).toEqual(
+          expect.arrayContaining(["Read(secrets/**)", "Read(.env)"]),
+        );
+        expect(json.permissions.allow).toEqual(expect.arrayContaining(["Read(docs/**)"]));
+      },
+    );
+
+    it("Vibe writes a '*' catch-all deny into read even when the config has no read category", async () => {
       const content = await generate({
-        generator: CodebuddyPermissions,
-        permission: { "*": { ".env": "deny" }, bash: { ls: "allow" } },
+        generator: VibePermissions,
+        permission: { "*": { "*": "deny" }, bash: { ls: "allow" } },
       });
-      const json = JSON.parse(content);
-      expect(json.permissions.deny).toEqual(
-        expect.arrayContaining(["Read(secrets/**)", "Read(.env)"]),
-      );
-      expect(json.permissions.allow).toEqual(expect.arrayContaining(["Read(docs/**)"]));
+      expect(content).toMatch(/\[tools\.read_file\]\npermission = "never"/);
+    });
+
+    it("OpenCode V2 moves an integer-like deny after the looser rule instead of respelling it", async () => {
+      const content = await generate({
+        generator: OpencodePermissions,
+        permission: { bash: { "8080": "deny", "*": "allow" } },
+      });
+      const rules = JSON.parse(content).permissions as Array<Record<string, string>>;
+      expect(rules).toEqual([
+        { action: "shell", resource: "*", effect: "allow" },
+        { action: "shell", resource: "8080", effect: "deny" },
+      ]);
     });
 
     it("Vibe writes a '*' catch-all deny into a category whose allows it withholds", async () => {
