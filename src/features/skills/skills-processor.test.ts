@@ -9,6 +9,7 @@ import {
   RULESYNC_SKILLS_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
 import { TAKT_SKILLS_DIR_PATH } from "../../constants/takt-paths.js";
+import { ALL_GITIGNORE_ENTRIES } from "../../lib/gitignore-entries.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import {
@@ -1186,6 +1187,92 @@ Body from inputRoots[0]`;
       const toolDirs = await processor.loadToolDirs();
 
       expect(toolDirs.map((dir) => dir.getDirName())).toEqual(["flat-skill"]);
+    });
+
+    it("should skip a skill the project's .gitignore names, such as a link into another repository", async () => {
+      // A workspace links skills from another repository into its own skills
+      // directory and keeps the links out of git; importing them would copy
+      // that repository's skills into this one's version-controlled sources.
+      const logger = createMockLogger();
+      const processor = new SkillsProcessor({ logger, outputRoot: testDir, toolTarget: "cursor" });
+      await writeFileContent(
+        join(testDir, "other-repo", "skills", "deploy", "SKILL.md"),
+        "---\nname: deploy\ndescription: Other repository's skill\n---\nBody",
+      );
+      await ensureDir(join(testDir, ".cursor", "skills"));
+      await symlink(
+        join(testDir, "other-repo", "skills", "deploy"),
+        join(testDir, ".cursor", "skills", "deploy"),
+      );
+      await writeFileContent(
+        join(testDir, ".cursor", "skills", "local", "SKILL.md"),
+        "---\nname: local\ndescription: Project skill\n---\nBody",
+      );
+      await writeFileContent(join(testDir, ".gitignore"), ".cursor/skills/deploy\n");
+
+      const toolDirs = await processor.loadToolDirs();
+
+      expect(toolDirs.map((dir) => dir.getDirName())).toEqual(["local"]);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("deploy"));
+    });
+
+    it("should skip a real skill directory the project's .gitignore names", async () => {
+      const processor = new SkillsProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "cursor",
+      });
+      for (const name of ["scratch", "kept"]) {
+        await writeFileContent(
+          join(testDir, ".cursor", "skills", name, "SKILL.md"),
+          `---\nname: ${name}\ndescription: Skill\n---\nBody`,
+        );
+      }
+      await writeFileContent(join(testDir, ".gitignore"), "scratch/\n");
+
+      const toolDirs = await processor.loadToolDirs();
+
+      expect(toolDirs.map((dir) => dir.getDirName())).toEqual(["kept"]);
+    });
+
+    it("should still import every skill when the whole skills directory is git-ignored", async () => {
+      // `rulesync gitignore` ignores each tool's skills directory as generated
+      // output; that must not hide the skills from an import.
+      const processor = new SkillsProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "cursor",
+      });
+      await writeFileContent(
+        join(testDir, ".cursor", "skills", "local", "SKILL.md"),
+        "---\nname: local\ndescription: Project skill\n---\nBody",
+      );
+      await writeFileContent(join(testDir, ".gitignore"), "**/.cursor/skills/\n");
+
+      const toolDirs = await processor.loadToolDirs();
+
+      expect(toolDirs.map((dir) => dir.getDirName())).toEqual(["local"]);
+    });
+
+    it("should still import every skill under the .gitignore that rulesync gitignore writes", async () => {
+      // Factory Droid's entry ignores every name inside `.factory/skills/`
+      // (`**/.factory/skills/**`) rather than the directory itself.
+      const processor = new SkillsProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "factorydroid",
+      });
+      for (const name of ["local", "shared"]) {
+        await writeFileContent(
+          join(testDir, ".factory", "skills", name, "SKILL.md"),
+          `---\nname: ${name}\ndescription: Project skill\n---\nBody`,
+        );
+      }
+      await writeFileContent(join(testDir, ".gitignore"), `${ALL_GITIGNORE_ENTRIES.join("\n")}\n`);
+
+      const toolDirs = await processor.loadToolDirs();
+
+      expect(toolDirs.map((dir) => dir.getDirName()).toSorted()).toEqual(["local", "shared"]);
     });
 
     it("should load rovodev skills from .agents/skills when .rovodev/skills is absent", async () => {

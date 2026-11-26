@@ -16,6 +16,7 @@ import {
   assertPathResolvesInsideRoot,
   assertWritablePathInsideRoot,
   checkPathTraversal,
+  createGitIgnoredEntryTest,
   directoryExists,
   directoryExistsStrict,
   ensureDir,
@@ -720,6 +721,102 @@ describe("file utilities", () => {
           filterOutPathsInGitIgnoredDirectories({ rootDir: testDir, filePaths: [filePath] }),
         ).toEqual([filePath]);
       });
+    });
+
+    describe("createGitIgnoredEntryTest", () => {
+      const skillsDir = (): string => join(testDir, ".cursor", "skills");
+      const makeSkillDirs = async (...names: string[]): Promise<void> => {
+        for (const name of names) {
+          await writeFileContent(join(skillsDir(), name, "SKILL.md"), "skill");
+        }
+      };
+
+      it("should report a symbolic link the .gitignore names on its own", async () => {
+        await writeFileContent(join(testDir, "other", "deploy", "SKILL.md"), "skill");
+        await makeSkillDirs("local");
+        await symlink(join(testDir, "other", "deploy"), join(skillsDir(), "deploy"));
+        await writeFileContent(join(testDir, ".gitignore"), ".cursor/skills/deploy\n");
+        const isIgnoredEntry = createGitIgnoredEntryTest({ rootDir: testDir });
+
+        expect(isIgnoredEntry(join(skillsDir(), "deploy"))).toBe(true);
+        expect(isIgnoredEntry(join(skillsDir(), "local"))).toBe(false);
+      });
+
+      it("should report a real directory named with a trailing slash", async () => {
+        await makeSkillDirs("scratch");
+        await writeFileContent(join(testDir, ".gitignore"), "scratch/\n");
+
+        expect(createGitIgnoredEntryTest({ rootDir: testDir })(join(skillsDir(), "scratch"))).toBe(
+          true,
+        );
+      });
+
+      it("should not report entries when the whole directory is ignored", async () => {
+        await makeSkillDirs("local");
+        await writeFileContent(join(testDir, ".gitignore"), "**/.cursor/skills/\n");
+
+        expect(createGitIgnoredEntryTest({ rootDir: testDir })(join(skillsDir(), "local"))).toBe(
+          false,
+        );
+      });
+
+      it("should not report entries when a rule ignores every name in the directory", async () => {
+        // `rulesync gitignore` writes Factory Droid's skills as `**/.factory/skills/**`
+        // plus a negation that keeps one committed skill.
+        const factorySkills = join(testDir, ".factory", "skills");
+        await writeFileContent(join(factorySkills, "foo", "SKILL.md"), "skill");
+        await writeFileContent(join(factorySkills, "review-guidelines", "SKILL.md"), "skill");
+        await writeFileContent(
+          join(testDir, ".gitignore"),
+          "**/.factory/skills/**\n!**/.factory/skills/review-guidelines/\n",
+        );
+        const isIgnoredEntry = createGitIgnoredEntryTest({ rootDir: testDir });
+
+        expect(isIgnoredEntry(join(factorySkills, "foo"))).toBe(false);
+        expect(isIgnoredEntry(join(factorySkills, "review-guidelines"))).toBe(false);
+      });
+
+      it("should honor a negation that keeps one directory under a wildcard", async () => {
+        await makeSkillDirs("keep", "other");
+        await writeFileContent(
+          join(testDir, ".gitignore"),
+          ".cursor/skills/*\n!.cursor/skills/keep/\n",
+        );
+        const isIgnoredEntry = createGitIgnoredEntryTest({ rootDir: testDir });
+
+        expect(isIgnoredEntry(join(skillsDir(), "keep"))).toBe(false);
+        expect(isIgnoredEntry(join(skillsDir(), "other"))).toBe(false);
+      });
+
+      it("should test a folder whose name starts with two dots as inside the root", async () => {
+        await writeFileContent(join(testDir, "..skills", "deploy", "SKILL.md"), "skill");
+        await writeFileContent(join(testDir, ".gitignore"), "..skills/deploy/\n");
+
+        expect(
+          createGitIgnoredEntryTest({ rootDir: testDir })(join(testDir, "..skills", "deploy")),
+        ).toBe(true);
+      });
+
+      it("should not report an entry outside the root or one that does not exist", async () => {
+        await writeFileContent(join(testDir, ".gitignore"), "deploy\n");
+        const isIgnoredEntry = createGitIgnoredEntryTest({ rootDir: join(testDir, "project") });
+        await writeFileContent(join(testDir, "project", "x"), "x");
+
+        expect(isIgnoredEntry(join(testDir, "deploy"))).toBe(false);
+        expect(isIgnoredEntry(join(testDir, "project", "deploy"))).toBe(false);
+      });
+
+      it("should not follow a symbolic link loop while collecting .gitignore files", async () => {
+        await makeSkillDirs("deploy");
+        await writeFileContent(join(testDir, ".gitignore"), ".cursor/skills/deploy/\n");
+        await ensureDir(join(testDir, "sub"));
+        await symlink(testDir, join(testDir, "sub", "a"));
+        await symlink(testDir, join(testDir, "sub", "b"));
+
+        expect(createGitIgnoredEntryTest({ rootDir: testDir })(join(skillsDir(), "deploy"))).toBe(
+          true,
+        );
+      }, 10_000);
     });
 
     describe("fileExists", () => {
