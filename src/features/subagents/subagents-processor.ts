@@ -25,6 +25,8 @@ import {
   directoryExistsStrict,
   findFilesByGlobs,
   isFileSystemError,
+  splitPathSegments,
+  subdirectoryDepthOf,
 } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { AgentsmdSubagent } from "./agentsmd-subagent.js";
@@ -85,6 +87,7 @@ import {
   ToolSubagentFromRulesyncSubagentParams,
   ToolSubagentSettablePaths,
 } from "./tool-subagent.js";
+import { TraeSubagent } from "./trae-subagent.js";
 import { VibePluginSubagent } from "./vibe-plugin-subagent.js";
 import { VibeSubagent } from "./vibe-subagent.js";
 import { XumSubagent } from "./xum-subagent.js";
@@ -184,8 +187,11 @@ type ToolSubagentFactory = {
      * `/` literally rather than joined with `node:path`'s `join`: on Windows
      * `join` would separate the segments with a backslash, which only works by
      * accident because `findFilesByGlobs` rewrites backslashes.
+     *
+     * Several patterns cover a bounded nesting depth (Junie's `*.md` plus
+     * `*\/*.md`), which a single `**` glob would overshoot.
      */
-    filePattern: string;
+    filePattern: string | string[];
     /**
      * Patterns that replace {@link filePattern} for import only, for a tool
      * that reads more layouts than Rulesync writes (e.g. Devin's flat
@@ -208,6 +214,28 @@ type ToolSubagentFactory = {
      */
     supportsNestedPaths?: boolean;
     /**
+     * With {@link supportsNestedPaths}, the deepest directory level the tool
+     * reads: `1` means `<dir>/<name>.md` but not `<dir>/<sub>/<name>.md`
+     * (Junie reads only immediate subdirectories). Deeper rulesync sources are
+     * skipped with a warning. Unset means no limit.
+     */
+    maxNestingDepth?: number;
+    /**
+     * Top-level subdirectories the tool does not read as agents (Junie skips
+     * `skills/`, which is the shared Agent Skills tree in `.agents/`). Sources
+     * under them are skipped on generation with a warning, and files under
+     * them are left out of imports and orphan sweeps.
+     */
+    excludedSubdirectories?: string[];
+    /**
+     * Import pattern for the import-only discovery roots (`importDirPaths`),
+     * replacing the canonical root's patterns there. Junie reads one nested
+     * level in the shared `.agents/` root too, but that root also holds other
+     * tools' trees (`.agents/commands/`, `.agents/workflows/`, ...), so it is
+     * imported flat: only `.junie/agents/` is read one level deep.
+     */
+    importOnlyRootFilePattern?: string;
+    /**
      * The most subagents the tool loads before it refuses to start. When a run
      * targets more than this, the processor warns; every file is still written.
      */
@@ -215,12 +243,40 @@ type ToolSubagentFactory = {
   };
 };
 
+/** The top-level directory of a nested relative path, or `undefined` for a flat one. */
+function topLevelDirOf(relativeFilePath: string): string | undefined {
+  const segments = splitPathSegments(relativeFilePath);
+  return segments.length > 1 ? segments[0] : undefined;
+}
+
 /**
  * The globs import scans for a tool: its import-only patterns when it reads
  * more layouts than Rulesync writes, otherwise the generation pattern.
  */
 function importFilePatternsOf(meta: ToolSubagentFactory["meta"]): string | string[] {
   return meta.importFilePatterns ?? meta.filePattern;
+}
+
+/**
+ * The globs one discovery root is scanned with: the generation pattern for the
+ * orphan sweep, otherwise the import patterns, or, for an import-only root,
+ * {@link ToolSubagentFactory} `importOnlyRootFilePattern` when the tool sets it.
+ */
+function rootFilePatternsOf(
+  meta: ToolSubagentFactory["meta"],
+  { forDeletion, canonical }: { forDeletion: boolean; canonical: boolean },
+): string | string[] {
+  if (forDeletion) return meta.filePattern;
+  if (!canonical && meta.importOnlyRootFilePattern !== undefined) {
+    return meta.importOnlyRootFilePattern;
+  }
+  return importFilePatternsOf(meta);
+}
+
+/** `findFilesByGlobs` options that leave a tool's excluded subdirectories out of a scan. */
+function excludedSubdirectoryIgnoreOf(meta: ToolSubagentFactory["meta"]): { ignore?: string[] } {
+  const dirs = meta.excludedSubdirectories;
+  return dirs === undefined ? {} : { ignore: dirs.map((dir) => `${dir}/**`) };
 }
 
 /** Whether unparseable files are left out of this import or orphan sweep. */
@@ -668,7 +724,15 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsProject: true,
         supportsSimulated: false,
         supportsGlobal: true,
-        filePattern: "*.md",
+        // Junie reads `.md` and `.agent.md` files in its agent directories and
+        // their immediate subdirectories, except `skills/`. The name comes from
+        // frontmatter or the file name, never the directory.
+        // https://junie.jetbrains.com/docs/junie-cli-subagents.html
+        filePattern: ["*.md", "*/*.md"],
+        supportsNestedPaths: true,
+        maxNestingDepth: 1,
+        excludedSubdirectories: ["skills"],
+        importOnlyRootFilePattern: "*.md",
       },
     },
   ],
@@ -973,6 +1037,23 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
     },
   ],
   [
+    "trae",
+    {
+      // Trae subagents are native Markdown + YAML frontmatter under
+      // `.trae/agents/` (project only); Trae reads them once Settings > Beta >
+      // "Enable Subagents Directory" is on. The documented user directory is
+      // `~/.trae-cn/agents/` (CN build), so global scope is not written.
+      // https://docs.trae.ai/ide/subagents?_lang=en
+      class: TraeSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: false,
+        filePattern: "*.md",
+      },
+    },
+  ],
+  [
     "vibe",
     {
       class: VibeSubagent,
@@ -1206,6 +1287,20 @@ export class SubagentsProcessor extends FeatureProcessor {
       if (factory.meta.supportsNestedPaths !== true && /[/\\]/u.test(path)) {
         this.logger.warn(
           `Skipping nested subagent "${path}" for ${this.toolTarget}, which only supports flat subagent paths.`,
+        );
+        return false;
+      }
+      const { maxNestingDepth, excludedSubdirectories } = factory.meta;
+      if (maxNestingDepth !== undefined && subdirectoryDepthOf(path) > maxNestingDepth) {
+        this.logger.warn(
+          `Skipping nested subagent "${path}" for ${this.toolTarget}, which only reads subagents up to ${maxNestingDepth} subdirectory level(s) deep.`,
+        );
+        return false;
+      }
+      const topLevelDir = topLevelDirOf(path);
+      if (topLevelDir !== undefined && excludedSubdirectories?.includes(topLevelDir)) {
+        this.logger.warn(
+          `Skipping subagent "${path}" for ${this.toolTarget}, which does not read subagents from a "${topLevelDir}/" directory.`,
         );
         return false;
       }
@@ -1463,9 +1558,11 @@ export class SubagentsProcessor extends FeatureProcessor {
     const roots = forDeletion
       ? [paths.relativeDirPath]
       : [paths.relativeDirPath, ...(paths.importDirPaths ?? [])];
-    const filePatterns = forDeletion
-      ? factory.meta.filePattern
-      : importFilePatternsOf(factory.meta);
+    const filePatternsFor = (root: (typeof roots)[number]): string | string[] =>
+      rootFilePatternsOf(factory.meta, {
+        forDeletion,
+        canonical: root === paths.relativeDirPath,
+      });
 
     const toolSubagents: ToolFile[] = [];
     // Track both destination paths and tool-specific logical identities. Claude
@@ -1497,9 +1594,10 @@ export class SubagentsProcessor extends FeatureProcessor {
         }
       }
       const subagentFilePaths = (
-        await findFilesByGlobs(filePatterns, {
+        await findFilesByGlobs(filePatternsFor(root), {
           cwd: baseDir,
           followSymbolicLinks: !forDeletion,
+          ...excludedSubdirectoryIgnoreOf(factory.meta),
         })
       ).toSorted((left, right) =>
         compareRelativePathsShallowestFirst(relative(baseDir, left), relative(baseDir, right)),

@@ -91,6 +91,10 @@ const subagentsGenerateTargets = [
     outputPath: join(".tabnine", "agent", "agents", "planner.md"),
   },
   {
+    target: "trae",
+    outputPath: join(".trae", "agents", "planner.md"),
+  },
+  {
     target: "cortexcode",
     outputPath: join(".cortex", "agents", "planner.md"),
   },
@@ -489,6 +493,7 @@ You are a subagent-only helper.
     { target: "cursor", orphanPath: join(".cursor", "agents", "orphan.md") },
     { target: "grokcli", orphanPath: join(".grok", "agents", "orphan.md") },
     { target: "tabnine", orphanPath: join(".tabnine", "agent", "agents", "orphan.md") },
+    { target: "trae", orphanPath: join(".trae", "agents", "orphan.md") },
     { target: "cortexcode", orphanPath: join(".cortex", "agents", "orphan.md") },
     { target: "zero", orphanPath: join(".zero", "specialists", "orphan.md") },
     { target: "codewhale", orphanPath: join(".codewhale", "agents", "orphan.toml") },
@@ -838,6 +843,7 @@ describe("E2E: subagents (import)", () => {
     { target: "antigravity-ide", sourcePath: join(".agents", "agents", "planner.md") },
     { target: "cursor", sourcePath: join(".cursor", "agents", "planner.md") },
     { target: "tabnine", sourcePath: join(".tabnine", "agent", "agents", "planner.md") },
+    { target: "trae", sourcePath: join(".trae", "agents", "planner.md") },
     { target: "cortexcode", sourcePath: join(".cortex", "agents", "planner.md") },
     { target: "commandcode", sourcePath: join(".commandcode", "agents", "planner.md") },
     { target: "qoder", sourcePath: join(".qoder", "agents", "planner.md") },
