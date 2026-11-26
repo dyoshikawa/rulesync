@@ -5,8 +5,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 
 import {
   FETCH_CONCURRENCY_LIMIT,
+  RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+  RULESYNC_CURATED_COMMANDS_RELATIVE_DIR_PATH,
   RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH,
   RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH,
+  RULESYNC_CURATED_SUBAGENTS_RELATIVE_DIR_PATH,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
   SOURCE_PREFETCH_CONCURRENCY_LIMIT,
 } from "../constants/rulesync-paths.js";
@@ -25,7 +28,7 @@ import {
 } from "../utils/file.js";
 import { computeRuleIntegrity, computeSkillIntegrity } from "./sources-lock.js";
 import {
-  getInstalledSourceRuleNames,
+  getInstalledSourceFileNames,
   getInstalledSourceSkillNames,
   resolveAndFetchSources,
 } from "./sources.js";
@@ -231,6 +234,8 @@ describe("resolveAndFetchSources", () => {
     expect(result).toEqual({
       fetchedSkillCount: 0,
       fetchedRuleCount: 0,
+      fetchedCommandCount: 0,
+      fetchedSubagentCount: 0,
       sourcesProcessed: 0,
       failedSourceCount: 0,
     });
@@ -247,6 +252,8 @@ describe("resolveAndFetchSources", () => {
     expect(result).toEqual({
       fetchedSkillCount: 0,
       fetchedRuleCount: 0,
+      fetchedCommandCount: 0,
+      fetchedSubagentCount: 0,
       sourcesProcessed: 0,
       failedSourceCount: 0,
     });
@@ -300,9 +307,10 @@ describe("resolveAndFetchSources", () => {
     });
     vi.mocked(fileExists).mockResolvedValue(true);
 
-    const result = await getInstalledSourceRuleNames({
+    const result = await getInstalledSourceFileNames({
       sources: [{ source: "org/existing", rules: ["testing-guidelines"] }],
       projectRoot: testDir,
+      feature: "rules",
       logger,
     });
 
@@ -322,9 +330,10 @@ describe("resolveAndFetchSources", () => {
     });
 
     await expect(
-      getInstalledSourceRuleNames({
+      getInstalledSourceFileNames({
         sources: [{ source: "org/existing", rules: ["testing-guidelines"] }],
         projectRoot: testDir,
+        feature: "rules",
         logger,
       }),
     ).rejects.toThrow(/Run 'rulesync install' before adding another source/);
@@ -3756,6 +3765,8 @@ describe("resolveAndFetchSources", () => {
     expect(result).toEqual({
       fetchedSkillCount: 1,
       fetchedRuleCount: 0,
+      fetchedCommandCount: 0,
+      fetchedSubagentCount: 0,
       sourcesProcessed: 1,
       failedSourceCount: 0,
     });
@@ -5579,5 +5590,356 @@ describe("resolveAndFetchSources", () => {
       expect(logGitHubAuthHints).toHaveBeenCalledTimes(1);
       expect(logGitHubAuthHints).toHaveBeenCalledWith({ error, logger });
     });
+  });
+});
+
+describe("resolveAndFetchSources commands and subagents", () => {
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+  const commandContent = "---\ndescription: Review\ntargets: ['*']\n---\nReview the diff.";
+  const subagentContent = "---\nname: planner\ndescription: Plan\ntargets: ['*']\n---\nPlan.";
+
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
+    mockClientInstance = {
+      getDefaultBranch: vi.fn().mockResolvedValue("main"),
+      resolveRefToSha: vi.fn().mockResolvedValue("a".repeat(40)),
+      listDirectory: vi.fn().mockResolvedValue([]),
+      getFileContent: vi.fn().mockResolvedValue("file content"),
+      listExecutablePaths: vi.fn().mockResolvedValue({ paths: new Set(), truncated: false }),
+    };
+    vi.mocked(directoryExists).mockResolvedValue(false);
+    vi.mocked(fileExists).mockImplementation(async (path: string) => writtenFiles.has(path));
+    vi.mocked(listSubdirectoryNames).mockResolvedValue([]);
+    writtenFiles.clear();
+    vi.mocked(readFileContent).mockImplementation(
+      async (path: string) => writtenFiles.get(path) ?? "",
+    );
+    const actualFile = await vi.importActual<typeof import("../utils/file.js")>("../utils/file.js");
+    vi.mocked(listFilePathsRecursively).mockImplementation(async (dirPath, options) => {
+      const inMemory = [...writtenFiles.keys()]
+        .filter((path) => path.startsWith(`${dirPath}${sep}`))
+        .map((path) => relative(dirPath, path));
+      const onDisk = await actualFile.listFilePathsRecursively(dirPath, options);
+      return [...new Set([...onDisk, ...inMemory])].toSorted();
+    });
+    vi.mocked(removeDirectory).mockResolvedValue(undefined);
+    vi.mocked(removeFile).mockImplementation(async (path: string) => {
+      writtenFiles.delete(path);
+    });
+    vi.mocked(writeFileContent).mockImplementation(async (path: string, content: string) => {
+      writtenFiles.set(path, content);
+    });
+  });
+
+  afterEach(async () => {
+    await cleanup();
+    vi.clearAllMocks();
+  });
+
+  function mockGithubTree(tree: Record<string, string[]>): void {
+    mockClientInstance.listDirectory.mockImplementation(
+      async (_owner: string, _repo: string, path: string) =>
+        (tree[path] ?? []).map((name) => ({
+          name,
+          path: `${path}/${name}`,
+          type: "file",
+          size: 100,
+        })),
+    );
+    mockClientInstance.getFileContent.mockImplementation(
+      async (_owner: string, _repo: string, path: string) =>
+        path.includes("agents") ? subagentContent : commandContent,
+    );
+  }
+
+  async function lastWrittenLock() {
+    const { writeLockFile } = await import("./sources-lock.js");
+    return vi.mocked(writeLockFile).mock.calls.at(-1)?.[0].lock;
+  }
+
+  it("should install selected commands and subagents from a GitHub source at one SHA", async () => {
+    mockGithubTree({
+      "exports/commands": ["review.md", "deploy.md"],
+      "exports/agents": ["planner.md"],
+    });
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [
+        {
+          source: "org/repo",
+          commands: ["review"],
+          commandsPath: "exports/commands",
+          subagents: ["*"],
+          subagentsPath: "exports/agents",
+        },
+      ],
+      projectRoot: testDir,
+      options: { updateSources: true },
+    });
+
+    expect(result).toMatchObject({
+      fetchedSkillCount: 0,
+      fetchedRuleCount: 0,
+      fetchedCommandCount: 1,
+      fetchedSubagentCount: 1,
+      failedSourceCount: 0,
+    });
+    // No skills are taken from a source that declares only other features.
+    expect(mockClientInstance.listDirectory).not.toHaveBeenCalledWith(
+      "org",
+      "repo",
+      "skills",
+      expect.any(String),
+    );
+    expect(mockClientInstance.resolveRefToSha).toHaveBeenCalledTimes(1);
+    expect(
+      writtenFiles.get(join(testDir, RULESYNC_CURATED_COMMANDS_RELATIVE_DIR_PATH, "review.md")),
+    ).toBe(commandContent);
+    expect(
+      writtenFiles.has(join(testDir, RULESYNC_CURATED_COMMANDS_RELATIVE_DIR_PATH, "deploy.md")),
+    ).toBe(false);
+    expect(
+      writtenFiles.get(join(testDir, RULESYNC_CURATED_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md")),
+    ).toBe(subagentContent);
+    expect((await lastWrittenLock())?.sources["org/repo"]).toMatchObject({
+      resolvedRef: "a".repeat(40),
+      commands: { review: { integrity: computeRuleIntegrity(commandContent) } },
+      commandSelection: ["review"],
+      commandsPath: "exports/commands",
+      resolvedCommandNames: ["review"],
+      subagents: { planner: { integrity: computeRuleIntegrity(subagentContent) } },
+      subagentSelection: ["*"],
+      subagentsPath: "exports/agents",
+      resolvedSubagentNames: ["planner"],
+    });
+  });
+
+  it("should reuse the locked commands without fetching them again", async () => {
+    mockGithubTree({ commands: ["review.md"] });
+    const sources = [{ source: "org/repo", commands: ["review"] }];
+    await resolveAndFetchSources({ logger, sources, projectRoot: testDir });
+    const lock = await lastWrittenLock();
+    const { readLockFile } = await import("./sources-lock.js");
+    vi.mocked(readLockFile).mockResolvedValueOnce(lock ?? { lockfileVersion: 1, sources: {} });
+    mockClientInstance.getFileContent.mockClear();
+
+    const result = await resolveAndFetchSources({ logger, sources, projectRoot: testDir });
+
+    expect(result.fetchedCommandCount).toBe(0);
+    expect(result.failedSourceCount).toBe(0);
+    expect(mockClientInstance.getFileContent).not.toHaveBeenCalled();
+  });
+
+  it("should let a local command take precedence over a fetched one", async () => {
+    const commandsDir = join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
+    await mkdir(commandsDir, { recursive: true });
+    await writeFile(join(commandsDir, "review.md"), commandContent, "utf8");
+    mockGithubTree({ commands: ["review.md"] });
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "org/repo", commands: ["*"] }],
+      projectRoot: testDir,
+    });
+
+    expect(result.fetchedCommandCount).toBe(0);
+    expect(mockClientInstance.getFileContent).not.toHaveBeenCalled();
+    expect(logger.debug).toHaveBeenCalledWith(
+      expect.stringContaining("local command takes precedence"),
+    );
+  });
+
+  it("should never write a remote command whose name escapes the curated directory", async () => {
+    mockClientInstance.listDirectory.mockResolvedValue([
+      { name: "..md", path: "commands/..md", type: "file", size: 10 },
+      { name: "review.md", path: "commands/review.md", type: "file", size: 10 },
+    ]);
+    mockClientInstance.getFileContent.mockResolvedValue(commandContent);
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "org/repo", commands: ["*"] }],
+      projectRoot: testDir,
+    });
+
+    expect(result.fetchedCommandCount).toBe(1);
+    const curatedDir = join(testDir, RULESYNC_CURATED_COMMANDS_RELATIVE_DIR_PATH);
+    for (const path of writtenFiles.keys()) {
+      if (path.endsWith(".md")) {
+        expect(path.startsWith(`${curatedDir}${sep}`)).toBe(true);
+      }
+    }
+  });
+
+  it("should neither read, remove nor restore a hand-edited locked name outside the curated directory", async () => {
+    const { readLockFile } = await import("./sources-lock.js");
+    const outside = join(testDir, "outside.md");
+    writtenFiles.set(outside, "keep me");
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "org/repo": {
+          resolvedRef: "a".repeat(40),
+          skills: {},
+          commands: { "../../outside": { integrity: computeRuleIntegrity("keep me") } },
+          commandSelection: ["*"],
+          commandsPath: "commands",
+          resolvedCommandNames: ["../../outside"],
+        },
+      },
+    });
+    mockGithubTree({ commands: ["review.md"] });
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "org/repo", commands: ["*"] }],
+      projectRoot: testDir,
+    });
+
+    expect(result.fetchedCommandCount).toBe(1);
+    expect(removeFile).not.toHaveBeenCalledWith(outside);
+    expect(writtenFiles.get(outside)).toBe("keep me");
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("resolved path is outside the curated directory"),
+    );
+  });
+
+  it("should install commands through the git transport", async () => {
+    const { resolveDefaultRef, fetchSkillFiles } = await import("./git-client.js");
+    vi.mocked(resolveDefaultRef).mockResolvedValue({ ref: "main", sha: "a".repeat(40) });
+    vi.mocked(fetchSkillFiles).mockResolvedValue([
+      { relativePath: "review.md", content: commandContent, size: 50 },
+      { relativePath: join("nested", "deep.md"), content: commandContent, size: 50 },
+    ]);
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [
+        {
+          source: "https://example.com/team/shared.git",
+          transport: "git",
+          commands: ["*"],
+          commandsPath: "exports/commands",
+        },
+      ],
+      projectRoot: testDir,
+    });
+
+    expect(result.fetchedCommandCount).toBe(1);
+    expect(fetchSkillFiles).toHaveBeenCalledWith(
+      expect.objectContaining({ skillsPath: "exports/commands" }),
+    );
+    expect(
+      writtenFiles.get(join(testDir, RULESYNC_CURATED_COMMANDS_RELATIVE_DIR_PATH, "review.md")),
+    ).toBe(commandContent);
+  });
+
+  it("should install subagents through the npm transport", async () => {
+    const {
+      fetchPackument,
+      fetchTarball,
+      getPackumentVersionDist,
+      resolveNpmToken,
+      resolvePackumentVersion,
+    } = await import("./npm-client.js");
+    const { extractPackageTarball } = await import("./npm-tar.js");
+    const { writeNpmLockFile } = await import("./npm-sources-lock.js");
+    vi.mocked(resolveNpmToken).mockReturnValue(undefined);
+    vi.mocked(fetchPackument).mockResolvedValue({});
+    vi.mocked(resolvePackumentVersion).mockReturnValue("1.0.0");
+    vi.mocked(getPackumentVersionDist).mockReturnValue({
+      tarball: "https://registry.npmjs.org/example/-/example-1.0.0.tgz",
+      integrity: "sha512-example",
+    });
+    vi.mocked(fetchTarball).mockResolvedValue(Buffer.from("tarball"));
+    vi.mocked(extractPackageTarball).mockReturnValue([
+      { relativePath: "subagents/planner.md", content: Buffer.from(subagentContent) },
+    ]);
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "example", transport: "npm", subagents: ["planner"] }],
+      projectRoot: testDir,
+    });
+
+    expect(result.fetchedSubagentCount).toBe(1);
+    expect(result.fetchedSkillCount).toBe(0);
+    expect(
+      writtenFiles.get(join(testDir, RULESYNC_CURATED_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md")),
+    ).toBe(subagentContent);
+    expect(
+      vi.mocked(writeNpmLockFile).mock.calls.at(-1)?.[0].lock.sources["example"],
+    ).toMatchObject({
+      subagents: { planner: { integrity: computeRuleIntegrity(subagentContent) } },
+      subagentSelection: ["planner"],
+      subagentsPath: "subagents",
+      resolvedSubagentNames: ["planner"],
+    });
+  });
+
+  it("should fail a frozen install whose lockfile does not cover the declared commands", async () => {
+    const { readLockFile } = await import("./sources-lock.js");
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: { "org/repo": { resolvedRef: "a".repeat(40), skills: {} } },
+    });
+
+    await expect(
+      resolveAndFetchSources({
+        logger,
+        sources: [{ source: "org/repo", commands: ["review"] }],
+        projectRoot: testDir,
+        options: { frozen: true },
+      }),
+    ).rejects.toThrow("Frozen install failed");
+    expect(mockClientInstance.listDirectory).not.toHaveBeenCalled();
+  });
+
+  it("should remove the curated subagents of a source that no longer declares them", async () => {
+    const { readLockFile } = await import("./sources-lock.js");
+    const curatedPath = join(testDir, RULESYNC_CURATED_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md");
+    writtenFiles.set(curatedPath, subagentContent);
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "org/repo": {
+          resolvedRef: "a".repeat(40),
+          skills: {},
+          subagents: { planner: { integrity: computeRuleIntegrity(subagentContent) } },
+          subagentSelection: ["planner"],
+          subagentsPath: "subagents",
+          resolvedSubagentNames: ["planner"],
+        },
+      },
+    });
+    mockGithubTree({ commands: ["review.md"] });
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "org/repo", commands: ["review"] }],
+      projectRoot: testDir,
+    });
+
+    expect(result.failedSourceCount).toBe(0);
+    expect(writtenFiles.has(curatedPath)).toBe(false);
+    const locked = (await lastWrittenLock())?.sources["org/repo"];
+    expect(locked?.subagents).toBeUndefined();
+    expect(locked?.commandSelection).toEqual(["review"]);
+  });
+
+  it("should point to omitting `commands` when a source sets an empty commands list", async () => {
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "org/repo", commands: [] }],
+      projectRoot: testDir,
+    });
+
+    expect(result.failedSourceCount).toBe(1);
+    expect(logger.error).toHaveBeenCalledWith(
+      'Failed to fetch source "org/repo": Error: `commands` is an empty list for org/repo. To take no commands from this source, omit `commands` and list the skills you want in `skills`.',
+    );
   });
 });

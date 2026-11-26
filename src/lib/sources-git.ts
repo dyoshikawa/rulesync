@@ -1,40 +1,39 @@
 import { join } from "node:path";
 
 import type { SourceEntry } from "../config/config.js";
-import {
-  RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH,
-  RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH,
-} from "../constants/rulesync-paths.js";
+import { RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import type { Logger } from "../utils/logger.js";
 import { fetchSkillFiles, resolveDefaultRef, resolveRefToSha, validateRef } from "./git-client.js";
 import {
-  assertMatchingRulesFound,
+  assertMatchingFilesFound,
   assertMatchingSkillsFound,
+  buildFileLockUpdate,
   buildLockUpdate,
-  buildRuleLockUpdate,
-  canReuseLockedRules,
+  canReuseLockedFiles,
   canReuseLockedSkills,
   cleanPreviousCuratedSkills,
+  getCuratedFileFeatureRelativeDirPath,
   getFirstPathSeparatorIndex,
   groupRemoteFilesBySkillRoot,
   isWildcardSelection,
   lockedRefMatchesDeclared,
   normalizeRuleSelection,
   normalizeSkillSelection,
-  replaceCuratedRules,
-  resolveRulesPath,
-  resolveRulesSourcePath,
+  replaceCuratedFiles,
+  resolveFileFeaturePath,
+  resolveFileFeatureSourcePath,
   resolveSkillsPath,
   resolveSkillsSourcePath,
-  selectDeclaredRules,
+  selectDeclaredFiles,
   shouldSkipSkill,
   writeSkillAndComputeIntegrity,
 } from "./sources-artifacts.js";
 import {
   type LockedSkill,
   type LockedSource,
+  type SourceFileFeature,
   type SourcesLock,
-  getLockedRuleNames,
+  getLockedFileNames,
   getLockedSkillNames,
   getLockedSource,
 } from "./sources-lock.js";
@@ -108,25 +107,32 @@ async function ensureGitRequestedRef(params: {
   return { requestedRef: defaultRef.ref, resolvedSha: defaultRef.sha };
 }
 
-export async function fetchRulesViaGit(params: {
+/**
+ * Fetch one per-file feature (rules, commands or subagents) of a git source:
+ * the Markdown files directly inside the feature's path, as selected, into the
+ * feature's curated directory.
+ */
+export async function fetchFilesViaGit(params: {
+  feature: SourceFileFeature;
   sourceEntry: SourceEntry;
   lockKey: string;
   projectRoot: string;
   lock: SourcesLock;
-  localRuleNames: Set<string>;
-  alreadyFetchedRuleNames: Set<string>;
+  localNames: Set<string>;
+  alreadyFetchedNames: Set<string>;
   updateSources: boolean;
   forceRefetch: boolean;
   frozen: boolean;
   logger: Logger;
-}): Promise<{ ruleCount: number; fetchedRuleNames: string[]; updatedLock: SourcesLock }> {
+}): Promise<{ count: number; fetchedNames: string[]; updatedLock: SourcesLock }> {
   const {
+    feature,
     sourceEntry,
     lockKey,
     projectRoot,
     lock,
-    localRuleNames,
-    alreadyFetchedRuleNames,
+    localNames,
+    alreadyFetchedNames,
     updateSources,
     forceRefetch,
     frozen,
@@ -134,24 +140,25 @@ export async function fetchRulesViaGit(params: {
   } = params;
   const sourceKey = sourceEntry.source;
   const locked = getLockedSource(lock, lockKey);
-  const lockedRuleNames = locked ? getLockedRuleNames(locked) : [];
+  const lockedNames = locked ? getLockedFileNames(locked, feature) : [];
   const lockedOrResolved = await resolveGitFetchRef({ sourceEntry, locked, updateSources });
-  const curatedDir = join(projectRoot, RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH);
+  const curatedDir = join(projectRoot, getCuratedFileFeatureRelativeDirPath(feature));
   if (
     locked &&
     lockedOrResolved.resolvedSha === locked.resolvedRef &&
     !updateSources &&
     !forceRefetch &&
-    (await canReuseLockedRules({
+    (await canReuseLockedFiles({
+      feature,
       locked,
       sourceEntry,
-      lockedRuleNames,
-      localRuleNames,
-      alreadyFetchedRuleNames,
+      lockedNames,
+      localNames,
+      alreadyFetchedNames,
       curatedDir,
     }))
   ) {
-    return { ruleCount: 0, fetchedRuleNames: lockedRuleNames, updatedLock: lock };
+    return { count: 0, fetchedNames: lockedNames, updatedLock: lock };
   }
   const { requestedRef, resolvedSha: resolvedRef } = await ensureGitRequestedRef({
     url: sourceKey,
@@ -162,45 +169,48 @@ export async function fetchRulesViaGit(params: {
     url: sourceKey,
     ref: requestedRef,
     resolvedRef,
-    skillsPath: resolveRulesSourcePath(sourceEntry),
+    skillsPath: resolveFileFeatureSourcePath(sourceEntry, feature),
     logger,
   });
-  const remoteRules = selectDeclaredRules({
+  const remoteFiles = selectDeclaredFiles({
+    feature,
     sourceEntry,
     candidates: files.filter((file) => getFirstPathSeparatorIndex(file.relativePath) === -1),
     getFileName: (file) => file.relativePath,
   }).map(({ candidate, name }) => ({ name, content: candidate.content }));
-  const remoteRuleNames = remoteRules.map((rule) => rule.name);
-  assertMatchingRulesFound({ ruleNames: remoteRuleNames, source: sourceKey });
-  const fetchedRules = await replaceCuratedRules({
-    rules: remoteRules,
+  const remoteNames = remoteFiles.map((file) => file.name);
+  assertMatchingFilesFound({ feature, names: remoteNames, source: sourceKey });
+  const fetchedFiles = await replaceCuratedFiles({
+    feature,
+    files: remoteFiles,
     curatedDir,
     locked,
-    lockedRuleNames,
+    lockedNames,
     resolvedRef,
     sourceKey,
-    localRuleNames,
-    alreadyFetchedRuleNames,
+    localNames,
+    alreadyFetchedNames,
     compareLockedIntegrity: !updateSources && !forceRefetch,
     frozen,
     logger,
   });
-  const result = buildRuleLockUpdate({
+  const result = buildFileLockUpdate({
+    feature,
     lock,
     lockKey,
     sourceKey,
-    fetchedRules,
+    fetchedFiles,
     locked,
     requestedRef,
     resolvedRef,
-    ruleSelection: normalizeRuleSelection(sourceEntry.rules ?? []),
-    rulesPath: resolveRulesPath(sourceEntry),
-    resolvedRuleNames: remoteRuleNames,
+    selection: normalizeRuleSelection(sourceEntry[feature] ?? []),
+    path: resolveFileFeaturePath(sourceEntry, feature),
+    resolvedNames: remoteNames,
     logger,
   });
   return {
-    ruleCount: result.fetchedNames.length,
-    fetchedRuleNames: result.fetchedNames,
+    count: result.fetchedNames.length,
+    fetchedNames: result.fetchedNames,
     updatedLock: result.updatedLock,
   };
 }
