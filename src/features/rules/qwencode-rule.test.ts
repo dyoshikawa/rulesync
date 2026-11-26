@@ -606,4 +606,253 @@ describe("QwencodeRule", () => {
       expect(finalRulesync.getFrontmatter().globs).toEqual(["**/*"]);
     });
   });
+
+  describe("output styles", () => {
+    const buildOutputStyleRule = ({
+      relativeFilePath = "reviewer.md",
+      root = false,
+      description,
+      name,
+      keepCodingInstructions,
+      body = "Start with actionable findings.",
+      targets = ["qwencode"],
+    }: {
+      relativeFilePath?: string;
+      root?: boolean;
+      description?: string;
+      name?: string;
+      keepCodingInstructions?: boolean;
+      body?: string;
+      targets?: Array<"qwencode" | "*">;
+    } = {}): RulesyncRule =>
+      new RulesyncRule({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+        relativeFilePath,
+        frontmatter: {
+          root,
+          targets,
+          ...(description !== undefined && { description }),
+          qwencode: {
+            channel: "output-style",
+            ...(name !== undefined && { name }),
+            ...(keepCodingInstructions !== undefined && {
+              "keep-coding-instructions": keepCodingInstructions,
+            }),
+          },
+        },
+        body,
+        validate: true,
+      });
+
+    it("should enumerate .qwen/output-styles/*.md for import only", () => {
+      expect(QwencodeRule.getExtraFixedFiles()).toEqual([
+        {
+          relativeDirPath: join(".qwen", "output-styles"),
+          relativeFilePath: "*.md",
+          importOnly: true,
+        },
+      ]);
+    });
+
+    it.each([false, true])(
+      "should write a rule with qwencode.channel: output-style to .qwen/output-styles/<name>.md (global: %s)",
+      (global) => {
+        const qwencodeRule = QwencodeRule.fromRulesyncRule({
+          outputRoot: testDir,
+          rulesyncRule: buildOutputStyleRule({
+            description: "Put findings before the summary",
+            name: "Reviewer",
+            keepCodingInstructions: true,
+          }),
+          validate: true,
+          global,
+        });
+
+        expect(qwencodeRule.isRoot()).toBe(false);
+        expect(qwencodeRule.getRelativeDirPath()).toBe(join(".qwen", "output-styles"));
+        expect(qwencodeRule.getRelativeFilePath()).toBe("reviewer.md");
+        expect(qwencodeRule.getFileContent()).toBe(
+          "---\nname: Reviewer\ndescription: Put findings before the summary\nkeep-coding-instructions: true\n---\nStart with actionable findings.\n",
+        );
+      },
+    );
+
+    it("should write a bare output style without frontmatter when no style field is set", () => {
+      const qwencodeRule = QwencodeRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule: buildOutputStyleRule(),
+        validate: true,
+      });
+
+      expect(qwencodeRule.getFileContent()).toBe("Start with actionable findings.");
+    });
+
+    it("should keep keep-coding-instructions: false in the emitted frontmatter", () => {
+      const qwencodeRule = QwencodeRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule: buildOutputStyleRule({ keepCodingInstructions: false }),
+        validate: true,
+      });
+
+      expect(qwencodeRule.getFileContent()).toBe(
+        "---\nkeep-coding-instructions: false\n---\nStart with actionable findings.\n",
+      );
+    });
+
+    it("should not route a root rule to .qwen/output-styles even with qwencode.channel: output-style", () => {
+      const qwencodeRule = QwencodeRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule: buildOutputStyleRule({ relativeFilePath: "overview.md", root: true }),
+        validate: true,
+      });
+
+      expect(qwencodeRule.isRoot()).toBe(true);
+      expect(qwencodeRule.getRelativeFilePath()).toBe("QWEN.md");
+    });
+
+    it("should refuse an output-style rule nested in a subdirectory", () => {
+      expect(() =>
+        QwencodeRule.fromRulesyncRule({
+          outputRoot: testDir,
+          rulesyncRule: buildOutputStyleRule({ relativeFilePath: join("styles", "reviewer.md") }),
+          validate: true,
+        }),
+      ).toThrow(/nested in a subdirectory/);
+    });
+
+    it.each([
+      { relativeFilePath: "default.md", name: undefined },
+      { relativeFilePath: "reviewer.md", name: "DEFAULT" },
+    ])(
+      "should refuse an output style named after the reserved default style ($relativeFilePath, name: $name)",
+      ({ relativeFilePath, name }) => {
+        expect(() =>
+          QwencodeRule.fromRulesyncRule({
+            outputRoot: testDir,
+            rulesyncRule: buildOutputStyleRule({ relativeFilePath, name }),
+            validate: true,
+          }),
+        ).toThrow(/reserved/);
+      },
+    );
+
+    it("should refuse an output style with an empty body", () => {
+      expect(() =>
+        QwencodeRule.fromRulesyncRule({
+          outputRoot: testDir,
+          rulesyncRule: buildOutputStyleRule({ body: "   " }),
+          validate: true,
+        }),
+      ).toThrow(/empty body/);
+    });
+
+    it("should refuse an output style larger than 25 kB", () => {
+      expect(() =>
+        QwencodeRule.fromRulesyncRule({
+          outputRoot: testDir,
+          rulesyncRule: buildOutputStyleRule({ body: "a".repeat(25_001) }),
+          validate: true,
+        }),
+      ).toThrow(/larger than 25000 bytes/);
+    });
+
+    it("should refuse a style name longer than 64 characters", () => {
+      expect(() => buildOutputStyleRule({ name: "a".repeat(65) })).toThrow();
+    });
+
+    it.each([false, true])(
+      "should import an output style back to qwencode.channel: output-style (global: %s)",
+      async (global) => {
+        await writeFileContent(
+          join(testDir, ".qwen", "output-styles", "reviewer.md"),
+          "---\nname: Reviewer\ndescription: Put findings first\nkeep-coding-instructions: false\n---\nStart with actionable findings.\n",
+        );
+
+        const qwencodeRule = await QwencodeRule.fromFile({
+          outputRoot: testDir,
+          relativeDirPath: join(".qwen", "output-styles"),
+          relativeFilePath: "reviewer.md",
+          global,
+        });
+        const rulesyncRule = qwencodeRule.toRulesyncRule();
+
+        expect(rulesyncRule.getRelativeFilePath()).toBe("reviewer.md");
+        expect(rulesyncRule.getFrontmatter()).toMatchObject({
+          root: false,
+          targets: ["qwencode"],
+          description: "Put findings first",
+          qwencode: {
+            channel: "output-style",
+            name: "Reviewer",
+            "keep-coding-instructions": false,
+          },
+        });
+        expect(rulesyncRule.getBody()).toBe("Start with actionable findings.");
+
+        // Generating again writes the same file back.
+        const regenerated = QwencodeRule.fromRulesyncRule({
+          outputRoot: testDir,
+          rulesyncRule,
+          validate: true,
+          global,
+        });
+        expect(regenerated.getRelativeDirPath()).toBe(join(".qwen", "output-styles"));
+        expect(regenerated.getFileContent()).toBe(
+          "---\nname: Reviewer\ndescription: Put findings first\nkeep-coding-instructions: false\n---\nStart with actionable findings.\n",
+        );
+      },
+    );
+
+    it("should import an output style without frontmatter", async () => {
+      await writeFileContent(join(testDir, ".qwen", "output-styles", "terse.md"), "Be terse.\n");
+
+      const qwencodeRule = await QwencodeRule.fromFile({
+        outputRoot: testDir,
+        relativeDirPath: join(".qwen", "output-styles"),
+        relativeFilePath: "terse.md",
+      });
+      const rulesyncRule = qwencodeRule.toRulesyncRule();
+
+      expect(rulesyncRule.getFrontmatter().qwencode).toEqual({ channel: "output-style" });
+      expect(rulesyncRule.getFrontmatter().description).toBeUndefined();
+      expect(rulesyncRule.getBody()).toBe("Be terse.");
+    });
+
+    it("should mark an output style as a non-root deletion target", () => {
+      const qwencodeRule = QwencodeRule.forDeletion({
+        outputRoot: testDir,
+        relativeDirPath: join(".qwen", "output-styles"),
+        relativeFilePath: "reviewer.md",
+      });
+
+      expect(qwencodeRule.isRoot()).toBe(false);
+      expect(qwencodeRule.getRelativeDirPath()).toBe(join(".qwen", "output-styles"));
+    });
+
+    it("should warn about output-style options that have no effect", () => {
+      const sharedRule = buildOutputStyleRule({ targets: ["*"] });
+      const ignoredOptions = new RulesyncRule({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+        relativeFilePath: "plain.md",
+        frontmatter: {
+          targets: ["qwencode"],
+          qwencode: { name: "Plain", "keep-coding-instructions": true },
+        },
+        body: "Plain rule.",
+        validate: true,
+      });
+
+      const warnings = QwencodeRule.getRuleOptionWarnings([sharedRule, ignoredOptions]);
+
+      expect(warnings).toEqual([
+        expect.stringContaining(
+          "reviewer.md sets qwencode.channel: output-style but also targets other tools",
+        ),
+        expect.stringContaining("plain.md sets qwencode.name"),
+        expect.stringContaining("plain.md sets qwencode.keep-coding-instructions"),
+      ]);
+    });
+  });
 });

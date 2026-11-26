@@ -2,16 +2,31 @@ import { join, posix } from "node:path";
 
 import { z } from "zod/mini";
 
-import { QWENCODE_DIR, QWENCODE_RULE_FILE_NAME } from "../../constants/qwencode-paths.js";
+import {
+  QWENCODE_DIR,
+  QWENCODE_MAX_OUTPUT_STYLE_FILE_BYTES,
+  QWENCODE_OUTPUT_STYLES_DIR_PATH,
+  QWENCODE_RESERVED_OUTPUT_STYLE_NAMES,
+  QWENCODE_RULE_FILE_NAME,
+} from "../../constants/qwencode-paths.js";
 import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
+import { stripControlCharacters } from "../../utils/control-characters.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent, toPosixPath } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
+import {
+  buildOutputStyleFrontmatter,
+  getOutputStyleRuleOptionWarnings,
+  isDirectMarkdownChild,
+  isOutputStyleChannel,
+  resolveTopLevelOutputStyleStem,
+} from "./output-style-paths.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
   ToolRule,
   ToolRuleBuildLocalRootFileParams,
+  ToolRuleExtraFixedFile,
   ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
@@ -50,11 +65,26 @@ type QwencodeRuleNonRootParams = Omit<ToolRuleParams, "fileContent"> & {
 };
 
 /**
- * Parameters for creating a root QwencodeRule (`QWEN.md`).
- * The root memory file is plain Markdown without frontmatter, so `fileContent`
- * is passed directly (mirroring the original behavior).
+ * Parameters for creating a QwencodeRule from its whole file content: the root
+ * memory file (`QWEN.md`), which is plain Markdown without frontmatter, or a
+ * custom output style (`.qwen/output-styles/<name>.md`, `channel:
+ * "output-style"`), whose frontmatter is built by the caller.
  */
-type QwencodeRuleRootParams = ToolRuleParams;
+type QwencodeRuleRootParams = ToolRuleParams & {
+  /**
+   * Marks a custom output style (opted into with `qwencode.channel:
+   * output-style`) instead of a `.qwen/rules/` context rule.
+   */
+  channel?: "output-style";
+};
+
+/**
+ * The file-name glob `getExtraFixedFiles` returns for the output-styles
+ * directory, so import enumerates every style in it (never deletion — see
+ * `getExtraFixedFiles`): Qwen Code loads "every `*.md` file directly inside"
+ * the directory.
+ */
+const OUTPUT_STYLE_FILE_GLOB = "*.md";
 
 export type QwencodeRuleParams = QwencodeRuleNonRootParams | QwencodeRuleRootParams;
 
@@ -102,6 +132,14 @@ function normalizePaths(paths: string[] | string | undefined): string[] {
  *
  * `.qwen/rules/` supersedes the legacy `.qwen/memories/` directory as the
  * non-root surface; each rule is emitted to exactly one location.
+ *
+ * A non-root rule with `qwencode.channel: output-style` becomes a custom
+ * output style instead, `.qwen/output-styles/<rule file name>.md` (project) /
+ * `~/.qwen/output-styles/<rule file name>.md` (global), with the rule's
+ * `description`, `qwencode.name` and `qwencode.keep-coding-instructions` as
+ * the style's frontmatter. It is selected with `general.outputStyle` (the
+ * `qwencode.general.outputStyle` permissions override).
+ * @see https://github.com/QwenLM/qwen-code/blob/main/docs/users/features/output-styles.md
  */
 export class QwencodeRule extends ToolRule {
   /**
@@ -131,6 +169,7 @@ export class QwencodeRule extends ToolRule {
 
   private readonly frontmatter: QwencodeRuleFrontmatter | undefined;
   private readonly body: string | undefined;
+  private readonly channel: "output-style" | undefined;
 
   constructor(params: QwencodeRuleParams) {
     if (isNonRootParams(params)) {
@@ -150,12 +189,15 @@ export class QwencodeRule extends ToolRule {
       });
       this.frontmatter = frontmatter;
       this.body = body;
+      this.channel = undefined;
       return;
     }
 
-    super(params);
+    const { channel, ...rest } = params;
+    super(rest);
     this.frontmatter = undefined;
     this.body = undefined;
+    this.channel = channel;
   }
 
   /**
@@ -208,13 +250,102 @@ export class QwencodeRule extends ToolRule {
     };
   }
 
+  /**
+   * Whether the given path is a custom output style: a direct `.md` child of
+   * `.qwen/output-styles/`, at either scope.
+   */
+  private static isOutputStylePath({
+    relativeDirPath,
+    relativeFilePath,
+  }: {
+    relativeDirPath: string | undefined;
+    relativeFilePath: string;
+  }): boolean {
+    return isDirectMarkdownChild({
+      outputStylesDirPath: QWENCODE_OUTPUT_STYLES_DIR_PATH,
+      relativeDirPath,
+      relativeFilePath,
+    });
+  }
+
+  /** Whether a rule opts into the `output-style` channel (non-root only). */
+  private static isOutputStyleRule(rulesyncRule: RulesyncRule): boolean {
+    const frontmatter = rulesyncRule.getFrontmatter();
+    return isOutputStyleChannel({
+      root: frontmatter.root,
+      channel: frontmatter.qwencode?.channel,
+    });
+  }
+
+  /**
+   * The output-styles directory, enumerated for import only: it also holds
+   * styles users write by hand (including their personal
+   * `~/.qwen/output-styles/`) that rulesync cannot tell from its own, so
+   * `--delete` leaves it alone and it is not gitignored. Same at both scopes.
+   */
+  static getExtraFixedFiles(): ToolRuleExtraFixedFile[] {
+    return [
+      {
+        relativeDirPath: QWENCODE_OUTPUT_STYLES_DIR_PATH,
+        relativeFilePath: OUTPUT_STYLE_FILE_GLOB,
+        importOnly: true,
+      },
+    ];
+  }
+
+  /**
+   * See {@link getOutputStyleRuleOptionWarnings}; also flags
+   * `qwencode.keep-coding-instructions`, which, like `qwencode.name`, is read
+   * only with `channel: output-style`.
+   */
+  static getRuleOptionWarnings(rules: RulesyncRule[]): string[] {
+    const warnings = getOutputStyleRuleOptionWarnings({
+      rules,
+      toolTarget: "qwencode",
+      isTargetedByRulesyncRule: (rule) => this.isTargetedByRulesyncRule(rule),
+    });
+    for (const rule of rules) {
+      const frontmatter = rule.getFrontmatter();
+      const section = frontmatter.qwencode;
+      if (
+        frontmatter.root ||
+        !section ||
+        section.channel === "output-style" ||
+        section["keep-coding-instructions"] === undefined ||
+        !this.isTargetedByRulesyncRule(rule)
+      ) {
+        continue;
+      }
+      warnings.push(
+        `${stripControlCharacters(rule.getRelativeFilePath())} sets qwencode.keep-coding-instructions, which is read only with qwencode.channel: output-style; ignoring it.`,
+      );
+    }
+    return warnings;
+  }
+
   static async fromFile({
     outputRoot = process.cwd(),
+    relativeDirPath,
     relativeFilePath,
     validate = true,
     global = false,
   }: ToolRuleFromFileParams): Promise<QwencodeRule> {
     const paths = this.getSettablePaths({ global });
+
+    if (this.isOutputStylePath({ relativeDirPath, relativeFilePath })) {
+      const fileContent = await readFileContent(
+        join(outputRoot, QWENCODE_OUTPUT_STYLES_DIR_PATH, relativeFilePath),
+      );
+      return new QwencodeRule({
+        outputRoot,
+        relativeDirPath: QWENCODE_OUTPUT_STYLES_DIR_PATH,
+        relativeFilePath,
+        fileContent,
+        validate,
+        root: false,
+        channel: "output-style",
+      });
+    }
     const isRoot = relativeFilePath === QWENCODE_RULE_FILE_NAME;
 
     if (isRoot) {
@@ -263,6 +394,10 @@ export class QwencodeRule extends ToolRule {
     const rulesyncFrontmatter = rulesyncRule.getFrontmatter();
     const isRoot = rulesyncFrontmatter.root ?? false;
 
+    if (this.isOutputStyleRule(rulesyncRule)) {
+      return this.buildOutputStyle({ outputRoot, rulesyncRule, validate });
+    }
+
     if (isRoot) {
       return new QwencodeRule({
         outputRoot,
@@ -298,7 +433,108 @@ export class QwencodeRule extends ToolRule {
     });
   }
 
+  /**
+   * Write an `output-style` rule as `.qwen/output-styles/<name>.md`. The file
+   * name is the rule's own, so a rule nested under `.rulesync/rules/` is
+   * refused (Qwen Code reads only the files directly in `output-styles/`), as
+   * are styles Qwen Code would skip: one named `default` (reserved for the
+   * built-in style), one with an empty body, and one larger than 25 kB.
+   */
+  private static buildOutputStyle({
+    outputRoot,
+    rulesyncRule,
+    validate,
+  }: {
+    outputRoot: string;
+    rulesyncRule: RulesyncRule;
+    validate: boolean;
+  }): QwencodeRule {
+    const frontmatter = rulesyncRule.getFrontmatter();
+    const sourcePath = rulesyncRule.getRelativeFilePath();
+    const stem = resolveTopLevelOutputStyleStem({
+      sourcePath,
+      message: `Rule '${sourcePath}' sets qwencode.channel: output-style but is nested in a subdirectory: Qwen Code reads only the files directly in .qwen/output-styles/, so move it to the top of ${RULESYNC_RULES_RELATIVE_DIR_PATH}.`,
+    });
+    const name = frontmatter.qwencode?.name;
+    const styleName = name ?? stem;
+    if (QWENCODE_RESERVED_OUTPUT_STYLE_NAMES.includes(styleName.trim().toLowerCase())) {
+      throw new Error(
+        `Rule '${sourcePath}' sets qwencode.channel: output-style with the style name '${styleName}', which is reserved for Qwen Code's built-in default style. Rename the rule file or set qwencode.name.`,
+      );
+    }
+    const body = rulesyncRule.getBody();
+    if (body.trim() === "") {
+      throw new Error(
+        `Rule '${sourcePath}' sets qwencode.channel: output-style but has an empty body: Qwen Code skips an output style with no instructions.`,
+      );
+    }
+
+    const keepCodingInstructions = frontmatter.qwencode?.["keep-coding-instructions"];
+    const styleFrontmatter = {
+      ...buildOutputStyleFrontmatter({ name, description: frontmatter.description }),
+      ...(keepCodingInstructions !== undefined && {
+        "keep-coding-instructions": keepCodingInstructions,
+      }),
+    };
+    const fileContent =
+      Object.keys(styleFrontmatter).length > 0
+        ? stringifyFrontmatter(body, styleFrontmatter)
+        : body;
+    if (Buffer.byteLength(fileContent, "utf8") > QWENCODE_MAX_OUTPUT_STYLE_FILE_BYTES) {
+      throw new Error(
+        `Rule '${sourcePath}' sets qwencode.channel: output-style but the style file would be larger than ${QWENCODE_MAX_OUTPUT_STYLE_FILE_BYTES} bytes: Qwen Code skips larger output styles.`,
+      );
+    }
+    return new QwencodeRule({
+      outputRoot,
+      relativeDirPath: QWENCODE_OUTPUT_STYLES_DIR_PATH,
+      relativeFilePath: `${stem}.md`,
+      fileContent,
+      validate,
+      root: false,
+      channel: "output-style",
+    });
+  }
+
   toRulesyncRule(): RulesyncRule {
+    if (this.channel === "output-style") {
+      // The style's `name` / `description` / `keep-coding-instructions`
+      // frontmatter maps back onto the rule's `qwencode.name` / `description`
+      // / `qwencode.keep-coding-instructions`, and the file keeps its own
+      // name, so generate writes it back to the same path.
+      const { frontmatter, body } = parseFrontmatter(
+        this.getFileContent(),
+        join(this.getRelativeDirPath(), this.getRelativeFilePath()),
+      );
+      const name =
+        typeof frontmatter.name === "string" && frontmatter.name.trim() !== ""
+          ? frontmatter.name
+          : undefined;
+      const description =
+        typeof frontmatter.description === "string" ? frontmatter.description : undefined;
+      const keepCodingInstructions =
+        typeof frontmatter["keep-coding-instructions"] === "boolean"
+          ? frontmatter["keep-coding-instructions"]
+          : undefined;
+      return new RulesyncRule({
+        outputRoot: process.cwd(),
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+        relativeFilePath: this.getRelativeFilePath(),
+        frontmatter: {
+          root: false,
+          targets: ["qwencode"],
+          ...(description !== undefined && { description }),
+          qwencode: {
+            channel: "output-style",
+            ...(name !== undefined && { name }),
+            ...(keepCodingInstructions !== undefined && {
+              "keep-coding-instructions": keepCodingInstructions,
+            }),
+          },
+        },
+        body: body.trim(),
+      });
+    }
     if (this.isRoot()) {
       return this.toRulesyncRuleDefault();
     }
@@ -344,6 +580,18 @@ export class QwencodeRule extends ToolRule {
     relativeDirPath,
     relativeFilePath,
   }: ToolRuleForDeletionParams): QwencodeRule {
+    if (this.isOutputStylePath({ relativeDirPath, relativeFilePath })) {
+      return new QwencodeRule({
+        outputRoot,
+        relativeDirPath,
+        relativeFilePath,
+        fileContent: "",
+        validate: false,
+        root: false,
+        channel: "output-style",
+      });
+    }
+
     const isRoot = relativeFilePath === QWENCODE_RULE_FILE_NAME && relativeDirPath === ".";
 
     if (isRoot) {

@@ -675,6 +675,59 @@ Start with actionable findings, ordered by severity.
     expect(importedStyle).toContain("Start with actionable findings, ordered by severity.");
   });
 
+  it("should write qwencode.channel:output-style rules to .qwen/output-styles/ and round-trip", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+      `---
+root: true
+targets: ["qwencode"]
+description: "Root rule"
+globs: ["**/*"]
+---
+
+# Qwen Code Root Rule
+`,
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "reviewer.md"),
+      `---
+targets: ["qwencode"]
+description: "Put findings before the summary"
+qwencode:
+  channel: output-style
+  name: "Reviewer"
+  keep-coding-instructions: true
+---
+
+Start with actionable findings, ordered by severity.
+`,
+    );
+
+    await runGenerate({ target: "qwencode", features: "rules" });
+
+    // The style gets its own file, not a `.qwen/rules/` context rule.
+    expect(await fileExists(join(testDir, ".qwen", "rules", "reviewer.md"))).toBe(false);
+    const styleContent = await readFileContent(
+      join(testDir, ".qwen", "output-styles", "reviewer.md"),
+    );
+    expect(styleContent).toContain("name: Reviewer");
+    expect(styleContent).toContain("description: Put findings before the summary");
+    expect(styleContent).toContain("keep-coding-instructions: true");
+    expect(styleContent).toContain("Start with actionable findings, ordered by severity.");
+
+    await runImport({ target: "qwencode", features: "rules" });
+
+    const importedStyle = await readFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "reviewer.md"),
+    );
+    expect(importedStyle).toContain("channel: output-style");
+    expect(importedStyle).toContain("name: Reviewer");
+    expect(importedStyle).toContain("keep-coding-instructions: true");
+    expect(importedStyle).toContain("Start with actionable findings, ordered by severity.");
+  });
+
   it("should nest a rule under the directory derived from its globs when deriveSubprojectPathFromGlobs is on", async () => {
     const testDir = getTestDir();
 
