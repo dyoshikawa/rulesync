@@ -15,6 +15,7 @@ import {
   stringifyFrontmatter,
   validateFrontmatterSchema,
 } from "../../utils/frontmatter.js";
+import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { RulesyncSubagent, RulesyncSubagentFrontmatter } from "./rulesync-subagent.js";
 import {
   parseGeneratedSubagentFrontmatter,
@@ -43,6 +44,12 @@ const DeepcodeSubagentFrontmatterSchema = z.looseObject({
   model: z.optional(z.string()),
   order: z.optional(z.number()),
 });
+
+/**
+ * DeepCode's preset id rule (`_PRESET_ID_RE`, at most 64 characters): a file
+ * whose name breaks it is listed as a broken preset and cannot be picked.
+ */
+const DEEPCODE_PRESET_ID = /^(?!.*--)[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
 
 export type DeepcodeSubagentFrontmatter = z.infer<typeof DeepcodeSubagentFrontmatterSchema>;
 
@@ -132,8 +139,16 @@ export class DeepcodeSubagent extends ToolSubagent {
     rulesyncSubagent,
     validate = true,
     global = false,
+    logger,
   }: ToolSubagentFromRulesyncSubagentParams): ToolSubagent {
     const rulesyncFrontmatter = rulesyncSubagent.getFrontmatter();
+    const relativeFilePath = rulesyncSubagent.getRelativeFilePath();
+    const presetId = basename(relativeFilePath, extname(relativeFilePath));
+    if (!DEEPCODE_PRESET_ID.test(presetId) || presetId.length > 64) {
+      logger?.warn(
+        `DeepCode subagent ${quoteValueForWarning(relativeFilePath)}: DeepCode uses the file name as the preset id and lists a name that is not kebab-case (lowercase letters, digits and single hyphens, at most 64 characters) as a broken preset; rename the rulesync subagent file.`,
+      );
+    }
     const deepcodeSection = this.filterToolSpecificSection(rulesyncFrontmatter.deepcode ?? {}, [
       "name",
       "description",
@@ -159,7 +174,7 @@ export class DeepcodeSubagent extends ToolSubagent {
       frontmatter: deepcodeFrontmatter,
       body,
       relativeDirPath: this.getSettablePaths({ global }).relativeDirPath,
-      relativeFilePath: rulesyncSubagent.getRelativeFilePath(),
+      relativeFilePath,
       fileContent: stringifyFrontmatter(body, deepcodeFrontmatter),
       validate,
     });

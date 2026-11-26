@@ -81,6 +81,102 @@ describe("DeepcodeMcp", () => {
     expect(warn).toHaveBeenCalledOnce();
   });
 
+  it("should forward ${VAR} env values through envVars and drop what DeepCode would reject", async () => {
+    const warn = vi.fn();
+    const mcp = await DeepcodeMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      rulesyncMcp: makeRulesyncMcp({
+        local: {
+          command: "srv",
+          env: {
+            OPENAI_API_KEY: "${OPENAI_API_KEY}",
+            LOG_LEVEL: "debug",
+            ROOT: "${workspace}/data",
+            DB_PASSWORD: "hunter2",
+            RENAMED: "${OTHER}",
+          },
+        },
+      }),
+      logger: { warn } as never,
+    });
+
+    expect(mcp.getJson().mcpServers).toEqual({
+      local: {
+        type: "stdio",
+        command: "srv",
+        env: { LOG_LEVEL: "debug", ROOT: "${workspace}/data" },
+        envVars: ["OPENAI_API_KEY"],
+      },
+    });
+    expect(warn).toHaveBeenCalledTimes(2);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("DB_PASSWORD"));
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("RENAMED"));
+  });
+
+  it("should read ${VAR} headers from the environment and drop literal secrets", async () => {
+    const warn = vi.fn();
+    await writeFileContent(
+      join(testDir, "deepcode_config.json"),
+      JSON.stringify({
+        mcpServers: {
+          remote: {
+            type: "streamableHttp",
+            url: "https://example.com/mcp",
+            bearerTokenCredential: { connection: "c" },
+            approvalMode: "prompt",
+          },
+        },
+      }),
+    );
+
+    const mcp = await DeepcodeMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      rulesyncMcp: makeRulesyncMcp({
+        remote: {
+          type: "http",
+          url: "https://example.com/mcp",
+          headers: {
+            Authorization: "Bearer ${GITHUB_TOKEN}",
+            "X-Api-Key": "${SERVICE_KEY}",
+            "X-Team": "core",
+            Cookie: "session=abc",
+            "X-Partial": "id-${ID}",
+          },
+        },
+      }),
+      logger: { warn } as never,
+    });
+
+    expect(mcp.getJson().mcpServers).toEqual({
+      remote: {
+        type: "streamableHttp",
+        url: "https://example.com/mcp",
+        headers: { "X-Team": "core" },
+        envHttpHeaders: { "X-Api-Key": "SERVICE_KEY" },
+        bearerTokenEnvVar: "GITHUB_TOKEN",
+        // The stored-credential bearer would conflict with the generated one.
+        approvalMode: "prompt",
+      },
+    });
+    expect(warn).toHaveBeenCalledTimes(2);
+  });
+
+  it("should skip a server whose name DeepCode rejects", async () => {
+    const warn = vi.fn();
+    const mcp = await DeepcodeMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      rulesyncMcp: makeRulesyncMcp({
+        "my server": { command: "a" },
+        "-dash": { command: "b" },
+        ok_name: { command: "c" },
+      }),
+      logger: { warn } as never,
+    });
+
+    expect(Object.keys(mcp.getJson().mcpServers as object)).toEqual(["ok_name"]);
+    expect(warn).toHaveBeenCalledTimes(2);
+  });
+
   it("should keep other config keys and the native-only keys of existing servers", async () => {
     await writeFileContent(
       join(testDir, "deepcode_config.json"),
@@ -146,7 +242,14 @@ describe("DeepcodeMcp", () => {
             approvalMode: "prompt",
             tools: { a: { approvalMode: "prompt" } },
           },
-          remote: { type: "streamableHttp", url: "https://example.com/mcp", enabled: true },
+          remote: {
+            type: "streamableHttp",
+            url: "https://example.com/mcp",
+            enabled: true,
+            envHttpHeaders: { "X-Api-Key": "SERVICE_KEY" },
+            bearerTokenEnvVar: "GITHUB_TOKEN",
+          },
+          forwarded: { type: "stdio", command: "srv", envVars: ["OPENAI_API_KEY"] },
         },
       }),
     );
@@ -162,7 +265,12 @@ describe("DeepcodeMcp", () => {
         disabled: true,
         enabledTools: ["a"],
       },
-      remote: { type: "http", url: "https://example.com/mcp" },
+      remote: {
+        type: "http",
+        url: "https://example.com/mcp",
+        headers: { "X-Api-Key": "${SERVICE_KEY}", Authorization: "Bearer ${GITHUB_TOKEN}" },
+      },
+      forwarded: { type: "stdio", command: "srv", env: { OPENAI_API_KEY: "${OPENAI_API_KEY}" } },
     });
   });
 

@@ -9,6 +9,7 @@ import { McpServers } from "../../types/mcp.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { type Logger } from "../../utils/logger.js";
 import { PROTOTYPE_POLLUTION_KEYS } from "../../utils/prototype-pollution.js";
+import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isRecord } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
@@ -55,6 +56,12 @@ const DEEPCODE_MANAGED_SERVER_KEYS: ReadonlySet<string> = new Set([
   "disabledTools",
   "disabled_tools",
   "description",
+  "envVars",
+  "env_vars",
+  "envHttpHeaders",
+  "env_http_headers",
+  "bearerTokenEnvVar",
+  "bearer_token_env_var",
 ]);
 
 /**
@@ -96,6 +103,176 @@ function isStringArray(value: unknown): value is string[] {
 
 function isStringRecord(value: unknown): value is Record<string, string> {
   return isRecord(value) && Object.values(value).every((item) => typeof item === "string");
+}
+
+/**
+ * DeepCode's server-name rule (`validate_server_name`). A name outside it makes
+ * DeepCode reject the whole layer's MCP configuration.
+ */
+const DEEPCODE_SERVER_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/;
+
+/**
+ * DeepCode's `_SENSITIVE_NAME`: an `env` or `headers` key matching it makes
+ * DeepCode reject the whole layer's MCP configuration whatever its value
+ * (`validate_no_literal_secrets`), because native config must not hold
+ * literal secrets.
+ */
+const DEEPCODE_SENSITIVE_NAME =
+  /(?:^|[^a-z0-9])(?:authorization|cookie|(?:access|refresh|bearer)[-_]?token|api[-_]?key|password|passwd|secret|private[-_]?key)(?:$|[^a-z0-9])/i;
+
+/** A value that is exactly one canonical `${VAR}` reference. */
+const WHOLE_ENV_REF = /^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$/;
+
+/** An `Authorization` value that is exactly `Bearer ${VAR}`. */
+const BEARER_ENV_REF = /^Bearer \$\{([A-Za-z_][A-Za-z0-9_]*)\}$/i;
+
+/** DeepCode's own `env` placeholders, which it expands itself. */
+const DEEPCODE_PLACEHOLDER_NAMES: ReadonlySet<string> = new Set(["workspace", "configDir"]);
+
+function hasForeignPlaceholder(value: string): boolean {
+  for (const match of value.matchAll(/\$\{([^}]*)\}/g)) {
+    if (!DEEPCODE_PLACEHOLDER_NAMES.has(match[1] ?? "")) return true;
+  }
+  return false;
+}
+
+function warnDroppedKey({
+  serverName,
+  field,
+  key,
+  reason,
+  logger,
+}: {
+  serverName: string;
+  field: string;
+  key: string;
+  reason: string;
+  logger?: Logger;
+}): void {
+  logger?.warn(
+    `${TOOL_NAME} MCP server ${quoteValueForWarning(serverName)}: dropping ${field}.${quoteValueForWarning(key)} because ${reason}.`,
+  );
+}
+
+/**
+ * Translate a canonical stdio `env` map. DeepCode does not expand `${VAR}` in
+ * `env` (only its own `${workspace}` / `${configDir}`) and rejects a key that
+ * looks sensitive whatever its value, so:
+ * - `NAME: "${NAME}"` becomes an `envVars` entry (DeepCode forwards `NAME` from
+ *   its own environment);
+ * - any other value with a `${...}` reference, and a literal value under a
+ *   sensitive-looking key, is dropped with a warning;
+ * - every other value is written as a literal `env` entry.
+ */
+function toDeepcodeEnv({
+  serverName,
+  env,
+  logger,
+}: {
+  serverName: string;
+  env: Record<string, string>;
+  logger?: Logger;
+}): Record<string, unknown> {
+  const literal: Record<string, string> = {};
+  const forwarded: string[] = [];
+  for (const [key, value] of Object.entries(env)) {
+    if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
+    const reference = WHOLE_ENV_REF.exec(value)?.[1];
+    if (reference !== undefined && reference === key) {
+      forwarded.push(key);
+      continue;
+    }
+    if (hasForeignPlaceholder(value)) {
+      warnDroppedKey({
+        serverName,
+        field: "env",
+        key,
+        reason:
+          "DeepCode only forwards a variable under its own name (envVars) and does not expand other ${...} references",
+        logger,
+      });
+      continue;
+    }
+    if (DEEPCODE_SENSITIVE_NAME.test(key)) {
+      warnDroppedKey({
+        serverName,
+        field: "env",
+        key,
+        reason: `DeepCode refuses literal secrets in its config; write it as "${key}": "\${${key}}" to forward it from the environment`,
+        logger,
+      });
+      continue;
+    }
+    literal[key] = value;
+  }
+  return {
+    ...(Object.keys(literal).length > 0 && { env: literal }),
+    ...(forwarded.length > 0 && { envVars: forwarded }),
+  };
+}
+
+/**
+ * Translate canonical remote `headers`. DeepCode sends `headers` verbatim and
+ * rejects a header name that looks sensitive whatever its value, so:
+ * - `Authorization: Bearer ${VAR}` becomes `bearerTokenEnvVar: "VAR"`;
+ * - a header whose whole value is `${VAR}` becomes an `envHttpHeaders` entry;
+ * - any other value with a `${...}` reference, and a literal value under a
+ *   sensitive-looking name, is dropped with a warning;
+ * - every other header is written as a literal `headers` entry.
+ */
+function toDeepcodeHeaders({
+  serverName,
+  headers,
+  logger,
+}: {
+  serverName: string;
+  headers: Record<string, string>;
+  logger?: Logger;
+}): Record<string, unknown> {
+  const literal: Record<string, string> = {};
+  const fromEnv: Record<string, string> = {};
+  let bearerTokenEnvVar: string | undefined;
+  for (const [name, value] of Object.entries(headers)) {
+    if (PROTOTYPE_POLLUTION_KEYS.has(name)) continue;
+    const bearer = BEARER_ENV_REF.exec(value)?.[1];
+    if (bearer !== undefined && name.toLowerCase() === "authorization") {
+      bearerTokenEnvVar ??= bearer;
+      continue;
+    }
+    const reference = WHOLE_ENV_REF.exec(value)?.[1];
+    if (reference !== undefined) {
+      fromEnv[name] = reference;
+      continue;
+    }
+    if (value.includes("${")) {
+      warnDroppedKey({
+        serverName,
+        field: "headers",
+        key: name,
+        reason:
+          'DeepCode sends headers verbatim; only "Authorization: Bearer ${VAR}" and a whole-value "${VAR}" can be read from the environment',
+        logger,
+      });
+      continue;
+    }
+    if (DEEPCODE_SENSITIVE_NAME.test(name)) {
+      warnDroppedKey({
+        serverName,
+        field: "headers",
+        key: name,
+        reason:
+          'DeepCode refuses literal secrets in its config; use a "${VAR}" reference to read it from the environment',
+        logger,
+      });
+      continue;
+    }
+    literal[name] = value;
+  }
+  return {
+    ...(Object.keys(literal).length > 0 && { headers: literal }),
+    ...(Object.keys(fromEnv).length > 0 && { envHttpHeaders: fromEnv }),
+    ...(bearerTokenEnvVar !== undefined && { bearerTokenEnvVar }),
+  };
 }
 
 /**
@@ -147,8 +324,8 @@ function toDeepcodeServer({
     transport = remoteType === "sse" ? "sse" : "streamableHttp";
     entry.type = transport;
     entry.url = url;
-    if (isStringRecord(config.headers) && Object.keys(config.headers).length > 0) {
-      entry.headers = config.headers;
+    if (isStringRecord(config.headers)) {
+      Object.assign(entry, toDeepcodeHeaders({ serverName, headers: config.headers, logger }));
     }
   } else {
     const commandArray = resolveLocalMcpCommand(config);
@@ -170,8 +347,8 @@ function toDeepcodeServer({
     if (typeof config.cwd === "string") {
       entry.cwd = config.cwd;
     }
-    if (config.env && Object.keys(config.env).length > 0) {
-      entry.env = config.env;
+    if (config.env) {
+      Object.assign(entry, toDeepcodeEnv({ serverName, env: config.env, logger }));
     }
   }
 
@@ -193,7 +370,7 @@ function toDeepcodeServer({
 /**
  * The native-only keys of an existing server entry that a regenerated entry
  * keeps (`approvalMode`, per-tool `tools` policies, timeouts,
- * `credentialEnv`, `bearerTokenEnvVar`, ...): every key rulesync does not
+ * `credentialEnv`, `requiredEnvVars`, ...): every key rulesync does not
  * compute, minus those DeepCode rejects on the server's new transport.
  */
 function preservedNativeKeys({
@@ -215,6 +392,27 @@ function preservedNativeKeys({
 }
 
 /**
+ * The other ways of supplying a bearer token, which DeepCode accepts only one
+ * of: dropped from the preserved keys when `bearerTokenEnvVar` is generated.
+ */
+const DEEPCODE_BEARER_ALTERNATIVES = ["bearerTokenCredential", "bearer_token_credential", "auth"];
+
+/** Combine a generated entry with the native keys kept from the existing one. */
+function mergeWithPreserved({
+  entry,
+  preserved,
+}: {
+  entry: Record<string, unknown>;
+  preserved: Record<string, unknown>;
+}): Record<string, unknown> {
+  const kept = { ...preserved };
+  if (entry.bearerTokenEnvVar !== undefined) {
+    for (const key of DEEPCODE_BEARER_ALTERNATIVES) delete kept[key];
+  }
+  return { ...entry, ...kept };
+}
+
+/**
  * Convert canonical servers to DeepCode's `mcpServers` map. DeepCode rejects
  * unknown keys on a server entry, so the generated part is a whitelist; the
  * native-only keys of a server already present in `existingServers` are
@@ -233,15 +431,25 @@ export function convertToDeepcodeFormat({
   const result: Record<string, Record<string, unknown>> = {};
   for (const [serverName, config] of Object.entries(mcpServers)) {
     if (PROTOTYPE_POLLUTION_KEYS.has(serverName)) continue;
+    if (!DEEPCODE_SERVER_NAME.test(serverName)) {
+      warnAndSkipMcpServer({
+        toolName: TOOL_NAME,
+        serverName,
+        reason:
+          "a name DeepCode rejects (1-80 letters, digits, dots, dashes or underscores, starting with a letter or digit)",
+        logger,
+      });
+      continue;
+    }
     const converted = toDeepcodeServer({ serverName, config, logger });
     if (converted === null) continue;
     const existing = Object.hasOwn(existingServers, serverName)
       ? existingServers[serverName]
       : undefined;
-    result[serverName] = {
-      ...converted.entry,
-      ...preservedNativeKeys({ existing, transport: converted.transport }),
-    };
+    result[serverName] = mergeWithPreserved({
+      entry: converted.entry,
+      preserved: preservedNativeKeys({ existing, transport: converted.transport }),
+    });
   }
   return result;
 }
@@ -249,8 +457,10 @@ export function convertToDeepcodeFormat({
 /**
  * Convert DeepCode's `mcpServers` back to canonical servers. Only the keys
  * rulesync models are imported: `streamableHttp` becomes `http`,
- * `enabled: false` becomes `disabled: true`, and the snake_case tool filter
- * spellings are read too. Native-only keys (`approvalMode`, `tools`,
+ * `enabled: false` becomes `disabled: true`, `envVars` entries become
+ * `NAME: "${NAME}"` env entries, `envHttpHeaders` and `bearerTokenEnvVar`
+ * become `${VAR}` headers (`Authorization: Bearer ${VAR}`), and the
+ * snake_case spellings are read too. Native-only keys (`approvalMode`, `tools`,
  * `credentialEnv`, timeouts, ...) are not imported, because several of them
  * clash with canonical keys of the same name or point at DeepCode's private
  * credential store; they stay in `deepcode_config.json`, where the next
@@ -281,14 +491,36 @@ function transportFromDeepcode(config: Record<string, unknown>): Record<string, 
   if (typeof config.command === "string") converted.command = config.command;
   if (isStringArray(config.args) && config.args.length > 0) converted.args = config.args;
   if (typeof config.cwd === "string") converted.cwd = config.cwd;
-  if (isStringRecord(config.env) && Object.keys(config.env).length > 0) {
-    converted.env = config.env;
-  }
+  const env = envFromDeepcode(config);
+  if (Object.keys(env).length > 0) converted.env = env;
   if (typeof config.url === "string") converted.url = config.url;
-  if (isStringRecord(config.headers) && Object.keys(config.headers).length > 0) {
-    converted.headers = config.headers;
-  }
+  const headers = headersFromDeepcode(config);
+  if (Object.keys(headers).length > 0) converted.headers = headers;
   return converted;
+}
+
+/** Literal `env` plus each `envVars` name as a `NAME: "${NAME}"` reference. */
+function envFromDeepcode(config: Record<string, unknown>): Record<string, string> {
+  const env: Record<string, string> = isStringRecord(config.env) ? { ...config.env } : {};
+  const envVars = config.envVars ?? config.env_vars;
+  for (const name of isStringArray(envVars) ? envVars : []) {
+    env[name] ??= `\${${name}}`;
+  }
+  return env;
+}
+
+/** Literal `headers` plus `envHttpHeaders` / `bearerTokenEnvVar` as `${VAR}` references. */
+function headersFromDeepcode(config: Record<string, unknown>): Record<string, string> {
+  const headers: Record<string, string> = isStringRecord(config.headers)
+    ? { ...config.headers }
+    : {};
+  const envHeaders = config.envHttpHeaders ?? config.env_http_headers;
+  for (const [name, variable] of Object.entries(isStringRecord(envHeaders) ? envHeaders : {})) {
+    headers[name] = `\${${variable}}`;
+  }
+  const bearer = config.bearerTokenEnvVar ?? config.bearer_token_env_var;
+  if (typeof bearer === "string") headers.Authorization = `Bearer \${${bearer}}`;
+  return headers;
 }
 
 /** The canonical enable flag, tool filters and description of one DeepCode server entry. */

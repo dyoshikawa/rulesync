@@ -181,6 +181,34 @@ function mergeStricter({ target, rules }: { target: Rules; rules: Rules }): void
   }
 }
 
+/** Whether a DeepCode tool key is a tool-name wildcard rather than one tool's name. */
+function isToolWildcard(toolKey: string): boolean {
+  return /[*?[]/.test(toolKey);
+}
+
+/**
+ * Whether the rules under tool key `broad` can apply to calls of tool key
+ * `narrow`: `broad` is a wildcard that matches `narrow`'s name, or overlaps
+ * `narrow`'s own wildcard. Over-reports, the direction that restricts.
+ */
+function toolKeyCovers({ broad, narrow }: { broad: string; narrow: string }): boolean {
+  if (broad === narrow || !isToolWildcard(broad)) return false;
+  return patternsOverlap(broad, narrow);
+}
+
+/**
+ * Write order for DeepCode tool keys: wildcards first, least specific first
+ * (`*` leads), then concrete tool names in their canonical order. DeepCode
+ * lets a later key override an earlier one, so a tool's own rules override
+ * the defaults a broader wildcard sets.
+ */
+function orderToolKeys(keys: string[]): string[] {
+  const wildcards = keys
+    .filter((key) => isToolWildcard(key))
+    .toSorted((a, b) => deepcodePatternSpecificity(a) - deepcodePatternSpecificity(b));
+  return [...wildcards, ...keys.filter((key) => !isToolWildcard(key))];
+}
+
 /**
  * Translate the effective canonical permission block into DeepCode's
  * `security.permissions` map.
@@ -191,14 +219,19 @@ function mergeStricter({ target, rules }: { target: Rules; rules: Rules }): void
  * stricter rule wins (`deny` > `ask` > `allow`), so the output is arranged to
  * never let a looser rule win where the canonical config restricts:
  *
- * - The all-tools `*` key is written first, so a tool's own rules override
- *   its catch-all default. Each of its other `ask` / `deny` patterns is
- *   restated in every later key holding an overlapping looser rule, and its
- *   catch-all `*` is restated in a later key whose own catch-all is looser.
+ * - Wildcard tool keys are written first (`*` leading, then narrower
+ *   wildcards such as `mcp__github__*`), then concrete tools, so a tool's own
+ *   rules override the defaults a wildcard sets. Each wildcard's other
+ *   `ask` / `deny` patterns are restated in every later key it covers that
+ *   holds an overlapping looser rule, and its catch-all `*` is restated over
+ *   a looser catch-all of such a key.
  * - Within each key, rules are resolved by {@link resolveKeyRules} and ordered
  *   by {@link orderForDeepcode}.
- * - A key left with only a catch-all is written in DeepCode's plain-string
- *   form (`"web_fetch": "ask"`).
+ * - Every key is written as a pattern map, never DeepCode's plain-string
+ *   form: DeepCode deep-merges the project file over the user file, and a
+ *   string would replace the user's whole map for that tool.
+ * - A `write` / `edit` catch-all `ask` or `deny` also covers `apply_patch`,
+ *   which edits files without a path argument rules could match.
  *
  * Categories DeepCode has no tool for (`websearch`, `notebookedit`) are
  * skipped with a warning; any other category name is written as a DeepCode
@@ -210,37 +243,30 @@ export function convertToDeepcodePermissions({
 }: {
   permission: Record<string, Rules>;
   logger?: Logger;
-}): Record<string, string | Rules> {
+}): Record<string, Rules> {
   const byTool = groupByDeepcodeTool({ permission, logger });
-  const allTools = byTool.get(ALL_TOOLS_PERMISSION_CATEGORY);
-  const allToolsRestrictions = Object.entries(allTools ?? {}).filter(
-    ([, action]) => action !== "allow",
-  );
+  coverApplyPatch({ byTool, logger });
 
   const raised: string[] = [];
   const withheld: string[] = [];
-  const result: Record<string, string | Rules> = {};
-  const orderedKeys = [
-    ...(allTools ? [ALL_TOOLS_PERMISSION_CATEGORY] : []),
-    ...[...byTool.keys()].filter((key) => key !== ALL_TOOLS_PERMISSION_CATEGORY),
-  ];
-  for (const toolKey of orderedKeys) {
-    const own: KeyRule[] = Object.entries(byTool.get(toolKey) ?? {}).map(([pattern, action]) => ({
+  const result: Record<string, Rules> = {};
+  const orderedKeys = orderToolKeys([...byTool.keys()]);
+  for (const [index, toolKey] of orderedKeys.entries()) {
+    let rules: KeyRule[] = Object.entries(byTool.get(toolKey) ?? {}).map(([pattern, action]) => ({
       pattern,
       action,
       restated: false,
     }));
-    const rules =
-      toolKey === ALL_TOOLS_PERMISSION_CATEGORY
-        ? own
-        : restateAllToolsRestrictions({ rules: own, restrictions: allToolsRestrictions });
+    for (const broad of orderedKeys.slice(0, index)) {
+      if (!toolKeyCovers({ broad, narrow: toolKey })) continue;
+      const restrictions = Object.entries(byTool.get(broad) ?? {}).filter(
+        ([, action]) => action !== "allow",
+      );
+      rules = restateBroaderRestrictions({ rules, restrictions });
+    }
     const resolved = resolveKeyRules({ rules, toolKey, raised, withheld });
     if (resolved.length === 0) continue;
-    const [only] = resolved;
-    result[toolKey] =
-      resolved.length === 1 && only && only.pattern === CATCH_ALL_PATTERN
-        ? only.action
-        : Object.fromEntries(resolved.map((rule) => [rule.pattern, rule.action]));
+    result[toolKey] = Object.fromEntries(resolved.map((rule) => [rule.pattern, rule.action]));
   }
 
   if (raised.length > 0) {
@@ -256,6 +282,48 @@ export function convertToDeepcodePermissions({
     );
   }
   return result;
+}
+
+/** DeepCode's patch tool, which writes files without a path argument. */
+const APPLY_PATCH_TOOL = "apply_patch";
+
+/**
+ * Carry a `write` / `edit` catch-all `ask` or `deny` over to `apply_patch`,
+ * which DeepCode matches against the whole call rather than a path, so only a
+ * catch-all reaches it. Path-specific `write` / `edit` restrictions cannot be
+ * carried over, which is warned about.
+ */
+function coverApplyPatch({
+  byTool,
+  logger,
+}: {
+  byTool: Map<string, Rules>;
+  logger?: Logger;
+}): void {
+  const fileTools = ["write", "edit"].map((tool) => byTool.get(tool) ?? {});
+  const catchAllRestrictions = fileTools
+    .map((rules) =>
+      Object.hasOwn(rules, CATCH_ALL_PATTERN) ? rules[CATCH_ALL_PATTERN] : undefined,
+    )
+    .filter((action): action is PermissionAction => action !== undefined && action !== "allow");
+  if (catchAllRestrictions.length > 0) {
+    const target = byTool.get(APPLY_PATCH_TOOL) ?? {};
+    for (const action of catchAllRestrictions) {
+      mergeStricter({ target, rules: { [CATCH_ALL_PATTERN]: action } });
+    }
+    byTool.set(APPLY_PATCH_TOOL, target);
+  }
+  const pathRestrictions = fileTools.flatMap((rules) =>
+    Object.entries(rules).filter(
+      ([pattern, action]) => pattern !== CATCH_ALL_PATTERN && action !== "allow",
+    ),
+  );
+  if (pathRestrictions.length > 0) {
+    warnWithFallback(
+      logger,
+      `${TOOL_LABEL}'s ${APPLY_PATCH_TOOL} tool is not matched by path, so the write/edit rule(s) for ${pathRestrictions.map(([pattern]) => quoteValueForWarning(pattern)).join(", ")} do not restrict it; add a "${DEEPCODE_OVERRIDE_KEY}.permission.${APPLY_PATCH_TOOL}" rule to restrict patches as well.`,
+    );
+  }
 }
 
 /**
@@ -292,13 +360,14 @@ function groupByDeepcodeTool({
 }
 
 /**
- * Restate the all-tools key's `ask` / `deny` patterns in a later tool key,
- * whose rules DeepCode matches after them: a same-pattern rule takes the
- * stricter action, and any other non-catch-all restriction is added when it
- * overlaps a looser rule of the key. The all-tools catch-all is the default a
- * tool's own rules override, so it is restated only over the same pattern.
+ * Restate a broader wildcard key's `ask` / `deny` patterns in a later tool
+ * key it covers, whose rules DeepCode matches after them: a same-pattern rule
+ * takes the stricter action, and any other non-catch-all restriction is added
+ * when it overlaps a looser rule of the key. The wildcard's catch-all is the
+ * default a tool's own rules override, so it is restated only over the same
+ * pattern.
  */
-function restateAllToolsRestrictions({
+function restateBroaderRestrictions({
   rules,
   restrictions,
 }: {
@@ -329,10 +398,88 @@ function restateAllToolsRestrictions({
 }
 
 /**
- * Read DeepCode's `security.permissions` back into canonical form. A plain
- * string is a catch-all rule. Each key's patterns are listed in the order
- * DeepCode evaluates them (by specificity, ties in file order), so a reader
- * that applies the last matching canonical rule decides as DeepCode does.
+ * Parse one DeepCode tool key's spec into rules in the order DeepCode
+ * evaluates them (by specificity, ties in file order), or `undefined` for a
+ * spec that is neither a string nor a map. Unknown actions are collected in
+ * `invalid`.
+ */
+function parseDeepcodeSpec({
+  toolKey,
+  spec,
+  invalid,
+}: {
+  toolKey: string;
+  spec: unknown;
+  invalid: string[];
+}): Rules | undefined {
+  if (typeof spec !== "string" && !isRecord(spec)) {
+    invalid.push(quoteValueForWarning(toolKey));
+    return undefined;
+  }
+  const entries: Array<[string, unknown]> =
+    typeof spec === "string" ? [[CATCH_ALL_PATTERN, spec]] : Object.entries(spec);
+  const rules: Rules = {};
+  const ordered = entries
+    .filter(([pattern]) => !isPrototypePollutionKey(pattern))
+    .toSorted(([a], [b]) => deepcodePatternSpecificity(a) - deepcodePatternSpecificity(b));
+  for (const [pattern, rawAction] of ordered) {
+    const action = typeof rawAction === "string" ? rawAction.toLowerCase() : rawAction;
+    if (!isPermissionAction(action)) {
+      invalid.push(describeRule(toolKey, pattern));
+      continue;
+    }
+    rules[pattern] = action;
+  }
+  return rules;
+}
+
+/**
+ * Fold a later key's restriction into an earlier key it covers, as DeepCode
+ * lets the later key override it: the earlier key's looser rules that
+ * overlap the restriction would lose to it, so an `allow` is dropped and an
+ * `ask` under a `deny` becomes `deny` (dropping it could let inputs only it
+ * covered fall to a looser rule); then the restriction itself is added,
+ * keeping the stricter action on a shared pattern.
+ */
+function foldLaterRestriction({
+  rules,
+  pattern,
+  action,
+}: {
+  rules: Rules;
+  pattern: string;
+  action: PermissionAction;
+}): Rules {
+  const result: Rules = {};
+  for (const [ownPattern, ownAction] of Object.entries(rules)) {
+    if (
+      !isStricterAction({ action, existing: ownAction }) ||
+      !patternsOverlap(pattern, ownPattern)
+    ) {
+      result[ownPattern] = ownAction;
+      continue;
+    }
+    if (ownAction === "ask") {
+      result[ownPattern] = "deny";
+    }
+  }
+  const existing = Object.hasOwn(result, pattern) ? result[pattern] : undefined;
+  if (isStricterAction({ action, existing })) {
+    result[pattern] = action;
+  }
+  return result;
+}
+
+/**
+ * Read DeepCode's `security.permissions` back into canonical form without
+ * loosening it. A plain string is a catch-all rule, and each key's patterns
+ * are listed in the order DeepCode evaluates them, so a reader that applies
+ * the last matching canonical rule decides as DeepCode does within a key.
+ * Across keys DeepCode lets a later key override an earlier one, so each
+ * later wildcard key's `ask` / `deny` rules are folded into the earlier keys
+ * it covers (see {@link foldLaterRestriction}); a later key's `allow` over an
+ * earlier restriction is not carried over, which only tightens.
+ *
  * Tool names with a canonical category land in the shared `permission`
  * block; any other tool name (`apply_patch`, `multi_edit`, MCP tools,
  * wildcards) lands in the tool-scoped `deepcode.permission` block, so it is
@@ -346,33 +493,40 @@ export function convertFromDeepcodePermissions({
   permissions: Record<string, unknown>;
   logger?: Logger;
 }): { shared: Record<string, Rules>; toolScoped: Record<string, Rules> } {
-  const shared: Record<string, Rules> = {};
-  const toolScoped: Record<string, Rules> = {};
   const invalid: string[] = [];
+  const parsed: Array<[string, Rules]> = [];
   for (const [toolKey, spec] of Object.entries(permissions)) {
     if (isPrototypePollutionKey(toolKey)) continue;
-    const entries: Array<[string, unknown]> =
-      typeof spec === "string"
-        ? [[CATCH_ALL_PATTERN, spec]]
-        : isRecord(spec)
-          ? Object.entries(spec)
-          : [];
-    if (typeof spec !== "string" && !isRecord(spec)) {
-      invalid.push(quoteValueForWarning(toolKey));
-      continue;
-    }
-    const rules: Rules = {};
-    const ordered = entries
-      .filter(([pattern]) => !isPrototypePollutionKey(pattern))
-      .toSorted(([a], [b]) => deepcodePatternSpecificity(a) - deepcodePatternSpecificity(b));
-    for (const [pattern, rawAction] of ordered) {
-      const action = typeof rawAction === "string" ? rawAction.toLowerCase() : rawAction;
-      if (!isPermissionAction(action)) {
-        invalid.push(describeRule(toolKey, pattern));
-        continue;
+    const rules = parseDeepcodeSpec({ toolKey, spec, invalid });
+    if (rules !== undefined) parsed.push([toolKey, rules]);
+  }
+  for (let index = parsed.length - 1; index >= 0; index -= 1) {
+    const entry = parsed[index];
+    if (!entry) continue;
+    const [toolKey] = entry;
+    let rules = entry[1];
+    for (const [laterKey, laterRules] of parsed.slice(index + 1)) {
+      if (!toolKeyCovers({ broad: laterKey, narrow: toolKey })) continue;
+      for (const [pattern, action] of Object.entries(laterRules)) {
+        if (action === "allow") continue;
+        rules = foldLaterRestriction({ rules, pattern, action });
       }
-      rules[pattern] = action;
     }
+    // Keep the evaluation order after folding, so a stricter, more specific
+    // own rule stays after a folded broader one.
+    parsed[index] = [
+      toolKey,
+      Object.fromEntries(
+        Object.entries(rules).toSorted(
+          ([a], [b]) => deepcodePatternSpecificity(a) - deepcodePatternSpecificity(b),
+        ),
+      ),
+    ];
+  }
+
+  const shared: Record<string, Rules> = {};
+  const toolScoped: Record<string, Rules> = {};
+  for (const [toolKey, rules] of parsed) {
     if (Object.keys(rules).length === 0) continue;
     const category = DEEPCODE_TOOL_TO_CATEGORY[toolKey];
     if (category !== undefined) {

@@ -1713,7 +1713,7 @@ web_search_request = true
       accessPreset: "ask",
       permissions: {
         bash: { "*": "ask", "git *": "allow", "git push*": "deny" },
-        web_fetch: "ask",
+        web_fetch: { "*": "ask" },
       },
     });
     expect(parsed.mcpServers).toEqual({ local: { type: "stdio", command: "srv" } });

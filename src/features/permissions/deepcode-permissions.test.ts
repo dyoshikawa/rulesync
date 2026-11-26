@@ -71,7 +71,7 @@ function evaluateDeepcode({
 }
 
 describe("convertToDeepcodePermissions", () => {
-  it("should map categories to DeepCode tool names and collapse catch-alls to strings", () => {
+  it("should map categories to DeepCode tool names and always write pattern maps", () => {
     const result = convertToDeepcodePermissions({
       permission: {
         bash: { "*": "ask", "git *": "allow", "rm -rf *": "deny" },
@@ -81,11 +81,13 @@ describe("convertToDeepcodePermissions", () => {
       },
     });
 
+    // A plain string would replace the user file's whole map for that tool
+    // when DeepCode deep-merges the project file over it.
     expect(result).toEqual({
       bash: { "*": "ask", "git *": "allow", "rm -rf *": "deny" },
-      web_fetch: "ask",
+      web_fetch: { "*": "ask" },
       read: { "src/**": "allow" },
-      spawn_agent: "deny",
+      spawn_agent: { "*": "deny" },
     });
   });
 
@@ -173,8 +175,50 @@ describe("convertToDeepcodePermissions", () => {
       logger: { warn } as never,
     });
 
-    expect(permissions).toEqual({ apply_patch: "ask" });
+    expect(permissions).toEqual({ apply_patch: { "*": "ask" } });
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("websearch"));
+  });
+});
+
+describe("convertToDeepcodePermissions (wildcard tool keys and apply_patch)", () => {
+  it("should write wildcard tool keys before the tools they cover and restate their restrictions", () => {
+    const permissions = convertToDeepcodePermissions({
+      permission: {
+        mcp__github__delete_repo: { "*": "deny" },
+        "mcp__github__*": { "*": "allow" },
+        write: { "*": "deny" },
+        "w*": { "*": "allow", "secrets/**": "deny" },
+      },
+    });
+
+    expect(Object.keys(permissions)).toEqual([
+      "w*",
+      "mcp__github__*",
+      "mcp__github__delete_repo",
+      "write",
+      "apply_patch",
+    ]);
+    expect(evaluateDeepcode({ permissions, tool: "mcp__github__delete_repo", argument: "x" })).toBe(
+      "deny",
+    );
+    expect(evaluateDeepcode({ permissions, tool: "mcp__github__search", argument: "x" })).toBe(
+      "allow",
+    );
+    expect(evaluateDeepcode({ permissions, tool: "write", argument: "src/a.ts" })).toBe("deny");
+  });
+
+  it("should carry a write/edit catch-all restriction over to apply_patch", () => {
+    const warn = vi.fn();
+    const permissions = convertToDeepcodePermissions({
+      permission: {
+        write: { "*": "ask" },
+        edit: { "*": "deny", "src/**": "allow", ".env": "deny" },
+      },
+      logger: { warn } as never,
+    });
+
+    expect(permissions.apply_patch).toEqual({ "*": "deny" });
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("apply_patch"));
   });
 });
 
@@ -195,6 +239,52 @@ describe("convertFromDeepcodePermissions", () => {
     });
     expect(Object.keys(shared.bash ?? {})).toEqual(["*", "git *", "git push*"]);
     expect(toolScoped).toEqual({ apply_patch: { "*": "deny" }, "mcp__*": { "*": "ask" } });
+  });
+
+  it("should fold a later key's restrictions into the earlier keys it covers", () => {
+    const { shared } = convertFromDeepcodePermissions({
+      permissions: { bash: { "npm test": "allow", "git push*": "deny" }, "*": "deny" },
+    });
+
+    // In DeepCode the later `*` key wins, so `npm test` is denied too.
+    expect(shared.bash).toEqual({ "*": "deny", "git push*": "deny" });
+    const regenerated = convertToDeepcodePermissions({ permission: shared });
+    expect(evaluateDeepcode({ permissions: regenerated, tool: "bash", argument: "npm test" })).toBe(
+      "deny",
+    );
+  });
+
+  it("should not let a later wildcard allow defeat an earlier specific deny after regeneration", () => {
+    const { shared, toolScoped } = convertFromDeepcodePermissions({
+      permissions: {
+        mcp__github__delete_repo: "deny",
+        "mcp__github__*": "allow",
+        "w*": "allow",
+        write: "deny",
+      },
+    });
+    const regenerated = convertToDeepcodePermissions({
+      permission: { ...shared, ...toolScoped },
+    });
+
+    expect(
+      evaluateDeepcode({
+        permissions: regenerated,
+        tool: "mcp__github__delete_repo",
+        argument: "x",
+      }),
+    ).toBe("deny");
+    expect(evaluateDeepcode({ permissions: regenerated, tool: "write", argument: "a" })).toBe(
+      "deny",
+    );
+  });
+
+  it("should raise an earlier ask that a later deny covers", () => {
+    const { shared } = convertFromDeepcodePermissions({
+      permissions: { bash: { "git *": "ask", ls: "allow" }, "*": { "git push*": "deny" } },
+    });
+
+    expect(shared.bash).toEqual({ ls: "allow", "git *": "deny", "git push*": "deny" });
   });
 
   it("should skip unknown actions with a warning", () => {
@@ -280,8 +370,8 @@ describe("DeepcodePermissions", () => {
         accessPreset: "ask",
         permissions: {
           bash: { "*": "ask", "npm test*": "allow", "git push*": "deny" },
-          web_fetch: "ask",
-          apply_patch: "ask",
+          web_fetch: { "*": "ask" },
+          apply_patch: { "*": "ask" },
         },
       },
     };

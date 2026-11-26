@@ -95,6 +95,34 @@ describe("DeepcodeSubagent", () => {
     expect(rulesync.getBody()).toBe("Plan the change.");
   });
 
+  it("should warn when the file name is not a kebab-case preset id", () => {
+    const warn = vi.fn();
+    const rulesyncSubagent = new RulesyncSubagent({
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+      relativeFilePath: "Code_Reviewer.md",
+      frontmatter: { targets: ["*"], name: "Code Reviewer" },
+      body: "Review.",
+      validate: true,
+    });
+
+    DeepcodeSubagent.fromRulesyncSubagent({
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+      rulesyncSubagent,
+      logger: { warn } as never,
+    });
+    DeepcodeSubagent.fromRulesyncSubagent({
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+      rulesyncSubagent: makeRulesyncSubagent({}),
+      logger: { warn } as never,
+    });
+
+    expect(warn).toHaveBeenCalledOnce();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("kebab-case"));
+  });
+
   it("should only target deepcode or wildcard subagents", () => {
     expect(
       DeepcodeSubagent.isTargetedByRulesyncSubagent(makeRulesyncSubagent({ targets: ["*"] })),
