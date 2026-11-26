@@ -26,12 +26,13 @@ export const PI_MCP_FILE_NAME = "mcp.json";
 
 /**
  * Directory layout shared by Pi and its forks (oh-my-pi reads the same
- * skill and command formats from `.omp/`), so their skill and command
- * classes subclass the Pi ones and override only this layout.
+ * skill and command formats from `.omp/`, Gajae-Code from `.gjc/`), so their
+ * skill and command classes subclass the Pi ones and override only this
+ * layout.
  */
 export type PiLayout = {
   /** The rulesync tool target (also the tool-scoped key in rulesync files). */
-  toolTarget: "pi" | "omp";
+  toolTarget: "pi" | "omp" | "gajaecode";
   /** Project config directory (`.pi`). */
   dir: string;
   /** Global config directory, relative to the home directory (`.pi/agent`). */

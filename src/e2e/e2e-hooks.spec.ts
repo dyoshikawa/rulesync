@@ -199,6 +199,7 @@ const hooksGenerateTargets = [
   { target: "omp", outputPath: join(".omp", "extensions", "rulesync-hooks.ts") },
   { target: "codexcli", outputPath: join(".codex", "hooks.json") },
   { target: "openbitfun", outputPath: join(".openbitfun", "config", "hooks.json") },
+  { target: "openhands", outputPath: join(".openhands", "hooks.json") },
   { target: "qwencode", outputPath: join(".qwen", "settings.json") },
   {
     target: "goose",
@@ -417,6 +418,25 @@ describe("E2E: hooks", () => {
         assertHookCommandsPreserved(parsed);
       }
     }
+  });
+
+  it("should remove .openhands/hooks.json once no OpenHands hooks remain", async () => {
+    const testDir = getTestDir();
+    const hooksPath = join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH);
+    const outputPath = join(testDir, ".openhands", "hooks.json");
+
+    await writeFileContent(hooksPath, JSON.stringify({ hooks: { stop: [{ command: "echo" }] } }));
+    await runGenerate({ target: "openhands", features: "hooks" });
+    expect(await fileExists(outputPath)).toBe(true);
+
+    // An empty project file would still hide ~/.openhands/hooks.json, so it is
+    // removed rather than rewritten as `{}`.
+    await writeFileContent(
+      hooksPath,
+      JSON.stringify({ hooks: { preCompact: [{ command: "echo" }] } }),
+    );
+    await runGenerate({ target: "openhands", features: "hooks" });
+    expect(await fileExists(outputPath)).toBe(false);
   });
 
   it("should generate hooks from hooks.jsonc (preferred over hooks.json)", async () => {
@@ -960,6 +980,7 @@ describe("E2E: hooks", () => {
     { target: "omp", orphanPath: join(".omp", "extensions", "rulesync-hooks.ts") },
     { target: "codexcli", orphanPath: join(".codex", "hooks.json") },
     { target: "openbitfun", orphanPath: join(".openbitfun", "config", "hooks.json") },
+    { target: "openhands", orphanPath: join(".openhands", "hooks.json") },
     { target: "copilot", orphanPath: join(".github", "hooks", "copilot-hooks.json") },
     { target: "factorydroid", orphanPath: join(".factory", "hooks.json") },
     { target: "gitlabduo", orphanPath: join(".gitlab", "duo", "hooks.json") },
@@ -1066,6 +1087,13 @@ describe("E2E: hooks (import)", () => {
         hooks: {
           SessionStart: [{ hooks: [{ type: "command", command: "echo session started" }] }],
         },
+      },
+    },
+    {
+      target: "openhands",
+      sourcePath: join(".openhands", "hooks.json"),
+      sourceContent: {
+        session_start: [{ hooks: [{ type: "command", command: "echo session started" }] }],
       },
     },
     {

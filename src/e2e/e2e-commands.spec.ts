@@ -33,6 +33,7 @@ const commandsGenerateTargets = [
   { target: "copilot", outputPath: join(".github", "prompts", "review-pr.prompt.md") },
   { target: "mimocode", outputPath: join(".mimocode", "commands", "review-pr.md") },
   { target: "omp", outputPath: join(".omp", "commands", "review-pr.md") },
+  { target: "gajaecode", outputPath: join(".gjc", "commands", "review-pr.md") },
   { target: "opencode", outputPath: join(".opencode", "commands", "review-pr.md") },
   { target: "opencodev1", outputPath: join(".opencode", "commands", "review-pr.md") },
   { target: "cline", outputPath: join(".clinerules", "workflows", "review-pr.md") },
@@ -44,6 +45,7 @@ const commandsGenerateTargets = [
   { target: "commandcode", outputPath: join(".commandcode", "commands", "review-pr.md") },
   { target: "qoder", outputPath: join(".qoder", "commands", "review-pr.md") },
   { target: "trae", outputPath: join(".trae", "commands", "review-pr.md") },
+  { target: "theia", outputPath: join(".prompts", "review-pr.prompttemplate") },
   { target: "roo", outputPath: join(".roo", "commands", "review-pr.md") },
   { target: "zoocode", outputPath: join(".roo", "commands", "review-pr.md") },
   { target: "kiro", outputPath: join(".kiro", "prompts", "review-pr.md") },
@@ -90,6 +92,7 @@ const commandsGlobalTargets = [
   { target: "trae", outputPath: join(".trae", "commands", "review-pr.md") },
   { target: "mimocode", outputPath: join(".config", "mimocode", "commands", "review-pr.md") },
   { target: "omp", outputPath: join(".omp", "agent", "commands", "review-pr.md") },
+  { target: "gajaecode", outputPath: join(".gjc", "agent", "commands", "review-pr.md") },
   { target: "opencode", outputPath: join(".config", "opencode", "commands", "review-pr.md") },
   { target: "opencodev1", outputPath: join(".config", "opencode", "commands", "review-pr.md") },
   { target: "codexcli", outputPath: join(".codex", "prompts", "review-pr.md") },
@@ -233,6 +236,7 @@ Check the PR diff and provide feedback.
     { target: "copilot", orphanPath: join(".github", "prompts", "orphan.prompt.md") },
     { target: "mimocode", orphanPath: join(".mimocode", "commands", "orphan.md") },
     { target: "omp", orphanPath: join(".omp", "commands", "orphan.md") },
+    { target: "gajaecode", orphanPath: join(".gjc", "commands", "orphan.md") },
     { target: "opencode", orphanPath: join(".opencode", "commands", "orphan.md") },
     { target: "opencodev1", orphanPath: join(".opencode", "commands", "orphan.md") },
     { target: "cline", orphanPath: join(".clinerules", "workflows", "orphan.md") },
@@ -508,6 +512,7 @@ describe("E2E: commands (import)", () => {
     { target: "copilot", sourcePath: join(".github", "prompts", "review-pr.prompt.md") },
     { target: "mimocode", sourcePath: join(".mimocode", "commands", "review-pr.md") },
     { target: "omp", sourcePath: join(".omp", "commands", "review-pr.md") },
+    { target: "gajaecode", sourcePath: join(".gjc", "commands", "review-pr.md") },
     { target: "opencode", sourcePath: join(".opencode", "commands", "review-pr.md") },
     { target: "opencodev1", sourcePath: join(".opencode", "commands", "review-pr.md") },
     { target: "cline", sourcePath: join(".clinerules", "workflows", "review-pr.md") },
@@ -561,6 +566,41 @@ describe("E2E: commands (import)", () => {
       join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "review-pr.md"),
     );
     expect(importedContent).toContain("Review the PR diff and provide feedback.");
+  });
+
+  it("should import only the isCommand prompt templates of theia", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".prompts", "review-pr.prompttemplate"),
+      [
+        "---",
+        "isCommand: true",
+        "commandName: review-pr",
+        "commandDescription: Review a pull request",
+        "commandArgumentHint: <pr-number>",
+        "---",
+        "Review the PR diff of $ARGUMENTS and provide feedback.",
+      ].join("\n"),
+    );
+    // A plain prompt fragment (an agent prompt override) is not a command.
+    await writeFileContent(
+      join(testDir, ".prompts", "universal-system.prompttemplate"),
+      "You are a helpful assistant.",
+    );
+
+    await runImport({ target: "theia", features: "commands" });
+
+    const importedContent = await readFileContent(
+      join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "review-pr.md"),
+    );
+    expect(importedContent).toContain("description: Review a pull request");
+    expect(importedContent).toContain("commandArgumentHint: <pr-number>");
+    expect(importedContent).toContain("Review the PR diff of $ARGUMENTS and provide feedback.");
+    expect(importedContent).not.toContain("isCommand");
+    expect(
+      await fileExists(join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "universal-system.md")),
+    ).toBe(false);
   });
 
   it("should import goose commands (recipe YAML)", async () => {

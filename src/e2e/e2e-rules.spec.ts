@@ -43,6 +43,7 @@ const rulesRootTargets = [
   { target: "copilot", outputPath: join(".github", "copilot-instructions.md") },
   { target: "mimocode", outputPath: "AGENTS.md" },
   { target: "omp", outputPath: join(".omp", "AGENTS.md") },
+  { target: "gajaecode", outputPath: join(".gjc", "AGENTS.md") },
   { target: "opencode", outputPath: "AGENTS.md" },
   { target: "opencodev1", outputPath: "AGENTS.md" },
   { target: "antigravity-cli", outputPath: "AGENTS.md" },
@@ -76,6 +77,7 @@ const rulesRootTargets = [
   { target: "bob", outputPath: "AGENTS.md" },
   { target: "tabnine", outputPath: "TABNINE.md" },
   { target: "cortexcode", outputPath: "AGENTS.md" },
+  { target: "theia", outputPath: "AGENTS.md" },
   { target: "codewhale", outputPath: "AGENTS.md" },
   { target: "continue", outputPath: "AGENTS.md" },
   { target: "pool", outputPath: "AGENTS.md" },
@@ -107,6 +109,7 @@ const rulesNonRootTargets = [
   { target: "codewhale", outputPath: join(".codewhale", "rules", "overview.md") },
   { target: "takt", outputPath: join(".takt", "facets", "policies", "overview.md") },
   { target: "omp", outputPath: join(".omp", "rules", "overview.md") },
+  { target: "gajaecode", outputPath: join(".gjc", "rules", "overview.md") },
   { target: "firebender", outputPath: join(".firebender", "rules", "overview.mdc") },
 ] as const;
 
@@ -1851,6 +1854,7 @@ describe("E2E: rules (import)", () => {
     },
     { target: "mimocode", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "omp", sourcePath: join(".omp", "AGENTS.md"), importedFileName: "overview.md" },
+    { target: "gajaecode", sourcePath: join(".gjc", "AGENTS.md"), importedFileName: "overview.md" },
     {
       target: "gitlabduo",
       sourcePath: join(".gitlab", "duo", "chat-rules.md"),
@@ -1893,6 +1897,7 @@ describe("E2E: rules (import)", () => {
     { target: "pi", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "pool", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "cortexcode", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
+    { target: "theia", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "codewhale", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "continue", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "dsh", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
@@ -2149,6 +2154,7 @@ const rulesGlobalTargets = [
   { target: "copilot", outputPath: join(".copilot", "copilot-instructions.md") },
   { target: "mimocode", outputPath: join(".config", "mimocode", "AGENTS.md") },
   { target: "omp", outputPath: join(".omp", "agent", "AGENTS.md") },
+  { target: "gajaecode", outputPath: join(".gjc", "agent", "AGENTS.md") },
   { target: "opencode", outputPath: join(".config", "opencode", "AGENTS.md") },
   { target: "opencodev1", outputPath: join(".config", "opencode", "AGENTS.md") },
   { target: "codexcli", outputPath: join(".codex", "AGENTS.md") },

@@ -51,6 +51,7 @@ import { DevinRule } from "./devin-rule.js";
 import { DshRule } from "./dsh-rule.js";
 import { FactorydroidRule } from "./factorydroid-rule.js";
 import { FirebenderRule } from "./firebender-rule.js";
+import { GajaecodeRule } from "./gajaecode-rule.js";
 import { GitlabduoRule } from "./gitlabduo-rule.js";
 import { GooseRule } from "./goose-rule.js";
 import { GrokcliRule } from "./grokcli-rule.js";
@@ -80,6 +81,7 @@ import { RovodevRule } from "./rovodev-rule.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import { TabnineRule } from "./tabnine-rule.js";
 import { TaktRule } from "./takt-rule.js";
+import { TheiaRule } from "./theia-rule.js";
 import {
   ToolRule,
   ToolRuleBuildLocalRootFileParams,
@@ -967,6 +969,22 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
     },
   ],
   [
+    "gajaecode",
+    {
+      class: GajaecodeRule,
+      meta: {
+        // Gajae-Code loads `.gjc/AGENTS.md` plus `.gjc/rules/*.{md,mdc}`
+        // natively, and `~/.gjc/agent/AGENTS.md` plus
+        // `~/.gjc/agent/rules/*.{md,mdc}` globally, like oh-my-pi.
+        // https://github.com/Yeachan-Heo/gajae-code/blob/main/docs/rulebook-matching-pipeline.md
+        extension: "md",
+        nonRootImportGlob: "*.{md,mdc}",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
+      },
+    },
+  ],
+  [
     "omp",
     {
       class: OmpRule,
@@ -1235,6 +1253,23 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         // No `additionalConventions` here: TAKT does not synthesize a root
         // overview rule (TaktRule.fromRulesyncRule always emits non-root files),
         // so the conventions block would never be rendered anywhere.
+      },
+    },
+  ],
+  [
+    "theia",
+    {
+      class: TheiaRule,
+      meta: {
+        // Theia AI reads the workspace-root AGENTS.md only (no nested files,
+        // no CLAUDE.md fallback, no user-scoped rule file), so rules are
+        // project-only and topic rules fold into the root file (mirrors
+        // cortexcode).
+        // https://theia-ide.org/docs/user_ai/
+        extension: "md",
+        supportsGlobal: false,
+        ruleDiscoveryMode: "auto",
+        collisionPolicy: "fold",
       },
     },
   ],
