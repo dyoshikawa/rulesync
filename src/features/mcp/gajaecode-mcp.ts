@@ -1,17 +1,47 @@
 import { GAJAECODE_LAYOUT } from "../../constants/gajaecode-paths.js";
-import { McpServerSchema } from "../../types/mcp.js";
+import type { McpServers } from "../../types/mcp.js";
 import { PROTOTYPE_POLLUTION_KEYS } from "../../utils/prototype-pollution.js";
 import { isRecord } from "../../utils/type-guards.js";
 import { OmpMcp } from "./omp-mcp.js";
 
 /**
- * Server keys whose value rulesync decides: the canonical keys plus `enabled`,
- * which the conversion derives from canonical `disabled`. Any other key of an
- * existing server (`autoload`, `auth`, `oauth`, `publicNetwork`,
- * `noInheritEnv`, ...) is Gajae-Code's own and is kept when rulesync does not
- * state it.
+ * Keys `gjc mcp add` (and Gajae-Code's credential flow) stores on a server and
+ * rulesync never writes unless the source states them: the credential binding
+ * (`auth`: `credentialId`, `tokenUrl`, `clientId`, `clientSecret`) and the
+ * OAuth client settings (`oauth`). They are carried over to a regenerated
+ * server only while it still points at the same endpoint, and are never
+ * imported, so a secret never lands in `.rulesync/mcp.json`.
  */
-const RULESYNC_OWNED_SERVER_KEYS = new Set([...Object.keys(McpServerSchema.def.shape), "enabled"]);
+const CARRIED_OVER_SERVER_KEYS = ["auth", "oauth"] as const;
+
+/**
+ * Gajae-Code-only server keys that are not canonical rulesync keys. They are
+ * rulesync-managed (written when the source states them, removed when it does
+ * not), and import puts them in the `gajaecode.mcpServers` block rather than
+ * the shared `mcpServers`, so other targets never receive them.
+ */
+const GAJAECODE_ONLY_SERVER_KEYS = ["autoload", "publicNetwork", "noInheritEnv"] as const;
+
+/** The transport Gajae-Code uses for a server: `type`, else inferred from `url`. */
+function resolveTransport(server: Record<string, unknown>): unknown {
+  return server.type ?? (server.url !== undefined ? "http" : "stdio");
+}
+
+/**
+ * Whether a regenerated server still reaches the same endpoint as the entry
+ * already in the file, so the credential bound to that entry can stay.
+ */
+function isSameEndpoint(
+  generated: Record<string, unknown>,
+  existing: Record<string, unknown>,
+): boolean {
+  return (
+    resolveTransport(generated) === resolveTransport(existing) &&
+    generated.url === existing.url &&
+    generated.command === existing.command &&
+    JSON.stringify(generated.args ?? []) === JSON.stringify(existing.args ?? [])
+  );
+}
 
 /**
  * MCP generator for **Gajae-Code** (`gjc`), a descendant of oh-my-pi with the
@@ -23,15 +53,21 @@ const RULESYNC_OWNED_SERVER_KEYS = new Set([...Object.keys(McpServerSchema.def.s
  * `gjc mcp add` writes into the same files in both scopes, so unlike oh-my-pi
  * the `mcpServers` map is merged rather than replaced:
  *
- * - A server rulesync generates replaces the entry of the same name, but keeps
- *   the existing entry's keys that rulesync neither models nor states
- *   (`autoload`, `auth`, ...).
+ * - A server rulesync generates replaces the entry of the same name. Only
+ *   `auth` / `oauth` of that entry are kept, when the source does not state
+ *   them and the server keeps its transport, `url`, `command` and `args`;
+ *   pointing the server somewhere else drops them, so a stored credential is
+ *   never sent to a different endpoint. Every other key follows the source.
  * - A server rulesync does not generate (added by `gjc mcp add` or by hand) is
  *   kept verbatim. Import reads every server back, so an import → generate
  *   round trip rewrites each entry in place instead of duplicating it. The flip
  *   side: removing a server from `.rulesync/mcp.json` does not remove it from
  *   `mcp.json`; remove it there too (`gjc mcp remove`).
  * - The file is never deleted, since it may hold such servers.
+ *
+ * `enabled: false` is derived from canonical `disabled`; `autoload: false`
+ * (stored but not started at session start) is a separate Gajae-Code key set
+ * under `gajaecode.mcpServers`.
  *
  * A project stdio server is started only when the user config sets
  * `mcp.enableProjectConfig: true`, and Gajae-Code does not expand
@@ -60,17 +96,15 @@ export class GajaecodeMcp extends OmpMcp {
 
     for (const [serverName, server] of Object.entries(generated)) {
       const prior = existingServers[serverName];
-      const kept = isRecord(prior)
-        ? Object.fromEntries(
-            Object.entries(prior).filter(
-              ([key]) =>
-                !RULESYNC_OWNED_SERVER_KEYS.has(key) &&
-                !PROTOTYPE_POLLUTION_KEYS.has(key) &&
-                !Object.hasOwn(server, key),
-            ),
-          )
-        : {};
-      result[serverName] = { ...server, ...kept };
+      const merged: Record<string, unknown> = { ...server };
+      if (isRecord(prior) && isSameEndpoint(server, prior)) {
+        for (const key of CARRIED_OVER_SERVER_KEYS) {
+          if (!Object.hasOwn(server, key) && prior[key] !== undefined) {
+            merged[key] = prior[key];
+          }
+        }
+      }
+      result[serverName] = merged;
     }
 
     for (const [serverName, server] of Object.entries(existingServers)) {
@@ -79,5 +113,38 @@ export class GajaecodeMcp extends OmpMcp {
     }
 
     return result;
+  }
+
+  /**
+   * Shared servers lose `auth` / `oauth` (they stay in `mcp.json`, carried over
+   * on generate) and the Gajae-Code-only keys; a server that has any of the
+   * latter is also written whole to `gajaecode.mcpServers`, which replaces the
+   * shared entry for this target only.
+   */
+  protected override toRulesyncMcpJson(mcpServers: McpServers): Record<string, unknown> {
+    const shared: McpServers = {};
+    const scoped: McpServers = {};
+
+    for (const [serverName, server] of Object.entries(mcpServers)) {
+      const withoutSecrets = Object.fromEntries(
+        Object.entries(server).filter(
+          ([key]) => !(CARRIED_OVER_SERVER_KEYS as readonly string[]).includes(key),
+        ),
+      );
+      const sharedServer = Object.fromEntries(
+        Object.entries(withoutSecrets).filter(
+          ([key]) => !(GAJAECODE_ONLY_SERVER_KEYS as readonly string[]).includes(key),
+        ),
+      );
+      shared[serverName] = sharedServer;
+      if (Object.keys(sharedServer).length !== Object.keys(withoutSecrets).length) {
+        scoped[serverName] = withoutSecrets;
+      }
+    }
+
+    return {
+      mcpServers: shared,
+      ...(Object.keys(scoped).length > 0 && { gajaecode: { mcpServers: scoped } }),
+    };
   }
 }

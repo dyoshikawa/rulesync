@@ -140,20 +140,18 @@ describe("GajaecodeMcp", () => {
       });
     });
 
-    it("should keep Gajae-Code-only keys of an existing server rulesync regenerates", async () => {
+    it("should keep auth and oauth of a regenerated server that keeps its endpoint", async () => {
       await writeFileContent(
         join(testDir, ".gjc", "mcp.json"),
         JSON.stringify({
           mcpServers: {
-            local: {
-              type: "stdio",
-              command: "old-server",
-              args: ["--old"],
-              env: { OLD: "1" },
-              enabled: false,
+            remote: {
+              type: "http",
+              url: "https://example.com/mcp",
               timeout: 1000,
               autoload: false,
               auth: { type: "oauth", credentialId: "cred" },
+              oauth: { clientId: "client" },
             },
           },
         }),
@@ -161,35 +159,96 @@ describe("GajaecodeMcp", () => {
 
       const mcp = await GajaecodeMcp.fromRulesyncMcp({
         outputRoot: testDir,
-        rulesyncMcp: buildRulesyncMcp({ local: { command: "server" } }),
+        rulesyncMcp: buildRulesyncMcp({
+          remote: { type: "http", url: "https://example.com/mcp" },
+        }),
       });
 
-      // Canonical keys (`args`, `env`, `timeout`) and `enabled` follow the
-      // rulesync source; only keys rulesync does not model survive.
+      // `timeout` and `autoload` follow the source (absent there, so removed);
+      // only the credential binding survives.
       expect(mcp.getJson()).toEqual({
         mcpServers: {
-          local: {
-            type: "stdio",
-            command: "server",
-            autoload: false,
+          remote: {
+            type: "http",
+            url: "https://example.com/mcp",
             auth: { type: "oauth", credentialId: "cred" },
+            oauth: { clientId: "client" },
           },
         },
       });
     });
 
-    it("should let the rulesync source override a Gajae-Code-only key it states", async () => {
+    it.each([
+      {
+        name: "url",
+        existing: { type: "http", url: "https://example.com/mcp" },
+        source: { type: "http", url: "https://attacker.example/mcp" },
+      },
+      {
+        name: "transport",
+        existing: { type: "http", url: "https://example.com/mcp" },
+        source: { type: "sse", url: "https://example.com/mcp" },
+      },
+      {
+        name: "command",
+        existing: { type: "stdio", command: "server" },
+        source: { command: "other-server" },
+      },
+      {
+        name: "args",
+        existing: { type: "stdio", command: "npx", args: ["server"] },
+        source: { command: "npx", args: ["other-server"] },
+      },
+    ])(
+      "should drop auth and oauth when the regenerated server changes its $name",
+      async ({ existing, source }) => {
+        await writeFileContent(
+          join(testDir, ".gjc", "mcp.json"),
+          JSON.stringify({
+            mcpServers: {
+              server: {
+                ...existing,
+                auth: { type: "oauth", credentialId: "cred", clientSecret: "secret" },
+                oauth: { clientId: "client" },
+              },
+            },
+          }),
+        );
+
+        const mcp = await GajaecodeMcp.fromRulesyncMcp({
+          outputRoot: testDir,
+          rulesyncMcp: buildRulesyncMcp({ server: source }),
+        });
+
+        const server = (mcp.getJson().mcpServers as Record<string, Record<string, unknown>>).server;
+        expect(server?.auth).toBeUndefined();
+        expect(server?.oauth).toBeUndefined();
+      },
+    );
+
+    it("should write Gajae-Code-only keys only when the source states them", async () => {
       await writeFileContent(
         join(testDir, ".gjc", "mcp.json"),
-        JSON.stringify({ mcpServers: { local: { command: "server", autoload: false } } }),
+        JSON.stringify({
+          mcpServers: {
+            local: { command: "server", autoload: false, noInheritEnv: true, publicNetwork: true },
+          },
+        }),
       );
 
-      const mcp = await GajaecodeMcp.fromRulesyncMcp({
+      const removed = await GajaecodeMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp: buildRulesyncMcp({ local: { command: "server" } }),
+      });
+      expect(removed.getJson()).toEqual({
+        mcpServers: { local: { type: "stdio", command: "server" } },
+      });
+
+      const stated = await GajaecodeMcp.fromRulesyncMcp({
         outputRoot: testDir,
         rulesyncMcp: buildRulesyncMcp({ local: { command: "server", autoload: true } }),
       });
-
-      expect(mcp.getJson()).toEqual({
+      expect(stated.getJson()).toEqual({
         mcpServers: { local: { type: "stdio", command: "server", autoload: true } },
       });
     });
@@ -198,18 +257,32 @@ describe("GajaecodeMcp", () => {
       await writeFileContent(
         join(testDir, ".gjc", "mcp.json"),
         JSON.stringify({
-          mcpServers: { handWritten: { type: "stdio", command: "tool", autoload: false } },
+          mcpServers: {
+            handWritten: {
+              type: "stdio",
+              command: "tool",
+              autoload: false,
+              auth: { type: "oauth", credentialId: "cred" },
+            },
+          },
         }),
       );
 
       const imported = (await GajaecodeMcp.fromFile({ outputRoot: testDir })).toRulesyncMcp();
       const mcp = await GajaecodeMcp.fromRulesyncMcp({
         outputRoot: testDir,
-        rulesyncMcp: imported,
+        rulesyncMcp: imported.forTarget({ toolTarget: "gajaecode" }),
       });
 
       expect(mcp.getJson()).toEqual({
-        mcpServers: { handWritten: { type: "stdio", command: "tool", autoload: false } },
+        mcpServers: {
+          handWritten: {
+            type: "stdio",
+            command: "tool",
+            autoload: false,
+            auth: { type: "oauth", credentialId: "cred" },
+          },
+        },
       });
     });
 
@@ -223,6 +296,45 @@ describe("GajaecodeMcp", () => {
   });
 
   describe("toRulesyncMcp", () => {
+    it("should keep secrets out and put Gajae-Code-only keys in the gajaecode block", async () => {
+      await writeFileContent(
+        join(testDir, ".gjc", "mcp.json"),
+        JSON.stringify({
+          mcpServers: {
+            plain: { command: "plain" },
+            remote: {
+              type: "http",
+              url: "https://example.com/mcp",
+              autoload: false,
+              publicNetwork: true,
+              auth: { type: "oauth", credentialId: "cred", clientSecret: "secret" },
+              oauth: { clientId: "client" },
+            },
+          },
+        }),
+      );
+
+      const json = (await GajaecodeMcp.fromFile({ outputRoot: testDir }))
+        .toRulesyncMcp()
+        .getJson() as Record<string, unknown>;
+
+      expect(json.mcpServers).toEqual({
+        plain: { command: "plain" },
+        remote: { type: "http", url: "https://example.com/mcp" },
+      });
+      expect(json.gajaecode).toEqual({
+        mcpServers: {
+          remote: {
+            type: "http",
+            url: "https://example.com/mcp",
+            autoload: false,
+            publicNetwork: true,
+          },
+        },
+      });
+      expect(JSON.stringify(json)).not.toContain("secret");
+    });
+
     it("should import servers and map enabled: false to disabled: true", async () => {
       await writeFileContent(
         join(testDir, ".gjc", "agent", "mcp.json"),

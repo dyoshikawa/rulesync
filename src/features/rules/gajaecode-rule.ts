@@ -1,5 +1,4 @@
 import { GAJAECODE_LAYOUT } from "../../constants/gajaecode-paths.js";
-import type { OmpLayout } from "../../constants/omp-paths.js";
 import { OmpRule } from "./omp-rule.js";
 
 /**
@@ -21,5 +20,4 @@ import { OmpRule } from "./omp-rule.js";
  */
 export class GajaecodeRule extends OmpRule {
   protected static override readonly layout = GAJAECODE_LAYOUT;
-  protected static override readonly toolTarget: OmpLayout["toolTarget"] = "gajaecode";
 }

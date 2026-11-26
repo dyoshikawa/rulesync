@@ -97,7 +97,7 @@ function normalizeGlobs(globs: string | string[] | undefined): string[] {
  *
  * @see https://github.com/can1357/oh-my-pi/blob/main/docs/context-files.md
  * Descendants of oh-my-pi with the same rule discovery (Gajae-Code) subclass
- * this and override only {@link OmpRule.layout} and `toolTarget`.
+ * this and override only {@link OmpRule.layout}.
  *
  * @see https://github.com/can1357/oh-my-pi/blob/main/docs/rulebook-matching-pipeline.md
  */
@@ -308,5 +308,11 @@ export class OmpRule extends ToolRule {
     return this.body;
   }
 
-  protected static override readonly toolTarget: OmpLayout["toolTarget"] = "omp";
+  // The target comes from the layout, so a descendant overrides only `layout`.
+  static override isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
+    return this.isTargetedByRulesyncRuleDefault({
+      rulesyncRule,
+      toolTarget: this.layout.toolTarget,
+    });
+  }
 }

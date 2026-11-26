@@ -673,7 +673,7 @@ describe("E2E: mcp", () => {
     },
   );
 
-  it("should keep gajaecode servers added outside rulesync and their own keys", async () => {
+  it("should keep gajaecode servers added outside rulesync and their credentials", async () => {
     const testDir = getTestDir();
 
     await writeFileContent(
@@ -685,7 +685,11 @@ describe("E2E: mcp", () => {
       JSON.stringify({
         disabledServers: ["other"],
         mcpServers: {
-          managed: { command: "old", autoload: false },
+          managed: {
+            command: "managed-server",
+            autoload: false,
+            auth: { type: "oauth", credentialId: "cred" },
+          },
           added: { type: "http", url: "https://example.com/mcp" },
         },
       }),
@@ -696,7 +700,13 @@ describe("E2E: mcp", () => {
     expect(JSON.parse(await readFileContent(join(testDir, ".gjc", "mcp.json")))).toEqual({
       disabledServers: ["other"],
       mcpServers: {
-        managed: { type: "stdio", command: "managed-server", autoload: false },
+        // `autoload` follows the source; the credential binding stays
+        // because the server still runs the same command.
+        managed: {
+          type: "stdio",
+          command: "managed-server",
+          auth: { type: "oauth", credentialId: "cred" },
+        },
         added: { type: "http", url: "https://example.com/mcp" },
       },
     });
@@ -706,6 +716,9 @@ describe("E2E: mcp", () => {
     await runGenerate({ target: "gajaecode", features: "mcp" });
     const servers = JSON.parse(await readFileContent(join(testDir, ".gjc", "mcp.json"))).mcpServers;
     expect(Object.keys(servers).toSorted()).toEqual(["added", "managed"]);
+    expect(servers.managed.auth).toEqual({ type: "oauth", credentialId: "cred" });
+    // The credential binding is never copied into the rulesync source.
+    expect(await readFileContent(join(testDir, ".rulesync", "mcp.json"))).not.toContain("cred");
   });
 
   it("should run mcp command as daemon without errors", async () => {

@@ -267,8 +267,20 @@ export class OmpMcp extends ToolMcp {
   toRulesyncMcp(): RulesyncMcp {
     const mcpServers = isMcpServers(this.json.mcpServers) ? this.json.mcpServers : {};
     return this.toRulesyncMcpDefault({
-      fileContent: JSON.stringify({ mcpServers: convertFromOmpFormat(mcpServers) }, null, 2),
+      fileContent: JSON.stringify(
+        this.toRulesyncMcpJson(convertFromOmpFormat(mcpServers)),
+        null,
+        2,
+      ),
     });
+  }
+
+  /**
+   * Build the `.rulesync/mcp.json` document from the servers read back into
+   * canonical shape. oh-my-pi puts every server in the shared `mcpServers`.
+   */
+  protected toRulesyncMcpJson(mcpServers: McpServers): Record<string, unknown> {
+    return { mcpServers };
   }
 
   static forDeletion({
