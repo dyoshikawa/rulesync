@@ -18,7 +18,7 @@ import {
 import { ToolFile } from "../../types/tool-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
-import { parseGlobPattern } from "../../utils/glob.js";
+import { matchesGlob, parseGlobPattern } from "../../utils/glob.js";
 import { type Logger, warnWithFallback } from "../../utils/logger.js";
 import { lookupOwn } from "../../utils/own-lookup.js";
 import { isRecord } from "../../utils/type-guards.js";
@@ -663,15 +663,18 @@ function addCodexFilesystemRules({
 //   and the `:workspace` baseline re-grants the workspace above them, so
 //   `.git` still needs the carve-out; or
 // - a deny (or an ask other than the catch-all, which is the documented
-//   default idiom) under the all-tools `*` category matches a path git
-//   itself writes (`{"*": {"*": "deny"}}`, `{"*": {".git/hooks/**": "deny"}}`,
+//   default idiom) under the all-tools `*` category reaches inside
+//   `.git` (`{"*": {"*": "deny"}}`, `{"*": {".git/hooks/**": "deny"}}`,
 //   `{"*": {".g*": "deny"}}`). Codex has no all-tools rule, so such a
 //   restriction may be written nowhere in the profile, and the carve-out
 //   would grant write access to it (`.git/hooks` writable is code execution
-//   on the next git command). Each pattern is matched the way every `*`
-//   restriction is (a `*` crosses `/`) against the concrete paths in
-//   `GIT_WRITTEN_PATHS`, case-insensitively since `.GIT` names the same
-//   directory on macOS and Windows. A broad pattern that only overlaps
+//   on the next git command). A pattern counts when its first path segment
+//   (after any leading `./`, `/` or `**/`) matches `.git` — so every
+//   restriction spelled inside `.git` does, whatever it names there — or when
+//   it matches, the way every `*` restriction is matched (a `*` crosses `/`),
+//   one of the concrete paths in `GIT_WRITTEN_PATHS`. Both compare
+//   case-insensitively, since `.GIT` names the same directory on macOS and
+//   Windows. A broad pattern that only overlaps
 //   `.git/**` in theory (`*.env`, `**/*.pem`, `*secret*`) matches none of them
 //   and keeps the carve-out; a command (a pattern with whitespace) names no
 //   path and is left out.
@@ -718,21 +721,40 @@ function applyDefaultGitWriteRules({
 
 // Concrete paths git writes in a repository, which an all-tools `*`
 // restriction must not match for the default `.git` carve-out to be emitted.
+// They back up `namesGitDirectory` for a pattern whose first segment is not
+// itself a `.git` spelling but can still reach inside it.
 const GIT_WRITTEN_PATHS = [
   ".git",
   ".git/index",
   ".git/HEAD",
   ".git/config",
+  ".git/config.worktree",
   // cspell:disable-next-line
   ".git/COMMIT_EDITMSG",
+  ".git/FETCH_HEAD",
+  ".git/ORIG_HEAD",
+  ".git/packed-refs",
   ".git/objects/ab/cdef0123",
   ".git/refs/heads/main",
   ".git/hooks/pre-commit",
   ".git/logs/HEAD",
+  ".git/info/exclude",
+  ".git/modules/sub/hooks/pre-commit",
+  ".git/worktrees/wt/HEAD",
+  ".git/lfs/objects/ab/cd",
 ].map((path) => path.toLowerCase());
 
+// Whether a lowercased `*` path pattern starts at the `.git` directory: with a
+// leading `./`, `/` or any `**/` removed, its first segment matches `.git`
+// (`.git`, `.git/hooks`, `.g*/x`, `**/.git/**`, and the catch-alls `*`, `**`).
+function namesGitDirectory(pattern: string): boolean {
+  const stripped = pattern.replace(/^\.?\//, "").replace(/^(?:\*\*\/)+/, "");
+  const firstSegment = stripped.split("/")[0] ?? "";
+  return firstSegment !== "" && matchesGlob(firstSegment, ".git");
+}
+
 // The first deny (or non-catch-all ask) path pattern under the all-tools `*`
-// category that matches a path git writes; see applyDefaultGitWriteRules.
+// category that reaches inside `.git`; see applyDefaultGitWriteRules.
 function restrictedByAllToolsCategory(config: PermissionsConfig): string | undefined {
   return Object.entries(
     lookupOwn({ record: config.permission, key: ALL_TOOLS_PERMISSION_CATEGORY }) ?? {},
@@ -744,8 +766,10 @@ function restrictedByAllToolsCategory(config: PermissionsConfig): string | undef
     )
     .map(([pattern]) => pattern)
     .find((pattern) => {
+      const lowered = pattern.toLowerCase();
+      if (namesGitDirectory(lowered)) return true;
       const matches = createShadowingRestrictionsTest([
-        { pattern: pattern.toLowerCase().replace(/^\.?\//, ""), fromAllToolsCategory: true },
+        { pattern: lowered.replace(/^\.?\//, ""), fromAllToolsCategory: true },
       ]);
       return GIT_WRITTEN_PATHS.some((path) => matches(path).length > 0);
     });
