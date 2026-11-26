@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
+import { PermissionsConfigSchema } from "../../types/permissions.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { CodewhalePermissions } from "./codewhale-permissions.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
@@ -676,6 +677,169 @@ describe("CodewhalePermissions", () => {
       );
 
       expect(perms.toRulesyncPermissions().getJson().permission).toEqual({});
+    });
+  });
+
+  describe("codewhale.auto_review", () => {
+    const configPath = (): string => join(testDir, ".codewhale", "config.toml");
+
+    const writeConfig = async (content: string): Promise<void> => {
+      await ensureDir(join(testDir, ".codewhale"));
+      await writeFileContent(configPath(), content);
+    };
+
+    const autoReview = {
+      reviewer_model: "claude-sonnet-4-6",
+      environment: ["trusted git remote: github.com/org/repo"],
+      allow: [{ id: "read-only-inspection", action_kind: "read", reason: "Safe." }],
+      block: [{ id: "no-release-publish", action_kind: "publish", reason: "Needs review." }],
+    };
+
+    const auxiliaryFiles = (
+      json: Record<string, unknown>,
+      global: boolean,
+      logger = createMockLogger(),
+    ) =>
+      CodewhalePermissions.getAuxiliaryFiles({
+        outputRoot: testDir,
+        config: rulesyncPermissions(json).getJson(),
+        global,
+        logger,
+      });
+
+    it("declares the config.toml as an extra shared write path in both scopes", () => {
+      const expected = [{ relativeDirPath: ".codewhale", relativeFilePath: "config.toml" }];
+      expect(CodewhalePermissions.getExtraSharedWritePaths({ global: true })).toEqual(expected);
+      expect(CodewhalePermissions.getExtraSharedWritePaths({ global: false })).toEqual(expected);
+    });
+
+    it("replaces [auto_review] in the user config.toml and keeps [hooks] and other keys", async () => {
+      await writeConfig(
+        [
+          'model = "deepseek-v4"',
+          "",
+          "[hooks]",
+          "enabled = true",
+          "",
+          "[[hooks.hooks]]",
+          'event = "session_start"',
+          'command = "echo hi"',
+          "",
+          "[auto_review]",
+          'reviewer_model = "old-model"',
+          "review_all_shell = true",
+          "",
+        ].join("\n"),
+      );
+
+      const files = await auxiliaryFiles(
+        { permission: {}, codewhale: { auto_review: autoReview } },
+        true,
+      );
+
+      expect(files).toHaveLength(1);
+      expect(files[0]!.getRelativeDirPath()).toBe(".codewhale");
+      expect(files[0]!.getRelativeFilePath()).toBe("config.toml");
+      const parsed = smolToml.parse(files[0]!.getFileContent());
+      expect(parsed.model).toBe("deepseek-v4");
+      expect(parsed.hooks).toEqual({
+        enabled: true,
+        hooks: [{ event: "session_start", command: "echo hi" }],
+      });
+      expect(parsed.auto_review).toEqual(autoReview);
+    });
+
+    it("creates the user config.toml when it does not exist", async () => {
+      const files = await auxiliaryFiles(
+        { permission: {}, codewhale: { auto_review: autoReview } },
+        true,
+      );
+
+      expect(files).toHaveLength(1);
+      expect(smolToml.parse(files[0]!.getFileContent())).toEqual({ auto_review: autoReview });
+    });
+
+    it("leaves the user config.toml alone when the override is not set", async () => {
+      await writeConfig('[auto_review]\nreviewer_model = "kept"\n');
+
+      expect(await auxiliaryFiles({ permission: { bash: { "git *": "allow" } } }, true)).toEqual(
+        [],
+      );
+    });
+
+    it("refuses to replace a user config.toml that is not valid TOML", async () => {
+      await writeConfig("[auto_review\n");
+
+      await expect(
+        auxiliaryFiles({ permission: {}, codewhale: { auto_review: autoReview } }, true),
+      ).rejects.toThrow();
+    });
+
+    it("skips the override with a warning in project mode", async () => {
+      const logger = createMockLogger();
+
+      const files = await auxiliaryFiles(
+        { permission: {}, codewhale: { auto_review: autoReview } },
+        false,
+        logger,
+      );
+
+      expect(files).toEqual([]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("skipping codewhale.auto_review in project mode"),
+      );
+    });
+
+    it("rejects an override that is not a table", () => {
+      expect(
+        PermissionsConfigSchema.safeParse({ permission: {}, codewhale: { auto_review: "on" } })
+          .success,
+      ).toBe(false);
+      expect(
+        PermissionsConfigSchema.safeParse({ permission: {}, codewhale: { auto_review: {} } })
+          .success,
+      ).toBe(true);
+    });
+
+    it("imports [auto_review] from the user config.toml beside the rules", async () => {
+      await writePermissions('[[rules]]\ntool = "web_search"\naction = "deny"\n');
+      await writeConfig(smolToml.stringify({ hooks: { enabled: true }, auto_review: autoReview }));
+
+      const perms = await CodewhalePermissions.fromFile({ outputRoot: testDir, global: true });
+
+      expect(perms.toRulesyncPermissions().getJson().codewhale).toEqual({
+        rules: [{ tool: "web_search", action: "deny" }],
+        auto_review: autoReview,
+      });
+    });
+
+    it("imports [auto_review] when permissions.toml does not exist", async () => {
+      await writeConfig(smolToml.stringify({ auto_review: autoReview }));
+
+      const perms = await CodewhalePermissions.fromFile({ outputRoot: testDir, global: true });
+
+      expect(perms.toRulesyncPermissions().getJson().codewhale).toEqual({
+        auto_review: autoReview,
+      });
+    });
+
+    it("does not read the project config.toml [auto_review] on a project import", async () => {
+      await writeConfig(smolToml.stringify({ auto_review: autoReview }));
+
+      const perms = await CodewhalePermissions.fromFile({ outputRoot: testDir, global: false });
+
+      expect(perms.toRulesyncPermissions().getJson().codewhale).toBeUndefined();
+    });
+
+    it("round-trips: an imported table is written back unchanged", async () => {
+      await writeConfig(smolToml.stringify({ auto_review: autoReview }));
+      const imported = (await CodewhalePermissions.fromFile({ outputRoot: testDir, global: true }))
+        .toRulesyncPermissions()
+        .getJson();
+
+      const files = await auxiliaryFiles(imported, true);
+
+      expect(smolToml.parse(files[0]!.getFileContent())).toEqual({ auto_review: autoReview });
     });
   });
 });
