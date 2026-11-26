@@ -45,6 +45,11 @@ export function splitPathSegments(filePath: string): string[] {
   return filePath.split(/[/\\]/);
 }
 
+/** Number of directory levels in a relative file path (`a.md` is 0, `x/a.md` is 1). */
+export function subdirectoryDepthOf(relativeFilePath: string): number {
+  return splitPathSegments(relativeFilePath).length - 1;
+}
+
 export async function assertWritablePathInsideRoot(params: {
   rootPath: string;
   targetPath: string;
