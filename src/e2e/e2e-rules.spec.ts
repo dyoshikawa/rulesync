@@ -10,6 +10,7 @@ import {
   RULESYNC_SKILLS_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
 import { getZedGlobalDir } from "../constants/zed-paths.js";
+import { zeroGlobalConfigDir } from "../constants/zero-paths.js";
 import { RulesProcessor } from "../features/rules/rules-processor.js";
 import { buildLanguageInstruction } from "../types/language.js";
 import { fileExists, readFileContent, removeFile, writeFileContent } from "../utils/file.js";
@@ -70,6 +71,7 @@ const rulesRootTargets = [
   { target: "reasonix", outputPath: "REASONIX.md" },
   { target: "musecode", outputPath: "AGENTS.md" },
   { target: "zcode", outputPath: "AGENTS.md" },
+  { target: "zero", outputPath: "ZERO.md" },
   { target: "openclaw", outputPath: "AGENTS.md" },
   { target: "bob", outputPath: "AGENTS.md" },
   { target: "tabnine", outputPath: "TABNINE.md" },
@@ -1783,6 +1785,7 @@ describe("E2E: rules (import)", () => {
     },
     { target: "amp", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "codexcli", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
+    { target: "zero", sourcePath: "ZERO.md", importedFileName: "overview.md" },
     { target: "commandcode", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "qoder", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "xum", sourcePath: join(".xum", "AGENTS.md"), importedFileName: "overview.md" },
@@ -2127,6 +2130,7 @@ const rulesGlobalTargets = [
   { target: "kiro-ide", outputPath: join(".kiro", "steering", "product.md") },
   { target: "reasonix", outputPath: join(".reasonix", "REASONIX.md") },
   { target: "zcode", outputPath: join(".zcode", "AGENTS.md") },
+  { target: "zero", outputPath: join(zeroGlobalConfigDir(), "ZERO.md") },
   { target: "openclaw", outputPath: join(".openclaw", "workspace", "AGENTS.md") },
   { target: "bob", outputPath: join(".bob", "AGENTS.md") },
   { target: "tabnine", outputPath: join(".tabnine", "agent", "TABNINE.md") },
