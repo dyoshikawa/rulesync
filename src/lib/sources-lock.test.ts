@@ -11,7 +11,8 @@ import {
   computeRuleIntegrity,
   computeSkillIntegrity,
   createEmptyLock,
-  getLockedRuleNames,
+  getLockedFileFeatureState,
+  getLockedFileNames,
   getLockedSkillNames,
   getLockKeyRepository,
   getLockedSource,
@@ -50,15 +51,42 @@ describe("sources-lock", () => {
 
     it("should list locked rule names", () => {
       expect(
-        getLockedRuleNames({
-          resolvedRef: VALID_SHA,
-          skills: {},
-          rules: {
-            "testing-guidelines": { integrity: "sha256-a" },
-            "typescript-conventions": { integrity: "sha256-b" },
+        getLockedFileNames(
+          {
+            rules: {
+              "testing-guidelines": { integrity: "sha256-a" },
+              "typescript-conventions": { integrity: "sha256-b" },
+            },
           },
-        }),
+          "rules",
+        ),
       ).toEqual(["testing-guidelines", "typescript-conventions"]);
+    });
+  });
+
+  describe("command and subagent entries", () => {
+    const entry = {
+      resolvedRef: VALID_SHA,
+      skills: {},
+      commands: { review: { integrity: "sha256-c" } },
+      commandSelection: ["review"],
+      commandsPath: "commands",
+      resolvedCommandNames: ["review"],
+      subagents: { planner: { integrity: "sha256-s" } },
+      subagentSelection: ["*"],
+      subagentsPath: "agents",
+      resolvedSubagentNames: ["planner"],
+    };
+
+    it("should read each per-file feature's fields by feature", () => {
+      expect(getLockedFileFeatureState(entry, "commands")).toEqual({
+        items: { review: { integrity: "sha256-c" } },
+        selection: ["review"],
+        path: "commands",
+        resolvedNames: ["review"],
+      });
+      expect(getLockedFileNames(entry, "subagents")).toEqual(["planner"]);
+      expect(getLockedFileNames(entry, "rules")).toEqual([]);
     });
   });
 
@@ -73,6 +101,32 @@ describe("sources-lock", () => {
 
     afterEach(async () => {
       await cleanup();
+    });
+
+    it("should keep command and subagent fields without bumping the lockfile version", async () => {
+      const content = {
+        lockfileVersion: 1,
+        sources: {
+          "org/repo": {
+            resolvedRef: VALID_SHA,
+            skills: {},
+            commands: { review: { integrity: "sha256-c" } },
+            commandSelection: ["review"],
+            commandsPath: "commands",
+            resolvedCommandNames: ["review"],
+          },
+          "org/old": { resolvedRef: VALID_SHA, skills: { a: { integrity: "sha256-a" } } },
+        },
+      };
+      await writeFileContent(
+        join(testDir, RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH),
+        JSON.stringify(content),
+      );
+
+      const lock = await readLockFile({ logger, projectRoot: testDir });
+
+      expect(LOCKFILE_VERSION).toBe(1);
+      expect(lock).toEqual(content);
     });
 
     it("should return empty lock when file does not exist", async () => {
@@ -274,6 +328,18 @@ describe("sources-lock", () => {
         "org/repo#path=plugins/team-b/skills&ref=main",
         "org/repo#rulesPath=exports/rules",
         "org/repo",
+      ]);
+    });
+
+    it("should qualify entries of the same repository by their commands and subagents paths", () => {
+      expect(
+        resolveSourceLockKeys([
+          { source: "org/repo", commands: ["*"], commandsPath: "exports/commands" },
+          { source: "org/repo", subagents: ["*"], subagentsPath: "exports/agents/" },
+        ]),
+      ).toEqual([
+        "org/repo#commandsPath=exports/commands",
+        "org/repo#subagentsPath=exports/agents",
       ]);
     });
 

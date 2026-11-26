@@ -33,6 +33,8 @@ describe("E2E: gitignore command", () => {
     const gitattributesContent = await readFileContent(join(testDir, ".gitattributes"));
 
     expect(gitignoreContent).toContain(".rulesync/skills/.curated/");
+    expect(gitignoreContent).toContain(".rulesync/commands/.curated/");
+    expect(gitignoreContent).toContain(".rulesync/subagents/.curated/");
     expect(gitignoreContent).not.toContain("**/CLAUDE.md");
     expect(gitattributesContent).toContain("**/CLAUDE.md");
   });

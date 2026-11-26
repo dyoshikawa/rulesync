@@ -47,6 +47,14 @@ const NpmLockedSourceSchema = z.object({
   ruleSelection: optional(z.array(z.string())),
   rulesPath: optional(z.string()),
   resolvedRuleNames: optional(z.array(z.string())),
+  commands: optional(z.record(z.string(), NpmLockedSkillSchema)),
+  commandSelection: optional(z.array(z.string())),
+  commandsPath: optional(z.string()),
+  resolvedCommandNames: optional(z.array(z.string())),
+  subagents: optional(z.record(z.string(), NpmLockedSkillSchema)),
+  subagentSelection: optional(z.array(z.string())),
+  subagentsPath: optional(z.string()),
+  resolvedSubagentNames: optional(z.array(z.string())),
 });
 export type NpmLockedSource = z.infer<typeof NpmLockedSourceSchema>;
 
@@ -154,9 +162,4 @@ export function setNpmLockedSource(
  */
 export function getNpmLockedSkillNames(entry: NpmLockedSource): string[] {
   return Object.keys(entry.skills);
-}
-
-/** Get the rule names from a locked npm source entry. */
-export function getNpmLockedRuleNames(entry: NpmLockedSource): string[] {
-  return Object.keys(entry.rules ?? {});
 }
