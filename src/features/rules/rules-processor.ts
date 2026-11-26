@@ -2000,12 +2000,28 @@ As this project's AI coding tool, you must follow the additional conventions bel
       }
       importOnlyFilePaths.push(filePath);
     }
-    const filePaths = [...managedFilePaths, ...importOnlyFilePaths];
-    if (filePaths.length === 0) {
-      return [];
-    }
+    const managedRules =
+      managedFilePaths.length === 0
+        ? []
+        : await this.buildImportRules({ factory, filePaths: managedFilePaths });
+    const importOnlyRules =
+      importOnlyFilePaths.length === 0
+        ? []
+        : await this.buildImportRules({ factory, filePaths: importOnlyFilePaths });
 
-    return await this.buildImportRules({ factory, filePaths: filePaths });
+    // A hand-written file the tool itself would skip is skipped here too,
+    // with a warning, rather than failing the whole import on it.
+    const importableRules = importOnlyRules.filter((rule) => {
+      const reason = rule.getImportSkipReason();
+      if (reason === undefined) {
+        return true;
+      }
+      this.logger.warn(
+        `Skipping ${stripControlCharacters(toPosixPath(join(rule.getRelativeDirPath(), rule.getRelativeFilePath())))} on import: ${reason}`,
+      );
+      return false;
+    });
+    return [...managedRules, ...importableRules];
   }
 
   /**

@@ -6,8 +6,8 @@ import type { RulesyncRule } from "./rulesync-rule.js";
 
 /**
  * Shared helpers for tool rule adapters that write opted-in rules as custom
- * output styles (`<tool dir>/output-styles/<name>.md`), e.g. Qoder and
- * Factory Droid. Both tools read only the direct `.md` children of their
+ * output styles (`<tool dir>/output-styles/<name>.md`), e.g. Qoder, Factory
+ * Droid and Qwen Code. The tools read only the direct `.md` children of their
  * output-styles directory, with optional `name` / `description` frontmatter.
  */
 
@@ -80,7 +80,7 @@ export function buildOutputStyleFrontmatter({
 }
 
 /**
- * Warnings about `factorydroid` / `qoder` frontmatter that does not do what it
+ * Warnings about `factorydroid` / `qoder` / `qwencode` frontmatter that does not do what it
  * looks like it does: an `output-style` rule that also targets other tools
  * reaches them as an ordinary rule (so presentation instructions end up in
  * their project rules), and `<tool>.name` is read only with
@@ -93,7 +93,7 @@ export function getOutputStyleRuleOptionWarnings({
   isTargetedByRulesyncRule,
 }: {
   rules: RulesyncRule[];
-  toolTarget: "factorydroid" | "qoder";
+  toolTarget: "factorydroid" | "qoder" | "qwencode";
   isTargetedByRulesyncRule: (rule: RulesyncRule) => boolean;
 }): string[] {
   const toolLabel = TOOL_DISPLAY.find((entry) => entry.key === toolTarget)?.label ?? toolTarget;
