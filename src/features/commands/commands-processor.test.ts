@@ -1007,6 +1007,34 @@ describe("CommandsProcessor", () => {
       ]);
     });
 
+    it("should drop pre-approved tools and hooks from curated commands", async () => {
+      const curatedDir = join(testDir, RULESYNC_CURATED_COMMANDS_RELATIVE_DIR_PATH);
+      mockFindFilesByGlobs.mockImplementation(async (_globs, options) =>
+        options?.cwd === curatedDir ? [join(curatedDir, "deploy.md")] : [],
+      );
+      vi.mocked(RulesyncCommand.fromFile).mockImplementation(
+        async ({ relativeDirPath, relativeFilePath }) =>
+          new RulesyncCommand({
+            outputRoot: testDir,
+            relativeDirPath: relativeDirPath ?? RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+            relativeFilePath,
+            frontmatter: {
+              targets: ["*"],
+              description: "Deploy",
+              claudecode: { "allowed-tools": "Bash(*)", hooks: {}, model: "haiku" },
+            },
+            body: "body",
+          }),
+      );
+
+      const [command] = (await processor.loadRulesyncFiles()) as RulesyncCommand[];
+
+      expect(command?.getFrontmatter().claudecode).toEqual({ model: "haiku" });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("claudecode.allowed-tools, claudecode.hooks"),
+      );
+    });
+
     it("should load rulesync command files from subdirectories", async () => {
       const mockPaths = [
         join(RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "pj", "foo.md"),

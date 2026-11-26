@@ -65,7 +65,9 @@ import {
   type LockedSource,
   type SourceFileFeature,
   SOURCE_FILE_FEATURES,
+  getLockedFileFeatureState,
   getLockedFileNames,
+  mapFileFeatures,
   toFileFeatureLockFields,
 } from "./sources-lock.js";
 
@@ -508,7 +510,7 @@ async function canReuseLockedNpmArtifacts(params: {
     if (selection === undefined) {
       // A feature the entry still records but the source no longer declares
       // must be fetched again, so its curated files are removed.
-      if (hasLockedFileFeature(locked, feature)) {
+      if (getLockedFileFeatureState(locked, feature).items !== undefined) {
         return false;
       }
       continue;
@@ -528,18 +530,6 @@ async function canReuseLockedNpmArtifacts(params: {
     }
   }
   return true;
-}
-
-/** Whether a lock entry records one per-file feature at all (even with no items). */
-function hasLockedFileFeature(locked: NpmLockedSource, feature: SourceFileFeature): boolean {
-  switch (feature) {
-    case "rules":
-      return locked.rules !== undefined;
-    case "commands":
-      return locked.commands !== undefined;
-    case "subagents":
-      return locked.subagents !== undefined;
-  }
 }
 
 /**
@@ -739,8 +729,4 @@ export async function fetchSourceViaNpm(params: {
     fetchedFileNames,
     updatedLock,
   };
-}
-
-function mapFileFeatures<T>(map: (feature: SourceFileFeature) => T): Record<SourceFileFeature, T> {
-  return { rules: map("rules"), commands: map("commands"), subagents: map("subagents") };
 }

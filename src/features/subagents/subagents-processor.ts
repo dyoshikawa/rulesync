@@ -5,6 +5,7 @@ import { z } from "zod/mini";
 import { POOL_SETTINGS_FILE_NAME } from "../../constants/pool-paths.js";
 import {
   CURATED_SUBAGENTS_FEATURE_SUBDIR,
+  RULESYNC_CURATED_SUBAGENTS_RELATIVE_DIR_PATH,
   RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
   SUBAGENTS_FEATURE_SUBDIR,
 } from "../../constants/rulesync-paths.js";
@@ -31,6 +32,7 @@ import {
   subdirectoryDepthOf,
 } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import { stripPrivilegedFrontmatter } from "../../utils/privileged-frontmatter.js";
 import { AgentsmdSubagent } from "./agentsmd-subagent.js";
 import { AntigravityCliSubagent } from "./antigravity-cli-subagent.js";
 import { AntigravityIdeSubagent } from "./antigravity-ide-subagent.js";
@@ -1472,12 +1474,16 @@ export class SubagentsProcessor extends FeatureProcessor {
       const filepath = join(dirPath, mdFile);
 
       try {
-        const rulesyncSubagent = await RulesyncSubagent.fromFile({
+        const loaded = await RulesyncSubagent.fromFile({
           outputRoot: treeParent,
           relativeDirPath,
           relativeFilePath: mdFile,
           validate: true,
         });
+        const rulesyncSubagent =
+          relativeDirPath === treeCuratedSubagentsDirPath
+            ? this.withoutPrivilegedFrontmatter(loaded)
+            : loaded;
 
         rulesyncSubagents.push(rulesyncSubagent);
         this.logger.debug(`Successfully loaded subagent: ${mdFile}`);
@@ -1505,6 +1511,30 @@ export class SubagentsProcessor extends FeatureProcessor {
     }
 
     return rulesyncSubagents;
+  }
+
+  /**
+   * A subagent fetched from a declared source, without the frontmatter keys
+   * that would let it run code, reach MCP servers or act without asking
+   * (`permissionMode`, `hooks`, `mcpServers`, ...). Sources do not install
+   * those (see the declarative sources guide); a local subagent of the same
+   * name can declare them.
+   */
+  private withoutPrivilegedFrontmatter(subagent: RulesyncSubagent): RulesyncSubagent {
+    const { frontmatter, droppedKeys } = stripPrivilegedFrontmatter(subagent.getFrontmatter());
+    if (droppedKeys.length === 0) {
+      return subagent;
+    }
+    this.logger.warn(
+      `Dropped privileged frontmatter from source-installed subagent ${quoteForLog(join(subagent.getRelativeDirPath(), subagent.getRelativeFilePath()))}: ${droppedKeys.map(stripControlCharacters).join(", ")}. Sources cannot grant tools, hooks, MCP servers or permissions; declare them in a local subagent to keep them.`,
+    );
+    return new RulesyncSubagent({
+      outputRoot: subagent.getOutputRoot(),
+      relativeDirPath: subagent.getRelativeDirPath(),
+      relativeFilePath: subagent.getRelativeFilePath(),
+      frontmatter,
+      body: subagent.getBody(),
+    });
   }
 
   /**
@@ -1878,7 +1908,7 @@ export class SubagentsProcessor extends FeatureProcessor {
 
 Simulated subagents are specialized AI assistants that can be invoked to handle specific types of tasks. In this case, it can be appear something like custom slash commands simply. Simulated subagents can be called by custom slash commands.
 
-When users call a simulated subagent, it will look for the corresponding markdown file, \`${join(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "{subagent}.md")}\`, and execute its contents as the block of operations.
+When users call a simulated subagent, it will look for the corresponding markdown file, \`${join(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "{subagent}.md")}\` (or, for a subagent installed from a declared source, \`${join(RULESYNC_CURATED_SUBAGENTS_RELATIVE_DIR_PATH, "{subagent}.md")}\`), and execute its contents as the block of operations.
 
 For example, if the user instructs \`Call planner subagent to plan the refactoring\`, you have to look for the markdown file, \`${join(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md")}\`, and execute its contents as the block of operations.`;
   }

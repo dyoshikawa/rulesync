@@ -60,6 +60,7 @@ import {
   getLockedFileFeatureState,
   getLockedFileNames,
   getLockKeyRepository,
+  mapFileFeatures,
   getLockedSource,
   normalizeLockKey,
   readLockFile,
@@ -111,10 +112,6 @@ export type ResolveAndFetchSourcesResult = {
 
 /** A value per per-file feature (rules, commands and subagents). */
 type PerFileFeature<T> = Record<SourceFileFeature, T>;
-
-function mapFileFeatures<T>(map: (feature: SourceFileFeature) => T): PerFileFeature<T> {
-  return { rules: map("rules"), commands: map("commands"), subagents: map("subagents") };
-}
 
 function getEarlySourcesResult(params: {
   skipSources: boolean;

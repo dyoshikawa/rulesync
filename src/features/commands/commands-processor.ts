@@ -6,6 +6,7 @@ import {
   COMMANDS_FEATURE_SUBDIR,
   CURATED_COMMANDS_FEATURE_SUBDIR,
   RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+  RULESYNC_CURATED_COMMANDS_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
 import { AiFile } from "../../types/ai-file.js";
 import {
@@ -29,6 +30,7 @@ import {
   toPosixPath,
 } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import { stripPrivilegedFrontmatter } from "../../utils/privileged-frontmatter.js";
 import { AgentsmdCommand } from "./agentsmd-command.js";
 import { AntigravityCliCommand } from "./antigravity-cli-command.js";
 import { AntigravityIdeCommand } from "./antigravity-ide-command.js";
@@ -1237,14 +1239,39 @@ export class CommandsProcessor extends FeatureProcessor {
           relativeFilePath,
         }),
       ),
-      ...curatedRelativePaths.map((relativeFilePath) =>
-        RulesyncCommand.fromFile({
-          outputRoot: treeParent,
-          relativeDirPath: treeCuratedCommandsDirPath,
-          relativeFilePath,
-        }),
+      ...curatedRelativePaths.map(async (relativeFilePath) =>
+        this.withoutPrivilegedFrontmatter(
+          await RulesyncCommand.fromFile({
+            outputRoot: treeParent,
+            relativeDirPath: treeCuratedCommandsDirPath,
+            relativeFilePath,
+          }),
+        ),
       ),
     ]);
+  }
+
+  /**
+   * A command fetched from a declared source, without the frontmatter keys
+   * that would let it run code or act without asking (`allowed-tools`,
+   * `hooks`, ...). Sources do not install those (see the declarative sources
+   * guide); a local command of the same name can declare them.
+   */
+  private withoutPrivilegedFrontmatter(command: RulesyncCommand): RulesyncCommand {
+    const { frontmatter, droppedKeys } = stripPrivilegedFrontmatter(command.getFrontmatter());
+    if (droppedKeys.length === 0) {
+      return command;
+    }
+    this.logger.warn(
+      `Dropped privileged frontmatter from source-installed command ${quoteForLog(join(command.getRelativeDirPath(), command.getRelativeFilePath()))}: ${droppedKeys.map(stripControlCharacters).join(", ")}. Sources cannot grant tools, hooks, MCP servers or permissions; declare them in a local command to keep them.`,
+    );
+    return new RulesyncCommand({
+      outputRoot: command.getOutputRoot(),
+      relativeDirPath: command.getRelativeDirPath(),
+      relativeFilePath: command.getRelativeFilePath(),
+      frontmatter,
+      body: command.getBody(),
+    });
   }
 
   /**
@@ -1509,7 +1536,7 @@ s/<command> [arguments]
 This syntax employs a double slash (\`s/\`) to prevent conflicts with built-in slash commands.
 The \`s\` in \`s/\` stands for *simulate*. Because custom slash commands are not built-in, this syntax provides a pseudo way to invoke them.
 
-When users call a custom slash command, you have to look for the markdown file, \`${join(RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "{command}.md")}\`, then execute the contents of that file as the block of operations.`;
+When users call a custom slash command, you have to look for the markdown file, \`${join(RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "{command}.md")}\` (or, for a command installed from a declared source, \`${join(RULESYNC_CURATED_COMMANDS_RELATIVE_DIR_PATH, "{command}.md")}\`), then execute the contents of that file as the block of operations.`;
   }
 
   /**

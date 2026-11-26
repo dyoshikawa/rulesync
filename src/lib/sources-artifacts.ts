@@ -453,23 +453,6 @@ export function shouldSkipSkill(params: {
   return false;
 }
 
-export function shouldSkipRule(params: {
-  ruleName: string;
-  sourceKey: string;
-  localRuleNames: Set<string>;
-  alreadyFetchedRuleNames: Set<string>;
-  logger: Logger;
-}): boolean {
-  return shouldSkipFile({
-    feature: "rules",
-    name: params.ruleName,
-    sourceKey: params.sourceKey,
-    localNames: params.localRuleNames,
-    alreadyFetchedNames: params.alreadyFetchedRuleNames,
-    logger: params.logger,
-  });
-}
-
 /**
  * Check whether a remote rule, command or subagent should be skipped: its
  * name could escape the curated directory or is unsafe to print, a local file

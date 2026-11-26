@@ -424,11 +424,6 @@ export function getLockedSkillNames(entry: LockedSource): string[] {
   return Object.keys(entry.skills);
 }
 
-/** Get the rule names from a locked source entry. */
-export function getLockedRuleNames(entry: LockedSource): string[] {
-  return Object.keys(entry.rules ?? {});
-}
-
 /**
  * The features a source installs as one Markdown file per item, each locked
  * with the same four fields (`rules` / `ruleSelection` / `rulesPath` /
@@ -436,6 +431,13 @@ export function getLockedRuleNames(entry: LockedSource): string[] {
  */
 export const SOURCE_FILE_FEATURES = ["rules", "commands", "subagents"] as const;
 export type SourceFileFeature = (typeof SOURCE_FILE_FEATURES)[number];
+
+/** Build a value for each per-file feature. */
+export function mapFileFeatures<T>(
+  map: (feature: SourceFileFeature) => T,
+): Record<SourceFileFeature, T> {
+  return { rules: map("rules"), commands: map("commands"), subagents: map("subagents") };
+}
 
 /** The lock fields of every per-file feature, shared by both lockfiles. */
 export type FileFeatureLockFields = Pick<

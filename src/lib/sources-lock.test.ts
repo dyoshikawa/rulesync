@@ -13,7 +13,6 @@ import {
   createEmptyLock,
   getLockedFileFeatureState,
   getLockedFileNames,
-  getLockedRuleNames,
   getLockedSkillNames,
   getLockKeyRepository,
   getLockedSource,
@@ -52,14 +51,15 @@ describe("sources-lock", () => {
 
     it("should list locked rule names", () => {
       expect(
-        getLockedRuleNames({
-          resolvedRef: VALID_SHA,
-          skills: {},
-          rules: {
-            "testing-guidelines": { integrity: "sha256-a" },
-            "typescript-conventions": { integrity: "sha256-b" },
+        getLockedFileNames(
+          {
+            rules: {
+              "testing-guidelines": { integrity: "sha256-a" },
+              "typescript-conventions": { integrity: "sha256-b" },
+            },
           },
-        }),
+          "rules",
+        ),
       ).toEqual(["testing-guidelines", "typescript-conventions"]);
     });
   });
