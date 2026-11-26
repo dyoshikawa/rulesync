@@ -43,6 +43,14 @@ export type ToolHooksConverterConfig = {
   projectDirVar: string;
   supportedHookTypes?: ReadonlySet<HookType>;
   /**
+   * Per-event narrowing of {@link supportedHookTypes}, keyed by canonical event
+   * name: a hook whose type is not in its event's set is skipped on generate
+   * with a warning, because the tool would not run it on that event. Events
+   * without an entry accept every supported type. Import is not filtered, so
+   * whatever is on disk still round-trips.
+   */
+  eventHookTypes?: Readonly<Partial<Record<string, ReadonlySet<HookType>>>>;
+  /**
    * Extra tool-side `type` spellings accepted on import only, each mapped to
    * the canonical hook type it denotes (e.g. Bob's former `https` for the
    * canonical `http`). Generation never emits them, so a file written under an
@@ -1100,6 +1108,26 @@ function isSupportedHookType({
   return converterConfig.supportedHookTypes?.has(type ?? "command") ?? true;
 }
 
+/**
+ * The hook types the tool runs on this event (see `eventHookTypes`), or
+ * `undefined` when the event accepts every supported type. A tool-native event
+ * key from an override block is looked up under its canonical name.
+ */
+function eventHookTypesFor({
+  eventName,
+  converterConfig,
+}: {
+  eventName: string;
+  converterConfig: ToolHooksConverterConfig;
+}): ReadonlySet<HookType> | undefined {
+  if (converterConfig.eventHookTypes === undefined) {
+    return undefined;
+  }
+  const canonicalEventName =
+    lookupOwn({ record: converterConfig.toolToCanonicalEventNames, key: eventName }) ?? eventName;
+  return lookupOwn({ record: converterConfig.eventHookTypes, key: canonicalEventName });
+}
+
 export type KeywordPassthroughFieldSpec = NonNullable<
   ToolHooksConverterConfig["keywordPassthroughFields"]
 >[number];
@@ -1331,8 +1359,9 @@ function emitAllPassthroughFields({
 
 /**
  * Why a definition must not be emitted for this tool, or `undefined` when it
- * can be: it carries a restricting field the tool refuses to honour (see
- * `skippedWhenFields`).
+ * can be: the tool does not run its hook type on this event (see
+ * `eventHookTypes`), or it carries a restricting field the tool refuses to
+ * honour (see `skippedWhenFields`).
  */
 function describeExportSkipReason({
   def,
@@ -1345,6 +1374,15 @@ function describeExportSkipReason({
   eventName: string;
   converterConfig: ToolHooksConverterConfig;
 }): string | undefined {
+  const eventTypes = eventHookTypesFor({ eventName, converterConfig });
+  if (eventTypes !== undefined && !eventTypes.has(hookType)) {
+    return (
+      `Skipping a "${eventName}" ${hookType} hook ` +
+      `(${quoteValueForWarning(def.command ?? def.url ?? def.tool ?? def.prompt)}): ` +
+      `this tool does not run ${hookType} hooks on this event ` +
+      `(supported types: ${[...eventTypes].join(", ")}).`
+    );
+  }
   const field = converterConfig.skippedWhenFields?.find((name) => isNonEmptyString(def[name]));
   if (field === undefined) {
     return undefined;
@@ -1497,7 +1535,13 @@ export function canonicalToToolHooks({
       const groupFields = emitGroupPassthroughFields({
         // Only the definitions that survived the hook-type filter: a hook this
         // tool cannot express must not decide a field for the ones it does.
-        defs: defs.filter(({ type }) => isSupportedHookType({ type, converterConfig })),
+        defs: defs.filter(({ type }) => {
+          const hookType = type ?? "command";
+          return (
+            isSupportedHookType({ type: hookType, converterConfig }) &&
+            (eventHookTypesFor({ eventName, converterConfig })?.has(hookType) ?? true)
+          );
+        }),
         eventName,
         converterConfig,
         logger,

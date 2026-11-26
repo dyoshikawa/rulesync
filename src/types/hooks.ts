@@ -304,6 +304,7 @@ export const HOOK_EVENTS = [
   "sessionDelete",
   "preModelSwitch",
   "postModelSwitch",
+  "preSkillShellCommand",
 ] as const;
 
 /** All canonical hook event names. */
@@ -1329,6 +1330,12 @@ export const CANONICAL_TO_CLAUDE_EVENT_NAMES: Record<string, string> = {
   // https://code.claude.com/docs/en/hooks
   preModelSwitch: "PreModelSwitch",
   postModelSwitch: "PostModelSwitch",
+  // Added in 2.1.332. Runs before a shell command injected by a loading skill
+  // (`!`<command>``) and can block it; `PreToolUse` does not fire for those.
+  // The matcher selects the tool that runs the command (`Bash`, `PowerShell`).
+  // Older Claude Code versions show an "Unknown hook event" dialog for it.
+  // https://code.claude.com/docs/en/hooks#preskillshellcommand
+  preSkillShellCommand: "PreSkillShellCommand",
 } satisfies Partial<Record<HookEvent, string>>;
 
 /**

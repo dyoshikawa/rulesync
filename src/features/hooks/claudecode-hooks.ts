@@ -3,6 +3,8 @@ import {
   CLAUDE_HOOK_EVENTS,
   CLAUDE_TO_CANONICAL_EVENT_NAMES,
   CANONICAL_TO_CLAUDE_EVENT_NAMES,
+  type HookEvent,
+  type HookType,
 } from "../../types/hooks.js";
 import { CLAUDE_SETTINGS_SHARED_FILE_KEY } from "../shared/shared-config-gateway.js";
 import { SettingsJsonHooks, type SettingsJsonHooksSpec } from "./settings-json-hooks.js";
@@ -36,6 +38,42 @@ const CLAUDE_ON_FAILURE_IGNORED_EVENTS: ReadonlySet<string> = new Set([
   "teammateIdle",
 ]);
 
+const CLAUDE_TOOL_HOOK_TYPES: ReadonlySet<HookType> = new Set(["command", "http", "mcp_tool"]);
+
+/**
+ * Events on which Claude Code runs fewer than all five handler types. A hook
+ * of another type is skipped with a warning on generate: Claude Code skips an
+ * agent hook on `PermissionRequest`, refuses prompt/agent hooks on the events
+ * listed with `command`/`http`/`mcp_tool`, and on `PreSkillShellCommand` it
+ * even blocks every command such a hook matches. Events not listed here
+ * (PreToolUse, PostToolUse, Stop, UserPromptSubmit, ...) accept all five.
+ * @see https://code.claude.com/docs/en/hooks#prompt-based-hooks
+ */
+const CLAUDE_EVENT_HOOK_TYPES: Readonly<Partial<Record<HookEvent, ReadonlySet<HookType>>>> = {
+  permissionRequest: new Set(["command", "http", "mcp_tool", "prompt"]),
+  configChange: CLAUDE_TOOL_HOOK_TYPES,
+  cwdChanged: CLAUDE_TOOL_HOOK_TYPES,
+  directoryAdded: CLAUDE_TOOL_HOOK_TYPES,
+  elicitation: CLAUDE_TOOL_HOOK_TYPES,
+  elicitationResult: CLAUDE_TOOL_HOOK_TYPES,
+  fileChanged: CLAUDE_TOOL_HOOK_TYPES,
+  instructionsLoaded: CLAUDE_TOOL_HOOK_TYPES,
+  messageDisplay: CLAUDE_TOOL_HOOK_TYPES,
+  notification: CLAUDE_TOOL_HOOK_TYPES,
+  postCompact: CLAUDE_TOOL_HOOK_TYPES,
+  postModelSwitch: CLAUDE_TOOL_HOOK_TYPES,
+  preCompact: CLAUDE_TOOL_HOOK_TYPES,
+  preModelSwitch: CLAUDE_TOOL_HOOK_TYPES,
+  preSkillShellCommand: CLAUDE_TOOL_HOOK_TYPES,
+  sessionEnd: CLAUDE_TOOL_HOOK_TYPES,
+  stopFailure: CLAUDE_TOOL_HOOK_TYPES,
+  subagentStart: CLAUDE_TOOL_HOOK_TYPES,
+  worktreeCreate: CLAUDE_TOOL_HOOK_TYPES,
+  worktreeRemove: CLAUDE_TOOL_HOOK_TYPES,
+  setup: new Set(["command"]),
+  sessionStart: new Set(["command", "mcp_tool"]),
+};
+
 const CLAUDE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   supportedEvents: CLAUDE_HOOK_EVENTS,
   canonicalToToolEventNames: CANONICAL_TO_CLAUDE_EVENT_NAMES,
@@ -48,6 +86,7 @@ const CLAUDE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   // `allowedEnvVars` for http, `server`/`tool`/`input` for mcp_tool, `model`
   // for prompt/agent). https://code.claude.com/docs/en/hooks
   supportedHookTypes: new Set(["command", "prompt", "http", "mcp_tool", "agent"]),
+  eventHookTypes: CLAUDE_EVENT_HOOK_TYPES,
   // Claude Code documents a per-hook `model` selector on prompt/agent hooks.
   emitsPromptModel: true,
   // Claude Code's tool-event `if` condition (a single permission rule) is
