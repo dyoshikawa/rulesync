@@ -136,7 +136,7 @@ function assertOpencodePluginHooks({
     expect(generatedContent).toContain("setup: async (ctx) => {");
     expect(generatedContent).not.toContain("RulesyncHooksPlugin");
     expect(generatedContent).toContain('"session.created"');
-    expect(generatedContent).toContain('"session.execution.succeeded"');
+    expect(generatedContent).toContain('ctx.session.hook("experimental.idle"');
   } else {
     expect(generatedContent).toContain("export const RulesyncHooksPlugin");
     expect(generatedContent).toContain('"session.created"');
