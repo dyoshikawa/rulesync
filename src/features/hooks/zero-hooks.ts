@@ -50,14 +50,14 @@ export const ZERO_RULESYNC_HOOK_ID_PREFIX = "rulesync-";
  * Zero matches a matcher case-sensitively against its own tool names, which
  * are lowercase snake_case, so `Bash` must become `bash` or a guard on it
  * never runs. A canonical name with several Zero counterparts expands to all
- * of them, so a guard on `Bash` also covers `exec_command` and `write_stdin`
- * (Zero's other default shell tools), one on `Edit` also covers `apply_patch`
+ * of them, so a guard on `Bash` also covers `exec_command`, `write_stdin` and
+ * `terminal_session` (Zero's other tools that run shell commands), one on `Edit` also covers `apply_patch`
  * and one on `Read` also covers `read_minified_file`.
  * @see https://github.com/Twigpine/zero/tree/main/internal/tools
  * @see https://github.com/Twigpine/zero/blob/main/docs/SPECIALISTS.md#tool-selection
  */
 const CANONICAL_TO_ZERO_TOOL_NAMES: Readonly<Record<string, readonly string[]>> = {
-  Bash: ["bash", "exec_command", "write_stdin"],
+  Bash: ["bash", "exec_command", "write_stdin", "terminal_session"],
   Read: ["read_file", "read_minified_file"],
   Write: ["write_file"],
   Edit: ["edit_file", "apply_patch"],
@@ -69,6 +69,7 @@ const CANONICAL_TO_ZERO_TOOL_NAMES: Readonly<Record<string, readonly string[]>> 
   WebSearch: ["web_search"],
   Skill: ["skill"],
   AskUserQuestion: ["ask_user"],
+  Agent: ["Task"],
 };
 
 /** Zero tool names mapped back to the canonical name, for import. */
@@ -76,6 +77,7 @@ const ZERO_TO_CANONICAL_TOOL_NAMES: Readonly<Record<string, string>> = {
   bash: "Bash",
   exec_command: "Bash",
   write_stdin: "Bash",
+  terminal_session: "Bash",
   read_file: "Read",
   read_minified_file: "Read",
   write_file: "Write",
@@ -99,6 +101,7 @@ const ZERO_TO_CANONICAL_TOOL_NAMES: Readonly<Record<string, string>> = {
 const ZERO_TOOL_NAMES: ReadonlySet<string> = new Set([
   "bash",
   "exec_command",
+  "terminal_session",
   "write_stdin",
   "read_file",
   "read_minified_file",
@@ -169,8 +172,10 @@ function translateToolName(name: string): string[] | undefined {
   const expanded = Object.entries(CANONICAL_TO_ZERO_TOOL_NAMES)
     .filter(([canonical]) => pattern.test(canonical))
     .flatMap(([, zeroNames]) => zeroNames);
-  if (expanded.length > 0) return expanded;
-  return /[A-Z]/.test(name) ? undefined : [name];
+  // A glob without capitals may also be aimed at Zero's own names (`*e*`),
+  // so it is kept beside whatever it expands to.
+  if (!/[A-Z]/.test(name)) return [...expanded, name];
+  return expanded.length > 0 ? expanded : undefined;
 }
 
 /**
@@ -235,10 +240,17 @@ function canonicalToZeroMatchers({
     }
     const names = translateToolName(glob);
     if (names !== undefined) {
+      if (isGuard && glob === "bash") {
+        warn(
+          `The "${event}" matcher ${quoteValueForWarning(trimmed)} names Zero's native "bash" ` +
+            `tool only, so the guard does not cover "exec_command", "write_stdin" or ` +
+            `"terminal_session"; use the canonical "Bash" to cover every Zero shell tool.`,
+        );
+      }
       result.push(...names);
       continue;
     }
-    if (isGuard && glob.includes("*")) {
+    if (isGuard) {
       return failClosed(`has ${quoteValueForWarning(glob)}, which matches no Zero tool`);
     }
     warn(

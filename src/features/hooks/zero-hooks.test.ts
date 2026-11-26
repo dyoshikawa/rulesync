@@ -112,7 +112,35 @@ describe("ZeroHooks", () => {
         ["beforeTool", "bash"],
         ["beforeTool", "exec_command"],
         ["beforeTool", "write_stdin"],
+        ["beforeTool", "terminal_session"],
       ]);
+    });
+
+    it("should map Agent to Zero's Task tool", async () => {
+      const parsed = await generate({
+        testDir,
+        config: { hooks: { preToolUse: [{ command: "guard.sh", matcher: "Agent" }] } },
+      });
+      expect(parsed.hooks.map((hook) => hook.matcher)).toEqual(["Task"]);
+    });
+
+    it("should warn that a native bash guard leaves the other shell tools uncovered", async () => {
+      const logger = createMockLogger();
+      const parsed = await generate({
+        testDir,
+        config: { hooks: { preToolUse: [{ command: "guard.sh", matcher: "bash" }] } },
+        logger,
+      });
+      expect(parsed.hooks.map((hook) => hook.matcher)).toEqual(["bash"]);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"terminal_session"'));
+    });
+
+    it("should keep a lowercase glob beside its canonical expansion", async () => {
+      const parsed = await generate({
+        testDir,
+        config: { hooks: { postToolUse: [{ command: "log.sh", matcher: "web_.*" }] } },
+      });
+      expect(parsed.hooks.map((hook) => hook.matcher)).toEqual(["web_*"]);
     });
 
     it("should expand a glob over the canonical names", async () => {
@@ -124,6 +152,7 @@ describe("ZeroHooks", () => {
         "bash",
         "exec_command",
         "write_stdin",
+        "terminal_session",
         "write_file",
       ]);
     });
@@ -217,14 +246,27 @@ describe("ZeroHooks", () => {
         ["my-guard", "bash"],
         ["rulesync-project-beforeTool-002", "exec_command"],
         ["rulesync-project-beforeTool-003", "write_stdin"],
+        ["rulesync-project-beforeTool-004", "terminal_session"],
       ]);
     });
 
-    it("should warn about a preToolUse matcher naming no Zero tool", async () => {
+    it("should fail closed for a guard naming no Zero tool", async () => {
       const logger = createMockLogger();
       const parsed = await generate({
         testDir,
         config: { hooks: { preToolUse: [{ command: "guard.sh", matcher: "NotebookEdit" }] } },
+        logger,
+      });
+      expect(parsed.hooks).toHaveLength(1);
+      expect(parsed.hooks[0]).not.toHaveProperty("matcher");
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("matches no Zero tool"));
+    });
+
+    it("should write an unknown name on a non-guard event as-is, with a warning", async () => {
+      const logger = createMockLogger();
+      const parsed = await generate({
+        testDir,
+        config: { hooks: { postToolUse: [{ command: "log.sh", matcher: "NotebookEdit" }] } },
         logger,
       });
       expect(parsed.hooks[0]?.matcher).toBe("NotebookEdit");

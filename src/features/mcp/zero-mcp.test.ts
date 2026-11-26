@@ -104,6 +104,7 @@ describe("ZeroMcp", () => {
             servers: {
               github: { type: "http", url: "https://old", oauth: { scope: "repo" }, extra: 1 },
               docs: { type: "http", url: "https://docs", oauth: { scope: "x" } },
+              same: { type: "http", url: "https://same", oauth: { scope: "s" } },
             },
           },
         }),
@@ -114,17 +115,16 @@ describe("ZeroMcp", () => {
         rulesyncMcp: makeRulesyncMcp({
           github: { type: "http", url: "https://api.example.com/mcp" },
           docs: { command: "docs-mcp" },
+          same: { type: "http", url: "https://same" },
           linear: { type: "http", url: "https://linear", zeroOauth: { clientId: "id" } },
         }),
       });
 
       expect(JSON.parse(mcp.getFileContent()).mcp.servers).toEqual({
-        github: {
-          type: "http",
-          url: "https://api.example.com/mcp",
-          oauth: { scope: "repo" },
-          extra: 1,
-        },
+        // The url changed, so the old `oauth` block (which may hold a client
+        // secret) is dropped while other unmanaged keys are kept.
+        github: { type: "http", url: "https://api.example.com/mcp", extra: 1 },
+        same: { type: "http", url: "https://same", oauth: { scope: "s" } },
         // `oauth` is not carried onto a server that became stdio.
         docs: { type: "stdio", command: "docs-mcp" },
         linear: { type: "http", url: "https://linear", oauth: { clientId: "id" } },

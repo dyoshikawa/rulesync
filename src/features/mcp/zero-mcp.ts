@@ -76,8 +76,9 @@ const ZERO_MANAGED_SERVER_KEYS: ReadonlySet<string> = new Set([
 /**
  * Copy the keys of an existing same-named server that rulesync does not
  * manage (an `oauth` block written by `zero mcp`, a key a newer Zero reads)
- * onto the generated server. `oauth` is only kept on a remote server, since
- * Zero rejects it on a stdio one.
+ * onto the generated server. `oauth` is only kept on a remote server whose
+ * url is unchanged: Zero rejects it on a stdio one, and it may hold a client
+ * secret meant for the old url.
  */
 function carryOverUnmanagedKeys({
   converted,
@@ -92,7 +93,9 @@ function carryOverUnmanagedKeys({
       PROTOTYPE_POLLUTION_KEYS.has(key) ||
       ZERO_MANAGED_SERVER_KEYS.has(key) ||
       Object.hasOwn(converted, key) ||
-      (key === "oauth" && converted.type !== "http")
+      // An `oauth` block may carry a client secret bound to the old server,
+      // so it never follows a server whose url changed.
+      (key === "oauth" && (converted.type !== "http" || existing.url !== converted.url))
     ) {
       continue;
     }
