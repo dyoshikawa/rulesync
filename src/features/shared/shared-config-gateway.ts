@@ -1314,13 +1314,15 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
   // table, carrying its own settings (`enabled`, `default_timeout_secs`,
   // `working_dir`) over from the existing file. Project permissions own the
   // top-level `allow_shell` key of the per-project overlay, which they only
-  // ever set to `false`. An unparseable root is refused rather than replaced.
+  // ever set to `false`, and global permissions own the `[auto_review]` table
+  // of the user config, replaced only when the `codewhale.auto_review`
+  // override is set. An unparseable root is refused rather than replaced.
   [CODEWHALE_CONFIG_SHARED_FILE_KEY]: {
     format: "toml",
     invalidRootPolicy: "error",
     features: {
       hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
-      permissions: { kind: "replace-owned-keys", ownedKeys: ["allow_shell"] },
+      permissions: { kind: "replace-owned-keys", ownedKeys: ["allow_shell", "auto_review"] },
     },
   },
   // Letta Code settings: the project file (`.letta/settings.json`) and the

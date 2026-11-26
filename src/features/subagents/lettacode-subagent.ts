@@ -42,9 +42,10 @@ const LETTACODE_AGENT_NAME_PATTERN = /^[a-z][a-z0-9-]*$/;
  * Names a custom subagent cannot take: Letta Code skips it when agents are
  * loaded. These are the external-agent launcher names
  * (`RESERVED_EXTERNAL_SUBAGENT_NAMES` in `src/agent/subagents/index.ts`)
- * plus `memory`, which the same loader also skips (as of letta-code v0.34.66).
+ * plus `memory`, which the same loader also skips (as of letta-code v0.34.71).
  */
 const LETTACODE_RESERVED_AGENT_NAMES: ReadonlySet<string> = new Set([
+  "antigravity",
   "letta",
   "claude-code",
   "codex",

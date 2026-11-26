@@ -295,13 +295,18 @@ function readServerMap(json: Record<string, unknown>): unknown {
  * Codewhale MCP configuration (`.codewhale/mcp.json` in the workspace, and
  * `~/.codewhale/mcp.json` for the user).
  *
- * Codewhale honors the workspace file only once the workspace is trusted, and
- * a project server overrides a same-named user server. Top-level keys other
+ * Codewhale honors the workspace file only once the workspace is trusted
+ * **and** the exact bytes of the file have been approved with `/mcp review`
+ * and `/mcp approve <digest>` (the digest is kept as `mcp_sha256` in the user
+ * config, never in the repository). Any later change to the file, a
+ * regeneration included, loads none of its servers until it is approved again,
+ * and a symlinked `.codewhale` directory or `mcp.json` is refused. A project
+ * server overrides a same-named user server. Top-level keys other
  * than the server map (for example `timeouts`) are preserved. The files are
  * also edited by Codewhale's own `/mcp` commands, so `--delete` leaves them in
  * place rather than removing a file the user did not create through rulesync.
  *
- * @see https://github.com/Hmbown/Codewhale/blob/main/docs/MCP.md
+ * @see https://github.com/codewhale-hq/Codewhale/blob/main/docs/MCP.md
  * @see https://github.com/Hmbown/Codewhale/blob/main/crates/tui/src/mcp.rs
  */
 export class CodewhaleMcp extends ToolMcp {
@@ -382,12 +387,19 @@ export class CodewhaleMcp extends ToolMcp {
     const { [SERVERS_KEY]: _servers, [SERVERS_ALIAS_KEY]: _alias, ...siblings } = json;
     const mcpServers = convertToCodewhaleFormat(rulesyncMcp.getMcpServers(), logger);
     const codewhaleConfig = { ...siblings, [serversKey]: mcpServers };
+    const fileContent = JSON.stringify(codewhaleConfig, null, 2);
+
+    if (!global && existingContent?.trim() !== fileContent.trim()) {
+      logger?.info(
+        `Codewhale MCP: ${join(paths.relativeDirPath, paths.relativeFilePath)} changed, so Codewhale loads none of its servers until you run /mcp review and /mcp approve <digest> again.`,
+      );
+    }
 
     return new CodewhaleMcp({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
-      fileContent: JSON.stringify(codewhaleConfig, null, 2),
+      fileContent,
       validate,
       global,
     });

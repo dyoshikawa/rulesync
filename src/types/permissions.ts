@@ -111,10 +111,20 @@ export type CodewhalePermissionRule = z.infer<typeof CodewhalePermissionRuleSche
  * canonical category/pattern shape cannot express — a `workspace`-scoped rule,
  * a tool rulesync does not map, an exact-command deny — and is emitted ahead of
  * the rules converted from the canonical block.
+ *
+ * `auto_review` is the `[auto_review]` table of the user
+ * `~/.codewhale/config.toml` (`reviewer_model`, `environment`,
+ * `review_all_shell`, `[[auto_review.allow]]` / `[[auto_review.block]]`
+ * rules, ...), written verbatim by `--global` generate only: Codewhale ignores
+ * a project-scope `[auto_review]` table. Codewhale validates the table itself,
+ * so only its shape (a table) is checked here.
+ *
+ * @see https://github.com/codewhale-hq/Codewhale/blob/main/docs/CONFIGURATION.md
  */
 const CodewhalePermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
   rules: z.optional(z.array(CodewhalePermissionRuleSchema)),
+  auto_review: z.optional(z.looseObject({})),
 });
 
 /**
