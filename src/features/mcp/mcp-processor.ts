@@ -52,6 +52,7 @@ import { OmpMcp } from "./omp-mcp.js";
 import { OpenclawMcp } from "./openclaw-mcp.js";
 import { OpencodeMcp } from "./opencode-mcp.js";
 import { Opencodev1Mcp } from "./opencodev1-mcp.js";
+import { OpenhandsMcp } from "./openhands-mcp.js";
 import { PiMcp } from "./pi-mcp.js";
 import { PoolMcp } from "./pool-mcp.js";
 import { QoderMcp } from "./qoder-mcp.js";
@@ -605,6 +606,22 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
         supportsGlobal: true,
         supportsEnabledTools: true,
         supportsDisabledTools: true,
+      },
+    },
+  ],
+  [
+    "openhands",
+    {
+      // OpenHands reads MCP servers only from the user-level
+      // `~/.openhands/mcp.json` (`mcpServers`, FastMCP format); it has no
+      // project-scoped MCP file and no per-server tool allow/deny lists.
+      // https://docs.openhands.dev/openhands/usage/cli/mcp-servers
+      class: OpenhandsMcp,
+      meta: {
+        supportsProject: false,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
       },
     },
   ],

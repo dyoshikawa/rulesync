@@ -4,6 +4,7 @@ import { diffSharedConfigOwnedKeys } from "../features/shared/shared-config-gate
 import type { KeyOperation } from "../lib/orphan-sweep.js";
 import { fileContentIsEmptyPayload, fileContentsEquivalent } from "../utils/content-equivalence.js";
 import { quoteForLog, stripControlCharacters } from "../utils/control-characters.js";
+import { formatError } from "../utils/error.js";
 import {
   addTrailingNewline,
   applyFileMode,
@@ -15,6 +16,7 @@ import {
   readFileContentOrNull,
   relativeWriteLanding,
   removeFile,
+  removeFileWithoutFollowingSymlinks,
   writeFileContent,
   writeLandingPath,
 } from "../utils/file.js";
@@ -117,6 +119,22 @@ export abstract class FeatureProcessor extends RulesyncSourceConsumer {
         continue;
       }
 
+      // A file whose presence alone changes the tool's behavior is removed
+      // rather than left behind holding an empty payload (and never created
+      // empty).
+      const removal = await this.removeIfPayloadEmpty({
+        aiFile,
+        content: contentWithNewline,
+        existingContent,
+      });
+      if (removal !== "kept") {
+        if (removal === "removed") {
+          changedCount++;
+          changedPaths.push(aiFile.getRelativePathFromCwd());
+        }
+        continue;
+      }
+
       const fileMode = aiFile.getFileMode?.();
 
       if (
@@ -169,6 +187,54 @@ export abstract class FeatureProcessor extends RulesyncSourceConsumer {
       paths: changedPaths,
       ...(keyOperations.length > 0 && { keyOperations }),
     };
+  }
+
+  /**
+   * For a file that opts into {@link AiFile.shouldRemoveWhenPayloadEmpty}:
+   * remove it (`"removed"`) or skip creating it (`"skipped"`) when the
+   * generated payload is empty; `"kept"` lets the normal write go ahead. A
+   * removal the file refuses ({@link AiFile.describeRemovalRefusal}) or that
+   * fails is reported as a warning and leaves the file untouched (`"skipped"`).
+   * The removal never follows a symbolic link below the output root.
+   */
+  private async removeIfPayloadEmpty({
+    aiFile,
+    content,
+    existingContent,
+  }: {
+    aiFile: AiFile;
+    content: string;
+    existingContent: string | null;
+  }): Promise<"kept" | "removed" | "skipped"> {
+    const filePath = aiFile.getFilePath();
+    if (
+      !aiFile.shouldRemoveWhenPayloadEmpty() ||
+      !fileContentIsEmptyPayload({ filePath, content })
+    ) {
+      return "kept";
+    }
+    if (existingContent === null) {
+      return "skipped";
+    }
+    const refusal = aiFile.describeRemovalRefusal();
+    if (refusal !== undefined) {
+      this.logger.warn(`Not removing ${quoteForLog(filePath)}: ${refusal}`);
+      return "skipped";
+    }
+    if (this.dryRun) {
+      this.logger.info(`[DRY RUN] Would remove: ${stripControlCharacters(filePath)}`);
+      return "removed";
+    }
+    try {
+      await removeFileWithoutFollowingSymlinks({
+        rootPath: aiFile.getOutputRoot(),
+        targetPath: filePath,
+      });
+    } catch (error) {
+      this.logger.warn(`Failed to remove ${quoteForLog(filePath)}: ${formatError(error)}`);
+      return "skipped";
+    }
+    return "removed";
   }
 
   async removeAiFiles(aiFiles: AiFile[]): Promise<void> {
