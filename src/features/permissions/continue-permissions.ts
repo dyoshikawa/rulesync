@@ -13,6 +13,7 @@ import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isStringArray, toRecord } from "../../utils/type-guards.js";
 import { loadYaml } from "../../utils/yaml.js";
+import { skipsReservedPermissionName } from "./reserved-permission-name.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { honorAllToolsRestrictions } from "./shadowed-allows.js";
 import { ALL_TOOLS_PERMISSION_CATEGORY, CATCH_ALL_PATTERN } from "./shell-command-categories.js";
@@ -371,8 +372,11 @@ function convertContinuePermissionsToRulesync(lists: ContinuePermissionLists): P
       // Object.prototype below, so such entries are dropped (as the other
       // permissions adapters do).
       if (
-        isPrototypePollutionKey(parsedEntry.toolName) ||
-        isPrototypePollutionKey(parsedEntry.pattern)
+        skipsReservedPermissionName({
+          toolLabel: "Continue",
+          category: parsedEntry.toolName,
+          pattern: parsedEntry.pattern,
+        })
       ) {
         continue;
       }

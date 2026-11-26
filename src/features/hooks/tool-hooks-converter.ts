@@ -2166,8 +2166,34 @@ export function buildImportedHooksConfig({
 }
 
 /**
+ * Whether the tool reads `event`, a canonical event name with no entry in
+ * `toolToCanonicalEventNames`, under that very name: it supports the event and
+ * has no native spelling of its own for it, so generate writes it verbatim.
+ */
+function isVerbatimNativeEvent({
+  event,
+  converterConfig,
+}: {
+  event: HookEvent;
+  converterConfig: ToolHooksConverterConfig;
+}): boolean {
+  return (
+    converterConfig.supportedEvents.includes(event) &&
+    !Object.hasOwn(converterConfig.canonicalToToolEventNames, event)
+  );
+}
+
+/**
  * Convert tool-specific hooks back to canonical format (shared by Claude and Factory Droid).
  * Reverses event name mapping and strips the project directory variable from commands.
+ *
+ * A native key with no mapping keeps its name, except one spelled like a
+ * canonical event that the tool does not read under that name (camelCase
+ * `preToolUse` in a Goose file, where Goose reads only `PreToolUse`). The tool
+ * ignores such a key, so it is skipped with a warning: in the canonical block
+ * the next `generate` would activate it for every tool, and in the tool's
+ * override block it would replace the tool's real event of the same canonical
+ * name.
  *
  * Note: This function does not strip matchers for noMatcherEvents. Tools themselves never produce
  * matchers on these events, so stripping is unnecessary on import. If a manually edited config
@@ -2192,9 +2218,21 @@ export function toolHooksToCanonical({
   const warn = warnOnce(logger);
   const canonical: HooksConfig["hooks"] = {};
   for (const [toolEventName, matcherEntries] of Object.entries(hooks)) {
-    const eventName =
-      lookupOwn({ record: converterConfig.toolToCanonicalEventNames, key: toolEventName }) ??
-      toolEventName;
+    const mappedEventName = lookupOwn({
+      record: converterConfig.toolToCanonicalEventNames,
+      key: toolEventName,
+    });
+    if (
+      mappedEventName === undefined &&
+      isHookEvent(toolEventName) &&
+      !isVerbatimNativeEvent({ event: toolEventName, converterConfig })
+    ) {
+      warn(
+        `Skipping imported hooks event ${quoteValueForWarning(toolEventName)}: the tool does not read an event by that name, and importing it would turn it into the active canonical event of the same name.`,
+      );
+      continue;
+    }
+    const eventName = mappedEventName ?? toolEventName;
     if (!Array.isArray(matcherEntries)) continue;
     const defs: HooksConfig["hooks"][string] = [];
     for (const rawEntry of matcherEntries) {

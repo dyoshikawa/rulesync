@@ -14,6 +14,7 @@ import {
   parseSharedConfig,
   sharedConfigFileKey,
 } from "../shared/shared-config-gateway.js";
+import { skipsReservedPermissionName } from "./reserved-permission-name.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { honorAllToolsRestrictions, restatesAsCategoryRule } from "./shadowed-allows.js";
 import { CATCH_ALL_PATTERN } from "./shell-command-categories.js";
@@ -379,7 +380,14 @@ export class LettacodePermissions extends ToolPermissions {
     for (const [key, action] of Object.entries(LIST_TO_ACTION)) {
       for (const rule of toStringArray(permissions[key])) {
         const parsed = fromLettacodeRule(rule);
-        if (parsed === null || isPrototypePollutionKey(parsed.pattern)) {
+        if (
+          parsed === null ||
+          skipsReservedPermissionName({
+            toolLabel: "Letta Code",
+            category: parsed.category,
+            pattern: parsed.pattern,
+          })
+        ) {
           continue;
         }
         const rules = getOrCreateOwn({
