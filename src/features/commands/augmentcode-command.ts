@@ -266,22 +266,22 @@ export class AugmentcodeCommand extends ToolCommand {
           );
           return undefined;
         }
-        const fileContent = await readFileContent(filePath);
-        const { frontmatter, body } = parseFrontmatter(fileContent, filePath);
-        const result = AugmentcodeCommandFrontmatterSchema.safeParse(frontmatter);
-        if (!result.success) {
-          logger?.warn(
-            `Skipping ${filePath}: its frontmatter is not valid AugmentCode command ` +
-              `frontmatter (${formatError(result.error)}).`,
-          );
+        // A plain-text command may well start with a `---` line that is not
+        // YAML; one such file must not take the whole import down.
+        const parsed = await this.parseImportOnlyCommandFile({
+          filePath,
+          invalidReason: "its frontmatter is not valid AugmentCode command frontmatter",
+          logger,
+        });
+        if (parsed === undefined) {
           return undefined;
         }
         return new AugmentcodeCommand({
           outputRoot,
           relativeDirPath: AUGMENTCODE_COMMANDS_DIR_PATH,
           relativeFilePath: markdownRelativePath,
-          frontmatter: result.data,
-          body: body.trim(),
+          frontmatter: parsed.frontmatter,
+          body: parsed.body,
           global,
         });
       }),
@@ -296,6 +296,36 @@ export class AugmentcodeCommand extends ToolCommand {
       );
     }
     return imported;
+  }
+
+  /**
+   * Read an import-only command file, or warn and return `undefined` when its
+   * frontmatter does not parse as YAML or does not fit the schema, so one bad
+   * file in an import-only source never aborts the whole import.
+   */
+  private static async parseImportOnlyCommandFile({
+    filePath,
+    invalidReason,
+    logger,
+  }: {
+    filePath: string;
+    invalidReason: string;
+    logger?: Logger;
+  }): Promise<{ frontmatter: AugmentcodeCommandFrontmatter; body: string } | undefined> {
+    const fileContent = await readFileContent(filePath);
+    let parsed: ReturnType<typeof parseFrontmatter>;
+    try {
+      parsed = parseFrontmatter(fileContent, filePath);
+    } catch (error) {
+      logger?.warn(`Skipping ${filePath}: ${invalidReason} (${formatError(error)}).`);
+      return undefined;
+    }
+    const result = AugmentcodeCommandFrontmatterSchema.safeParse(parsed.frontmatter);
+    if (!result.success) {
+      logger?.warn(`Skipping ${filePath}: ${invalidReason} (${formatError(result.error)}).`);
+      return undefined;
+    }
+    return { frontmatter: result.data, body: parsed.body.trim() };
   }
 
   private static async loadAgentsCommandFiles({
@@ -319,17 +349,15 @@ export class AugmentcodeCommand extends ToolCommand {
           logger?.warn(`Skipping ${filePath}: it resolves outside ${rootDir}.`);
           return undefined;
         }
-        const fileContent = await readFileContent(filePath);
-        const { frontmatter, body } = parseFrontmatter(fileContent, filePath);
-        const result = AugmentcodeCommandFrontmatterSchema.safeParse(frontmatter);
-        if (!result.success) {
-          // This root is shared with other tools, whose frontmatter conventions
-          // differ (Claude Code writes `argument-hint: [message]`, a list). One
-          // such file must not take the whole import down.
-          logger?.warn(
-            `Skipping ${filePath}: it does not carry AugmentCode command frontmatter ` +
-              `(${formatError(result.error)}).`,
-          );
+        // This root is shared with other tools, whose frontmatter conventions
+        // differ (Claude Code writes `argument-hint: [message]`, a list). One
+        // such file must not take the whole import down.
+        const parsed = await this.parseImportOnlyCommandFile({
+          filePath,
+          invalidReason: "it does not carry AugmentCode command frontmatter",
+          logger,
+        });
+        if (parsed === undefined) {
           return undefined;
         }
         return new AugmentcodeCommand({
@@ -341,8 +369,8 @@ export class AugmentcodeCommand extends ToolCommand {
           // produces — the duplicate check compares these strings, and a posix
           // path would miss a collision on Windows.
           relativeFilePath: relativePath,
-          frontmatter: result.data,
-          body: body.trim(),
+          frontmatter: parsed.frontmatter,
+          body: parsed.body,
           global,
         });
       }),

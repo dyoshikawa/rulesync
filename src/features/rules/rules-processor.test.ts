@@ -1463,6 +1463,24 @@ describe("RulesProcessor", () => {
       );
     });
 
+    it("should skip an AugmentCode .mdc rule whose .md twin differs only in case", async () => {
+      // `Foo.md` and `foo.mdc` import to one rulesync file on macOS and Windows.
+      await writeFileContent(join(testDir, ".augment", "rules", "Foo.md"), "# Md");
+      await writeFileContent(join(testDir, ".augment", "rules", "foo.mdc"), "# Mdc");
+
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "augmentcode",
+      });
+      const imported = await processor.loadToolFiles();
+
+      expect(imported.map((file) => file.getRelativeFilePath())).toEqual(["Foo.md"]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(`Not importing ${join(".augment", "rules", "foo.mdc")}`),
+      );
+    });
+
     it("should keep the oh-my-pi .md rule and skip a same-named .mdc one", async () => {
       await writeFileContent(
         join(testDir, ".omp", "rules", "foo.md"),

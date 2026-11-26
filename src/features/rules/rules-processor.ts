@@ -2150,11 +2150,15 @@ As this project's AI coding tool, you must follow the additional conventions bel
       dirname(filePath),
       `${basename(filePath).replace(/\.[^.]+$/, "")}${writtenExtension}`,
     );
-    if (!scannedPaths.includes(twin)) {
+    // Case-insensitive, like the rulesync-name collision check: on macOS and
+    // Windows `Foo.md` and `foo.mdc` import to one rulesync file.
+    const twinKey = twin.toLowerCase();
+    const existingTwin = scannedPaths.find((scanned) => scanned.toLowerCase() === twinKey);
+    if (existingTwin === undefined) {
       return true;
     }
     this.logger.warn(
-      `Not importing ${this.formatCappedPathList([filePath])} for ${this.toolTarget}: ${this.formatCappedPathList([twin])} imports to the same rulesync rule and is imported instead. Merge any content only it has into that file and delete it.`,
+      `Not importing ${this.formatCappedPathList([filePath])} for ${this.toolTarget}: ${this.formatCappedPathList([existingTwin])} imports to the same rulesync rule and is imported instead. Merge any content only it has into that file and delete it.`,
     );
     return false;
   }
@@ -2227,7 +2231,7 @@ As this project's AI coding tool, you must follow the additional conventions bel
       // to the generated `.md`): the next generate writes a `.md` twin while
       // the original stays in place, and the tool would load both.
       this.logger.warn(
-        `Importing ${this.formatCappedPathList(alternateExtensionPaths)} for ${this.toolTarget} as .${factory.meta.extension} rulesync rule(s). Generation writes .${factory.meta.extension} files only and never deletes the originals, so delete them by hand after the next generate, or ${this.toolTarget} loads each rule twice.`,
+        `Importing ${this.formatCappedPathList(alternateExtensionPaths)} for ${this.toolTarget} as .${factory.meta.extension} rulesync rule(s). Generation writes .${factory.meta.extension} files only and never deletes the originals, so delete them by hand after the next generate, or ${this.toolTarget} keeps loading the stale originals.`,
       );
     }
 

@@ -482,6 +482,24 @@ describe("AugmentcodeCommand .txt command import", () => {
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("bad.txt"));
   });
 
+  it("skips a .txt command whose leading --- block is not YAML without aborting the import", async () => {
+    // A plain-text command can start with a `---` line that is just text.
+    await writeFileContent(
+      join(testDir, ".augment", "commands", "broken.txt"),
+      ["---", "key: [unclosed", "---", "", "Body.", ""].join("\n"),
+    );
+    await writeFileContent(join(testDir, ".augment", "commands", "fine.txt"), "Fine.\n");
+    const logger = createMockLogger();
+
+    const commands = await AugmentcodeCommand.loadAdditionalImportFiles({
+      outputRoot: testDir,
+      logger,
+    });
+
+    expect(commands.map((command) => command.getRelativeFilePath())).toEqual(["fine.md"]);
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("broken.txt"));
+  });
+
   it("lists .txt commands before the shared .agents/commands root", async () => {
     // `.augment/commands/` is the primary root, so its `.txt` command wins a
     // name collision with a shared-root copy.
