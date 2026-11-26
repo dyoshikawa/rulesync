@@ -10,6 +10,7 @@ import {
   RULESYNC_HOOKS_RELATIVE_FILE_PATH,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
+import { zeroGlobalConfigDir } from "../constants/zero-paths.js";
 import { HooksProcessor } from "../features/hooks/hooks-processor.js";
 import { fileExists, readFileContent, removeFile, writeFileContent } from "../utils/file.js";
 import { getHermesagentGlobalDir } from "../utils/hermesagent.js";
@@ -228,6 +229,7 @@ const hooksGenerateTargets = [
   { target: "grokcli", outputPath: join(".grok", "hooks", "rulesync.json") },
   { target: "cline", outputPath: join(".clinerules", "hooks", "rulesync-hooks.json") },
   { target: "zcode", outputPath: join(".zcode", "config.json") },
+  { target: "zero", outputPath: join(".zero", "hooks.json") },
 ] as const;
 
 // Targets exercised by dedicated `it`s (bespoke per-tool serialization).
@@ -365,6 +367,20 @@ describe("E2E: hooks", () => {
             hooks: [
               { type: "command", command: '"$DUO_PROJECT_DIR"/.rulesync/hooks/session-start.sh' },
             ],
+          },
+        ]);
+      } else if (target === "zero") {
+        // Zero reads a flat hook list; a canonical command runs through
+        // `sh -c` because Zero spawns `command` without a shell. `stop` has no
+        // Zero event, so audit.sh is dropped.
+        expect(parsed.enabled).toBe(true);
+        expect(parsed.hooks).toEqual([
+          {
+            id: "rulesync-project-sessionStart-001",
+            event: "sessionStart",
+            command: "sh",
+            args: ["-c", ".rulesync/hooks/session-start.sh"],
+            enabled: true,
           },
         ]);
       } else if (target === "zcode") {
@@ -1311,6 +1327,22 @@ describe("E2E: hooks (import)", () => {
         },
       },
     },
+    {
+      // Zero's flat list: rulesync's `sh -c` wrapper is unwrapped on import.
+      target: "zero",
+      sourcePath: join(".zero", "hooks.json"),
+      sourceContent: {
+        enabled: true,
+        hooks: [
+          {
+            id: "log-session",
+            event: "sessionStart",
+            command: "sh",
+            args: ["-c", "echo session started"],
+          },
+        ],
+      },
+    },
   ])(
     "should import $target hooks",
     async ({ target, sourcePath, sourceContent, expectedEvent }) => {
@@ -1372,6 +1404,7 @@ const hooksGlobalTargets = [
   { target: "grokcli", outputPath: join(".grok", "hooks", "rulesync.json") },
   { target: "cline", outputPath: join("Documents", "Cline", "Hooks", "rulesync-hooks.json") },
   { target: "zcode", outputPath: join(".zcode", "cli", "config.json") },
+  { target: "zero", outputPath: join(zeroGlobalConfigDir(), "hooks.json") },
 ] as const;
 
 // Global targets exercised by dedicated `it`s (bespoke per-tool serialization).
@@ -1452,6 +1485,19 @@ describe("E2E: hooks (global mode)", () => {
         const parsed = JSON.parse(generatedContent);
         expect(parsed.hooks.sessionStart).toBeDefined();
         expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
+      } else if (target === "zero") {
+        // The user layer gets `user`-scoped ids, so Zero's id-keyed merge of
+        // the user and project layers never lets one replace the other.
+        const parsed = JSON.parse(generatedContent);
+        expect(parsed.hooks).toEqual([
+          {
+            id: "rulesync-user-sessionStart-001",
+            event: "sessionStart",
+            command: "sh",
+            args: ["-c", ".rulesync/hooks/session-start.sh"],
+            enabled: true,
+          },
+        ]);
       } else if (target === "zcode") {
         // In global mode the `hooks` block (with `enabled: true`) goes to
         // ~/.zcode/cli/config.json. See CANONICAL_TO_ZCODE_EVENT_NAMES in

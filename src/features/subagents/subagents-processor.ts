@@ -89,6 +89,7 @@ import { VibeSubagent } from "./vibe-subagent.js";
 import { XumSubagent } from "./xum-subagent.js";
 import { ZcodePluginSubagent } from "./zcode-plugin-subagent.js";
 import { ZcodeSubagent } from "./zcode-subagent.js";
+import { ZeroSubagent } from "./zero-subagent.js";
 import { ZoocodeSubagent } from "./zoocode-subagent.js";
 
 /**
@@ -1014,6 +1015,21 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
       // project one (observed in the v3.14.3 agent runtime).
       // https://zcode.z.ai/en/docs/subagents
       class: ZcodeSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.md",
+      },
+    },
+  ],
+  [
+    "zero",
+    {
+      // Zero specialists are Markdown manifests under `.zero/specialists/`
+      // (project) and `<user config dir>/zero/specialists/` (global).
+      // https://github.com/Twigpine/zero/blob/main/docs/SPECIALISTS.md
+      class: ZeroSubagent,
       meta: {
         supportsProject: true,
         supportsSimulated: false,
