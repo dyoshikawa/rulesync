@@ -21,6 +21,10 @@ import { ToolFile } from "../../types/tool-file.js";
 import { subagentsProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { quoteForLog, stripControlCharacters } from "../../utils/control-characters.js";
+import {
+  CURATED_SUBAGENT_FRONTMATTER_KEYS,
+  keepCuratedFrontmatterKeys,
+} from "../../utils/curated-frontmatter.js";
 import { formatError } from "../../utils/error.js";
 import {
   assertWritablePathInsideRoot,
@@ -32,7 +36,6 @@ import {
   subdirectoryDepthOf,
 } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
-import { stripPrivilegedFrontmatter } from "../../utils/privileged-frontmatter.js";
 import { AgentsmdSubagent } from "./agentsmd-subagent.js";
 import { AntigravityCliSubagent } from "./antigravity-cli-subagent.js";
 import { AntigravityIdeSubagent } from "./antigravity-ide-subagent.js";
@@ -1482,7 +1485,7 @@ export class SubagentsProcessor extends FeatureProcessor {
         });
         const rulesyncSubagent =
           relativeDirPath === treeCuratedSubagentsDirPath
-            ? this.withoutPrivilegedFrontmatter(loaded)
+            ? this.withCanonicalFrontmatterOnly(loaded)
             : loaded;
 
         rulesyncSubagents.push(rulesyncSubagent);
@@ -1514,19 +1517,22 @@ export class SubagentsProcessor extends FeatureProcessor {
   }
 
   /**
-   * A subagent fetched from a declared source, without the frontmatter keys
-   * that would let it run code, reach MCP servers or act without asking
-   * (`permissionMode`, `hooks`, `mcpServers`, ...). Sources do not install
-   * those (see the declarative sources guide); a local subagent of the same
-   * name can declare them.
+   * A subagent fetched from a declared source, keeping only the canonical,
+   * tool-neutral frontmatter fields and dropping every tool section, since
+   * those are copied into the generated files and can grant tools,
+   * permissions, hooks or MCP servers. A local subagent of the same name keeps
+   * its tool-specific settings.
    */
-  private withoutPrivilegedFrontmatter(subagent: RulesyncSubagent): RulesyncSubagent {
-    const { frontmatter, droppedKeys } = stripPrivilegedFrontmatter(subagent.getFrontmatter());
+  private withCanonicalFrontmatterOnly(subagent: RulesyncSubagent): RulesyncSubagent {
+    const { frontmatter, droppedKeys } = keepCuratedFrontmatterKeys({
+      frontmatter: subagent.getFrontmatter(),
+      allowedKeys: CURATED_SUBAGENT_FRONTMATTER_KEYS,
+    });
     if (droppedKeys.length === 0) {
       return subagent;
     }
     this.logger.warn(
-      `Dropped privileged frontmatter from source-installed subagent ${quoteForLog(join(subagent.getRelativeDirPath(), subagent.getRelativeFilePath()))}: ${droppedKeys.map(stripControlCharacters).join(", ")}. Sources cannot grant tools, hooks, MCP servers or permissions; declare them in a local subagent to keep them.`,
+      `Dropped frontmatter from source-installed subagent ${quoteForLog(join(subagent.getRelativeDirPath(), subagent.getRelativeFilePath()))}: ${droppedKeys.map(stripControlCharacters).join(", ")}. A subagent installed from a source keeps only these frontmatter fields: ${CURATED_SUBAGENT_FRONTMATTER_KEYS.join(", ")}. It cannot grant tools, permissions, hooks or MCP servers; copy it into .rulesync/ locally to keep tool-specific settings.`,
     );
     return new RulesyncSubagent({
       outputRoot: subagent.getOutputRoot(),

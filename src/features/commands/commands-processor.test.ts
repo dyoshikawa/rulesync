@@ -1007,7 +1007,7 @@ describe("CommandsProcessor", () => {
       ]);
     });
 
-    it("should drop pre-approved tools and hooks from curated commands", async () => {
+    it("should keep only canonical frontmatter in curated commands", async () => {
       const curatedDir = join(testDir, RULESYNC_CURATED_COMMANDS_RELATIVE_DIR_PATH);
       mockFindFilesByGlobs.mockImplementation(async (_globs, options) =>
         options?.cwd === curatedDir ? [join(curatedDir, "deploy.md")] : [],
@@ -1029,9 +1029,9 @@ describe("CommandsProcessor", () => {
 
       const [command] = (await processor.loadRulesyncFiles()) as RulesyncCommand[];
 
-      expect(command?.getFrontmatter().claudecode).toEqual({ model: "haiku" });
+      expect(command?.getFrontmatter()).toEqual({ targets: ["*"], description: "Deploy" });
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining("claudecode.allowed-tools, claudecode.hooks"),
+        expect.stringContaining(`deploy.md": claudecode. A command installed from a source`),
       );
     });
 

@@ -21,6 +21,10 @@ import { ToolFile } from "../../types/tool-file.js";
 import { commandsProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { quoteForLog, stripControlCharacters } from "../../utils/control-characters.js";
+import {
+  CURATED_COMMAND_FRONTMATTER_KEYS,
+  keepCuratedFrontmatterKeys,
+} from "../../utils/curated-frontmatter.js";
 import { formatError } from "../../utils/error.js";
 import {
   checkPathTraversal,
@@ -30,7 +34,6 @@ import {
   toPosixPath,
 } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
-import { stripPrivilegedFrontmatter } from "../../utils/privileged-frontmatter.js";
 import { AgentsmdCommand } from "./agentsmd-command.js";
 import { AntigravityCliCommand } from "./antigravity-cli-command.js";
 import { AntigravityIdeCommand } from "./antigravity-ide-command.js";
@@ -1240,7 +1243,7 @@ export class CommandsProcessor extends FeatureProcessor {
         }),
       ),
       ...curatedRelativePaths.map(async (relativeFilePath) =>
-        this.withoutPrivilegedFrontmatter(
+        this.withCanonicalFrontmatterOnly(
           await RulesyncCommand.fromFile({
             outputRoot: treeParent,
             relativeDirPath: treeCuratedCommandsDirPath,
@@ -1252,18 +1255,22 @@ export class CommandsProcessor extends FeatureProcessor {
   }
 
   /**
-   * A command fetched from a declared source, without the frontmatter keys
-   * that would let it run code or act without asking (`allowed-tools`,
-   * `hooks`, ...). Sources do not install those (see the declarative sources
-   * guide); a local command of the same name can declare them.
+   * A command fetched from a declared source, keeping only the canonical,
+   * tool-neutral frontmatter fields and dropping every tool section, since
+   * those are copied into the generated files and can grant tools,
+   * permissions, hooks or MCP servers. A local command of the same name keeps
+   * its tool-specific settings.
    */
-  private withoutPrivilegedFrontmatter(command: RulesyncCommand): RulesyncCommand {
-    const { frontmatter, droppedKeys } = stripPrivilegedFrontmatter(command.getFrontmatter());
+  private withCanonicalFrontmatterOnly(command: RulesyncCommand): RulesyncCommand {
+    const { frontmatter, droppedKeys } = keepCuratedFrontmatterKeys({
+      frontmatter: command.getFrontmatter(),
+      allowedKeys: CURATED_COMMAND_FRONTMATTER_KEYS,
+    });
     if (droppedKeys.length === 0) {
       return command;
     }
     this.logger.warn(
-      `Dropped privileged frontmatter from source-installed command ${quoteForLog(join(command.getRelativeDirPath(), command.getRelativeFilePath()))}: ${droppedKeys.map(stripControlCharacters).join(", ")}. Sources cannot grant tools, hooks, MCP servers or permissions; declare them in a local command to keep them.`,
+      `Dropped frontmatter from source-installed command ${quoteForLog(join(command.getRelativeDirPath(), command.getRelativeFilePath()))}: ${droppedKeys.map(stripControlCharacters).join(", ")}. A command installed from a source keeps only these frontmatter fields: ${CURATED_COMMAND_FRONTMATTER_KEYS.join(", ")}. It cannot grant tools, permissions, hooks or MCP servers; copy it into .rulesync/ locally to keep tool-specific settings.`,
     );
     return new RulesyncCommand({
       outputRoot: command.getOutputRoot(),
