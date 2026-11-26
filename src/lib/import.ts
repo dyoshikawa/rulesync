@@ -320,6 +320,7 @@ async function mergeIntoExistingPermissions({
             existing: document,
             imported: file.getJson(),
             toolTarget: tool,
+            logger,
           })
         : document,
     existing,

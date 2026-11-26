@@ -52,6 +52,7 @@ import { isFileNotFoundError } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { getRulesyncSourceCandidates } from "../../utils/rulesync-source-path.js";
+import { isRecord } from "../../utils/type-guards.js";
 import { isPlainObject } from "../../utils/type-guards.js";
 import { AmpHooks } from "./amp-hooks.js";
 import {
@@ -317,6 +318,39 @@ export const HOOKS_OVERRIDE_KEY_ALIASES: Partial<Record<ToolTarget, string>> = {
   // A Devin plugin's hooks are Devin hooks, so it reads the `devin` block.
   "devin-plugin": "devin",
 };
+
+/**
+ * Targets whose own-name hooks block is read by nothing because they read
+ * another target's block (see {@link HOOKS_OVERRIDE_KEY_ALIASES}), and that
+ * warn about it here. The Kiro targets warn about theirs in their adapter.
+ */
+const WARN_IGNORED_ALIAS_SOURCE_TARGETS: ReadonlySet<ToolTarget> = new Set<ToolTarget>(["qodercn"]);
+
+/**
+ * Warn about a hooks block authored under an alias SOURCE name (e.g.
+ * `qodercn` instead of `qoder`) instead of silently ignoring it.
+ */
+function warnIgnoredAliasSourceBlock({
+  config,
+  toolTarget,
+  logger,
+}: {
+  config: Record<string, unknown>;
+  toolTarget: ToolTarget;
+  logger: Logger;
+}): void {
+  const overrideKey = HOOKS_OVERRIDE_KEY_ALIASES[toolTarget];
+  if (
+    overrideKey === undefined ||
+    !WARN_IGNORED_ALIAS_SOURCE_TARGETS.has(toolTarget) ||
+    !isRecord(config[toolTarget])
+  ) {
+    return;
+  }
+  logger.warn(
+    `The "${toolTarget}.hooks" block in ${RULESYNC_HOOKS_RELATIVE_FILE_PATH} is ignored. Author it under the "${overrideKey}.hooks" key instead (the ${toolTarget} target reads that block).`,
+  );
+}
 
 /**
  * Names the shared events that carry a hook whose canonical definition
@@ -1538,6 +1572,7 @@ export class HooksProcessor extends FeatureProcessor {
     const config = rulesyncHooks.getJson();
     const sharedHooks = config.hooks;
     const overrideKey = HOOKS_OVERRIDE_KEY_ALIASES[this.toolTarget] ?? this.toolTarget;
+    warnIgnoredAliasSourceBlock({ config, toolTarget: this.toolTarget, logger: this.logger });
     const overrideHooks = (config[overrideKey] as { hooks?: unknown } | undefined)?.hooks ?? {};
     const effectiveHooks = { ...sharedHooks, ...overrideHooks };
 

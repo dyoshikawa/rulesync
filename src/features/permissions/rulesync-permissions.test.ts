@@ -1080,6 +1080,57 @@ describe("PermissionsConfigSchema tool keys", () => {
 });
 
 describe("RulesyncPermissions.mergeImportedJson", () => {
+  it("replaces qoder's own block on a qoder import", () => {
+    const merged = RulesyncPermissions.mergeImportedJson({
+      existing: { qoder: { autoMode: { enabled: true }, outputStyle: "terse" } },
+      imported: { qoder: { outputStyle: "verbose" } },
+      toolTarget: "qoder",
+    });
+
+    expect(merged).toEqual({ qoder: { outputStyle: "verbose" } });
+  });
+
+  it("merges a qodercn import into the shared qoder block without dropping keys", () => {
+    const logger = createMockLogger();
+    const merged = RulesyncPermissions.mergeImportedJson({
+      existing: {
+        qoder: {
+          autoMode: { enabled: true },
+          security: { sandbox: "strict", network: "off" },
+          permission: { bash: { "rm *": "deny", "git *": "ask" } },
+        },
+      },
+      imported: {
+        qoder: {
+          security: { sandbox: "relaxed" },
+          permission: { bash: { "rm *": "allow", "git *": "deny", "ls *": "allow" } },
+        },
+      },
+      toolTarget: "qodercn",
+      logger,
+    });
+
+    expect(merged).toEqual({
+      qoder: {
+        autoMode: { enabled: true },
+        security: { sandbox: "relaxed", network: "off" },
+        // A pattern both sides define keeps the stricter action.
+        permission: { bash: { "rm *": "deny", "git *": "deny", "ls *": "allow" } },
+      },
+    });
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("qoder.security.sandbox"));
+  });
+
+  it("keeps the shared qoder block when a qodercn import produces none", () => {
+    const merged = RulesyncPermissions.mergeImportedJson({
+      existing: { qoder: { autoMode: { enabled: true } } },
+      imported: { permission: { bash: { "git *": "allow" } } },
+      toolTarget: "qodercn",
+    });
+
+    expect(merged.qoder).toEqual({ autoMode: { enabled: true } });
+  });
+
   it("replaces imported categories wholesale and keeps the others", () => {
     const merged = RulesyncPermissions.mergeImportedJson({
       existing: {

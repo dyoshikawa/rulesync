@@ -416,6 +416,30 @@ describe("HooksProcessor", () => {
       );
     });
 
+    it("should warn that a qodercn hooks block is ignored and apply the qoder block", async () => {
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {},
+          qoder: { hooks: { stop: [{ command: "echo qoder" }] } },
+          qodercn: { hooks: { stop: [{ command: "echo ignored" }] } },
+        }),
+        validate: false,
+      });
+
+      const processor = new HooksProcessor({ logger, outputRoot: testDir, toolTarget: "qodercn" });
+      const [file] = await processor.convertRulesyncFilesToToolFiles([rulesyncHooks]);
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('The "qodercn.hooks" block'),
+      );
+      expect(file?.getFileContent()).toContain("echo qoder");
+      expect(file?.getFileContent()).not.toContain("echo ignored");
+    });
+
     it("should log warning when config has events not supported by target", async () => {
       const config = {
         version: 1,
