@@ -74,6 +74,7 @@ import { TaktCommand } from "./takt-command.js";
 import {
   ToolCommand,
   ToolCommandAfterOrphanSweepParams,
+  ToolCommandAfterOrphanSweepResult,
   ToolCommandForDeletionParams,
   ToolCommandFromFileParams,
   ToolCommandFromRulesyncCommandParams,
@@ -119,7 +120,9 @@ type ToolCommandFactory = {
       forDeletion?: boolean;
     }): Promise<ToolFile[]> | ToolFile[];
     /** See {@link ToolCommand.afterOrphanSweep}. */
-    afterOrphanSweep?(params: ToolCommandAfterOrphanSweepParams): Promise<number>;
+    afterOrphanSweep?(
+      params: ToolCommandAfterOrphanSweepParams,
+    ): Promise<ToolCommandAfterOrphanSweepResult>;
     canDeleteAuxiliaryFiles?(params: {
       outputRoot: string;
       global?: boolean;
@@ -1415,17 +1418,19 @@ export class CommandsProcessor extends FeatureProcessor {
     const removedBefore = this.getRemovedPaths().length;
     const changedCount = await super.removeOrphanAiFiles(existingFiles, generatedFiles);
     const factory = this.getFactory(this.toolTarget);
-    const auxiliaryChangedCount =
-      (await factory.class.afterOrphanSweep?.({
-        outputRoot: this.outputRoot,
-        global: this.global,
-        dryRun: this.dryRun,
-        logger: this.logger,
-        existingFiles,
-        generatedFiles,
-        removedPaths: this.getRemovedPaths().slice(removedBefore),
-      })) ?? 0;
-    return changedCount + auxiliaryChangedCount;
+    const auxiliaryWrites = await factory.class.afterOrphanSweep?.({
+      outputRoot: this.outputRoot,
+      global: this.global,
+      dryRun: this.dryRun,
+      logger: this.logger,
+      existingFiles,
+      generatedFiles,
+      removedPaths: this.getRemovedPaths().slice(removedBefore),
+    });
+    if (auxiliaryWrites === undefined) return changedCount;
+    this.sweepWrites.paths.push(...auxiliaryWrites.paths);
+    this.sweepWrites.keyOperations.push(...auxiliaryWrites.keyOperations);
+    return changedCount + auxiliaryWrites.paths.length;
   }
 
   /**

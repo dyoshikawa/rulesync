@@ -138,6 +138,44 @@ describe("createOrphanSweepPlan", () => {
       });
     });
 
+    it("should attribute files a sweep rewrote, and their key operations, to its feature", async () => {
+      const plan = createOrphanSweepPlan();
+
+      plan.forFeature("commands").defer({
+        sweep: async () => true,
+        reportWritten: () => ({
+          paths: [".hermes/config.yaml"],
+          keyOperations: [{ action: "write", path: ".hermes/config.yaml", key: "plugins" }],
+        }),
+      });
+      plan.forFeature("commands").defer({
+        sweep: async () => true,
+        // A second output root reporting a path already listed.
+        reportWritten: () => ({ paths: [".hermes/config.yaml"], keyOperations: [] }),
+      });
+      plan.forFeature("rules").defer({
+        sweep: async () => false,
+        reportWritten: () => ({ paths: [], keyOperations: [] }),
+      });
+      // Deferred on the plan itself: run, but attributed to no feature.
+      plan.defer({
+        sweep: async () => true,
+        reportWritten: () => ({
+          paths: ["x.yaml"],
+          keyOperations: [{ action: "write", path: "x.yaml", key: "y" }],
+        }),
+      });
+
+      await plan.run();
+
+      expect(Object.fromEntries(plan.getSweepWrittenPathsByFeature())).toEqual({
+        commands: [".hermes/config.yaml"],
+      });
+      expect(Object.fromEntries(plan.getKeyOperationsByFeature())).toEqual({
+        commands: [{ action: "write", path: ".hermes/config.yaml", key: "plugins" }],
+      });
+    });
+
     it("should report key operations per feature, sorted by path then key, once each", () => {
       const plan = createOrphanSweepPlan();
 
