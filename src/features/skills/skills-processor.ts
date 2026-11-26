@@ -24,6 +24,7 @@ import { quoteForLog, stripControlCharacters } from "../../utils/control-charact
 import { formatError } from "../../utils/error.js";
 import {
   assertWritablePathInsideRoot,
+  createGitIgnoredEntryTest,
   directoryExists,
   directoryExistsStrict,
   listFileNames,
@@ -1230,6 +1231,40 @@ export class SkillsProcessor extends DirFeatureProcessor {
       }
       return false;
     };
+    // A skill the project's .gitignore names one by one is not its source —
+    // typically a symbolic link into another repository that the project
+    // keeps out of version control on purpose — so it must not be copied into
+    // version-controlled `.rulesync/skills/`. Not in global mode, where the
+    // output root is the home directory and no project's rules apply.
+    const ignoredEntryTests = new Map<string, (entryPath: string) => boolean>();
+    const keepUnignored = ({
+      names,
+      outputRoot,
+      relativeDirPath,
+    }: {
+      names: string[];
+      outputRoot: string;
+      relativeDirPath: string;
+    }): string[] => {
+      if (this.global || names.length === 0) {
+        return names;
+      }
+      let isIgnoredEntry = ignoredEntryTests.get(outputRoot);
+      if (isIgnoredEntry === undefined) {
+        isIgnoredEntry = createGitIgnoredEntryTest({ rootDir: outputRoot });
+        ignoredEntryTests.set(outputRoot, isIgnoredEntry);
+      }
+      const test = isIgnoredEntry;
+      return names.filter((name) => {
+        if (!test(join(outputRoot, relativeDirPath, name))) {
+          return true;
+        }
+        this.logger.info(
+          `Skipping ${quoteForLog(join(relativeDirPath, name))}: the project's .gitignore excludes it, so it is not imported.`,
+        );
+        return false;
+      });
+    };
     const toolSkills: ToolSkill[] = [];
     for (const root of roots) {
       const rootOutputRoot = typeof root === "string" ? this.outputRoot : root.outputRoot;
@@ -1251,10 +1286,14 @@ export class SkillsProcessor extends DirFeatureProcessor {
         continue;
       }
       const ownedDirNames: string[] = [];
-      const candidateDirNames = this.keepAddressableNames({
-        names: await listSubdirectoryNames(skillsDirPath),
-        dirPath: skillsDirPath,
-        kind: "directory",
+      const candidateDirNames = keepUnignored({
+        names: this.keepAddressableNames({
+          names: await listSubdirectoryNames(skillsDirPath),
+          dirPath: skillsDirPath,
+          kind: "directory",
+        }),
+        outputRoot: rootOutputRoot,
+        relativeDirPath,
       });
       for (const dirName of candidateDirNames) {
         if (
@@ -1312,15 +1351,19 @@ export class SkillsProcessor extends DirFeatureProcessor {
       }
       const fromFlatFile = factory.class.fromFlatFile.bind(factory.class);
       const directoryStems = new Set(ownedDirNames);
-      const flatFileNames = this.keepAddressableNames({
-        // The suffix is applied while reading rather than after, so a `.md`
-        // name that stands for a file of another name is not collapsed onto
-        // that file and dropped by the filter.
-        names: (
-          await listFileNames(skillsDirPath, { nameFilter: (name) => name.endsWith(".md") })
-        ).filter((fileName) => !directoryStems.has(basename(fileName, ".md"))),
-        dirPath: skillsDirPath,
-        kind: "file",
+      const flatFileNames = keepUnignored({
+        names: this.keepAddressableNames({
+          // The suffix is applied while reading rather than after, so a `.md`
+          // name that stands for a file of another name is not collapsed onto
+          // that file and dropped by the filter.
+          names: (
+            await listFileNames(skillsDirPath, { nameFilter: (name) => name.endsWith(".md") })
+          ).filter((fileName) => !directoryStems.has(basename(fileName, ".md"))),
+          dirPath: skillsDirPath,
+          kind: "file",
+        }),
+        outputRoot: rootOutputRoot,
+        relativeDirPath,
       });
       const flatSkills = (
         await Promise.all(

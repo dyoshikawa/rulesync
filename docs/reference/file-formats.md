@@ -16,6 +16,8 @@ On the output side, generation does not write through a link that leads out of t
 
 The [MCP server](./mcp-server.md#symbolic-links-in-rulesync) is stricter than the CLI here, because an agent driving it may be steered by the repository it runs in: its `list`, `get` and `put` operations refuse a source file, or a skill directory, reached through a symbolic link below the feature directory, so a shared skill or rule linked in as described above is not available through the MCP server. `.rulesync` and the feature directories themselves (`.rulesync/rules`, `.rulesync/skills`, ...) may still be links there.
 
+On **import**, a skill in a tool's skills directory that the project's `.gitignore` names on its own (`.cursor/skills/deploy`, often a link into another repository that a workspace keeps out of version control) is skipped with a note, so another repository's skills are not copied into this one's `.rulesync/skills/`. A skills directory ignored as a whole, such as the `**/.cursor/skills/` entry `rulesync gitignore` writes for generated output, says nothing about any one skill, so its skills are still imported. Ignore rules come from the `.gitignore` files at and below the output root, and global mode applies none.
+
 One discovery pass is deliberately excluded from the follow-symlinks rule: the scan for nested `AGENTS.md` files (see the `agentsmd` note below). Unlike every other glob above, it walks the whole project rather than a rulesync-owned directory, so a symlink committed to a repository you cloned could otherwise pull a file from outside the project into version-controlled `.rulesync/`. That scan does not follow symlinks.
 
 ## `rulesync/rules/*.md`

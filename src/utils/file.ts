@@ -423,6 +423,54 @@ export function filterOutPathsInGitIgnoredDirectories({
 }
 
 /**
+ * Build a test for whether the project's git ignore rules exclude one entry by
+ * name while the directory holding it is not excluded.
+ *
+ * This tells a deliberate per-entry exclusion — a `.gitignore` line naming
+ * `.cursor/skills/deploy`, often a symbolic link into another repository —
+ * apart from a whole tool directory that is ignored as generated output, the
+ * `**\/.cursor/skills/` entry `rulesync gitignore` writes. Only the first is
+ * reported: when an ancestor directory is ignored, every entry below it is too,
+ * and that says nothing about any one of them.
+ *
+ * An entry is tested both as a file and as a directory (`name` and `name/`),
+ * since git matches a symbolic link as a file and a real directory against
+ * both. Ignore rules come from the `.gitignore` files at and below `rootDir`,
+ * read once, on the first call; unreadable directories are skipped while they
+ * are collected. An entry outside `rootDir` is never reported.
+ */
+export function createGitIgnoredEntryTest({
+  rootDir,
+}: {
+  rootDir: string;
+}): (entryPath: string) => boolean {
+  const resolvedRoot = resolve(rootDir);
+  let isIgnored: ((path: string) => boolean) | undefined;
+  return (entryPath) => {
+    const entry = resolve(entryPath);
+    const fromRoot = relative(resolvedRoot, entry);
+    if (fromRoot === "" || fromRoot.startsWith("..") || isAbsolute(fromRoot)) {
+      return false;
+    }
+    isIgnored ??= isGitIgnoredSync({ cwd: rootDir, suppressErrors: true });
+    const entryPosix = toPosixPath(entry);
+    if (!isIgnored(entryPosix) && !isIgnored(`${entryPosix}/`)) {
+      return false;
+    }
+    for (
+      let directory = dirname(entry);
+      directory !== resolvedRoot;
+      directory = dirname(directory)
+    ) {
+      if (isIgnored(`${toPosixPath(directory)}/`)) {
+        return false;
+      }
+    }
+    return true;
+  };
+}
+
+/**
  * Converts OS-native path separators to POSIX forward slashes.
  * Use this instead of `path.posix.join` when input segments may already
  * contain backslashes (e.g., on Windows), because `path.posix.join` does
