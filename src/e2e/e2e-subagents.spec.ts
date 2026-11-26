@@ -162,6 +162,10 @@ const subagentsGenerateTargets = [
     outputPath: join(".mimocode", "agents", "planner.md"),
   },
   {
+    target: "gitlabduo",
+    outputPath: join(".agents", "agents", "planner.md"),
+  },
+  {
     target: "musecode",
     outputPath: join(".agents", "agents", "planner.md"),
   },
@@ -836,6 +840,7 @@ describe("E2E: subagents (import)", () => {
     { target: "copilot", sourcePath: join(".github", "agents", "planner.md") },
     { target: "kimi-code", sourcePath: join(".kimi-code", "agents", "planner.md") },
     { target: "mimocode", sourcePath: join(".mimocode", "agents", "planner.md") },
+    { target: "gitlabduo", sourcePath: join(".agents", "agents", "planner.md") },
     { target: "musecode", sourcePath: join(".agents", "agents", "planner.md") },
     { target: "omp", sourcePath: join(".omp", "agents", "planner.md") },
     { target: "opencode", sourcePath: join(".opencode", "agents", "planner.md") },

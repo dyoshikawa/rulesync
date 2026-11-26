@@ -75,10 +75,13 @@ export const ANTIGRAVITY_SHARED_SUBAGENT_SECTION_KEYS = [
  * Muse Code loads its project agents from the same directory, so its section
  * is merged into the shared file too, below the Antigravity blocks: a key both
  * set keeps the Antigravity value the file carried before Muse Code joined.
- * Global agents live in per-tool directories, so this list applies to the
- * project file only.
+ * GitLab Duo workspace subagents load from the same directory as well; its
+ * section joined last, so it sits lowest and every value the file carried
+ * before is kept. Global agents live in per-tool directories, so this list
+ * applies to the project file only.
  */
 export const AGENTS_DIR_SHARED_SUBAGENT_SECTION_KEYS = [
+  "gitlabduo",
   "musecode",
   ...ANTIGRAVITY_SHARED_SUBAGENT_SECTION_KEYS,
 ] as const satisfies readonly ToolTarget[];
@@ -228,8 +231,9 @@ export class AntigravitySharedSubagent extends ToolSubagent {
    * therefore merges the shared `antigravity-ide` → `antigravity-cli` sections
    * (the CLI block wins, matching the fixed order the MCP feature already uses
    * for the same shared-output reason), and the plugin target layers its own
-   * section on top of that. The project file is also read by Muse Code, so in
-   * project scope the `musecode` section is merged underneath (see
+   * section on top of that. The project file is also read by Muse Code and
+   * GitLab Duo, so in project scope the `gitlabduo` and `musecode` sections
+   * are merged underneath (see
    * {@link AGENTS_DIR_SHARED_SUBAGENT_SECTION_KEYS}). Only `getToolTarget()`
    * decides which section an import writes back into.
    */
