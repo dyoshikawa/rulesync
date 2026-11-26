@@ -20,8 +20,9 @@ import {
   getAntigravityNestedFilePatterns,
   resolveAntigravityNonRootFile,
   resolveAntigravitySubprojectPath,
-  toAntigravityNestedRulesDirPath,
-  toNestedRuleFileName,
+  scopeAntigravityFrontmatterToSubproject,
+  toGlobalRuleFileName,
+  toSubprojectRuleFileName,
 } from "./antigravity-rule.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
@@ -225,17 +226,19 @@ export class AntigravityIdeRule extends ToolRule {
   }
 
   /**
-   * Whether a rule scoped to a subproject goes to that subproject's own
-   * `.agents/rules/`. A subclass that writes somewhere other than a project
-   * tree (the plugin bundle) turns it off.
+   * Whether a rule scoped to a subproject is limited to that subproject with
+   * globs, and legacy `<subprojectPath>/.agents/rules/` folders are imported.
+   * A subclass that writes somewhere other than a project tree (the plugin
+   * bundle) turns it off.
    */
   protected static supportsSubprojectRules(): boolean {
     return true;
   }
 
   /**
-   * The `.agents/rules/` folders of project subdirectories, imported back as
-   * directory-scoped rules.
+   * The legacy `.agents/rules/` folders of project subdirectories, which
+   * Antigravity no longer loads, imported back as directory-scoped rules so
+   * the next generate moves them into the project-root `.agents/rules/`.
    * @see https://antigravity.google/docs/rules
    */
   static getNestedFilePatterns(): ToolRuleNestedFilePatterns {
@@ -271,28 +274,40 @@ export class AntigravityIdeRule extends ToolRule {
 
     const rulesyncFrontmatter = rulesyncRule.getFrontmatter();
 
-    const frontmatter = toTriggerToolFrontmatter({
+    const triggerFrontmatter = toTriggerToolFrontmatter({
       strategies: STRATEGIES,
       stored: rulesyncFrontmatter.antigravity,
       rulesyncFrontmatter,
     });
 
+    // A subproject-scoped rule goes to the project-root `.agents/rules/` as a
+    // rule limited to that subproject, under the file name the CLI uses too.
     const subprojectPath = this.supportsSubprojectRules()
       ? resolveAntigravitySubprojectPath({ rulesyncRule, global })
       : undefined;
-    // The global rules directory is shared with the CLI, and so is a nested
-    // one, so use the name the CLI writes there.
+    const frontmatter =
+      subprojectPath === undefined
+        ? triggerFrontmatter
+        : scopeAntigravityFrontmatterToSubproject({
+            frontmatter: triggerFrontmatter,
+            subprojectPath,
+            rulePath: rulesyncRule.getRelativePathFromCwd(),
+          });
+    // The global rules directory is shared with the CLI, so use the name the
+    // CLI writes there.
     const relativeFilePath =
-      global || subprojectPath !== undefined
-        ? toNestedRuleFileName(rulesyncRule.getRelativeFilePath())
-        : toKebabCaseFilename(rulesyncRule.getRelativeFilePath());
+      subprojectPath !== undefined
+        ? toSubprojectRuleFileName({
+            subprojectPath,
+            relativeFilePath: rulesyncRule.getRelativeFilePath(),
+          })
+        : global
+          ? toGlobalRuleFileName(rulesyncRule.getRelativeFilePath())
+          : toKebabCaseFilename(rulesyncRule.getRelativeFilePath());
 
     return new this({
       outputRoot,
-      relativeDirPath:
-        subprojectPath === undefined
-          ? paths.nonRoot.relativeDirPath
-          : toAntigravityNestedRulesDirPath(subprojectPath),
+      relativeDirPath: paths.nonRoot.relativeDirPath,
       relativeFilePath,
       frontmatter,
       body: rulesyncRule.getBody(),
