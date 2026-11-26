@@ -513,7 +513,6 @@ describe("HermesagentMcp", () => {
         fileContent: JSON.stringify({
           mcpServers: {
             datastore: { command: "uvx", args: ["datastore-mcp"], single_instance: true },
-            invalid: { command: "uvx", args: ["other"], single_instance: "yes" },
           },
         }),
       });
@@ -526,8 +525,6 @@ describe("HermesagentMcp", () => {
       const servers = getMcpServers(mcp.getFileContent());
 
       expect(servers.datastore?.single_instance).toBe(true);
-      // Only booleans are copied, the same as `skip_preflight`.
-      expect(servers.invalid?.single_instance).toBeUndefined();
 
       // A hand-written value in config.yaml survives import, so a regenerate
       // from the imported canonical config keeps it.
@@ -563,6 +560,89 @@ describe("HermesagentMcp", () => {
       });
       expect(getMcpServers(regenerated.getFileContent()).datastore?.single_instance).toBe(true);
     });
+
+    it("writes a non-boolean single_instance as the boolean Hermes reads (issue #3971)", async () => {
+      const logger = createMockLogger();
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            yes: { command: "uvx", single_instance: "yes" },
+            no: { command: "uvx", single_instance: "false" },
+            off: { command: "uvx", single_instance: "OFF" },
+            mixed: { command: "uvx", single_instance: "nO" },
+            zeroString: { command: "uvx", single_instance: "0" },
+            one: { command: "uvx", single_instance: 1 },
+            zero: { command: "uvx", single_instance: 0 },
+            empty: { command: "uvx", single_instance: "" },
+            list: { command: "uvx", single_instance: ["x"] },
+            unset: { command: "uvx", single_instance: null },
+          },
+        }),
+      });
+
+      const mcp = await HermesagentMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+        logger,
+      });
+      const servers = getMcpServers(mcp.getFileContent());
+
+      // Words PyYAML reads as booleans keep their meaning, without a warning.
+      expect(servers.yes?.single_instance).toBe(true);
+      expect(servers.no?.single_instance).toBe(false);
+      expect(servers.off?.single_instance).toBe(false);
+      // PyYAML only knows lower, Capitalized and UPPER spellings, so any other
+      // non-empty string is a truthy string to Hermes.
+      expect(servers.mixed?.single_instance).toBe(true);
+      expect(servers.zeroString?.single_instance).toBe(true);
+      expect(servers.one?.single_instance).toBe(true);
+      expect(servers.zero?.single_instance).toBe(false);
+      expect(servers.empty?.single_instance).toBe(false);
+      expect(servers.list?.single_instance).toBeUndefined();
+      expect(servers.unset?.single_instance).toBeUndefined();
+      const messages = logger.warn.mock.calls.map(([message]) => String(message));
+      expect(messages.filter((message) => message.includes("single_instance"))).toEqual([
+        'Hermes MCP: single_instance "nO" is not a boolean; Hermes reads it by Python truthiness as true, so it is written as true.',
+        'Hermes MCP: single_instance "0" is not a boolean; Hermes reads it by Python truthiness as true, so it is written as true.',
+        "Hermes MCP: single_instance 1 is not a boolean; Hermes reads it by Python truthiness as true, so it is written as true.",
+        "Hermes MCP: single_instance 0 is not a boolean; Hermes reads it by Python truthiness as false, so it is written as false.",
+        'Hermes MCP: single_instance "" is not a boolean; Hermes reads it by Python truthiness as false, so it is written as false.',
+        'Hermes MCP: dropping single_instance ["x"]; Hermes expects a boolean.',
+      ]);
+    });
+
+    it.each([
+      ["no", false],
+      ["off", false],
+      ["Yes", true],
+      ["ON", true],
+    ])(
+      "imports an unquoted single_instance: %s as the boolean PyYAML reads (issue #3971)",
+      (word, expected) => {
+        const imported = JSON.parse(
+          new HermesagentMcp({
+            outputRoot: testDir,
+            relativeDirPath: HERMES_DIR,
+            relativeFilePath: HERMES_FILE,
+            validate: false,
+            fileContent: [
+              "mcp_servers:",
+              "  datastore:",
+              "    command: uvx",
+              `    single_instance: ${word}`,
+              "",
+            ].join("\n"),
+            global: true,
+          })
+            .toRulesyncMcp()
+            .getFileContent(),
+        );
+        expect(imported.hermesagent.mcpServers.datastore.single_instance).toBe(expected);
+      },
+    );
 
     it("writes and imports the v0.22.3 tool_costs/spend_limit/cost_unit keys (issue #2414)", async () => {
       const rulesyncMcp = new RulesyncMcp({

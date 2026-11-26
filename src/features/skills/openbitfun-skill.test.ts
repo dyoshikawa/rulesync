@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { OpenbitfunSkill } from "./openbitfun-skill.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
@@ -68,5 +69,36 @@ describe("OpenbitfunSkill", () => {
     expect(OpenbitfunSkill.isTargetedByRulesyncSkill(makeRulesyncSkill(["*"]))).toBe(true);
     expect(OpenbitfunSkill.isTargetedByRulesyncSkill(makeRulesyncSkill(["openbitfun"]))).toBe(true);
     expect(OpenbitfunSkill.isTargetedByRulesyncSkill(makeRulesyncSkill(["cursor"]))).toBe(false);
+  });
+
+  describe("getConfiguredImportRoots", () => {
+    it("should add no roots and warn about a moved XDG data home on a global import (issue #3971)", async () => {
+      vi.spyOn(process, "platform", "get").mockReturnValue("linux");
+      vi.stubEnv("HOME_DIR", testDir);
+      vi.stubEnv("XDG_DATA_HOME", join("/", "srv", "openbitfun-skills-import-xdg"));
+      const logger = createMockLogger();
+      try {
+        await expect(
+          OpenbitfunSkill.getConfiguredImportRoots({ outputRoot: testDir, global: true, logger }),
+        ).resolves.toEqual([]);
+      } finally {
+        vi.unstubAllEnvs();
+      }
+
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("$XDG_DATA_HOME"));
+    });
+
+    it("should not warn on a project import", async () => {
+      vi.spyOn(process, "platform", "get").mockReturnValue("linux");
+      vi.stubEnv("XDG_DATA_HOME", join("/", "srv", "openbitfun-skills-project-xdg"));
+      const logger = createMockLogger();
+      try {
+        await OpenbitfunSkill.getConfiguredImportRoots({ outputRoot: testDir, logger });
+      } finally {
+        vi.unstubAllEnvs();
+      }
+
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
   });
 });
