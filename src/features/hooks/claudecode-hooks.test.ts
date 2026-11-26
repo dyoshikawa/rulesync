@@ -794,7 +794,7 @@ describe("ClaudecodeHooks", () => {
       );
     });
 
-    it("should round-trip PreSkillShellCommand with its tool matcher", async () => {
+    it("should round-trip PreSkillShellCommand with its tool matcher, keeping a fail-closed prompt hook", async () => {
       await ensureDir(join(testDir, ".claude"));
       await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));
 
@@ -822,19 +822,30 @@ describe("ClaudecodeHooks", () => {
       });
 
       const parsed = JSON.parse(claudecodeHooks.getFileContent());
+      // Claude Code blocks every command a prompt/agent hook matches on this
+      // event, so the hook is kept (dropping it would leave commands unchecked).
       expect(parsed.hooks.PreSkillShellCommand).toEqual([
         {
           matcher: "Bash|PowerShell",
-          hooks: [{ type: "command", command: "block-rm.sh", onFailure: "block" }],
+          hooks: [
+            { type: "command", command: "block-rm.sh", onFailure: "block" },
+            { type: "prompt", prompt: "Is this safe?" },
+          ],
         },
       ]);
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining(`Skipping a "preSkillShellCommand" prompt hook`),
+        expect.stringContaining(
+          `Keeping a "preSkillShellCommand" prompt hook ("Is this safe?") although this tool cannot run prompt hooks`,
+        ),
+      );
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining(`Skipping a "preSkillShellCommand"`),
       );
 
       const imported = claudecodeHooks.toRulesyncHooks().getJson();
       expect(imported.hooks.preSkillShellCommand).toEqual([
         { type: "command", matcher: "Bash|PowerShell", command: "block-rm.sh", failClosed: true },
+        { type: "prompt", matcher: "Bash|PowerShell", prompt: "Is this safe?" },
       ]);
     });
 

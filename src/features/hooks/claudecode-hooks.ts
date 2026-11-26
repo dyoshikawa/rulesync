@@ -42,11 +42,12 @@ const CLAUDE_TOOL_HOOK_TYPES: ReadonlySet<HookType> = new Set(["command", "http"
 
 /**
  * Events on which Claude Code runs fewer than all five handler types. A hook
- * of another type is skipped with a warning on generate: Claude Code skips an
- * agent hook on `PermissionRequest`, refuses prompt/agent hooks on the events
- * listed with `command`/`http`/`mcp_tool`, and on `PreSkillShellCommand` it
- * even blocks every command such a hook matches. Events not listed here
- * (PreToolUse, PostToolUse, Stop, UserPromptSubmit, ...) accept all five.
+ * of another type is skipped with a warning on generate, since Claude Code
+ * skips an agent hook on `PermissionRequest` and does not run prompt/agent
+ * hooks on the events listed with `command`/`http`/`mcp_tool` (except
+ * `PreSkillShellCommand`, see {@link CLAUDE_FAIL_CLOSED_EVENTS}). Events not
+ * listed here (PreToolUse, PostToolUse, Stop, UserPromptSubmit, ...) accept all
+ * five.
  * @see https://code.claude.com/docs/en/hooks#prompt-based-hooks
  */
 const CLAUDE_EVENT_HOOK_TYPES: Readonly<Partial<Record<HookEvent, ReadonlySet<HookType>>>> = {
@@ -74,6 +75,15 @@ const CLAUDE_EVENT_HOOK_TYPES: Readonly<Partial<Record<HookEvent, ReadonlySet<Ho
   sessionStart: new Set(["command", "mcp_tool"]),
 };
 
+/**
+ * On `PreSkillShellCommand`, Claude Code "can't run" a prompt or agent hook and
+ * "blocks each command the hook matches". Skipping such a hook would let every
+ * injected skill shell command run unchecked (`PreToolUse` does not fire for
+ * them), so it is emitted with a warning instead.
+ * @see https://code.claude.com/docs/en/hooks#preskillshellcommand
+ */
+const CLAUDE_FAIL_CLOSED_EVENTS: ReadonlySet<string> = new Set(["preSkillShellCommand"]);
+
 const CLAUDE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   supportedEvents: CLAUDE_HOOK_EVENTS,
   canonicalToToolEventNames: CANONICAL_TO_CLAUDE_EVENT_NAMES,
@@ -87,6 +97,7 @@ const CLAUDE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   // for prompt/agent). https://code.claude.com/docs/en/hooks
   supportedHookTypes: new Set(["command", "prompt", "http", "mcp_tool", "agent"]),
   eventHookTypes: CLAUDE_EVENT_HOOK_TYPES,
+  failClosedEventHookTypeEvents: CLAUDE_FAIL_CLOSED_EVENTS,
   // Claude Code documents a per-hook `model` selector on prompt/agent hooks.
   emitsPromptModel: true,
   // Claude Code's tool-event `if` condition (a single permission rule) is

@@ -51,6 +51,13 @@ export type ToolHooksConverterConfig = {
    */
   eventHookTypes?: Readonly<Partial<Record<string, ReadonlySet<HookType>>>>;
   /**
+   * Canonical events listed in {@link eventHookTypes} where the tool fails
+   * closed on a hook type it cannot run (it blocks whatever the hook matches)
+   * instead of ignoring it. Such a hook is still emitted, with a warning:
+   * dropping it would turn a guard that blocks into no guard at all.
+   */
+  failClosedEventHookTypeEvents?: ReadonlySet<string>;
+  /**
    * Extra tool-side `type` spellings accepted on import only, each mapped to
    * the canonical hook type it denotes (e.g. Bob's former `https` for the
    * canonical `http`). Generation never emits them, so a file written under an
@@ -1123,9 +1130,48 @@ function eventHookTypesFor({
   if (converterConfig.eventHookTypes === undefined) {
     return undefined;
   }
-  const canonicalEventName =
-    lookupOwn({ record: converterConfig.toolToCanonicalEventNames, key: eventName }) ?? eventName;
-  return lookupOwn({ record: converterConfig.eventHookTypes, key: canonicalEventName });
+  return lookupOwn({
+    record: converterConfig.eventHookTypes,
+    key: toCanonicalEventName({ eventName, converterConfig }),
+  });
+}
+
+function toCanonicalEventName({
+  eventName,
+  converterConfig,
+}: {
+  eventName: string;
+  converterConfig: ToolHooksConverterConfig;
+}): string {
+  return (
+    lookupOwn({ record: converterConfig.toolToCanonicalEventNames, key: eventName }) ?? eventName
+  );
+}
+
+/**
+ * Whether the tool skips (rather than runs) this hook type on this event, per
+ * `eventHookTypes`. A type the tool fails closed on
+ * (`failClosedEventHookTypeEvents`) is not skipped: it is emitted with a
+ * warning instead.
+ */
+function isSkippedOnEvent({
+  hookType,
+  eventName,
+  converterConfig,
+}: {
+  hookType: HookType;
+  eventName: string;
+  converterConfig: ToolHooksConverterConfig;
+}): boolean {
+  const eventTypes = eventHookTypesFor({ eventName, converterConfig });
+  if (eventTypes === undefined || eventTypes.has(hookType)) {
+    return false;
+  }
+  return !(
+    converterConfig.failClosedEventHookTypeEvents?.has(
+      toCanonicalEventName({ eventName, converterConfig }),
+    ) ?? false
+  );
 }
 
 export type KeywordPassthroughFieldSpec = NonNullable<
@@ -1375,7 +1421,7 @@ function describeExportSkipReason({
   converterConfig: ToolHooksConverterConfig;
 }): string | undefined {
   const eventTypes = eventHookTypesFor({ eventName, converterConfig });
-  if (eventTypes !== undefined && !eventTypes.has(hookType)) {
+  if (eventTypes !== undefined && isSkippedOnEvent({ hookType, eventName, converterConfig })) {
     return (
       `Skipping a "${eventName}" ${hookType} hook ` +
       `(${quoteValueForWarning(def.command ?? def.url ?? def.tool ?? def.prompt)}): ` +
@@ -1419,6 +1465,17 @@ function isEmittableDefinition({
   if (skipReason !== undefined) {
     warn?.(skipReason);
     return false;
+  }
+  const eventTypes = eventHookTypesFor({ eventName, converterConfig });
+  if (eventTypes !== undefined && !eventTypes.has(hookType)) {
+    // Only reachable for a fail-closed event (see `isSkippedOnEvent`).
+    warn?.(
+      `Keeping a "${eventName}" ${hookType} hook ` +
+        `(${quoteValueForWarning(def.command ?? def.url ?? def.tool ?? def.prompt)}) ` +
+        `although this tool cannot run ${hookType} hooks on this event ` +
+        `(supported types: ${[...eventTypes].join(", ")}): it blocks everything the hook ` +
+        `matches instead. Use one of the supported types to make the hook a working check.`,
+    );
   }
   return true;
 }
@@ -1539,7 +1596,7 @@ export function canonicalToToolHooks({
           const hookType = type ?? "command";
           return (
             isSupportedHookType({ type: hookType, converterConfig }) &&
-            (eventHookTypesFor({ eventName, converterConfig })?.has(hookType) ?? true)
+            !isSkippedOnEvent({ hookType, eventName, converterConfig })
           );
         }),
         eventName,
