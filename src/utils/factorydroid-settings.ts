@@ -38,7 +38,7 @@ function overrideFactorydroidSettings(
  * key too many costs a sentence, while missing one that grants power is the
  * failure this warning exists to prevent.
  *
- * @see https://docs.factory.ai/cli/configuration/settings
+ * @see https://docs.factory.com/droid-cli/settings
  */
 const FACTORYDROID_GUARDRAIL_KEYS = [
   ...FACTORYDROID_OVERRIDE_KEYS,
@@ -59,7 +59,7 @@ const FACTORYDROID_GUARDRAIL_KEYS = [
  * two files of a single scope; layering user under project is the processor's
  * job, not this one's.
  *
- * @see https://docs.factory.ai/droid-cli/settings
+ * @see https://docs.factory.com/droid-cli/settings
  */
 export async function readFactorydroidSettingsWithLocalOverlay({
   outputRoot,
