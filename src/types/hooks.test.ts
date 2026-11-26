@@ -190,7 +190,7 @@ describe("Qwen Code event naming", () => {
 
 describe("Factory Droid event naming", () => {
   it("should map canonical event names to documented Factory Droid PascalCase names", () => {
-    // Verified against https://docs.factory.ai/reference/hooks-reference
+    // Verified against https://docs.factory.com/harness/hooks
     expect(CANONICAL_TO_FACTORYDROID_EVENT_NAMES.sessionStart).toBe("SessionStart");
     expect(CANONICAL_TO_FACTORYDROID_EVENT_NAMES.sessionEnd).toBe("SessionEnd");
     expect(CANONICAL_TO_FACTORYDROID_EVENT_NAMES.preToolUse).toBe("PreToolUse");

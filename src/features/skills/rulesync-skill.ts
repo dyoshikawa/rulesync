@@ -346,7 +346,7 @@ export const RulesyncSkillFrontmatterSchema = z.looseObject({
       // Packaging metadata for shared or catalogued skills. Droid documents
       // these without a type and never validates them, so they are carried
       // through as-is rather than type-constrained — see `factorydroid-skill.ts`.
-      // https://docs.factory.ai/cli/configuration/skills
+      // https://docs.factory.com/harness/skills
       license: z.optional(z.unknown()),
       compatibility: z.optional(z.unknown()),
       metadata: z.optional(z.unknown()),

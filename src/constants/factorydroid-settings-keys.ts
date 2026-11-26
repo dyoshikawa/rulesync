@@ -4,7 +4,7 @@
  * adapter so the settings reader in `src/utils/` can name the same list without
  * importing a feature.
  *
- * @see https://docs.factory.ai/droid-cli/settings
+ * @see https://docs.factory.com/droid-cli/settings
  */
 // Factory Droid-specific security keys that the `factorydroid` override authors
 // and that round-trip back into it on import. `commandBlocklist` is the
@@ -24,12 +24,12 @@ export const FACTORYDROID_OVERRIDE_KEYS = [
   // `{ urlPattern, defaultLevel }` that set the default risk level for remote
   // MCP servers. Carrying `mcpAutonomyOverrides` without it dropped one half of
   // a documented pair on import.
-  // https://docs.factory.ai/enterprise/hierarchical-settings-and-org-control
+  // https://docs.factory.com/enterprise/hierarchical-settings-and-org-control
   "mcpAutonomyUrlOverrides",
   // Per-tool autonomy level required to run a built-in network tool without a
   // confirmation prompt — the built-in-tool sibling of `subagentAutonomyLevel`
   // and `mcpAutonomyOverrides`.
-  // https://docs.factory.ai/enterprise/hierarchical-settings-and-org-control
+  // https://docs.factory.com/enterprise/hierarchical-settings-and-org-control
   "builtInToolAutonomyOverrides",
   "enableDroidShield",
   "sessionDefaultSettings",
@@ -39,30 +39,30 @@ export const FACTORYDROID_OVERRIDE_KEYS = [
   // Plugin bootstrap: Droid auto-registers these marketplaces and installs
   // these plugins on start — the upstream distribution path for the same
   // artifacts rulesync generates (commands, skills, droids, hooks, mcp).
-  // https://docs.factory.ai/harness/plugins
+  // https://docs.factory.com/harness/plugins
   "extraKnownMarketplaces",
   "enabledPlugins",
   // The strict counterparts of the two keys above: with `strictEnabledPlugins`
   // the `enabledPlugins` maps at this level and higher become the exhaustive
   // plugin allowlist, and `strictKnownMarketplaces` makes a higher-level
   // marketplace list the ceiling rather than a starting set.
-  // https://docs.factory.ai/enterprise/hierarchical-settings-and-org-control
+  // https://docs.factory.com/enterprise/hierarchical-settings-and-org-control
   "strictEnabledPlugins",
   "strictKnownMarketplaces",
-  // Global hooks kill-switch. https://docs.factory.ai/droid-cli/settings
+  // Global hooks kill-switch. https://docs.factory.com/droid-cli/settings
   "hooksDisabled",
   // Restricts hook loading to org-managed hooks and hooks from org-enabled
   // plugins — the narrower sibling of `hooksDisabled`.
-  // https://docs.factory.ai/enterprise/hierarchical-settings-and-org-control
+  // https://docs.factory.com/enterprise/hierarchical-settings-and-org-control
   "allowManagedHooksOnly",
   // Per-skill kill-switch: an array of skill names Droid must not load. Same
   // shape and settings file as `hooksDisabled`.
-  // https://docs.factory.ai/droid-cli/settings
+  // https://docs.factory.com/droid-cli/settings
   "disabledSkills",
   // Which models Droid may use and how a mission is allowed to run. Both are
   // organization-level controls with no canonical slot, so they round-trip
   // through the override like the other security keys above.
-  // https://docs.factory.ai/droid-cli/settings
+  // https://docs.factory.com/droid-cli/settings
   "modelPolicy",
   "missionPolicy",
   // Native versioned command policy (`{ version: 1, rules: [...] }` with
