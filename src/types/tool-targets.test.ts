@@ -71,6 +71,7 @@ describe("tool targets", () => {
         "rovodev",
         "tabnine",
         "takt",
+        "theia",
         "trae",
         "vibe",
         "warp",

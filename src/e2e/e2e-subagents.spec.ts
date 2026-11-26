@@ -129,6 +129,7 @@ const subagentsGenerateTargets = [
     target: "deepagents",
     outputPath: join(".deepagents", "agents", "planner", "AGENTS.md"),
   },
+  { target: "theia", outputPath: join(".agents", "agents", "planner", "agent.md") },
   {
     target: "devin",
     outputPath: join(".devin", "agents", "planner", "AGENT.md"),
@@ -492,6 +493,7 @@ You are a subagent-only helper.
     { target: "codexcli", orphanPath: join(".codex", "agents", "orphan.toml") },
     { target: "copilot", orphanPath: join(".github", "agents", "orphan.md") },
     { target: "deepagents", orphanPath: join(".deepagents", "agents", "orphan", "AGENTS.md") },
+    { target: "theia", orphanPath: join(".agents", "agents", "orphan", "agent.md") },
     { target: "devin", orphanPath: join(".devin", "agents", "orphan", "AGENT.md") },
     { target: "kiro", orphanPath: join(".kiro", "agents", "orphan.json") },
     { target: "kiro-cli", orphanPath: join(".kiro", "agents", "orphan.json") },
@@ -872,6 +874,52 @@ Break down tasks into steps.
       join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
     );
     expect(importedContent).toContain("planner");
+  });
+
+  it("should import theia custom agents and generate them back with defaultLLM", async () => {
+    const testDir = getTestDir();
+    const agentPath = join(testDir, ".agents", "agents", "planner", "agent.md");
+
+    await writeFileContent(
+      agentPath,
+      [
+        "---",
+        "name: Planner",
+        'description: "Plans implementation tasks"',
+        "defaultLLM: openai/gpt-5",
+        "showInChat: true",
+        "---",
+        "Break down tasks into steps.",
+        "",
+      ].join("\n"),
+    );
+    // A flat file in the same root belongs to the agentsmd / Antigravity
+    // targets; Theia only reads `<id>/agent.md`.
+    await writeFileContent(
+      join(testDir, ".agents", "agents", "other.md"),
+      "---\nname: other\n---\nNot a Theia agent.\n",
+    );
+
+    await runImport({ target: "theia", features: "subagents" });
+
+    const importedContent = await readFileContent(
+      join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
+    );
+    expect(importedContent).toContain("name: Planner");
+    expect(importedContent).toContain("defaultLLM: openai/gpt-5");
+    expect(importedContent).toContain("showInChat: true");
+    expect(await fileExists(join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "other.md"))).toBe(
+      false,
+    );
+
+    await removeFile(agentPath);
+    await runGenerate({ target: "theia", features: "subagents", deleteFiles: true });
+
+    const generated = await readFileContent(agentPath);
+    expect(generated).toContain("name: Planner");
+    expect(generated).toContain("defaultLLM: openai/gpt-5");
+    expect(generated).toContain("Break down tasks into steps.");
+    expect(await fileExists(join(testDir, ".agents", "agents", "other.md"))).toBe(true);
   });
 
   it("should import a flat devin subagent and default its name to the file name", async () => {

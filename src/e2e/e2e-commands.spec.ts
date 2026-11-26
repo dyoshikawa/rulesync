@@ -44,6 +44,7 @@ const commandsGenerateTargets = [
   { target: "commandcode", outputPath: join(".commandcode", "commands", "review-pr.md") },
   { target: "qoder", outputPath: join(".qoder", "commands", "review-pr.md") },
   { target: "trae", outputPath: join(".trae", "commands", "review-pr.md") },
+  { target: "theia", outputPath: join(".prompts", "review-pr.prompttemplate") },
   { target: "roo", outputPath: join(".roo", "commands", "review-pr.md") },
   { target: "zoocode", outputPath: join(".roo", "commands", "review-pr.md") },
   { target: "kiro", outputPath: join(".kiro", "prompts", "review-pr.md") },
@@ -561,6 +562,41 @@ describe("E2E: commands (import)", () => {
       join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "review-pr.md"),
     );
     expect(importedContent).toContain("Review the PR diff and provide feedback.");
+  });
+
+  it("should import only the isCommand prompt templates of theia", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".prompts", "review-pr.prompttemplate"),
+      [
+        "---",
+        "isCommand: true",
+        "commandName: review-pr",
+        "commandDescription: Review a pull request",
+        "commandArgumentHint: <pr-number>",
+        "---",
+        "Review the PR diff of $ARGUMENTS and provide feedback.",
+      ].join("\n"),
+    );
+    // A plain prompt fragment (an agent prompt override) is not a command.
+    await writeFileContent(
+      join(testDir, ".prompts", "universal-system.prompttemplate"),
+      "You are a helpful assistant.",
+    );
+
+    await runImport({ target: "theia", features: "commands" });
+
+    const importedContent = await readFileContent(
+      join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "review-pr.md"),
+    );
+    expect(importedContent).toContain("description: Review a pull request");
+    expect(importedContent).toContain("commandArgumentHint: <pr-number>");
+    expect(importedContent).toContain("Review the PR diff of $ARGUMENTS and provide feedback.");
+    expect(importedContent).not.toContain("isCommand");
+    expect(
+      await fileExists(join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "universal-system.md")),
+    ).toBe(false);
   });
 
   it("should import goose commands (recipe YAML)", async () => {

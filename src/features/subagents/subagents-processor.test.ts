@@ -2386,6 +2386,7 @@ Second global content`;
           "rovodev",
           "tabnine",
           "takt",
+          "theia",
           "vibe",
           "vibe-plugin",
           "xum",

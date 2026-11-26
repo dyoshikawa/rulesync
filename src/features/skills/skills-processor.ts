@@ -94,6 +94,7 @@ import { SimulatedSkill } from "./simulated-skill.js";
 import { getLocalSkillDirNames, isAddressableSkillName } from "./skills-utils.js";
 import { TabnineSkill } from "./tabnine-skill.js";
 import { TaktSkill } from "./takt-skill.js";
+import { TheiaSkill } from "./theia-skill.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -779,6 +780,18 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     "takt",
     {
       class: TaktSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "theia",
+    {
+      // Theia AI reads workspace skills from `.prompts/skills/` and the shared
+      // `.agents/skills/` root, and user skills from `~/.theia/skills/` and
+      // `~/.agents/skills/`. Rulesync writes `.agents/skills/` (project) and
+      // `~/.theia/skills/` (global).
+      // https://theia-ide.org/docs/user_ai/#agent-skills
+      class: TheiaSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],
