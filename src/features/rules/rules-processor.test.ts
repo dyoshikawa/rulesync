@@ -1893,6 +1893,23 @@ describe("RulesProcessor", () => {
       },
     );
 
+    it("should import nested AGENTS.md when the project holds a symbolic link loop", async () => {
+      // Collecting the `.gitignore` files must not follow `a -> ..`-style links,
+      // or a pair of them keeps the search running forever.
+      await writeFileContent(join(testDir, "AGENTS.md"), "# Root");
+      await writeFileContent(join(testDir, "packages", "api", "AGENTS.md"), "# API");
+      await mkdir(join(testDir, "sub"), { recursive: true });
+      await symlink(testDir, join(testDir, "sub", "a"));
+      await symlink(testDir, join(testDir, "sub", "b"));
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "agentsmd" });
+      const paths = (await processor.loadToolFiles()).map((file) =>
+        join(file.getRelativeDirPath(), file.getRelativeFilePath()),
+      );
+
+      expect(paths).toContain(join("packages", "api", "AGENTS.md"));
+    }, 10_000);
+
     it("should still find nested files when .gitignore excludes the generated file name", async () => {
       // `rulesync gitignore` writes `**/AGENTS.md` for its own output, so a
       // file-level ignore test would silently disable the whole scan.

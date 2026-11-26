@@ -390,7 +390,10 @@ export function filterOutPathsInGitIgnoredDirectories({
     return filePaths;
   }
 
-  const isIgnored = isGitIgnoredSync({ cwd: rootDir, suppressErrors });
+  // Symbolic links are not followed while the `.gitignore` files are collected,
+  // as git does: following them lets a pair of links such as `a -> ..` keep the
+  // search running forever.
+  const isIgnored = isGitIgnoredSync({ cwd: rootDir, suppressErrors, followSymbolicLinks: false });
   const resolvedRoot = resolve(rootDir);
   const cache = new Map<string, boolean>();
 
