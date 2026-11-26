@@ -88,6 +88,33 @@ type QwencodeRuleRootParams = ToolRuleParams & {
 const OUTPUT_STYLE_FILE_GLOB = "*.md";
 
 /**
+ * Whether `body` has non-whitespace text outside its HTML comments. Scans
+ * left to right: each `<!--` is closed by the first `-->` after it, and an
+ * unclosed `<!--` counts as text. Checks the spans in place instead of
+ * building a comment-stripped string, which is never used as output.
+ */
+function hasTextOutsideHtmlComments(body: string): boolean {
+  let position = 0;
+  while (position < body.length) {
+    const commentStart = body.indexOf("<!--", position);
+    const textEnd = commentStart === -1 ? body.length : commentStart;
+    if (body.slice(position, textEnd).trim() !== "") {
+      return true;
+    }
+    if (commentStart === -1) {
+      return false;
+    }
+    const commentEnd = body.indexOf("-->", commentStart + 4);
+    if (commentEnd === -1) {
+      // An unclosed comment is kept as text.
+      return body.slice(commentStart).trim() !== "";
+    }
+    position = commentEnd + 3;
+  }
+  return false;
+}
+
+/**
  * Why Qwen Code would skip an output style with this name, body and file
  * content, or `undefined` when it would load it. Mirrors the upstream loader:
  * the name must be non-empty, at most 64 characters, free of control and
@@ -117,7 +144,7 @@ function findOutputStyleProblem({
   if (QWENCODE_RESERVED_OUTPUT_STYLE_NAMES.includes(name.toLowerCase())) {
     return `the style name '${name}' is reserved for Qwen Code's built-in default style`;
   }
-  if (body.replace(/<!--[\s\S]*?-->/g, "").trim() === "") {
+  if (!hasTextOutsideHtmlComments(body)) {
     return "the style has an empty body";
   }
   if (Buffer.byteLength(fileContent, "utf8") > QWENCODE_MAX_OUTPUT_STYLE_FILE_BYTES) {

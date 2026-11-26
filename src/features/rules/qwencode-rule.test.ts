@@ -820,6 +820,28 @@ describe("QwencodeRule", () => {
       expect(qwencodeRule.getImportSkipReason()).toMatch(reason);
     });
 
+    it.each([
+      { case: "nested comment openers", content: "<!--<!-- -->-->\n", skipped: false },
+      { case: "several comments", content: "<!-- a -->\n<!-- b -->\n", skipped: true },
+      { case: "an unclosed comment", content: "<!-- never closed\n", skipped: false },
+      { case: "text after a comment", content: "<!-- note -->Be terse.\n", skipped: false },
+      { case: "a comment closed only by its own opener", content: "<!-->\n", skipped: false },
+    ])("should detect a comment-only body for $case", async ({ content, skipped }) => {
+      await writeFileContent(join(testDir, ".qwen", "output-styles", "style.md"), content);
+
+      const qwencodeRule = await QwencodeRule.fromFile({
+        outputRoot: testDir,
+        relativeDirPath: join(".qwen", "output-styles"),
+        relativeFilePath: "style.md",
+      });
+
+      if (skipped) {
+        expect(qwencodeRule.getImportSkipReason()).toMatch(/empty body/);
+      } else {
+        expect(qwencodeRule.getImportSkipReason()).toBeUndefined();
+      }
+    });
+
     it("should report no skip reason for a loadable style or a context rule", async () => {
       await writeFileContent(
         join(testDir, ".qwen", "output-styles", "reviewer.md"),
