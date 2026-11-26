@@ -482,6 +482,40 @@ describe("CommandsProcessor", () => {
       expect(calledArgs.rulesyncCommand.getRelativeFilePath()).toBe(join("pj", "test.md"));
     });
 
+    it("keeps one subdirectory level for junie and skips deeper commands with a warning", async () => {
+      const warnLogger = createMockLogger();
+      processor = new CommandsProcessor({
+        logger: warnLogger,
+        outputRoot: testDir,
+        toolTarget: "junie",
+      });
+      const command = (relativeFilePath: string) =>
+        new RulesyncCommand({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+          relativeFilePath,
+          frontmatter: { targets: ["junie"], description: relativeFilePath },
+          body: "content",
+        });
+      vi.mocked(JunieCommand.fromRulesyncCommand).mockImplementation(
+        ({ rulesyncCommand }) =>
+          ({ relativeFilePath: rulesyncCommand.getRelativeFilePath() }) as never,
+      );
+
+      await processor.convertRulesyncFilesToToolFiles([
+        command(join("git", "commit.md")),
+        command(join("git", "deep", "push.md")),
+      ]);
+
+      const writtenPaths = vi
+        .mocked(JunieCommand.fromRulesyncCommand)
+        .mock.calls.map(([params]) => params.rulesyncCommand.getRelativeFilePath());
+      expect(writtenPaths).toEqual([join("git", "commit.md")]);
+      expect(warnLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("only reads commands up to 1 subdirectory level(s) deep"),
+      );
+    });
+
     it("should warn when flattened command paths collide for supportsSubdirectory=false tools", async () => {
       processor = new CommandsProcessor({ logger, outputRoot: testDir, toolTarget: "cursor" });
 
@@ -1250,6 +1284,19 @@ describe("CommandsProcessor", () => {
       // Should NOT contain "**" in the glob pattern
       const calledGlob = mockFindFilesByGlobs.mock.calls[0]![0] as string;
       expect(calledGlob).not.toContain(join("**", "*.md"));
+    });
+
+    it("should scan one subdirectory level for junie (import)", async () => {
+      processor = new CommandsProcessor({ logger, outputRoot: testDir, toolTarget: "junie" });
+
+      mockFindFilesByGlobs.mockResolvedValue([]);
+
+      await processor.loadToolFiles();
+
+      expect(mockFindFilesByGlobs).toHaveBeenCalledWith(["*.md", "*/*.md"], {
+        cwd: join(testDir, ".junie", "commands"),
+        followSymbolicLinks: true,
+      });
     });
 
     it("should use recursive glob for supportsSubdirectory=true tools (import)", async () => {

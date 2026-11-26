@@ -24,7 +24,10 @@ import { lookupOwn } from "../../utils/own-lookup.js";
 import {
   CODEWHALE_PROJECT_CONFIG_PATHS,
   createCodewhaleProjectConfigFile,
+  createCodewhaleUserConfigFile,
   readCodewhaleProjectShellDisabled,
+  readCodewhaleUserAutoReview,
+  warnAboutProjectAutoReview,
 } from "./codewhale-project-config.js";
 import {
   codewhaleConstitutionToCanonical,
@@ -781,7 +784,9 @@ async function warnOnShadowedConstitution({
  * repository, and they are kept across a regenerate. Codewhale also appends
  * plain `exec_shell` ask rules from the approval card (`S`), which cannot be
  * told apart from rulesync's own output and are replaced; run an import first
- * to keep them.
+ * to keep them. The `codewhale.auto_review` override replaces the
+ * `[auto_review]` table of the user `~/.codewhale/config.toml` (see
+ * `codewhale-project-config.ts`), which import reads back here.
  *
  * Project scope manages the enforced `protected_invariants` of the repo
  * constitution `.codewhale/constitution.json` (see `codewhale-repo-law.ts`):
@@ -800,28 +805,41 @@ export class CodewhalePermissions extends ToolPermissions {
    */
   private readonly projectShellDisabled: boolean;
 
+  /**
+   * The `[auto_review]` table of the user `~/.codewhale/config.toml`; read on
+   * import in global scope only.
+   */
+  private readonly userAutoReview: Record<string, unknown> | undefined;
+
   constructor({
     projectShellDisabled = false,
+    userAutoReview,
     ...params
-  }: AiFileParams & { projectShellDisabled?: boolean }) {
+  }: AiFileParams & {
+    projectShellDisabled?: boolean;
+    userAutoReview?: Record<string, unknown>;
+  }) {
     super({
       ...params,
       fileContent: params.fileContent ?? "",
     });
     this.projectShellDisabled = projectShellDisabled;
+    this.userAutoReview = userAutoReview;
   }
 
   /**
-   * The project `.codewhale/config.toml` overlay, where a deny on every shell
-   * command becomes `allow_shell = false` beside the user's other overlay keys.
+   * The `.codewhale/config.toml` beside the main file: the project overlay,
+   * where a deny on every shell command becomes `allow_shell = false`, or the
+   * user config, whose `[auto_review]` table the `codewhale.auto_review`
+   * override replaces. Both keep every other key of the file.
    */
-  static getExtraSharedWritePaths(options?: { global?: boolean }): SharedWritePath[] {
-    return options?.global ? [] : [{ ...CODEWHALE_PROJECT_CONFIG_PATHS }];
+  static getExtraSharedWritePaths(_options?: { global?: boolean }): SharedWritePath[] {
+    return [{ ...CODEWHALE_PROJECT_CONFIG_PATHS }];
   }
 
   /**
-   * The project overlay file, when a deny on every shell command needs it;
-   * never in global scope.
+   * The project overlay file, when a deny on every shell command needs it, or
+   * in global scope the user config, when `codewhale.auto_review` is set.
    */
   static async getAuxiliaryFiles({
     outputRoot,
@@ -829,7 +847,11 @@ export class CodewhalePermissions extends ToolPermissions {
     global,
     logger,
   }: ToolPermissionsAuxiliaryFilesParams): Promise<ToolFile[]> {
-    if (global) return [];
+    if (global) {
+      const userConfigFile = await createCodewhaleUserConfigFile({ outputRoot, config, logger });
+      return userConfigFile ? [userConfigFile] : [];
+    }
+    warnAboutProjectAutoReview({ config, logger });
     const projectConfigFile = await createCodewhaleProjectConfigFile({
       outputRoot,
       config,
@@ -883,6 +905,9 @@ export class CodewhalePermissions extends ToolPermissions {
       projectShellDisabled: global
         ? false
         : await readCodewhaleProjectShellDisabled({ outputRoot, logger }),
+      userAutoReview: global
+        ? await readCodewhaleUserAutoReview({ outputRoot, logger })
+        : undefined,
     });
   }
 
@@ -964,11 +989,15 @@ export class CodewhalePermissions extends ToolPermissions {
     // Codewhale refuse the whole file.
     const rules = partitionRuleRecords(document).valid.map(withExplicitAction);
     const { permission, nativeRules } = codewhaleRulesToCanonical(rules);
+    const codewhale = {
+      ...(nativeRules.length > 0 && { rules: nativeRules }),
+      ...(this.userAutoReview !== undefined && { auto_review: this.userAutoReview }),
+    };
     return this.toRulesyncPermissionsDefault({
       fileContent: JSON.stringify(
         {
           permission,
-          ...(nativeRules.length > 0 && { codewhale: { rules: nativeRules } }),
+          ...(Object.keys(codewhale).length > 0 && { codewhale }),
         },
         null,
         2,

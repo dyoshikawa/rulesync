@@ -3672,6 +3672,99 @@ command = "node"
       expect(fileContent).not.toContain(":workspace_roots");
     });
 
+    describe("skips the carve-out when an all-tools '*' restriction covers .git", () => {
+      const generateFile = async ({
+        permission,
+        logger,
+      }: {
+        permission: Record<string, Record<string, string>>;
+        logger: ReturnType<typeof createMockLogger>;
+      }) => {
+        const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          rulesyncPermissions: new RulesyncPermissions({
+            outputRoot: testDir,
+            relativeDirPath: ".rulesync",
+            relativeFilePath: "permissions.json",
+            fileContent: JSON.stringify({ permission }),
+          }),
+          logger,
+        });
+        return codexPermissions.getFileContent();
+      };
+
+      it.each<[string, Record<string, Record<string, string>>]>([
+        ["a catch-all deny", { "*": { "*": "deny" } }],
+        ["a '.git/**' deny", { "*": { ".git/**": "deny" } }],
+        ["a '.git' deny", { "*": { ".git": "deny" } }],
+        ["a '**' ask", { "*": { "**": "ask" } }],
+        ["a '.git/*' deny", { "*": { ".git/*": "deny" } }],
+        ["a '**/.git/**' deny", { "*": { "**/.git/**": "deny" } }],
+        ["a '.g*' deny", { "*": { ".g*": "deny" } }],
+        ["a narrower '.git/config' deny", { "*": { ".git/config": "deny" } }],
+        [
+          "a '.git/hooks/**' deny written nowhere else",
+          { "*": { ".git/hooks/**": "deny" }, bash: { ls: "allow" } },
+        ],
+        ["an upper-case '.GIT/hooks/**' deny", { "*": { ".GIT/hooks/**": "deny" } }],
+        ["a './.git/**' deny", { "*": { "./.git/**": "deny" } }],
+        ...[
+          ".git/hooks",
+          ".git/hooks/",
+          ".git/modules/**",
+          ".git/modules/sub/hooks/**",
+          ".git/worktrees/**",
+          ".git/config.worktree",
+          ".git/info",
+          ".git/info/**",
+          ".git/packed-refs",
+          ".git/FETCH_HEAD",
+          ".git/ORIG_HEAD",
+          ".git/refs",
+          ".git/objects",
+          ".git/lfs/**",
+          ".git/rr-cache/**",
+          "/.git/hooks",
+          "**/.git/hooks",
+          "**/**/.git",
+          ".g?t/hooks",
+          "*",
+          "**",
+          "**/*",
+        ].map((pattern): [string, Record<string, Record<string, string>>] => [
+          `a '${pattern}' deny`,
+          { "*": { [pattern]: "deny" } },
+        ]),
+      ])("%s", async (_label, permission) => {
+        const logger = createMockLogger();
+        const fileContent = await generateFile({ permission, logger });
+        expect(fileContent).not.toContain('".git/**" = "write"');
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining('restricts paths in ".git"'),
+        );
+      });
+
+      it.each<[string, Record<string, Record<string, string>>]>([
+        ["a catch-all ask (the default idiom)", { "*": { "*": "ask" } }],
+        ["a path deny outside .git", { "*": { "src/**": "deny" } }],
+        ["a command ask", { "*": { "git push *": "ask" } }],
+        ["a '*.env' deny", { "*": { "*.env": "deny" } }],
+        ["a '*.log' deny", { "*": { "*.log": "deny" } }],
+        ["a '**/*.pem' deny", { "*": { "**/*.pem": "deny" } }],
+        ["a '*secret*' ask", { "*": { "*secret*": "ask" } }],
+        ...["**/.env", "*.pem", ".github/**", ".gitignore", "src/.git-keep", "docs/**/*.md"].map(
+          (pattern): [string, Record<string, Record<string, string>>] => [
+            `a '${pattern}' deny`,
+            { "*": { [pattern]: "deny" } },
+          ],
+        ),
+      ])("keeps the carve-out for %s", async (_label, permission) => {
+        const logger = createMockLogger();
+        const fileContent = await generateFile({ permission, logger });
+        expect(parseWorkspaceRoots(fileContent)[".git/**"]).toBe("write");
+      });
+    });
+
     describe("skips the carve-out when a broader workspace restriction covers .git", () => {
       const generateWorkspaceRoots = async ({
         permission,

@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vite-plus/test";
 
-import { restateAllToolsRestrictionsLast } from "./last-match-restate.js";
+import {
+  orderIntegerLikeRestrictionsLast,
+  restateAllToolsRestrictionsLast,
+} from "./last-match-restate.js";
 
 describe("restateAllToolsRestrictionsLast", () => {
   it("puts all-tools denies after catch-all allows on last-match-wins tools", () => {
@@ -86,6 +89,99 @@ describe("restateAllToolsRestrictionsLast", () => {
     });
 
     expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  it("respells an integer-like deny a later looser rule overlaps and moves it to the key's end", () => {
+    const logger = { warn: vi.fn() };
+    const result = restateAllToolsRestrictionsLast({
+      sharedPermission: { bash: { "*": "allow", "8080": "deny", "git *": "allow" } },
+      toolTarget: "opencode",
+      logger: logger as any,
+    });
+
+    expect(Object.entries(result.bash ?? {})).toEqual([
+      ["*", "allow"],
+      ["git *", "allow"],
+      ["8080*", "deny"],
+    ]);
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("bash: 8080"));
+  });
+
+  it("moves an overlapping deny, integer-like or not, after a respelled ask", () => {
+    const result = restateAllToolsRestrictionsLast({
+      sharedPermission: {
+        bash: { "*": "allow", "80": "ask", "8080": "deny", "80 --force": "deny" },
+      },
+      toolTarget: "opencode",
+    });
+
+    expect(Object.entries(result.bash ?? {})).toEqual([
+      ["*", "allow"],
+      ["80*", "ask"],
+      ["8080*", "deny"],
+      ["80 --force", "deny"],
+    ]);
+  });
+
+  it("respells an integer-like '*' restriction restated into another key", () => {
+    const result = restateAllToolsRestrictionsLast({
+      sharedPermission: { "*": { "42": "deny" }, webfetch: { "*": "allow" } },
+      toolTarget: "opencode",
+    });
+
+    expect(Object.entries(result.webfetch ?? {})).toEqual([
+      ["*", "allow"],
+      ["42*", "deny"],
+    ]);
+  });
+
+  it("leaves an integer-like key alone when nothing after it is looser and overlapping", () => {
+    const logger = { warn: vi.fn() };
+    const sharedPermission = {
+      bash: { "8080": "allow", "*": "deny" },
+      read: { "1": "deny", "src/**": "allow" },
+    } as const;
+    const result = restateAllToolsRestrictionsLast({
+      sharedPermission: structuredClone(sharedPermission) as any,
+      toolTarget: "opencode",
+      logger: logger as any,
+    });
+
+    expect(result).toEqual(sharedPermission);
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  it("leaves integer-like keys to the caller when the output is an ordered array", () => {
+    const logger = { warn: vi.fn() };
+    const result = restateAllToolsRestrictionsLast({
+      sharedPermission: { bash: { "8080": "deny", "*": "allow" } },
+      toolTarget: "opencode",
+      respellIntegerLikeKeys: false,
+      logger: logger as any,
+    });
+
+    expect(Object.entries(result.bash ?? {})).toEqual([
+      ["8080", "deny"],
+      ["*", "allow"],
+    ]);
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  it("moves an integer-like restriction as written when not respelling", () => {
+    expect(
+      orderIntegerLikeRestrictionsLast({
+        entries: Object.entries({ "8080": "deny", "80": "ask", "*": "allow", other: "custom" }),
+        respell: false,
+      }),
+    ).toEqual({
+      entries: [
+        ["*", "allow"],
+        ["other", "custom"],
+        ["80", "ask"],
+        ["8080", "deny"],
+      ],
+      moved: ["80", "8080"],
+    });
   });
 
   it("keeps a __proto__ pattern in the all-tools key", () => {

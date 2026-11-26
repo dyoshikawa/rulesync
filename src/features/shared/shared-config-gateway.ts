@@ -756,6 +756,22 @@ const ZCODE_CONFIG_DECLARATION: SharedConfigFileDeclaration = {
 };
 
 /**
+ * Zero's JSON config (`.zero/config.json` project, `<user config dir>/zero/config.json`
+ * global — `~/.config/zero/` on Linux and macOS, `%AppData%\zero\` on Windows),
+ * which also carries provider, model and sandbox settings, so the writer
+ * refuses to read-modify-write a file it could not parse. `mcp` is owned as a
+ * whole key; the writer carries its non-`servers` siblings over itself.
+ * https://github.com/Twigpine/zero/blob/main/docs/EXTENDING.md
+ */
+const ZERO_CONFIG_DECLARATION: SharedConfigFileDeclaration = {
+  format: "json",
+  invalidRootPolicy: "error",
+  features: {
+    mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp"] },
+  },
+};
+
+/**
  * Crush's JSON config, shared by the project (`crush.json` / `.crush.json`)
  * and global (`~/.config/crush/crush.json`) spellings so a policy edit lands
  * on both. See the `SHARED_CONFIG_OWNERSHIP` entries for the key rationale.
@@ -1225,6 +1241,9 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
   },
   ".zcode/config.json": ZCODE_CONFIG_DECLARATION,
   ".zcode/cli/config.json": ZCODE_CONFIG_DECLARATION,
+  ".zero/config.json": ZERO_CONFIG_DECLARATION,
+  ".config/zero/config.json": ZERO_CONFIG_DECLARATION,
+  "AppData/Roaming/zero/config.json": ZERO_CONFIG_DECLARATION,
   // Crush's JSON config: `<project>/crush.json` (or its `.crush.json` twin,
   // which the writers resolve to this same declaration) and
   // `~/.config/crush/crush.json`. Both carry the user's providers, models and
@@ -1314,13 +1333,15 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
   // table, carrying its own settings (`enabled`, `default_timeout_secs`,
   // `working_dir`) over from the existing file. Project permissions own the
   // top-level `allow_shell` key of the per-project overlay, which they only
-  // ever set to `false`. An unparseable root is refused rather than replaced.
+  // ever set to `false`, and global permissions own the `[auto_review]` table
+  // of the user config, replaced only when the `codewhale.auto_review`
+  // override is set. An unparseable root is refused rather than replaced.
   [CODEWHALE_CONFIG_SHARED_FILE_KEY]: {
     format: "toml",
     invalidRootPolicy: "error",
     features: {
       hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
-      permissions: { kind: "replace-owned-keys", ownedKeys: ["allow_shell"] },
+      permissions: { kind: "replace-owned-keys", ownedKeys: ["allow_shell", "auto_review"] },
     },
   },
   // Letta Code settings: the project file (`.letta/settings.json`) and the
