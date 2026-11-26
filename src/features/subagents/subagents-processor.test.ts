@@ -2305,6 +2305,7 @@ Second global content`;
         "openbitfun",
         "xum",
         "zcode",
+        "zero",
       ]);
     });
 
@@ -2391,6 +2392,7 @@ Second global content`;
           "vibe-plugin",
           "xum",
           "zcode",
+          "zero",
           "zcode-plugin",
         ]),
       );

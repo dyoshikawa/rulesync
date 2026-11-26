@@ -1381,6 +1381,11 @@ const skillsGlobalTargets = [
     outputPath: join(".zcode", "skills", "test-skill", "SKILL.md"),
   },
   {
+    // Zero reads skills only from its user root ~/.local/share/zero/skills/.
+    target: "zero",
+    outputPath: join(".local", "share", "zero", "skills", "test-skill", "SKILL.md"),
+  },
+  {
     // DeepSeek Harness reads global skills from ~/.dsh/skills/ ($DSH_HOME default).
     target: "dsh",
     outputPath: join(".dsh", "skills", "test-skill", "SKILL.md"),

@@ -8,6 +8,7 @@ import { QODER_LOCAL_RULE_FILE_NAME } from "../../constants/qoder-paths.js";
 import { QWENCODE_LOCAL_RULE_FILE_NAME } from "../../constants/qwencode-paths.js";
 import { REASONIX_LOCAL_RULE_FILE_NAME } from "../../constants/reasonix-paths.js";
 import { XUM_LOCAL_RULE_FILE_NAME } from "../../constants/xum-paths.js";
+import { ZERO_INSTRUCTION_FILE_MAX_BYTES } from "../../constants/zero-paths.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { rulesProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import { type Logger } from "../../utils/logger.js";
@@ -94,6 +95,7 @@ import { WarpRule } from "./warp-rule.js";
 import { XumRule } from "./xum-rule.js";
 import { ZcodeRule } from "./zcode-rule.js";
 import { ZedRule } from "./zed-rule.js";
+import { ZeroRule } from "./zero-rule.js";
 import { ZoocodeRule } from "./zoocode-rule.js";
 
 export type RulesProcessorToolTarget = (typeof rulesProcessorToolTargetTuple)[number];
@@ -1369,6 +1371,29 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
         collisionPolicy: "fold",
+      },
+    },
+  ],
+  [
+    "zero",
+    {
+      class: ZeroRule,
+      meta: {
+        // Zero reads the first of `AGENTS.md`, `ZERO.md` and `.zero/AGENTS.md`
+        // per directory (git root to cwd) and a user `<config dir>/zero/ZERO.md`.
+        // rulesync writes `ZERO.md`; topic rules and `localRoot` rules fold into
+        // it, since `.zero/AGENTS.md` is shadowed by `ZERO.md` on the same level.
+        // https://github.com/Twigpine/zero/blob/main/docs/EXTENDING.md
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
+        collisionPolicy: "fold",
+        projectInstructionBudget: {
+          bytes: ZERO_INSTRUCTION_FILE_MAX_BYTES,
+          remedy:
+            "Zero caps each instruction file at 8 KiB and silently drops everything past the cap. " +
+            "Trim the rules or exclude some from the `zero` target.",
+        },
       },
     },
   ],
