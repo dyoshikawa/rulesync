@@ -12,7 +12,7 @@ overrides:
 # There is deliberately no `vite` / `vitest` override: VitePress depends on
 # its own Vite 5 (`vitepress` -> `vite@^5`) and must keep it for `docs:*`.
 catalog:
-  vite: npm:@voidzero-dev/vite-plus-core@8.3.8000
+  vite: npm:@voidzero-dev/vite-plus-core@8.3.8001
   vitest: 5.1.2
   vite-plus: 1.8.0
   "@vitest/coverage-v8": 5.1.2
