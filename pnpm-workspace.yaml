@@ -13,14 +13,14 @@ overrides:
 # its own Vite 5 (`vitepress` -> `vite@^5`) and must keep it for `docs:*`.
 catalog:
   vite: npm:@voidzero-dev/vite-plus-core@8.3.8000
-  vitest: 5.1.1
-  vite-plus: 1.7.0
-  "@vitest/coverage-v8": 5.1.1
+  vitest: 5.1.2
+  vite-plus: 1.8.0
+  "@vitest/coverage-v8": 5.1.2
   # `vp` resolves oxfmt and oxlint from the working directory before its own
   # copies, and scripts/run-oxfmt.ts calls the root `oxfmt` directly, so both
   # stay direct dependencies here.
-  oxfmt: 0.79.0
-  oxlint: 1.94.0
+  oxfmt: 0.80.0
+  oxlint: 1.95.0
 # Vitest and its mocker declare peer ranges on upstream Vite; the aliased
 # Vite+ core satisfies them. Scoped so VitePress's peers are still checked.
 peerDependencyRules:
