@@ -4,6 +4,7 @@ import { diffSharedConfigOwnedKeys } from "../features/shared/shared-config-gate
 import type { KeyOperation } from "../lib/orphan-sweep.js";
 import { fileContentIsEmptyPayload, fileContentsEquivalent } from "../utils/content-equivalence.js";
 import { quoteForLog, stripControlCharacters } from "../utils/control-characters.js";
+import { formatError } from "../utils/error.js";
 import {
   addTrailingNewline,
   applyFileMode,
@@ -15,6 +16,7 @@ import {
   readFileContentOrNull,
   relativeWriteLanding,
   removeFile,
+  removeFileWithoutFollowingSymlinks,
   writeFileContent,
   writeLandingPath,
 } from "../utils/file.js";
@@ -27,6 +29,23 @@ import { ToolFile } from "./tool-file.js";
 import { ToolTarget } from "./tool-targets.js";
 
 export abstract class FeatureProcessor extends RulesyncSourceConsumer {
+  /**
+   * Files the `--delete` sweep rewrote rather than deleted (or would rewrite
+   * under `--dry-run`/`--check`) — shared config that has to follow the
+   * removed files — relative to the output root like the paths
+   * `writeAiFiles` reports, with the owned top-level keys those rewrites
+   * touched. Recorded so the run's mutation plan lists every write.
+   */
+  protected readonly sweepWrites: { paths: string[]; keyOperations: KeyOperation[] } = {
+    paths: [],
+    keyOperations: [],
+  };
+
+  /** See {@link FeatureProcessor.sweepWrites}. */
+  getSweepWrites(): { paths: readonly string[]; keyOperations: readonly KeyOperation[] } {
+    return this.sweepWrites;
+  }
+
   abstract loadRulesyncFiles(): Promise<RulesyncFile[]>;
 
   abstract loadToolFiles(params?: { forDeletion?: boolean }): Promise<ToolFile[]>;
@@ -100,6 +119,22 @@ export abstract class FeatureProcessor extends RulesyncSourceConsumer {
         continue;
       }
 
+      // A file whose presence alone changes the tool's behavior is removed
+      // rather than left behind holding an empty payload (and never created
+      // empty).
+      const removal = await this.removeIfPayloadEmpty({
+        aiFile,
+        content: contentWithNewline,
+        existingContent,
+      });
+      if (removal !== "kept") {
+        if (removal === "removed") {
+          changedCount++;
+          changedPaths.push(aiFile.getRelativePathFromCwd());
+        }
+        continue;
+      }
+
       const fileMode = aiFile.getFileMode?.();
 
       if (
@@ -152,6 +187,54 @@ export abstract class FeatureProcessor extends RulesyncSourceConsumer {
       paths: changedPaths,
       ...(keyOperations.length > 0 && { keyOperations }),
     };
+  }
+
+  /**
+   * For a file that opts into {@link AiFile.shouldRemoveWhenPayloadEmpty}:
+   * remove it (`"removed"`) or skip creating it (`"skipped"`) when the
+   * generated payload is empty; `"kept"` lets the normal write go ahead. A
+   * removal the file refuses ({@link AiFile.describeRemovalRefusal}) or that
+   * fails is reported as a warning and leaves the file untouched (`"skipped"`).
+   * The removal never follows a symbolic link below the output root.
+   */
+  private async removeIfPayloadEmpty({
+    aiFile,
+    content,
+    existingContent,
+  }: {
+    aiFile: AiFile;
+    content: string;
+    existingContent: string | null;
+  }): Promise<"kept" | "removed" | "skipped"> {
+    const filePath = aiFile.getFilePath();
+    if (
+      !aiFile.shouldRemoveWhenPayloadEmpty() ||
+      !fileContentIsEmptyPayload({ filePath, content })
+    ) {
+      return "kept";
+    }
+    if (existingContent === null) {
+      return "skipped";
+    }
+    const refusal = aiFile.describeRemovalRefusal();
+    if (refusal !== undefined) {
+      this.logger.warn(`Not removing ${quoteForLog(filePath)}: ${refusal}`);
+      return "skipped";
+    }
+    if (this.dryRun) {
+      this.logger.info(`[DRY RUN] Would remove: ${stripControlCharacters(filePath)}`);
+      return "removed";
+    }
+    try {
+      await removeFileWithoutFollowingSymlinks({
+        rootPath: aiFile.getOutputRoot(),
+        targetPath: filePath,
+      });
+    } catch (error) {
+      this.logger.warn(`Failed to remove ${quoteForLog(filePath)}: ${formatError(error)}`);
+      return "skipped";
+    }
+    return "removed";
   }
 
   async removeAiFiles(aiFiles: AiFile[]): Promise<void> {
@@ -658,6 +741,53 @@ export function formatCuratedCaseCollisionWarning({
     `resolve to the same identity. The local ${entryNoun} wins and the curated ${entryNoun} is skipped.` +
     shadowedSuffix
   );
+}
+
+/**
+ * The curated entries of a source tree that no local entry of the same tree
+ * overrides, in their given order. A curated entry whose path matches a local
+ * one exactly is the documented local-wins-over-curated flow and is dropped
+ * silently; one that matches only in case is dropped with
+ * {@link formatCuratedCaseCollisionWarning}, since both would land on one file
+ * on a case-insensitive filesystem.
+ *
+ * Paths are relative to the feature directory (local) and to its `.curated/`
+ * subdirectory (curated), so the same name compares equal on both sides.
+ */
+export function filterCuratedShadowedByLocal({
+  localRelativePaths,
+  curatedRelativePaths,
+  artifactKind,
+  entryNoun,
+  treeDirPath,
+  logger,
+}: {
+  localRelativePaths: readonly string[];
+  curatedRelativePaths: readonly string[];
+  artifactKind: string;
+  entryNoun: string;
+  treeDirPath: string;
+  logger: Logger;
+}): string[] {
+  const localSpellingsByIdentity = groupSpellingsByCaseFoldedIdentity(localRelativePaths);
+  return curatedRelativePaths.filter((relativePath) => {
+    const spellings = localSpellingsByIdentity.get(caseFoldIdentity(relativePath));
+    if (spellings === undefined) {
+      return true;
+    }
+    if (!spellings.includes(relativePath)) {
+      logger.warn(
+        formatCuratedCaseCollisionWarning({
+          artifactKind,
+          entryNoun,
+          treeDirPath,
+          curatedSpelling: join(".curated", relativePath),
+          localSpellings: spellings,
+        }),
+      );
+    }
+    return false;
+  });
 }
 
 /**

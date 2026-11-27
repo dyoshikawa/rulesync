@@ -17,6 +17,7 @@ import {
   TAKT_WORKFLOW_MCP_SERVERS_KEY,
   TAKT_WORKFLOW_OVERRIDES_KEY,
 } from "../../constants/takt-paths.js";
+import { THEIA_MCP_SERVERS_KEY } from "../../constants/theia-paths.js";
 import type { ClaudeSettingsJson } from "../../types/claude-settings.js";
 import type { Feature } from "../../types/features.js";
 import { type BoundedWalk, createBoundedWalk } from "../../utils/bounded-walk.js";
@@ -617,6 +618,8 @@ export const KIMI_CODE_CONFIG_SHARED_FILE_KEY = ".kimi-code/config.toml";
 const KIMI_CODE_HOME_CONFIG_SHARED_FILE_KEY = "config.toml";
 const REASONIX_PROJECT_CONFIG_SHARED_FILE_KEY = "reasonix.toml";
 const REASONIX_GLOBAL_CONFIG_SHARED_FILE_KEY = ".reasonix/config.toml";
+const DEEPCODE_PROJECT_CONFIG_SHARED_FILE_KEY = "deepcode_config.json";
+const DEEPCODE_GLOBAL_CONFIG_SHARED_FILE_KEY = ".deepcode/deepcode_config.json";
 export const ROVODEV_CONFIG_SHARED_FILE_KEY = ".rovodev/config.yml";
 const OPENCLAW_CONFIG_SHARED_FILE_KEY = ".openclaw/openclaw.json";
 const POOL_PROJECT_SETTINGS_SHARED_FILE_KEY = ".poolside/settings.yaml";
@@ -703,6 +706,44 @@ const KIMI_CODE_CONFIG_DECLARATION: SharedConfigFileDeclaration = {
 };
 
 /**
+ * Qoder settings: the project file (`.qoder/settings.json`) and the user file
+ * (`~/.qoder/settings.json`) share one layout and carry every other Qoder
+ * setting (model, theme, trust, ...), so both are edited in place and an
+ * unparseable root is refused rather than replaced with generated output.
+ * MCP owns `mcpServers` (user scope only; project servers go to `.mcp.json`),
+ * hooks own `hooks`, and permissions own `permissions` (the adapter
+ * re-spreads the sibling keys of that object: `additionalDirectories`,
+ * `trustDirectories`, ...) plus the top-level keys the `qoder` override
+ * authors (`outputStyle`, `autoMode`, `agentsMdExcludes`, and the `general`,
+ * `tools`, `mcp`, `agents` and `security` groups, re-spread by the adapter so their other
+ * keys are kept). Each is only in the patch when authored, so a value the
+ * user set by hand survives an unrelated regeneration.
+ * Qoder CN keeps the same file at `~/.qoder-cn/settings.json`.
+ */
+const QODER_SETTINGS_DECLARATION: SharedConfigFileDeclaration = {
+  format: "json",
+  invalidRootPolicy: "error",
+  features: {
+    mcp: { kind: "replace-owned-keys", ownedKeys: ["mcpServers"] },
+    hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
+    permissions: {
+      kind: "replace-owned-keys",
+      ownedKeys: [
+        "permissions",
+        "outputStyle",
+        "general",
+        "tools",
+        "mcp",
+        "agents",
+        "security",
+        "autoMode",
+        "agentsMdExcludes",
+      ],
+    },
+  },
+};
+
+/**
  * Pool settings (`.poolside/settings.yaml` / `~/.config/poolside/settings.yaml`):
  * the user's primary Pool settings file, so an unparseable root fails closed
  * rather than being replaced with generated output. `mcp_servers` is owned as
@@ -752,6 +793,22 @@ const ZCODE_CONFIG_DECLARATION: SharedConfigFileDeclaration = {
   features: {
     mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp"] },
     hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
+  },
+};
+
+/**
+ * Zero's JSON config (`.zero/config.json` project, `<user config dir>/zero/config.json`
+ * global — `~/.config/zero/` on Linux and macOS, `%AppData%\zero\` on Windows),
+ * which also carries provider, model and sandbox settings, so the writer
+ * refuses to read-modify-write a file it could not parse. `mcp` is owned as a
+ * whole key; the writer carries its non-`servers` siblings over itself.
+ * https://github.com/Twigpine/zero/blob/main/docs/EXTENDING.md
+ */
+const ZERO_CONFIG_DECLARATION: SharedConfigFileDeclaration = {
+  format: "json",
+  invalidRootPolicy: "error",
+  features: {
+    mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp"] },
   },
 };
 
@@ -842,6 +899,23 @@ const PI_SETTINGS_DECLARATION: SharedConfigFileDeclaration = {
 };
 
 /**
+ * Theia workspace preferences (`.theia/settings.json`): every Theia workspace
+ * setting lives here, so an unparseable file fails closed rather than being
+ * replaced. Theia reads it as JSONC, so comments are kept by editing in place.
+ * MCP owns the literal dotted `ai-features.mcp.mcpServers` key; its writer
+ * recomputes the map from the existing file (Theia-managed keys of kept
+ * servers carried over) before applying the patch.
+ */
+const THEIA_SETTINGS_DECLARATION: SharedConfigFileDeclaration = {
+  format: "jsonc",
+  invalidRootPolicy: "error",
+  jsoncParseErrors: "error",
+  features: {
+    mcp: { kind: "replace-owned-keys", ownedKeys: [THEIA_MCP_SERVERS_KEY] },
+  },
+};
+
+/**
  * Amp settings (`settings.json`, or a hand-authored `settings.jsonc` twin the
  * writers probe for — both resolve to this declaration via the settable
  * paths), shared by the project and global spellings. Keys are Amp's literal
@@ -919,6 +993,26 @@ const REASONIX_CONFIG_DECLARATION: SharedConfigFileDeclaration = {
       kind: "replace-owned-keys",
       ownedKeys: ["permissions", "sandbox", "agent", "tools"],
     },
+  },
+};
+
+/**
+ * DeepCode's `deepcode_config.json`, shared by the project
+ * (`./deepcode_config.json`) and user (`~/.deepcode/deepcode_config.json`)
+ * spellings. It is the user's primary DeepCode config (access preset, model
+ * defaults, egress, skills, dictation, ...), so an unparseable root fails
+ * closed. mcp owns `mcpServers`; permissions owns `security`. Both writers
+ * recompute their key from the existing file before applying it: the MCP
+ * writer keeps the native-only keys of a server it rewrites, and the
+ * permissions writer replaces only `security.permissions`, carrying
+ * `accessPreset`, `sandbox` and every other `security` key over.
+ */
+const DEEPCODE_CONFIG_DECLARATION: SharedConfigFileDeclaration = {
+  format: "json",
+  invalidRootPolicy: "error",
+  features: {
+    mcp: { kind: "replace-owned-keys", ownedKeys: ["mcpServers"] },
+    permissions: { kind: "replace-owned-keys", ownedKeys: ["security"] },
   },
 };
 
@@ -1009,6 +1103,7 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
   ".omp/agent/config.yml": OMP_CONFIG_DECLARATION,
   ".pi/settings.json": PI_SETTINGS_DECLARATION,
   ".pi/agent/settings.json": PI_SETTINGS_DECLARATION,
+  ".theia/settings.json": THEIA_SETTINGS_DECLARATION,
   // Copilot CLI repository settings (`.github/copilot/settings.json`, CLI
   // v1.0.60+): a committed, hand-edited file that also carries `model`,
   // `effortLevel`, `hooks` and other repository-scope keys rulesync does not
@@ -1225,6 +1320,9 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
   },
   ".zcode/config.json": ZCODE_CONFIG_DECLARATION,
   ".zcode/cli/config.json": ZCODE_CONFIG_DECLARATION,
+  ".zero/config.json": ZERO_CONFIG_DECLARATION,
+  ".config/zero/config.json": ZERO_CONFIG_DECLARATION,
+  "AppData/Roaming/zero/config.json": ZERO_CONFIG_DECLARATION,
   // Crush's JSON config: `<project>/crush.json` (or its `.crush.json` twin,
   // which the writers resolve to this same declaration) and
   // `~/.config/crush/crush.json`. Both carry the user's providers, models and
@@ -1314,13 +1412,40 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
   // table, carrying its own settings (`enabled`, `default_timeout_secs`,
   // `working_dir`) over from the existing file. Project permissions own the
   // top-level `allow_shell` key of the per-project overlay, which they only
-  // ever set to `false`. An unparseable root is refused rather than replaced.
+  // ever set to `false`, and global permissions own the `[auto_review]` table
+  // of the user config, replaced only when the `codewhale.auto_review`
+  // override is set. An unparseable root is refused rather than replaced.
+  // jcode user config (`~/.jcode/config.toml`): hooks own the `[hooks]` table,
+  // and the adapter re-spreads that table's settings and the command keys it
+  // does not author. Every other jcode setting lives in the same file, so an
+  // unparseable root is refused rather than replaced.
+  // https://github.com/1jehuang/jcode/blob/master/docs/HOOKS.md
+  ".jcode/config.toml": {
+    format: "toml",
+    invalidRootPolicy: "error",
+    features: {
+      hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
+    },
+  },
+  // jcode MCP config (`.jcode/mcp.json` in a repo, `~/.jcode/mcp.json` for the
+  // user): the server map lives under `mcpServers` or jcode's historical
+  // `servers` key (one of the two; jcode rejects a file with both), and jcode's
+  // own `jcode mcp` commands rewrite the file, so every other key is kept and a
+  // file that does not parse is refused rather than replaced.
+  // https://github.com/1jehuang/jcode/blob/master/docs/MCP_REMOTE.md
+  ".jcode/mcp.json": {
+    format: "json",
+    invalidRootPolicy: "error",
+    features: {
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcpServers", "servers"] },
+    },
+  },
   [CODEWHALE_CONFIG_SHARED_FILE_KEY]: {
     format: "toml",
     invalidRootPolicy: "error",
     features: {
       hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
-      permissions: { kind: "replace-owned-keys", ownedKeys: ["allow_shell"] },
+      permissions: { kind: "replace-owned-keys", ownedKeys: ["allow_shell", "auto_review"] },
     },
   },
   // Letta Code settings: the project file (`.letta/settings.json`) and the
@@ -1357,40 +1482,10 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
     },
   },
-  // Qoder settings: the project file (`.qoder/settings.json`) and the user file
-  // (`~/.qoder/settings.json`) share one layout and carry every other Qoder
-  // setting (model, theme, trust, ...), so both are edited in place and an
-  // unparseable root is refused rather than replaced with generated output.
-  // MCP owns `mcpServers` (user scope only; project servers go to `.mcp.json`),
-  // hooks own `hooks`, and permissions own `permissions` (the adapter
-  // re-spreads the sibling keys of that object: `additionalDirectories`,
-  // `trustDirectories`, ...) plus the top-level keys the `qoder` override
-  // authors (`outputStyle`, `autoMode`, `agentsMdExcludes`, and the `general`,
-  // `tools`, `mcp`, `agents` and `security` groups, re-spread by the adapter so their other
-  // keys are kept). Each is only in the patch when authored, so a value the
-  // user set by hand survives an unrelated regeneration.
-  ".qoder/settings.json": {
-    format: "json",
-    invalidRootPolicy: "error",
-    features: {
-      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcpServers"] },
-      hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
-      permissions: {
-        kind: "replace-owned-keys",
-        ownedKeys: [
-          "permissions",
-          "outputStyle",
-          "general",
-          "tools",
-          "mcp",
-          "agents",
-          "security",
-          "autoMode",
-          "agentsMdExcludes",
-        ],
-      },
-    },
-  },
+  // Qoder settings (project and user); see {@link QODER_SETTINGS_DECLARATION}.
+  ".qoder/settings.json": QODER_SETTINGS_DECLARATION,
+  // Qoder CN user settings (`~/.qoder-cn/settings.json`), the same layout.
+  ".qoder-cn/settings.json": QODER_SETTINGS_DECLARATION,
   // TRAE hooks (`.trae/hooks.json`, project and user scope): `hooks` is the
   // only rulesync-owned key, so `version` and any other top-level key the IDE
   // writes survive, and an unparseable root is refused rather than replaced.
@@ -1544,6 +1639,8 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
   [KIMI_CODE_HOME_CONFIG_SHARED_FILE_KEY]: KIMI_CODE_CONFIG_DECLARATION,
   [REASONIX_PROJECT_CONFIG_SHARED_FILE_KEY]: REASONIX_CONFIG_DECLARATION,
   [REASONIX_GLOBAL_CONFIG_SHARED_FILE_KEY]: REASONIX_CONFIG_DECLARATION,
+  [DEEPCODE_PROJECT_CONFIG_SHARED_FILE_KEY]: DEEPCODE_CONFIG_DECLARATION,
+  [DEEPCODE_GLOBAL_CONFIG_SHARED_FILE_KEY]: DEEPCODE_CONFIG_DECLARATION,
   [ROVODEV_CONFIG_SHARED_FILE_KEY]: {
     format: "yaml",
     features: {

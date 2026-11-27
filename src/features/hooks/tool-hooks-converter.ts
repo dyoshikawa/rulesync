@@ -43,6 +43,21 @@ export type ToolHooksConverterConfig = {
   projectDirVar: string;
   supportedHookTypes?: ReadonlySet<HookType>;
   /**
+   * Per-event narrowing of {@link supportedHookTypes}, keyed by canonical event
+   * name: a hook whose type is not in its event's set is skipped on generate
+   * with a warning, because the tool would not run it on that event. Events
+   * without an entry accept every supported type. Import is not filtered, so
+   * whatever is on disk still round-trips.
+   */
+  eventHookTypes?: Readonly<Partial<Record<string, ReadonlySet<HookType>>>>;
+  /**
+   * Canonical events listed in {@link eventHookTypes} where the tool fails
+   * closed on a hook type it cannot run (it blocks whatever the hook matches)
+   * instead of ignoring it. Such a hook is still emitted, with a warning:
+   * dropping it would turn a guard that blocks into no guard at all.
+   */
+  failClosedEventHookTypeEvents?: ReadonlySet<string>;
+  /**
    * Extra tool-side `type` spellings accepted on import only, each mapped to
    * the canonical hook type it denotes (e.g. Bob's former `https` for the
    * canonical `http`). Generation never emits them, so a file written under an
@@ -65,7 +80,8 @@ export type ToolHooksConverterConfig = {
       | "asyncRewake"
       | "continueOnBlock"
       | "enabled"
-      | "strictJsonOutput";
+      | "strictJsonOutput"
+      | "preserveRiskLevel";
     readonly tool: string;
     /** Emit only on `command` hooks, for a field the tool documents there only. */
     readonly commandOnly?: boolean;
@@ -1099,6 +1115,65 @@ function isSupportedHookType({
   return converterConfig.supportedHookTypes?.has(type ?? "command") ?? true;
 }
 
+/**
+ * The hook types the tool runs on this event (see `eventHookTypes`), or
+ * `undefined` when the event accepts every supported type. A tool-native event
+ * key from an override block is looked up under its canonical name.
+ */
+function eventHookTypesFor({
+  eventName,
+  converterConfig,
+}: {
+  eventName: string;
+  converterConfig: ToolHooksConverterConfig;
+}): ReadonlySet<HookType> | undefined {
+  if (converterConfig.eventHookTypes === undefined) {
+    return undefined;
+  }
+  return lookupOwn({
+    record: converterConfig.eventHookTypes,
+    key: toCanonicalEventName({ eventName, converterConfig }),
+  });
+}
+
+function toCanonicalEventName({
+  eventName,
+  converterConfig,
+}: {
+  eventName: string;
+  converterConfig: ToolHooksConverterConfig;
+}): string {
+  return (
+    lookupOwn({ record: converterConfig.toolToCanonicalEventNames, key: eventName }) ?? eventName
+  );
+}
+
+/**
+ * Whether the tool skips (rather than runs) this hook type on this event, per
+ * `eventHookTypes`. A type the tool fails closed on
+ * (`failClosedEventHookTypeEvents`) is not skipped: it is emitted with a
+ * warning instead.
+ */
+function isSkippedOnEvent({
+  hookType,
+  eventName,
+  converterConfig,
+}: {
+  hookType: HookType;
+  eventName: string;
+  converterConfig: ToolHooksConverterConfig;
+}): boolean {
+  const eventTypes = eventHookTypesFor({ eventName, converterConfig });
+  if (eventTypes === undefined || eventTypes.has(hookType)) {
+    return false;
+  }
+  return !(
+    converterConfig.failClosedEventHookTypeEvents?.has(
+      toCanonicalEventName({ eventName, converterConfig }),
+    ) ?? false
+  );
+}
+
 export type KeywordPassthroughFieldSpec = NonNullable<
   ToolHooksConverterConfig["keywordPassthroughFields"]
 >[number];
@@ -1330,8 +1405,9 @@ function emitAllPassthroughFields({
 
 /**
  * Why a definition must not be emitted for this tool, or `undefined` when it
- * can be: it carries a restricting field the tool refuses to honour (see
- * `skippedWhenFields`).
+ * can be: the tool does not run its hook type on this event (see
+ * `eventHookTypes`), or it carries a restricting field the tool refuses to
+ * honour (see `skippedWhenFields`).
  */
 function describeExportSkipReason({
   def,
@@ -1344,6 +1420,15 @@ function describeExportSkipReason({
   eventName: string;
   converterConfig: ToolHooksConverterConfig;
 }): string | undefined {
+  const eventTypes = eventHookTypesFor({ eventName, converterConfig });
+  if (eventTypes !== undefined && isSkippedOnEvent({ hookType, eventName, converterConfig })) {
+    return (
+      `Skipping a "${eventName}" ${hookType} hook ` +
+      `(${quoteValueForWarning(def.command ?? def.url ?? def.tool ?? def.prompt)}): ` +
+      `this tool does not run ${hookType} hooks on this event ` +
+      `(supported types: ${[...eventTypes].join(", ")}).`
+    );
+  }
   const field = converterConfig.skippedWhenFields?.find((name) => isNonEmptyString(def[name]));
   if (field === undefined) {
     return undefined;
@@ -1380,6 +1465,17 @@ function isEmittableDefinition({
   if (skipReason !== undefined) {
     warn?.(skipReason);
     return false;
+  }
+  const eventTypes = eventHookTypesFor({ eventName, converterConfig });
+  if (eventTypes !== undefined && !eventTypes.has(hookType)) {
+    // Only reachable for a fail-closed event (see `isSkippedOnEvent`).
+    warn?.(
+      `Keeping a "${eventName}" ${hookType} hook ` +
+        `(${quoteValueForWarning(def.command ?? def.url ?? def.tool ?? def.prompt)}) ` +
+        `although this tool cannot run ${hookType} hooks on this event ` +
+        `(supported types: ${[...eventTypes].join(", ")}): it blocks everything the hook ` +
+        `matches instead. Use one of the supported types to make the hook a working check.`,
+    );
   }
   return true;
 }
@@ -1496,7 +1592,13 @@ export function canonicalToToolHooks({
       const groupFields = emitGroupPassthroughFields({
         // Only the definitions that survived the hook-type filter: a hook this
         // tool cannot express must not decide a field for the ones it does.
-        defs: defs.filter(({ type }) => isSupportedHookType({ type, converterConfig })),
+        defs: defs.filter(({ type }) => {
+          const hookType = type ?? "command";
+          return (
+            isSupportedHookType({ type: hookType, converterConfig }) &&
+            !isSkippedOnEvent({ hookType, eventName, converterConfig })
+          );
+        }),
         eventName,
         converterConfig,
         logger,
@@ -2165,8 +2267,34 @@ export function buildImportedHooksConfig({
 }
 
 /**
+ * Whether the tool reads `event`, a canonical event name with no entry in
+ * `toolToCanonicalEventNames`, under that very name: it supports the event and
+ * has no native spelling of its own for it, so generate writes it verbatim.
+ */
+function isVerbatimNativeEvent({
+  event,
+  converterConfig,
+}: {
+  event: HookEvent;
+  converterConfig: ToolHooksConverterConfig;
+}): boolean {
+  return (
+    converterConfig.supportedEvents.includes(event) &&
+    !Object.hasOwn(converterConfig.canonicalToToolEventNames, event)
+  );
+}
+
+/**
  * Convert tool-specific hooks back to canonical format (shared by Claude and Factory Droid).
  * Reverses event name mapping and strips the project directory variable from commands.
+ *
+ * A native key with no mapping keeps its name, except one spelled like a
+ * canonical event that the tool does not read under that name (camelCase
+ * `preToolUse` in a Goose file, where Goose reads only `PreToolUse`). The tool
+ * ignores such a key, so it is skipped with a warning: in the canonical block
+ * the next `generate` would activate it for every tool, and in the tool's
+ * override block it would replace the tool's real event of the same canonical
+ * name.
  *
  * Note: This function does not strip matchers for noMatcherEvents. Tools themselves never produce
  * matchers on these events, so stripping is unnecessary on import. If a manually edited config
@@ -2191,9 +2319,21 @@ export function toolHooksToCanonical({
   const warn = warnOnce(logger);
   const canonical: HooksConfig["hooks"] = {};
   for (const [toolEventName, matcherEntries] of Object.entries(hooks)) {
-    const eventName =
-      lookupOwn({ record: converterConfig.toolToCanonicalEventNames, key: toolEventName }) ??
-      toolEventName;
+    const mappedEventName = lookupOwn({
+      record: converterConfig.toolToCanonicalEventNames,
+      key: toolEventName,
+    });
+    if (
+      mappedEventName === undefined &&
+      isHookEvent(toolEventName) &&
+      !isVerbatimNativeEvent({ event: toolEventName, converterConfig })
+    ) {
+      warn(
+        `Skipping imported hooks event ${quoteValueForWarning(toolEventName)}: the tool does not read an event by that name, and importing it would turn it into the active canonical event of the same name.`,
+      );
+      continue;
+    }
+    const eventName = mappedEventName ?? toolEventName;
     if (!Array.isArray(matcherEntries)) continue;
     const defs: HooksConfig["hooks"][string] = [];
     for (const rawEntry of matcherEntries) {

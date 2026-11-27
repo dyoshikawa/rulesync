@@ -108,8 +108,9 @@ export const RulesyncMcpFileSchema = z.looseObject({
   // the Kiro IDE/CLI targets read the `kiro` block (all three write the same
   // `.kiro/settings/mcp.json`, so per-variant blocks would make that shared
   // file depend on generation order). In project mode `claudecode`,
-  // `codebuddy`, `commandcode` and `qoder` share the root `.mcp.json`, so all
-  // of them apply all four blocks there.
+  // `codebuddy`, `commandcode`, `qoder` and `qodercn` share the root
+  // `.mcp.json`, so all of them apply all four blocks there. `qodercn` reads
+  // the `qoder` block at both scopes.
   amp: z.optional(toolScopedMcpSchema),
   "antigravity-cli": z.optional(toolScopedMcpSchema),
   "antigravity-ide": z.optional(toolScopedMcpSchema),
@@ -133,10 +134,12 @@ export const RulesyncMcpFileSchema = z.looseObject({
   dsh: z.optional(toolScopedMcpSchema),
   factorydroid: z.optional(toolScopedMcpSchema),
   firebender: z.optional(toolScopedMcpSchema),
+  gajaecode: z.optional(toolScopedMcpSchema),
   gitlabduo: z.optional(toolScopedMcpSchema),
   goose: z.optional(toolScopedMcpSchema),
   grokcli: z.optional(toolScopedMcpSchema),
   hermesagent: z.optional(toolScopedMcpSchema),
+  jcode: z.optional(toolScopedMcpSchema),
   junie: z.optional(toolScopedMcpSchema),
   kilo: z.optional(toolScopedMcpSchema),
   "kimi-code": z.optional(kimiCodeScopedMcpSchema),
@@ -154,6 +157,7 @@ export const RulesyncMcpFileSchema = z.looseObject({
   rovodev: z.optional(toolScopedMcpSchema),
   tabnine: z.optional(toolScopedMcpSchema),
   takt: z.optional(toolScopedMcpSchema),
+  theia: z.optional(toolScopedMcpSchema),
   trae: z.optional(toolScopedMcpSchema),
   vibe: z.optional(toolScopedMcpSchema),
   warp: z.optional(toolScopedMcpSchema),
@@ -675,7 +679,8 @@ export class RulesyncMcp extends RulesyncFile {
           // `poolAllow` is Pool's approval allowlist, re-merged by the pool
           // generator the same way; it is an approval decision only Pool reads.
           // `zcodeOauth` is ZCode's OAuth block, re-merged by the zcode
-          // generators the same way; it may carry a client secret.
+          // generators the same way; it may carry a client secret. `zeroOauth`
+          // is the same arrangement for Zero.
           // `enabled` is stripped because OpenCode, Kilo, Grok CLI
           // and Goose have a NATIVE `enabled` field with different semantics a
           // leaked value would silently collide with.
@@ -701,6 +706,7 @@ export class RulesyncMcp extends RulesyncFile {
               "crushChannelReply",
               "poolAllow",
               "zcodeOauth",
+              "zeroOauth",
               "oauth_client_id",
               "oauth_client_secret",
               "oauth_callback_port",
@@ -911,6 +917,8 @@ const MCP_BLOCK_KEY_ALIASES: Partial<Record<string, string>> = {
   "claudecode-legacy": "claudecode",
   "kiro-cli": "kiro",
   "kiro-ide": "kiro",
+  // Qoder CN writes the same project `.mcp.json` as Qoder in Qoder's shape.
+  qodercn: "qoder",
 };
 
 const MCP_IGNORED_ALIAS_SOURCE_KEYS = Object.keys(MCP_BLOCK_KEY_ALIASES);
@@ -936,8 +944,10 @@ type McpTargetResolution = {
  *   `config`) — so both targets always apply both blocks in a fixed order
  *   (`antigravity-ide` first, `antigravity-cli` second — the CLI block wins
  *   per server on conflict).
+ * - `qodercn` reads the `qoder` block at both scopes (Qoder CN writes Qoder's
+ *   shape; its project file is Qoder's `.mcp.json`).
  * - `claudecode` (and its legacy alias), `codebuddy`, `commandcode` and `qoder`
- *   share the root `.mcp.json` in PROJECT mode only (their global files
+ *   (with `qodercn`) share the root `.mcp.json` in PROJECT mode only (their global files
  *   differ: `~/.claude.json`, `~/.codebuddy/.mcp.json`,
  *   `~/.commandcode/mcp.json` and `~/.qoder/settings.json`), so in project
  *   mode the five apply the `claudecode`, `codebuddy`, `commandcode` and
@@ -952,12 +962,10 @@ function resolveMcpTarget({
   global: boolean;
 }): McpTargetResolution {
   const isClaudecode = toolTarget === "claudecode" || toolTarget === "claudecode-legacy";
+  const isQoder = toolTarget === "qoder" || toolTarget === "qodercn";
   if (
     !global &&
-    (isClaudecode ||
-      toolTarget === "codebuddy" ||
-      toolTarget === "commandcode" ||
-      toolTarget === "qoder")
+    (isClaudecode || toolTarget === "codebuddy" || toolTarget === "commandcode" || isQoder)
   ) {
     return {
       blockKeys: ["claudecode", "codebuddy", "commandcode", "qoder"],
@@ -967,8 +975,12 @@ function resolveMcpTarget({
         "codebuddy",
         "commandcode",
         "qoder",
+        "qodercn",
       ]),
     };
+  }
+  if (isQoder) {
+    return { blockKeys: ["qoder"], acceptedTargetNames: new Set([toolTarget]) };
   }
   if (isClaudecode) {
     return {

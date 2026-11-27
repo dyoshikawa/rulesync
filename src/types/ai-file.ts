@@ -75,6 +75,20 @@ export abstract class AiFile {
     return this.outputRoot;
   }
 
+  /**
+   * A copy of this file that is written under `outputRoot` instead, with
+   * every other field unchanged. `import` uses it to send the converted
+   * rulesync sources to the project's `.rulesync/` whichever output root the
+   * tool files were read from.
+   */
+  withOutputRoot(outputRoot: string): this {
+    if (outputRoot === this.outputRoot) {
+      return this;
+    }
+    const copy: this = Object.create(Object.getPrototypeOf(this));
+    return Object.assign(copy, this, { outputRoot });
+  }
+
   getRelativeDirPath(): string {
     return this.relativeDirPath;
   }
@@ -161,6 +175,27 @@ export abstract class AiFile {
    */
   shouldSkipCreationWhenPayloadEmpty(): boolean {
     return isSharedUserManagedConfigPath(this.getRelativePathFromCwd());
+  }
+
+  /**
+   * Whether an existing file is removed, instead of rewritten, when the
+   * generated content is an empty payload (see {@link shouldSkipCreationWhenPayloadEmpty}).
+   * Opt in for a file whose mere presence changes the tool's behavior, such
+   * as OpenHands' project `.openhands/hooks.json`, which hides the user-level
+   * hooks file whenever it exists, even empty. Such a file is never created
+   * empty either.
+   */
+  shouldRemoveWhenPayloadEmpty(): boolean {
+    return false;
+  }
+
+  /**
+   * Why this file must not be removed even though
+   * {@link shouldRemoveWhenPayloadEmpty} asks for it (the write phase warns and
+   * leaves it untouched), or `undefined` when removing it is fine.
+   */
+  describeRemovalRefusal(): string | undefined {
+    return undefined;
   }
 
   /**

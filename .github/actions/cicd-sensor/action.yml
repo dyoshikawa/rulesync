@@ -25,7 +25,7 @@ runs:
       id: cosign
       if: steps.auth.outcome == 'success'
       continue-on-error: true
-      uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
+      uses: sigstore/cosign-installer@881c63bd87e38389154debd8331404ce7ca8a3ab # v4.1.4
 
     # Keyless verification needs the Sigstore TUF trust root, which cosign
     # fetches over the network. Fetch it here so that an outage is an
@@ -48,9 +48,9 @@ runs:
       if: steps.trust-root.outcome == 'success'
       shell: bash
       env:
-        CICD_SENSOR_VERSION: v0.0.48
-        CICD_SENSOR_TARBALL_SHA256: 16d82b5ff5eea6f0db1fc90d0708627b53cfdcc26820eb2dbfaf33fb231eac06
-        CICD_SENSOR_AGENT_SHA256: c627b189d87b51e14cbe5ecff0753edcbd71a4241e34517b1c6f7eed08bf6e71
+        CICD_SENSOR_VERSION: v0.0.49
+        CICD_SENSOR_TARBALL_SHA256: 8d0ee3319f01a69fd092a614fd77601eee02f53ef4f8f96ec59d8d1680d01edd
+        CICD_SENSOR_AGENT_SHA256: 584cc391944b4b6224269c1e69d8c34620b008b9831fc6894e7b08c6fdf78bc5
         CERTIFICATE_IDENTITY: https://github.com/cicd-sensor/cicd-sensor/.github/workflows/releases-sensor.yaml@refs/heads/main
         CERTIFICATE_OIDC_ISSUER: https://token.actions.githubusercontent.com
       run: |

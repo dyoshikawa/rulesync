@@ -20,6 +20,7 @@ import {
   CODEWHALE_MATCHER_HOOK_EVENTS,
   CODEXCLI_HOOK_EVENTS,
   OPENBITFUN_HOOK_EVENTS,
+  OPENHANDS_HOOK_EVENTS,
   COMMANDCODE_HOOK_EVENTS,
   CONTINUE_HOOK_EVENTS,
   COPILOTCLI_HOOK_EVENTS,
@@ -36,6 +37,8 @@ import {
   GOOSE_HOOK_EVENTS,
   GROKCLI_HOOK_EVENTS,
   HERMESAGENT_HOOK_EVENTS,
+  JCODE_HOOK_EVENTS,
+  JCODE_NATIVE_ONLY_HOOK_EVENTS,
   JUNIE_HOOK_EVENTS,
   KILO_HOOK_EVENTS,
   KIMI_CODE_HOOK_EVENTS,
@@ -56,6 +59,8 @@ import {
   TRAE_HOOK_EVENTS,
   VIBE_HOOK_EVENTS,
   ZCODE_HOOK_EVENTS,
+  ZERO_HOOK_EVENTS,
+  ZERO_MATCHER_EVENTS,
 } from "../../types/hooks.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { ClaudecodeHooks } from "./claudecode-hooks.js";
@@ -416,6 +421,30 @@ describe("HooksProcessor", () => {
       );
     });
 
+    it("should warn that a qodercn hooks block is ignored and apply the qoder block", async () => {
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {},
+          qoder: { hooks: { stop: [{ command: "echo qoder" }] } },
+          qodercn: { hooks: { stop: [{ command: "echo ignored" }] } },
+        }),
+        validate: false,
+      });
+
+      const processor = new HooksProcessor({ logger, outputRoot: testDir, toolTarget: "qodercn" });
+      const [file] = await processor.convertRulesyncFilesToToolFiles([rulesyncHooks]);
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('The "qodercn.hooks" block'),
+      );
+      expect(file?.getFileContent()).toContain("echo qoder");
+      expect(file?.getFileContent()).not.toContain("echo ignored");
+    });
+
     it("should log warning when config has events not supported by target", async () => {
       const config = {
         version: 1,
@@ -692,6 +721,40 @@ describe("HooksProcessor", () => {
       expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("sessionEnd"));
     });
 
+    it("should report a skipped opt-in event's hooks once, not again as skipped types or matchers (issue #3971)", async () => {
+      const config = {
+        version: 1,
+        hooks: {
+          sessionEnd: [{ type: "prompt", prompt: "Summarize", matcher: "other" }],
+          preToolUse: [{ type: "prompt", prompt: "Check", matcher: "Bash" }],
+          stop: [{ command: "stop.sh", matcher: "anything" }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const processor = new HooksProcessor({ logger, outputRoot: testDir, toolTarget: "bob" });
+      await processor.convertRulesyncFilesToToolFiles([rulesyncHooks]);
+
+      const sessionEndWarnings = logger.warn.mock.calls
+        .map(([message]) => String(message))
+        .filter((message) => message.includes("sessionEnd"));
+      expect(sessionEndWarnings).toHaveLength(1);
+      expect(sessionEndWarnings[0]).toMatch(/^Skipped hook event\(s\) for bob: sessionEnd\. /);
+      // Hooks on emitted events are still checked.
+      expect(logger.warn).toHaveBeenCalledWith(
+        "Skipped prompt-type hook(s) for bob (not supported): preToolUse",
+      );
+      expect(logger.warn).toHaveBeenCalledWith(
+        "Skipped matcher hook(s) for bob (not supported): stop",
+      );
+    });
+
     it("should warn that a confirm prompt is dropped outside kiro-cli / kiro-ide", async () => {
       const config = {
         version: 1,
@@ -763,11 +826,11 @@ describe("HooksProcessor", () => {
       // The event list must be part of the same message, and must name only the
       // events that actually carry a disabled hook.
       expect(logger.warn).toHaveBeenCalledWith(
-        'Emitting "enabled: false" hook(s) as active for claudecode (only the kiro-cli / kiro-ide / cortexcode / zcode / zcode-plugin hooks formats support the flag): preToolUse',
+        'Emitting "enabled: false" hook(s) as active for claudecode (only the kiro-cli / kiro-ide / cortexcode / zcode / zcode-plugin / zero hooks formats support the flag): preToolUse',
       );
     });
 
-    it.each(["cortexcode", "kiro-ide", "kiro-cli", "zcode", "zcode-plugin"] as const)(
+    it.each(["cortexcode", "kiro-ide", "kiro-cli", "zcode", "zcode-plugin", "zero"] as const)(
       "should write a disabled hook for %s without warning that it stays active",
       async (toolTarget) => {
         const config = {
@@ -1116,6 +1179,7 @@ describe("HooksProcessor", () => {
         "codewhale",
         "codexcli",
         "openbitfun",
+        "openhands",
         "commandcode",
         "copilot",
         "copilotcli",
@@ -1147,12 +1211,14 @@ describe("HooksProcessor", () => {
         "vibe-plugin",
         "pool",
         "qoder",
+        "qodercn",
         "qwencode",
         "reasonix",
         "grokcli",
         "crush",
         "zcode",
         "zcode-plugin",
+        "zero",
       ]);
     });
 
@@ -1182,6 +1248,7 @@ describe("HooksProcessor", () => {
         "cline",
         "goose",
         "hermesagent",
+        "jcode",
         "kimi-code",
         "deepagents",
         "kiro-cli",
@@ -1199,11 +1266,13 @@ describe("HooksProcessor", () => {
         "vibe",
         "pool",
         "qoder",
+        "qodercn",
         "qwencode",
         "reasonix",
         "grokcli",
         "crush",
         "zcode",
+        "zero",
       ]);
     });
 
@@ -1235,6 +1304,7 @@ describe("HooksProcessor", () => {
         "codewhale",
         "codexcli",
         "openbitfun",
+        "openhands",
         "commandcode",
         "copilot",
         "copilotcli",
@@ -1259,12 +1329,14 @@ describe("HooksProcessor", () => {
         "vibe-plugin",
         "pool",
         "qoder",
+        "qodercn",
         "qwencode",
         "reasonix",
         "grokcli",
         "crush",
         "zcode",
         "zcode-plugin",
+        "zero",
       ]);
     });
 
@@ -1286,6 +1358,7 @@ describe("HooksProcessor", () => {
         "factorydroid",
         "goose",
         "hermesagent",
+        "jcode",
         "kimi-code",
         "deepagents",
         "kiro-cli",
@@ -1303,11 +1376,13 @@ describe("HooksProcessor", () => {
         "vibe",
         "pool",
         "qoder",
+        "qodercn",
         "qwencode",
         "reasonix",
         "grokcli",
         "crush",
         "zcode",
+        "zero",
       ]);
     });
   });
@@ -1627,6 +1702,15 @@ describe("toolHooksFactories capability table", () => {
       },
     ],
     [
+      "openhands",
+      {
+        meta: { supportsProject: true, supportsGlobal: false, supportsImport: true },
+        supportedEvents: OPENHANDS_HOOK_EVENTS,
+        supportedHookTypes: ["command"],
+        supportsMatcher: true,
+      },
+    ],
+    [
       "commandcode",
       {
         meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
@@ -1754,6 +1838,17 @@ describe("toolHooksFactories capability table", () => {
         supportedEvents: HERMESAGENT_HOOK_EVENTS,
         supportedHookTypes: ["command"],
         supportsMatcher: true,
+      },
+    ],
+    [
+      "jcode",
+      {
+        meta: { supportsProject: false, supportsGlobal: true, supportsImport: true },
+        supportedEvents: JCODE_HOOK_EVENTS,
+        supportedHookTypes: ["command"],
+        supportsMatcher: true,
+        dropsUnknownOverrideEvents: true,
+        overrideOnlyEvents: JCODE_NATIVE_ONLY_HOOK_EVENTS,
       },
     ],
     [
@@ -2025,6 +2120,37 @@ describe("toolHooksFactories capability table", () => {
       },
     ],
     [
+      "qodercn",
+      {
+        meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+        supportedEvents: QODER_HOOK_EVENTS,
+        supportedHookTypes: ["command", "http", "prompt", "agent"],
+        supportsMatcher: true,
+        supportsPerHookIf: true,
+        matcherEvents: [
+          "sessionStart",
+          "sessionEnd",
+          "preToolUse",
+          "postToolUse",
+          "postToolUseFailure",
+          "stopFailure",
+          "subagentStart",
+          "subagentStop",
+          "preCompact",
+          "postCompact",
+          "notification",
+          "configChange",
+          "instructionsLoaded",
+          "fileChanged",
+          "elicitation",
+          "elicitationResult",
+          "permissionRequest",
+          "permissionDenied",
+          "setup",
+        ],
+      },
+    ],
+    [
       "qwencode",
       {
         meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
@@ -2078,6 +2204,18 @@ describe("toolHooksFactories capability table", () => {
         supportedEvents: ZCODE_HOOK_EVENTS,
         supportedHookTypes: ["command"],
         supportsMatcher: true,
+        supportsPerHookEnabled: true,
+      },
+    ],
+    [
+      "zero",
+      {
+        meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+        supportedEvents: ZERO_HOOK_EVENTS,
+        supportedHookTypes: ["command"],
+        supportsMatcher: true,
+        matcherEvents: ZERO_MATCHER_EVENTS,
+        dropsUnknownOverrideEvents: true,
         supportsPerHookEnabled: true,
       },
     ],

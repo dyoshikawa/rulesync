@@ -23,6 +23,8 @@ import {
   CLINE_HOOK_EVENTS,
   CRUSH_HOOK_EVENTS,
   HERMESAGENT_HOOK_EVENTS,
+  JCODE_HOOK_EVENTS,
+  JCODE_NATIVE_ONLY_HOOK_EVENTS,
   KILO_HOOK_EVENTS,
   KIMI_CODE_HOOK_EVENTS,
   KIRO_HOOK_EVENTS,
@@ -42,6 +44,8 @@ import {
   type HookEvent,
   type HooksConfig,
   type HookType,
+  ZERO_HOOK_EVENTS,
+  ZERO_MATCHER_EVENTS,
 } from "../../types/hooks.js";
 import type { RulesyncFile } from "../../types/rulesync-file.js";
 import type { ToolFile } from "../../types/tool-file.js";
@@ -52,6 +56,7 @@ import { isFileNotFoundError } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { getRulesyncSourceCandidates } from "../../utils/rulesync-source-path.js";
+import { isRecord } from "../../utils/type-guards.js";
 import { isPlainObject } from "../../utils/type-guards.js";
 import { AmpHooks } from "./amp-hooks.js";
 import {
@@ -88,6 +93,7 @@ import { GITLABDUO_CONVERTER_CONFIG, GitlabduoHooks } from "./gitlabduo-hooks.js
 import { GOOSE_CONVERTER_CONFIG, GooseHooks } from "./goose-hooks.js";
 import { GROKCLI_CONVERTER_CONFIG, GrokcliHooks } from "./grokcli-hooks.js";
 import { HermesagentHooks } from "./hermesagent-hooks.js";
+import { JcodeHooks } from "./jcode-hooks.js";
 import { JUNIE_CONVERTER_CONFIG, JunieHooks } from "./junie-hooks.js";
 import { KiloHooks } from "./kilo-hooks.js";
 import { KimiCodeHooks } from "./kimi-code-hooks.js";
@@ -100,9 +106,11 @@ import { OmpHooks } from "./omp-hooks.js";
 import { OPENBITFUN_CONVERTER_CONFIG, OpenbitfunHooks } from "./openbitfun-hooks.js";
 import { OpencodeHooks } from "./opencode-hooks.js";
 import { Opencodev1Hooks } from "./opencodev1-hooks.js";
+import { OPENHANDS_CONVERTER_CONFIG, OpenhandsHooks } from "./openhands-hooks.js";
 import { PiHooks } from "./pi-hooks.js";
 import { PoolHooks } from "./pool-hooks.js";
 import { QoderHooks } from "./qoder-hooks.js";
+import { QodercnHooks } from "./qodercn-hooks.js";
 import { QwencodeHooks } from "./qwencode-hooks.js";
 import { ReasonixHooks } from "./reasonix-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
@@ -119,6 +127,7 @@ import { VibeHooks } from "./vibe-hooks.js";
 import { VibePluginHooks } from "./vibe-plugin-hooks.js";
 import { ZCODE_CONVERTER_CONFIG, ZcodeHooks } from "./zcode-hooks.js";
 import { ZCODE_PLUGIN_CONVERTER_CONFIG, ZcodePluginHooks } from "./zcode-plugin-hooks.js";
+import { ZeroHooks } from "./zero-hooks.js";
 
 export type HooksProcessorToolTarget = (typeof hooksProcessorToolTargetTuple)[number];
 
@@ -306,6 +315,9 @@ export const HOOKS_OVERRIDE_KEY_ALIASES: Partial<Record<ToolTarget, string>> = {
   "augmentcode-plugin": "augmentcode",
   "kiro-cli": KIRO_HOOKS_OVERRIDE_KEY,
   "kiro-ide": KIRO_HOOKS_OVERRIDE_KEY,
+  // Qoder CN writes Qoder's hook shape (and the same project settings file),
+  // so it reads the `qoder` block.
+  qodercn: "qoder",
   // A ZCode plugin's hooks are ZCode hooks, so it reads the `zcode` block.
   "zcode-plugin": "zcode",
   // A Vibe plugin's hooks are Vibe hooks, so it reads the `vibe` block.
@@ -315,23 +327,89 @@ export const HOOKS_OVERRIDE_KEY_ALIASES: Partial<Record<ToolTarget, string>> = {
 };
 
 /**
- * Names the shared events that carry a hook whose canonical definition
- * satisfies `predicate`, excluding events the target skips altogether (those
- * are already reported as skipped and produce no output, so warning about them
- * again would contradict that message).
+ * Targets whose own-name hooks block is read by nothing because they read
+ * another target's block (see {@link HOOKS_OVERRIDE_KEY_ALIASES}), and that
+ * warn about it here. The Kiro targets warn about theirs in their adapter.
  */
-function emittedEventsWithHook(params: {
+const WARN_IGNORED_ALIAS_SOURCE_TARGETS: ReadonlySet<ToolTarget> = new Set<ToolTarget>(["qodercn"]);
+
+/**
+ * Warn about a hooks block authored under an alias SOURCE name (e.g.
+ * `qodercn` instead of `qoder`) instead of silently ignoring it.
+ */
+function warnIgnoredAliasSourceBlock({
+  config,
+  toolTarget,
+  logger,
+}: {
+  config: Record<string, unknown>;
+  toolTarget: ToolTarget;
+  logger: Logger;
+}): void {
+  const overrideKey = HOOKS_OVERRIDE_KEY_ALIASES[toolTarget];
+  if (
+    overrideKey === undefined ||
+    !WARN_IGNORED_ALIAS_SOURCE_TARGETS.has(toolTarget) ||
+    !isRecord(config[toolTarget])
+  ) {
+    return;
+  }
+  logger.warn(
+    `The "${toolTarget}.hooks" block in ${RULESYNC_HOOKS_RELATIVE_FILE_PATH} is ignored. Author it under the "${overrideKey}.hooks" key instead (the ${toolTarget} target reads that block).`,
+  );
+}
+
+/**
+ * The hooks that reach the target's file, for the warnings about what in them
+ * the target cannot express. An event the target skips altogether is left out:
+ * it is already reported as skipped and produces no output, so warning about
+ * its hooks again would repeat or contradict that message. Without
+ * `dropsUnknownOverrideEvents` only the shared block's events are skipped, so
+ * an override key of the same name is still emitted and still checked.
+ *
+ * `effective` holds every emitted event with the definitions written for it
+ * (an override key replaces the shared one). `canonical` holds only the
+ * shared block's definitions that are emitted as they are, for the checks of
+ * canonical per-hook fields: a tool-native field inside an override block is
+ * passed through verbatim and honored by that tool.
+ */
+function emittedHooksOf(params: {
   factory: ToolHooksFactory;
   sharedHooks: HooksConfig["hooks"];
-  effectiveHooks: HooksConfig["hooks"];
-  predicate: (def: HookDefinition) => boolean;
-}): string[] {
-  const { factory, sharedHooks, effectiveHooks, predicate } = params;
-  const skippedEvents: Set<string> = new Set(
+  overrideHooks: unknown;
+}): { effective: Record<string, unknown[]>; canonical: HooksConfig["hooks"] } {
+  const { factory, sharedHooks } = params;
+  const overrideHooks = isPlainObject(params.overrideHooks) ? params.overrideHooks : {};
+  const effectiveHooks: Record<string, unknown> = { ...sharedHooks, ...overrideHooks };
+  const skippedEvents: ReadonlySet<string> = new Set(
     unsupportedEventNames({ factory, sharedHooks, effectiveHooks }),
   );
-  return Object.entries(sharedHooks)
-    .filter(([event, defs]) => !skippedEvents.has(event) && defs.some((def) => predicate(def)))
+  const isOverridden = (event: string): boolean => Object.hasOwn(overrideHooks, event);
+  const isEmitted = (event: string): boolean =>
+    !skippedEvents.has(event) || (!factory.dropsUnknownOverrideEvents && isOverridden(event));
+  return {
+    effective: Object.fromEntries(
+      Object.entries(effectiveHooks)
+        .filter(([event, defs]) => isEmitted(event) && Array.isArray(defs))
+        .map(([event, defs]) => [event, defs as unknown[]]),
+    ),
+    canonical: Object.fromEntries(
+      Object.entries(sharedHooks).filter(([event]) => isEmitted(event) && !isOverridden(event)),
+    ),
+  };
+}
+
+/**
+ * Names the events whose emitted canonical definitions include one that
+ * satisfies `predicate` (see {@link emittedHooksOf}).
+ */
+function emittedEventsWithHook(params: {
+  canonicalHooks: HooksConfig["hooks"];
+  predicate: (def: HookDefinition) => boolean;
+}): string[] {
+  const { canonicalHooks, predicate } = params;
+  return Object.entries(canonicalHooks)
+    .filter(([, defs]) => defs.some((def) => predicate(def)))
     .map(([event]) => event);
 }
 
@@ -362,6 +440,50 @@ function converterCapabilities(
     supportedHookTypes: [...config.supportedHookTypes],
     ...(passesThroughEnabled ? { supportsPerHookEnabled: true } : {}),
     ...(passesThroughIf ? { supportsPerHookIf: true } : {}),
+  };
+}
+
+/**
+ * The factory of a Qoder-family hooks target: `qoder` and `qodercn` share the
+ * converter, the event set and the matcher rules, and differ only in the user
+ * settings file their class writes.
+ */
+function qoderHooksFactory(hooksClass: typeof QoderHooks): ToolHooksFactory {
+  return {
+    // Qoder hooks live under the `hooks` key of `.qoder/settings.json`
+    // (project) / `~/.qoder/settings.json` (global) in the Claude-Code shape.
+    // UserPromptSubmit, Stop, CwdChanged, WorktreeCreate/Remove and the
+    // task/teammate events carry no matcher.
+    // https://docs.qoder.com/en/cli/hooks
+    class: hooksClass,
+    meta: {
+      supportsProject: true,
+      supportsGlobal: true,
+      supportsImport: true,
+    },
+    ...converterCapabilities(hooksClass.getConverterConfig()),
+    supportsMatcher: true,
+    matcherEvents: [
+      "sessionStart",
+      "sessionEnd",
+      "preToolUse",
+      "postToolUse",
+      "postToolUseFailure",
+      "stopFailure",
+      "subagentStart",
+      "subagentStop",
+      "preCompact",
+      "postCompact",
+      "notification",
+      "configChange",
+      "instructionsLoaded",
+      "fileChanged",
+      "elicitation",
+      "elicitationResult",
+      "permissionRequest",
+      "permissionDenied",
+      "setup",
+    ],
   };
 }
 
@@ -563,6 +685,23 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
         supportsImport: true,
       },
       ...converterCapabilities(OPENBITFUN_CONVERTER_CONFIG),
+      supportsMatcher: true,
+    },
+  ],
+  [
+    "openhands",
+    {
+      class: OpenhandsHooks,
+      meta: {
+        // `.openhands/hooks.json` in the project root only: OpenHands
+        // documents no user-level hooks file and does not search parent
+        // folders. Only command handlers run.
+        // https://docs.openhands.dev/openhands/usage/customization/hooks
+        supportsProject: true,
+        supportsGlobal: false,
+        supportsImport: true,
+      },
+      ...converterCapabilities(OPENHANDS_CONVERTER_CONFIG),
       supportsMatcher: true,
     },
   ],
@@ -815,6 +954,25 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportsMatcher: true,
       // Hermes-native event names are valid in the target override block and
       // are emitted verbatim after adapter validation.
+    },
+  ],
+  [
+    "jcode",
+    {
+      class: JcodeHooks,
+      // jcode reads hooks only from the `[hooks]` table of the user config
+      // `~/.jcode/config.toml`; there is no project-scoped hooks file.
+      // https://github.com/1jehuang/jcode/blob/master/docs/HOOKS.md
+      meta: { supportsProject: false, supportsGlobal: true, supportsImport: true },
+      supportedEvents: JCODE_HOOK_EVENTS,
+      // Hook commands are split shell-style and executed directly.
+      supportedHookTypes: ["command"],
+      // jcode hooks have no matcher. The adapter widens a matcher-scoped hook
+      // to every tool (with a warning) instead of dropping it, so a `pre_tool`
+      // guard is never lost; reporting it as skipped here would be wrong.
+      supportsMatcher: true,
+      dropsUnknownOverrideEvents: true,
+      overrideOnlyEvents: JCODE_NATIVE_ONLY_HOOK_EVENTS,
     },
   ],
   [
@@ -1210,45 +1368,11 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       // filed there) are emitted verbatim by the adapter.
     },
   ],
-  [
-    "qoder",
-    {
-      // Qoder hooks live under the `hooks` key of `.qoder/settings.json`
-      // (project) / `~/.qoder/settings.json` (global) in the Claude-Code shape.
-      // UserPromptSubmit, Stop, CwdChanged, WorktreeCreate/Remove and the
-      // task/teammate events carry no matcher.
-      // https://docs.qoder.com/en/cli/hooks
-      class: QoderHooks,
-      meta: {
-        supportsProject: true,
-        supportsGlobal: true,
-        supportsImport: true,
-      },
-      ...converterCapabilities(QoderHooks.getConverterConfig()),
-      supportsMatcher: true,
-      matcherEvents: [
-        "sessionStart",
-        "sessionEnd",
-        "preToolUse",
-        "postToolUse",
-        "postToolUseFailure",
-        "stopFailure",
-        "subagentStart",
-        "subagentStop",
-        "preCompact",
-        "postCompact",
-        "notification",
-        "configChange",
-        "instructionsLoaded",
-        "fileChanged",
-        "elicitation",
-        "elicitationResult",
-        "permissionRequest",
-        "permissionDenied",
-        "setup",
-      ],
-    },
-  ],
+  ["qoder", qoderHooksFactory(QoderHooks)],
+  // Qoder CN shares Qoder's project `.qoder/settings.json` and hook shape; the
+  // user file is `~/.qoder-cn/settings.json`.
+  // https://docs.qoder.cn/user-guide/hooks
+  ["qodercn", qoderHooksFactory(QodercnHooks)],
   [
     "qwencode",
     {
@@ -1354,6 +1478,24 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       meta: { supportsProject: true, supportsGlobal: false, supportsImport: true },
       ...converterCapabilities(ZCODE_PLUGIN_CONVERTER_CONFIG),
       supportsMatcher: true,
+    },
+  ],
+  [
+    "zero",
+    {
+      // Zero reads a flat `{ enabled, hooks: [{ id, event, matcher, command,
+      // args, enabled }] }` list from `.zero/hooks.json` and
+      // `<user config dir>/zero/hooks.json`. A matcher is an exact tool or
+      // specialist name or a `*` glob, valid on tool and specialist events.
+      // https://github.com/Twigpine/zero/blob/main/docs/EXTENDING.md
+      class: ZeroHooks,
+      meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+      supportedEvents: ZERO_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
+      supportsMatcher: true,
+      matcherEvents: ZERO_MATCHER_EVENTS,
+      dropsUnknownOverrideEvents: true,
+      supportsPerHookEnabled: true,
     },
   ],
 ]);
@@ -1524,15 +1666,17 @@ export class HooksProcessor extends FeatureProcessor {
     const config = rulesyncHooks.getJson();
     const sharedHooks = config.hooks;
     const overrideKey = HOOKS_OVERRIDE_KEY_ALIASES[this.toolTarget] ?? this.toolTarget;
+    warnIgnoredAliasSourceBlock({ config, toolTarget: this.toolTarget, logger: this.logger });
     const overrideHooks = (config[overrideKey] as { hooks?: unknown } | undefined)?.hooks ?? {};
     const effectiveHooks = { ...sharedHooks, ...overrideHooks };
+    const skippedEvents = unsupportedEventNames({ factory, sharedHooks, effectiveHooks });
+    const emittedHooks = emittedHooksOf({ factory, sharedHooks, overrideHooks });
 
     // Warn about unsupported events
     {
       const optInEvents = factory.overrideOptIn?.events ?? {};
       const isOptIn = (e: string): e is HookEvent => Object.hasOwn(optInEvents, e);
       const overrideKeys = new Set(Object.keys(overrideHooks));
-      const skippedEvents = unsupportedEventNames({ factory, sharedHooks, effectiveHooks });
       const skipped = skippedEvents.filter((e) => !isOptIn(e));
       // A shared-block opt-in event, unless the override already authors it
       // under its native name.
@@ -1564,7 +1708,7 @@ export class HooksProcessor extends FeatureProcessor {
     {
       const supportedHookTypes: Set<string> = new Set(factory.supportedHookTypes);
       const unsupportedTypeToEvents = new Map<string, Set<string>>();
-      for (const [event, defs] of Object.entries(effectiveHooks)) {
+      for (const [event, defs] of Object.entries(emittedHooks.effective)) {
         for (const def of defs as unknown[]) {
           const hookDef = def as { type?: string };
           const hookType = hookDef.type ?? "command";
@@ -1583,10 +1727,13 @@ export class HooksProcessor extends FeatureProcessor {
       }
     }
 
-    this.warnAboutDroppedPerHookFields({ factory, sharedHooks, effectiveHooks });
+    this.warnAboutDroppedPerHookFields({ factory, canonicalHooks: emittedHooks.canonical });
 
     // Warn about unsupported matcher
-    const eventsWithUnsupportedMatcher = unsupportedMatcherEventNames({ factory, effectiveHooks });
+    const eventsWithUnsupportedMatcher = unsupportedMatcherEventNames({
+      factory,
+      effectiveHooks: emittedHooks.effective,
+    });
     if (eventsWithUnsupportedMatcher.length > 0) {
       this.logger.warn(
         `Skipped matcher hook(s) for ${this.toolTarget} (not supported): ${eventsWithUnsupportedMatcher.join(", ")}`,
@@ -1681,10 +1828,9 @@ export class HooksProcessor extends FeatureProcessor {
    */
   private warnAboutDroppedPerHookFields(params: {
     factory: ToolHooksFactory;
-    sharedHooks: HooksConfig["hooks"];
-    effectiveHooks: HooksConfig["hooks"];
+    canonicalHooks: HooksConfig["hooks"];
   }): void {
-    const { factory, sharedHooks, effectiveHooks } = params;
+    const { factory, canonicalHooks } = params;
     // Warn that `enabled: false` cannot be expressed by targets whose hooks
     // format carries no per-definition on-disk enable flag (see
     // `supportsPerHookEnabled`); everywhere else the hook is emitted as an
@@ -1692,9 +1838,7 @@ export class HooksProcessor extends FeatureProcessor {
     // it keep firing with no explanation.
     if (!factory.supportsPerHookEnabled) {
       const eventsWithDisabledHooks = emittedEventsWithHook({
-        factory,
-        sharedHooks,
-        effectiveHooks,
+        canonicalHooks,
         predicate: (def) => def.enabled === false,
       });
       if (eventsWithDisabledHooks.length > 0) {
@@ -1709,9 +1853,7 @@ export class HooksProcessor extends FeatureProcessor {
     // unconditionally with no explanation.
     if (!factory.supportsPerHookConfirm) {
       const eventsWithConfirmHooks = emittedEventsWithHook({
-        factory,
-        sharedHooks,
-        effectiveHooks,
+        canonicalHooks,
         predicate: (def) => def.confirm !== undefined,
       });
       if (eventsWithConfirmHooks.length > 0) {

@@ -56,7 +56,7 @@ Every feature can be generated and imported in global mode — `rules`, `ignore`
 
 ## Installing skills from external sources
 
-[Declarative sources](./declarative-sources.md) work in global mode too. Declare them in the global directory's `rulesync.jsonc`, run `rulesync install` there to fetch them into `.rulesync/skills/.curated/` (and `.rulesync/rules/.curated/` for rules), and `rulesync generate` writes them to the user-scope skill directories of every selected target:
+[Declarative sources](./declarative-sources.md) work in global mode too. Declare them in the global directory's `rulesync.jsonc`, run `rulesync install` there to fetch them into `.rulesync/skills/.curated/` (and `.rulesync/rules/.curated/`, `.rulesync/commands/.curated/` and `.rulesync/subagents/.curated/` for rules, commands and subagents), and `rulesync generate` writes them to the user-scope directories of every selected target:
 
 ```jsonc
 // ~/.aiglobal/rulesync.jsonc

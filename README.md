@@ -101,6 +101,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | Crush                     |  ✅   |   ✅   | ✅  |          |           |   ✅   |  ✅   |     ✅      |        |
 | Goose                     |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |   ✅   |
 | Hermes Agent              |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |   ✅   |
+| jcode                     |  ✅   |        | ✅  |          |           |   ✅   |  ✅   |             |        |
 | Grok CLI                  |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Cursor                    |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |   ✅   |
 | deepagents-cli            |  ✅   |        | ✅  |          |    ✅     |   ✅   |  ✅   |     ✅      |        |
@@ -110,8 +111,10 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | OpenCode V1               |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | OpenClaw                  |  ✅   |        | ✅  |          |           |   ✅   |       |             |        |
 | OpenBitFun                |       |        |     |          |    ✅     |   ✅   |  ✅   |             |        |
+| OpenHands                 |       |        | ✅  |          |           |        |  ✅   |             |        |
 | MiMo Code                 |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
-| GitLab Duo CLI            |  ✅   |        | ✅  |    ✅    |           |   ✅   |  ✅   |     ✅      |   ✅   |
+| GitLab Duo CLI            |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |   ✅   |
+| bb                        |  ✅   |        |     |          |           |   ✅   |       |             |        |
 | Cline                     |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Kilo Code                 |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |   ✅   |
 | Kimi Code                 |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
@@ -120,13 +123,15 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | Zoo Code                  |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |       |     ✅      |        |
 | Rovodev (Atlassian) ⚠️    |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |       |     ✅      |   ✅   |
 | Takt                      |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |       |     ✅      |   ✅   |
-| Trae                      |  ✅   |   ✅   | ✅  |    ✅    |           |   ✅   |  ✅   |     ✅      |        |
+| Theia AI                  |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |       |             |        |
+| Trae                      |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Tabnine CLI ⚠️            |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Continue ⚠️               |  ✅   |   ✅   | ✅  |    ✅    |           |   ✅   |  ✅   |     ✅      |        |
 | Snowflake Cortex Code     |  ✅   |        | ✅  |          |    ✅     |   ✅   |  ✅   |             |        |
 | Vibe Code                 |  ✅   |   ✅   | ✅  |          |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Vibe Code plugin          |       |        | ✅  |          |    ✅     |   ✅   |  ✅   |             |        |
 | Qoder                     |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
+| Qoder CN                  |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Qwen Code                 |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |   ✅   |
 | Meta Muse Code            |  ✅   |        | ✅  |          |    ✅     |   ✅   |       |             |        |
 | Reasonix                  |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
@@ -151,11 +156,14 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | Replit                    |  ✅   |        |     |          |           |   ✅   |       |             |        |
 | Pi Coding Agent           |  ✅   |        | ✅  |    ✅    |           |   ✅   |  ✅   |     ✅      |        |
 | oh-my-pi                  |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
+| Gajae-Code                |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |       |             |        |
 | Zed                       |  ✅   |   ✅   | ✅  |          |           |   ✅   |       |     ✅      |        |
 | ZCode (Z.ai)              |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |             |        |
 | ZCode plugin              |       |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |             |        |
+| Zero                      |  ✅   |        | ✅  |          |    ✅     |   ✅   |  ✅   |             |        |
 | Pool (Poolside)           |  ✅   |        | ✅  |          |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | DeepSeek Harness          |  ✅   |        | ✅  |          |           |   ✅   |       |             |        |
+| DeepCode                  |  ✅   |        | ✅  |          |    ✅     |   ✅   |       |     ✅      |        |
 
 <!-- SUPPORTED_TOOLS_AI:END -->
 

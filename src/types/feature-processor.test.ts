@@ -6,7 +6,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 import { RULESYNC_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { createMockLogger } from "../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
-import { readFileContentOrNull, removeFile, writeFileContent } from "../utils/file.js";
+import {
+  readFileContentOrNull,
+  removeFile,
+  removeFileWithoutFollowingSymlinks,
+  writeFileContent,
+} from "../utils/file.js";
 import { AiFile } from "./ai-file.js";
 import {
   ClaimedIdentities,
@@ -27,6 +32,7 @@ vi.mock("../utils/file.js", async () => {
     ...actual,
     readFileContentOrNull: vi.fn().mockResolvedValue(null),
     removeFile: vi.fn(),
+    removeFileWithoutFollowingSymlinks: vi.fn(),
     writeFileContent: vi.fn(),
   };
 });
@@ -39,7 +45,17 @@ vi.mock("../utils/file.js", async () => {
  */
 function createMockFile(
   filePath: string,
-  { fileContent = "content", outputRoot = "/" }: { fileContent?: string; outputRoot?: string } = {},
+  {
+    fileContent = "content",
+    outputRoot = "/",
+    removeWhenEmpty = false,
+    removalRefusal,
+  }: {
+    fileContent?: string;
+    outputRoot?: string;
+    removeWhenEmpty?: boolean;
+    removalRefusal?: string;
+  } = {},
 ): AiFile {
   const file = {
     getFilePath: () => filePath,
@@ -50,6 +66,8 @@ function createMockFile(
     shouldMergeExistingFileContent: () => false,
     shouldSkipCreationWhenPayloadEmpty: () =>
       AiFile.prototype.shouldSkipCreationWhenPayloadEmpty.call(file),
+    shouldRemoveWhenPayloadEmpty: () => removeWhenEmpty,
+    describeRemovalRefusal: () => removalRefusal,
   } as AiFile;
   return file;
 }
@@ -439,6 +457,77 @@ describe("FeatureProcessor", () => {
   });
 
   describe("writeAiFiles", () => {
+    it("should remove an existing file that opts in when its payload is empty", async () => {
+      vi.mocked(readFileContentOrNull).mockResolvedValue('{"stop":[]}');
+      const processor = new TestProcessor({ logger: createMockLogger(), outputRoot: testDir });
+
+      const result = await processor.writeAiFiles([
+        createMockFile("/path/to/hooks.json", { fileContent: "{}", removeWhenEmpty: true }),
+      ]);
+
+      expect(result).toEqual({ count: 1, paths: ["/path/to/hooks.json"] });
+      expect(removeFileWithoutFollowingSymlinks).toHaveBeenCalledWith({
+        rootPath: "/",
+        targetPath: "/path/to/hooks.json",
+      });
+      expect(removeFile).not.toHaveBeenCalled();
+      expect(writeFileContent).not.toHaveBeenCalled();
+    });
+
+    it("should warn and not count an empty-payload removal that fails", async () => {
+      vi.mocked(readFileContentOrNull).mockResolvedValue('{"stop":[]}');
+      vi.mocked(removeFileWithoutFollowingSymlinks).mockRejectedValueOnce(
+        new Error("symbolic link below root"),
+      );
+      const logger = createMockLogger();
+      const processor = new TestProcessor({ logger, outputRoot: testDir });
+
+      const result = await processor.writeAiFiles([
+        createMockFile("/path/to/hooks.json", { fileContent: "{}", removeWhenEmpty: true }),
+      ]);
+
+      expect(result).toEqual({ count: 0, paths: [] });
+      expect(writeFileContent).not.toHaveBeenCalled();
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("symbolic link below root"));
+    });
+
+    it("should warn and leave a file that refuses removal untouched", async () => {
+      vi.mocked(readFileContentOrNull).mockResolvedValue('{"stop":[]}');
+      const logger = createMockLogger();
+      const processor = new TestProcessor({ logger, outputRoot: testDir });
+
+      const result = await processor.writeAiFiles([
+        createMockFile("/path/to/hooks.json", {
+          fileContent: "{}",
+          removeWhenEmpty: true,
+          removalRefusal: "it is the user file",
+        }),
+      ]);
+
+      expect(result).toEqual({ count: 0, paths: [] });
+      expect(removeFileWithoutFollowingSymlinks).not.toHaveBeenCalled();
+      expect(writeFileContent).not.toHaveBeenCalled();
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("it is the user file"));
+    });
+
+    it("should not create an opted-in file whose payload is empty, nor remove on a dry run", async () => {
+      vi.mocked(readFileContentOrNull).mockResolvedValueOnce(null).mockResolvedValueOnce("{}");
+      const processor = new TestProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        dryRun: true,
+      });
+
+      const result = await processor.writeAiFiles([
+        createMockFile("/path/to/new.json", { fileContent: "{}", removeWhenEmpty: true }),
+        createMockFile("/path/to/old.json", { fileContent: "{}", removeWhenEmpty: true }),
+      ]);
+
+      expect(result).toEqual({ count: 1, paths: ["/path/to/old.json"] });
+      expect(removeFileWithoutFollowingSymlinks).not.toHaveBeenCalled();
+      expect(writeFileContent).not.toHaveBeenCalled();
+    });
+
     it("should write all files and return count when files are new", async () => {
       vi.mocked(readFileContentOrNull).mockResolvedValue(null);
       const processor = new TestProcessor({ logger: createMockLogger(), outputRoot: testDir });

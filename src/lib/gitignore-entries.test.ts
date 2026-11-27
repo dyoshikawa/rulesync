@@ -126,6 +126,10 @@ describe("registry derivation", () => {
       // ZCode user config: emitted in GLOBAL scope only (project scope writes
       // `.zcode/config.json` instead), so project derivation never yields it.
       "**/.zcode/cli/config.json",
+      // Qoder CN user settings: emitted in GLOBAL scope only (project scope
+      // writes Qoder's `.qoder/settings.json`), kept listed so a global generate
+      // with nothing to contribute does not create `{}` in the home directory.
+      "**/.qoder-cn/settings.json",
       // Pool user settings: emitted in GLOBAL scope only (project scope writes
       // `.poolside/settings.yaml` instead), so project derivation never yields
       // it. It stays listed as a shared user-managed config so a global
@@ -161,6 +165,11 @@ describe("registry derivation", () => {
       // scope writes the project-root `firebender.json` instead), so project
       // derivation never yields it.
       "**/.firebender/firebender.json",
+      // Zero user config and hooks: emitted in GLOBAL scope only (project
+      // scope writes `.zero/config.json` and `.zero/hooks.json` instead), so
+      // project derivation never yields them.
+      "**/.config/zero/config.json",
+      "**/.config/zero/hooks.json",
     ]);
     const rawEntries = new Set(deriveAllGitignoreEntriesUnfiltered().map((tag) => tag.entry));
     const stale = [...DERIVED_PATHS_NOT_GITIGNORED].filter(
@@ -645,6 +654,7 @@ describe("committedOutput check outputs", () => {
     // Its checks file is committed too, so only the shared `.agents/` trees and
     // its local-only files remain.
     expect(entries.toSorted()).toEqual([
+      "**/.agents/agents/",
       "**/.agents/commands/",
       "**/.agents/skills/",
       "**/.gitlab/duo/chat-rules.md",

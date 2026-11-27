@@ -199,6 +199,10 @@ describe("shared-file write derivation", () => {
           "mcp",
           "permissions",
         ],
+        ".deepcode/deepcode_config.json": [
+          "mcp",
+          "permissions",
+        ],
         ".firebender/firebender.json": [
           "ignore",
           "mcp",
@@ -243,6 +247,11 @@ describe("shared-file write derivation", () => {
           "mcp",
           "permissions",
           "subagents",
+        ],
+        ".qoder-cn/settings.json": [
+          "hooks",
+          "mcp",
+          "permissions",
         ],
         ".qoder/settings.json": [
           "hooks",
@@ -316,6 +325,10 @@ describe("shared-file write derivation", () => {
         ],
         "crush.json": [
           "hooks",
+          "mcp",
+          "permissions",
+        ],
+        "deepcode_config.json": [
           "mcp",
           "permissions",
         ],

@@ -576,7 +576,10 @@ Review the current changes.
     });
     expect(JSON.parse(await readFileContent(join(pluginRoot, "hooks.json")))).toEqual({
       PreToolUse: [
-        { matcher: "exec", hooks: [{ type: "command", command: "./scripts/audit.sh" }] },
+        {
+          matcher: "exec",
+          hooks: [{ type: "command", command: '"$DEVIN_PLUGIN_ROOT"/scripts/audit.sh' }],
+        },
       ],
     });
     expect(await fileExists(join(testDir, ".devin"))).toBe(false);

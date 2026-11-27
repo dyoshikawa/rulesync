@@ -25,7 +25,7 @@ import { mcpCommand } from "./commands/mcp.js";
 import { updateCommand, UpdateCommandOptions } from "./commands/update.js";
 import { wrapCommand as _wrapCommand } from "./wrap-command.js";
 
-const getVersion = () => "43.15.0";
+const getVersion = () => "43.16.0";
 const FEATURES_HELP = `${ALL_FEATURES.join(",")}; ignore is deprecated, use permissions`;
 
 function wrapCommand(
@@ -108,16 +108,28 @@ export function createProgram(): Command {
   program
     .command("add <source>")
     .description(
-      "Add a Rulesync feature file (ignore is deprecated; use permissions) or install a declarative rule or skill source",
+      "Add a Rulesync feature file (ignore is deprecated; use permissions) or install a declarative rule, skill, command, or subagent source",
     )
     .option("--name <name>", "Name for a rule, command, subagent, skill, or check scaffold")
     .option("-f, --force", "Overwrite an existing scaffold file without prompting")
     .option("--skills <skills>", "Comma-separated skill names to install", parseCommaSeparatedList)
     .option("--rules <rules>", "Comma-separated rule names to install", parseCommaSeparatedList)
+    .option(
+      "--commands <commands>",
+      "Comma-separated command names to install",
+      parseCommaSeparatedList,
+    )
+    .option(
+      "--subagents <subagents>",
+      "Comma-separated subagent names to install",
+      parseCommaSeparatedList,
+    )
     .option("--transport <transport>", "Source transport: github, git, or npm")
     .option("-r, --ref <ref>", "Git ref, npm version, or npm dist-tag")
     .option("-p, --path <path>", "Skills path within the source")
     .option("--rules-path <path>", "Rules path within the source")
+    .option("--commands-path <path>", "Commands path within the source")
+    .option("--subagents-path <path>", "Subagents path within the source")
     .option("--registry <url>", "npm-compatible registry URL")
     .option(
       "--token-env <name>",

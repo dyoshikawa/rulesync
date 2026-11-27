@@ -118,9 +118,9 @@ export type FactorydroidRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal;
  * and optional `factorydroid.name` as the style's `name` / `description`
  * frontmatter. Factory documents the same directory under the home directory
  * (`~/.factory/output-styles/`), so this channel works at both scopes.
- * @see https://docs.factory.ai/harness/agents-md
- * @see https://docs.factory.ai/software-factory/security-review
- * @see https://docs.factory.ai/droid-cli/output-styles
+ * @see https://docs.factory.com/harness/agents-md
+ * @see https://docs.factory.com/automations/security-review
+ * @see https://docs.factory.com/droid-cli/output-styles
  */
 export class FactorydroidRule extends ToolRule {
   private readonly channel: FactorydroidRuleChannel | undefined;
@@ -272,7 +272,7 @@ export class FactorydroidRule extends ToolRule {
   static getRuleOptionWarnings(rules: RulesyncRule[]): string[] {
     return getOutputStyleRuleOptionWarnings({
       rules,
-      toolTarget: "factorydroid",
+      sectionKey: "factorydroid",
       isTargetedByRulesyncRule: (rule) => this.isTargetedByRulesyncRule(rule),
     });
   }

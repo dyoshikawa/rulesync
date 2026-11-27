@@ -788,7 +788,8 @@ const OPENCODE_V1_TO_V2_PERMISSION_ACTIONS: Record<string, string> = {
   apply_patch: "edit",
 };
 
-function toOpencodeV2PermissionAction(v1Key: string): string {
+/** The OpenCode V2 `action` a V1 permission key is written as. */
+export function toOpencodeV2PermissionAction(v1Key: string): string {
   return Object.hasOwn(OPENCODE_V1_TO_V2_PERMISSION_ACTIONS, v1Key)
     ? OPENCODE_V1_TO_V2_PERMISSION_ACTIONS[v1Key]!
     : v1Key;

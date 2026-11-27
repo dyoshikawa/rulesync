@@ -336,16 +336,31 @@ describe("HermesagentCommand", () => {
   describe("removeOrphanAiFiles", () => {
     const enabledConfig = "plugins:\n  enabled:\n    - existing-plugin\n    - rulesync-commands\n";
 
-    async function sweepCommandsPlugin({ outputRoot }: { outputRoot: string }) {
+    async function sweepCommandsPlugin({
+      outputRoot,
+      dryRun = false,
+    }: {
+      outputRoot: string;
+      dryRun?: boolean;
+    }) {
       const processor = new CommandsProcessor({
         outputRoot,
         inputRoots: [join(outputRoot, RULESYNC_RELATIVE_DIR_PATH)],
         toolTarget: "hermesagent",
+        dryRun,
         logger: createMockLogger(),
       });
       const existingFiles = await processor.loadToolFiles({ forDeletion: true });
       await processor.removeOrphanAiFiles(existingFiles, []);
+      return processor.getSweepWrites();
     }
+
+    // The config rewrite is part of the mutation plan, listed under `commands`
+    // with the `plugins` key it changes — identically in a dry run.
+    const expectedSweepWrites = {
+      paths: [".hermes/config.yaml"],
+      keyOperations: [{ action: "write", path: ".hermes/config.yaml", key: "plugins" }],
+    };
 
     it("disables the commands plugin once its ownership marker is swept", async () => {
       const markerPath = join(
@@ -360,11 +375,25 @@ describe("HermesagentCommand", () => {
       await writeFile(markerPath, "Generated and owned by RuleSync.\n", "utf8");
       await writeFile(configPath, enabledConfig, "utf8");
 
-      await sweepCommandsPlugin({ outputRoot: testDir });
+      expect(await sweepCommandsPlugin({ outputRoot: testDir })).toEqual(expectedSweepWrites);
 
       const config = await readFile(configPath, "utf8");
       expect(config).toContain("- existing-plugin");
       expect(config).not.toContain("- rulesync-commands");
+    });
+
+    it("reports the same config rewrite under --dry-run without writing it", async () => {
+      const markerDir = join(testDir, ".hermes", "plugins", "rulesync-commands");
+      const configPath = join(testDir, ".hermes", "config.yaml");
+      await mkdir(markerDir, { recursive: true });
+      await writeFile(join(markerDir, ".rulesync-owned"), "Generated and owned by RuleSync.\n");
+      await writeFile(configPath, enabledConfig, "utf8");
+
+      expect(await sweepCommandsPlugin({ outputRoot: testDir, dryRun: true })).toEqual(
+        expectedSweepWrites,
+      );
+
+      expect(await readFile(configPath, "utf8")).toBe(enabledConfig);
     });
 
     it.skipIf(process.platform === "win32")(
@@ -383,7 +412,10 @@ describe("HermesagentCommand", () => {
         await symlink(outsideDir, join(outputRoot, ".hermes", "plugins", "rulesync-commands"));
         await writeFile(configPath, enabledConfig, "utf8");
 
-        await sweepCommandsPlugin({ outputRoot });
+        expect(await sweepCommandsPlugin({ outputRoot })).toEqual({
+          paths: [],
+          keyOperations: [],
+        });
 
         expect(await readFile(markerPath, "utf8")).toContain("owned by RuleSync");
         expect(await readFile(configPath, "utf8")).toBe(enabledConfig);

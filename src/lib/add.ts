@@ -12,8 +12,10 @@ import {
   SourceEntrySchema,
 } from "../config/config.js";
 import {
+  RULESYNC_CURATED_COMMANDS_RELATIVE_DIR_PATH,
   RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH,
   RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH,
+  RULESYNC_CURATED_SUBAGENTS_RELATIVE_DIR_PATH,
   RULESYNC_CONFIG_RELATIVE_FILE_PATH,
   RULESYNC_LOCAL_CONFIG_RELATIVE_FILE_PATH,
   RULESYNC_NPM_SOURCES_LOCK_RELATIVE_FILE_PATH,
@@ -36,9 +38,10 @@ import type { Logger } from "../utils/logger.js";
 import { createFeatureScaffold, parseScaffoldFeatureKeyword } from "./feature-scaffold.js";
 import { ALLOWED_NPM_TOKEN_ENV_NAMES_HINT, isAllowedNpmTokenEnvName } from "./npm-client.js";
 import { normalizeNpmSourceKey } from "./npm-sources-lock.js";
+import { formatInstalledCounts } from "./sources-artifacts.js";
 import { normalizeSourceKey } from "./sources-lock.js";
 import {
-  getInstalledSourceRuleNames,
+  getInstalledSourceFileNames,
   getInstalledSourceSkillNames,
   resolveAndFetchSources,
 } from "./sources.js";
@@ -47,10 +50,14 @@ export type AddCommandOptions = {
   source: string;
   skills?: string[];
   rules?: string[];
+  commands?: string[];
+  subagents?: string[];
   transport?: SourceEntry["transport"];
   ref?: string;
   path?: string;
   rulesPath?: string;
+  commandsPath?: string;
+  subagentsPath?: string;
   registry?: string;
   tokenEnv?: string;
   token?: string;
@@ -66,20 +73,39 @@ const SOURCE_ENTRY_KEYS = [
   "source",
   "skills",
   "rules",
+  "commands",
+  "subagents",
   "transport",
   "ref",
   "path",
   "rulesPath",
+  "commandsPath",
+  "subagentsPath",
   "registry",
   "tokenEnv",
   "agent",
   "scope",
 ] as const satisfies ReadonlyArray<keyof SourceEntry>;
 
+/**
+ * The directories a source install writes fetched files into, with the name
+ * each is backed up under. Listed here rather than taken from `sources.ts`,
+ * which the tests replace wholesale.
+ */
+const CURATED_DIRS = [
+  { relativeDirPath: RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH, backupName: "curated-skills" },
+  { relativeDirPath: RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH, backupName: "curated-rules" },
+  { relativeDirPath: RULESYNC_CURATED_COMMANDS_RELATIVE_DIR_PATH, backupName: "curated-commands" },
+  {
+    relativeDirPath: RULESYNC_CURATED_SUBAGENTS_RELATIVE_DIR_PATH,
+    backupName: "curated-subagents",
+  },
+] as const;
+
 type InstallSnapshot = {
   backupRoot: string;
-  curatedSkillsExisted: boolean;
-  curatedRulesExisted: boolean;
+  /** The backup names of the curated directories that existed. */
+  existingCuratedDirs: string[];
   sourcesLockContent: string | null;
   npmSourcesLockContent: string | null;
 };
@@ -104,15 +130,13 @@ async function createInstallSnapshot({
   manifestContent: string;
 }): Promise<InstallSnapshot> {
   const backupRoot = await mkdtemp(join(projectRoot, ".rulesync-add-backup-"));
-  const curatedSkillsPath = join(projectRoot, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
-  const curatedRulesPath = join(projectRoot, RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH);
-  const curatedSkillsExisted = await directoryExists(curatedSkillsPath);
-  const curatedRulesExisted = await directoryExists(curatedRulesPath);
-  if (curatedSkillsExisted) {
-    await cp(curatedSkillsPath, join(backupRoot, "curated-skills"), { recursive: true });
-  }
-  if (curatedRulesExisted) {
-    await cp(curatedRulesPath, join(backupRoot, "curated-rules"), { recursive: true });
+  const existingCuratedDirs: string[] = [];
+  for (const { relativeDirPath, backupName } of CURATED_DIRS) {
+    const curatedPath = join(projectRoot, relativeDirPath);
+    if (await directoryExists(curatedPath)) {
+      await cp(curatedPath, join(backupRoot, backupName), { recursive: true });
+      existingCuratedDirs.push(backupName);
+    }
   }
   const sourcesLockContent = await readFileContentOrNull(
     join(projectRoot, RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH),
@@ -135,8 +159,7 @@ async function createInstallSnapshot({
   }
   return {
     backupRoot,
-    curatedSkillsExisted,
-    curatedRulesExisted,
+    existingCuratedDirs,
     sourcesLockContent,
     npmSourcesLockContent,
   };
@@ -157,17 +180,17 @@ async function restoreInstallSnapshot({
   projectRoot: string;
   snapshot: InstallSnapshot;
 }): Promise<void> {
-  const curatedSkillsPath = join(projectRoot, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
-  const curatedRulesPath = join(projectRoot, RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH);
-  await Promise.all([
-    rm(curatedSkillsPath, { recursive: true, force: true }),
-    rm(curatedRulesPath, { recursive: true, force: true }),
-  ]);
-  if (snapshot.curatedSkillsExisted) {
-    await cp(join(snapshot.backupRoot, "curated-skills"), curatedSkillsPath, { recursive: true });
-  }
-  if (snapshot.curatedRulesExisted) {
-    await cp(join(snapshot.backupRoot, "curated-rules"), curatedRulesPath, { recursive: true });
+  await Promise.all(
+    CURATED_DIRS.map(({ relativeDirPath }) =>
+      rm(join(projectRoot, relativeDirPath), { recursive: true, force: true }),
+    ),
+  );
+  for (const { relativeDirPath, backupName } of CURATED_DIRS) {
+    if (snapshot.existingCuratedDirs.includes(backupName)) {
+      await cp(join(snapshot.backupRoot, backupName), join(projectRoot, relativeDirPath), {
+        recursive: true,
+      });
+    }
   }
   await restoreFile({
     path: join(projectRoot, RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH),
@@ -241,23 +264,48 @@ function buildSourceEntry(options: AddCommandOptions): SourceEntry {
     source: options.source,
     skills: options.skills,
     rules: options.rules,
+    commands: options.commands,
+    subagents: options.subagents,
     transport: options.transport,
     ref: options.ref,
     path: options.path,
     rulesPath: options.rulesPath,
+    commandsPath: options.commandsPath,
+    subagentsPath: options.subagentsPath,
     registry: options.registry,
     tokenEnv: options.tokenEnv,
   });
+}
+
+/**
+ * Which features the added source must resolve to at least one item of: each
+ * one it selects, and every skill when it selects nothing at all.
+ */
+function getRequiredResolutions(sourceEntry: SourceEntry) {
+  const selectsOtherFeature =
+    sourceEntry.rules !== undefined ||
+    sourceEntry.commands !== undefined ||
+    sourceEntry.subagents !== undefined;
+  return {
+    requireResolvedSkills: sourceEntry.skills !== undefined || !selectsOtherFeature,
+    requireResolvedRules: sourceEntry.rules !== undefined,
+    requireResolvedCommands: sourceEntry.commands !== undefined,
+    requireResolvedSubagents: sourceEntry.subagents !== undefined,
+  };
 }
 
 function hasSourceOnlyOptions(options: AddCommandOptions): boolean {
   return [
     options.skills,
     options.rules,
+    options.commands,
+    options.subagents,
     options.transport,
     options.ref,
     options.path,
     options.rulesPath,
+    options.commandsPath,
+    options.subagentsPath,
     options.registry,
     options.tokenEnv,
     options.token,
@@ -385,11 +433,13 @@ export async function addCommand(logger: Logger, options: AddCommandOptions): Pr
   }
 
   const sourceEntry = buildSourceEntry(options);
-  const curatedSkillsPath = join(projectRoot, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
-  const curatedRulesPath = join(projectRoot, RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH);
+  const curatedPaths = CURATED_DIRS.map(({ relativeDirPath }) =>
+    join(projectRoot, relativeDirPath),
+  );
   await Promise.all([
-    assertWritablePathInsideRoot({ rootPath: projectRoot, targetPath: curatedSkillsPath }),
-    assertWritablePathInsideRoot({ rootPath: projectRoot, targetPath: curatedRulesPath }),
+    ...curatedPaths.map((targetPath) =>
+      assertWritablePathInsideRoot({ rootPath: projectRoot, targetPath }),
+    ),
     assertWritablePathInsideRoot({
       rootPath: projectRoot,
       targetPath: join(projectRoot, RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH),
@@ -399,15 +449,11 @@ export async function addCommand(logger: Logger, options: AddCommandOptions): Pr
       targetPath: join(projectRoot, RULESYNC_NPM_SOURCES_LOCK_RELATIVE_FILE_PATH),
     }),
   ]);
-  await Promise.all([
-    assertDirectoryIfExists(curatedSkillsPath),
-    assertDirectoryIfExists(curatedRulesPath),
-  ]);
-  if (await directoryExists(curatedSkillsPath)) {
-    await assertTreeContainsNoSymlinks(curatedSkillsPath);
-  }
-  if (await directoryExists(curatedRulesPath)) {
-    await assertTreeContainsNoSymlinks(curatedRulesPath);
+  await Promise.all(curatedPaths.map((curatedPath) => assertDirectoryIfExists(curatedPath)));
+  for (const curatedPath of curatedPaths) {
+    if (await directoryExists(curatedPath)) {
+      await assertTreeContainsNoSymlinks(curatedPath);
+    }
   }
   const originalContent = await readFileContent(configPath);
   const parsedConfig = parseConfigContent(originalContent, relativeConfigPath);
@@ -438,11 +484,16 @@ export async function addCommand(logger: Logger, options: AddCommandOptions): Pr
     projectRoot,
     logger,
   });
-  const reservedRuleNames = await getInstalledSourceRuleNames({
-    sources: configBeforeEdit.getSources(),
-    projectRoot,
-    logger,
-  });
+  const [reservedRuleNames, reservedCommandNames, reservedSubagentNames] = await Promise.all(
+    (["rules", "commands", "subagents"] as const).map((feature) =>
+      getInstalledSourceFileNames({
+        sources: configBeforeEdit.getSources(),
+        projectRoot,
+        feature,
+        logger,
+      }),
+    ),
+  );
 
   const editPath =
     parsedConfig.sources === undefined ? ["sources"] : ["sources", existingSources.length];
@@ -482,10 +533,11 @@ export async function addCommand(logger: Logger, options: AddCommandOptions): Pr
         token: options.token,
         updateSources: true,
         preserveUnlistedLockEntries: true,
-        requireResolvedSkills: sourceEntry.skills !== undefined || sourceEntry.rules === undefined,
-        requireResolvedRules: sourceEntry.rules !== undefined,
+        ...getRequiredResolutions(sourceEntry),
         reservedSkillNames,
         reservedRuleNames,
+        reservedCommandNames,
+        reservedSubagentNames,
       },
       logger,
     });
@@ -496,6 +548,8 @@ export async function addCommand(logger: Logger, options: AddCommandOptions): Pr
       logger.captureData("sourcesProcessed", result.sourcesProcessed);
       logger.captureData("skillsFetched", result.fetchedSkillCount);
       logger.captureData("rulesFetched", result.fetchedRuleCount);
+      logger.captureData("commandsFetched", result.fetchedCommandCount);
+      logger.captureData("subagentsFetched", result.fetchedSubagentCount);
       logger.captureData("failedSourceCount", result.failedSourceCount);
     }
 
@@ -506,7 +560,7 @@ export async function addCommand(logger: Logger, options: AddCommandOptions): Pr
     }
 
     logger.success(
-      `Added "${sourceEntry.source}" to ${relativeConfigPath} and installed ${result.fetchedSkillCount} skill(s) and ${result.fetchedRuleCount} rule(s).`,
+      `Added "${sourceEntry.source}" to ${relativeConfigPath} and installed ${formatInstalledCounts(result)}.`,
     );
   } catch (error) {
     try {

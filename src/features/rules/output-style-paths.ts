@@ -1,13 +1,14 @@
 import { basename, extname } from "node:path";
 
 import { TOOL_DISPLAY } from "../../types/tool-display.js";
+import type { ToolTarget } from "../../types/tool-targets.js";
 import { stripControlCharacters } from "../../utils/control-characters.js";
 import type { RulesyncRule } from "./rulesync-rule.js";
 
 /**
  * Shared helpers for tool rule adapters that write opted-in rules as custom
- * output styles (`<tool dir>/output-styles/<name>.md`), e.g. Qoder and
- * Factory Droid. Both tools read only the direct `.md` children of their
+ * output styles (`<tool dir>/output-styles/<name>.md`), e.g. Qoder, Factory
+ * Droid and Qwen Code. The tools read only the direct `.md` children of their
  * output-styles directory, with optional `name` / `description` frontmatter.
  */
 
@@ -80,7 +81,7 @@ export function buildOutputStyleFrontmatter({
 }
 
 /**
- * Warnings about `factorydroid` / `qoder` frontmatter that does not do what it
+ * Warnings about `factorydroid` / `qoder` / `qwencode` frontmatter that does not do what it
  * looks like it does: an `output-style` rule that also targets other tools
  * reaches them as an ordinary rule (so presentation instructions end up in
  * their project rules), and `<tool>.name` is read only with
@@ -89,32 +90,43 @@ export function buildOutputStyleFrontmatter({
  */
 export function getOutputStyleRuleOptionWarnings({
   rules,
-  toolTarget,
+  sectionKey,
+  toolTarget = sectionKey,
+  outputStyleTargets = [toolTarget],
   isTargetedByRulesyncRule,
 }: {
   rules: RulesyncRule[];
-  toolTarget: "factorydroid" | "qoder";
+  /** The frontmatter section holding `channel` / `name`. */
+  sectionKey: "factorydroid" | "qoder" | "qwencode";
+  /** The target being generated (defaults to `sectionKey`). */
+  toolTarget?: ToolTarget;
+  /**
+   * Targets that write the rule as the same output style (defaults to
+   * `toolTarget` alone); targeting any other tool triggers the warning.
+   */
+  outputStyleTargets?: readonly ToolTarget[];
   isTargetedByRulesyncRule: (rule: RulesyncRule) => boolean;
 }): string[] {
   const toolLabel = TOOL_DISPLAY.find((entry) => entry.key === toolTarget)?.label ?? toolTarget;
+  const allowedTargets = new Set<string>(outputStyleTargets);
   const warnings: string[] = [];
   for (const rule of rules) {
     const frontmatter = rule.getFrontmatter();
-    const section = frontmatter[toolTarget];
+    const section = frontmatter[sectionKey];
     if (frontmatter.root || !section || !isTargetedByRulesyncRule(rule)) {
       continue;
     }
     const { channel, name } = section;
     const fileName = stripControlCharacters(rule.getRelativeFilePath());
     const targets = frontmatter.targets ?? ["*"];
-    if (channel === "output-style" && targets.some((target) => target !== toolTarget)) {
+    if (channel === "output-style" && targets.some((target) => !allowedTargets.has(target))) {
       warnings.push(
-        `${fileName} sets ${toolTarget}.channel: output-style but also targets other tools, which receive it as an ordinary rule. Set \`targets: ["${toolTarget}"]\` to keep the output style to ${toolLabel}.`,
+        `${fileName} sets ${sectionKey}.channel: output-style but also targets other tools, which receive it as an ordinary rule. Set \`targets: ["${toolTarget}"]\` to keep the output style to ${toolLabel}.`,
       );
     }
     if (channel !== "output-style" && name !== undefined) {
       warnings.push(
-        `${fileName} sets ${toolTarget}.name, which is read only with ${toolTarget}.channel: output-style; ignoring it.`,
+        `${fileName} sets ${sectionKey}.name, which is read only with ${sectionKey}.channel: output-style; ignoring it.`,
       );
     }
   }

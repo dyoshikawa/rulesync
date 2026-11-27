@@ -32,7 +32,7 @@ import { ensureDir, fileExists, readFileContent, writeFileContent } from "../uti
 import { addCommand } from "./add.js";
 import { ALLOWED_NPM_TOKEN_ENV_NAMES_HINT } from "./npm-client.js";
 import {
-  getInstalledSourceRuleNames,
+  getInstalledSourceFileNames,
   getInstalledSourceSkillNames,
   resolveAndFetchSources,
 } from "./sources.js";
@@ -50,11 +50,15 @@ describe("addCommand", () => {
     vi.spyOn(process, "cwd").mockReturnValue(testDir);
     logger = createMockLogger();
     vi.mocked(getInstalledSourceSkillNames).mockResolvedValue([]);
-    vi.mocked(getInstalledSourceRuleNames).mockResolvedValue([]);
+    vi.mocked(getInstalledSourceFileNames).mockResolvedValue([]);
     vi.mocked(resolveAndFetchSources).mockResolvedValue({
       fetchedSkillCount: 2,
 
       fetchedRuleCount: 0,
+
+      fetchedCommandCount: 0,
+
+      fetchedSubagentCount: 0,
       sourcesProcessed: 1,
       failedSourceCount: 0,
     });
@@ -399,11 +403,14 @@ describe("addCommand", () => {
       projectRoot: testDir,
       logger,
     });
-    expect(getInstalledSourceRuleNames).toHaveBeenCalledWith({
-      sources: [{ source: "owner/existing" }],
-      projectRoot: testDir,
-      logger,
-    });
+    for (const feature of ["rules", "commands", "subagents"]) {
+      expect(getInstalledSourceFileNames).toHaveBeenCalledWith({
+        sources: [{ source: "owner/existing" }],
+        projectRoot: testDir,
+        feature,
+        logger,
+      });
+    }
     expect(resolveAndFetchSources).toHaveBeenCalledWith({
       sources: [{ source: "anthropics/skills", skills: ["skill-creator"] }],
       projectRoot: testDir,
@@ -413,8 +420,12 @@ describe("addCommand", () => {
         preserveUnlistedLockEntries: true,
         requireResolvedSkills: true,
         requireResolvedRules: false,
+        requireResolvedCommands: false,
+        requireResolvedSubagents: false,
         reservedSkillNames: [],
         reservedRuleNames: [],
+        reservedCommandNames: [],
+        reservedSubagentNames: [],
       },
       logger,
     });
@@ -436,6 +447,8 @@ describe("addCommand", () => {
     vi.mocked(resolveAndFetchSources).mockResolvedValue({
       fetchedSkillCount: 0,
       fetchedRuleCount: 1,
+      fetchedCommandCount: 0,
+      fetchedSubagentCount: 0,
       sourcesProcessed: 1,
       failedSourceCount: 0,
     });
@@ -459,6 +472,8 @@ describe("addCommand", () => {
         options: expect.objectContaining({
           requireResolvedSkills: false,
           requireResolvedRules: true,
+          requireResolvedCommands: false,
+          requireResolvedSubagents: false,
         }),
       }),
     );
@@ -775,6 +790,10 @@ describe("addCommand", () => {
         fetchedSkillCount: 1,
 
         fetchedRuleCount: 0,
+
+        fetchedCommandCount: 0,
+
+        fetchedSubagentCount: 0,
         sourcesProcessed: 1,
         failedSourceCount: 1,
       };

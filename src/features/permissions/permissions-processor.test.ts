@@ -106,6 +106,7 @@ describe("PermissionsProcessor", () => {
         "pi",
         "pool",
         "qoder",
+        "qodercn",
         "qwencode",
         "reasonix",
         "roo",
@@ -114,6 +115,7 @@ describe("PermissionsProcessor", () => {
         "takt",
         "vibe",
         "zoocode",
+        "deepcode",
       ]);
     });
 
@@ -153,6 +155,7 @@ describe("PermissionsProcessor", () => {
         "pi",
         "pool",
         "qoder",
+        "qodercn",
         "qwencode",
         "reasonix",
         "rovodev",
@@ -163,6 +166,7 @@ describe("PermissionsProcessor", () => {
         "warpcli",
         "zed",
         "trae",
+        "deepcode",
       ]);
     });
 
@@ -197,6 +201,7 @@ describe("PermissionsProcessor", () => {
         "pi",
         "pool",
         "qoder",
+        "qodercn",
         "qwencode",
         "reasonix",
         "roo",
@@ -205,6 +210,7 @@ describe("PermissionsProcessor", () => {
         "takt",
         "vibe",
         "zoocode",
+        "deepcode",
       ]);
     });
   });

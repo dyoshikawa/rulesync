@@ -10,6 +10,7 @@ import {
   RULESYNC_HOOKS_RELATIVE_FILE_PATH,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
+import { zeroGlobalConfigDir } from "../constants/zero-paths.js";
 import { HooksProcessor } from "../features/hooks/hooks-processor.js";
 import { fileExists, readFileContent, removeFile, writeFileContent } from "../utils/file.js";
 import { getHermesagentGlobalDir } from "../utils/hermesagent.js";
@@ -92,6 +93,8 @@ const hooksKeyedEventNames: Record<string, { sessionStart: string; stop: string 
   // .qoder/settings.json in both scopes; commands are anchored with
   // $QODER_PROJECT_DIR only when they start with `./`.
   qoder: { sessionStart: "SessionStart", stop: "Stop" },
+  // Qoder CN writes the same shape (project file shared with Qoder).
+  qodercn: { sessionStart: "SessionStart", stop: "Stop" },
 };
 
 function assertHooksKeyedEvents({
@@ -136,7 +139,7 @@ function assertOpencodePluginHooks({
     expect(generatedContent).toContain("setup: async (ctx) => {");
     expect(generatedContent).not.toContain("RulesyncHooksPlugin");
     expect(generatedContent).toContain('"session.created"');
-    expect(generatedContent).toContain('"session.execution.succeeded"');
+    expect(generatedContent).toContain('ctx.session.hook("experimental.idle"');
   } else {
     expect(generatedContent).toContain("export const RulesyncHooksPlugin");
     expect(generatedContent).toContain('"session.created"');
@@ -198,6 +201,7 @@ const hooksGenerateTargets = [
   { target: "omp", outputPath: join(".omp", "extensions", "rulesync-hooks.ts") },
   { target: "codexcli", outputPath: join(".codex", "hooks.json") },
   { target: "openbitfun", outputPath: join(".openbitfun", "config", "hooks.json") },
+  { target: "openhands", outputPath: join(".openhands", "hooks.json") },
   { target: "qwencode", outputPath: join(".qwen", "settings.json") },
   {
     target: "goose",
@@ -224,10 +228,12 @@ const hooksGenerateTargets = [
   { target: "continue", outputPath: join(".continue", "settings.json") },
   { target: "lettacode", outputPath: join(".letta", "settings.json") },
   { target: "qoder", outputPath: join(".qoder", "settings.json") },
+  { target: "qodercn", outputPath: join(".qoder", "settings.json") },
   { target: "gitlabduo", outputPath: join(".gitlab", "duo", "hooks.json") },
   { target: "grokcli", outputPath: join(".grok", "hooks", "rulesync.json") },
   { target: "cline", outputPath: join(".clinerules", "hooks", "rulesync-hooks.json") },
   { target: "zcode", outputPath: join(".zcode", "config.json") },
+  { target: "zero", outputPath: join(".zero", "hooks.json") },
 ] as const;
 
 // Targets exercised by dedicated `it`s (bespoke per-tool serialization).
@@ -367,6 +373,21 @@ describe("E2E: hooks", () => {
             ],
           },
         ]);
+      } else if (target === "zero") {
+        // Zero reads a flat hook list; a canonical command runs through
+        // `sh -c` because Zero spawns `command` without a shell. `stop` has no
+        // Zero event, so audit.sh is dropped. No top-level `enabled` is
+        // added, so the project layer never overrides the user layer's flag.
+        expect(parsed.enabled).toBeUndefined();
+        expect(parsed.hooks).toEqual([
+          {
+            id: "rulesync-project-sessionStart-001",
+            event: "sessionStart",
+            command: "sh",
+            args: ["-c", ".rulesync/hooks/session-start.sh"],
+            enabled: true,
+          },
+        ]);
       } else if (target === "zcode") {
         // ZCode nests the PascalCase event map under `hooks.events` of the
         // workspace config and states `enabled: true`; the hooks still run only
@@ -400,6 +421,25 @@ describe("E2E: hooks", () => {
         assertHookCommandsPreserved(parsed);
       }
     }
+  });
+
+  it("should remove .openhands/hooks.json once no OpenHands hooks remain", async () => {
+    const testDir = getTestDir();
+    const hooksPath = join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH);
+    const outputPath = join(testDir, ".openhands", "hooks.json");
+
+    await writeFileContent(hooksPath, JSON.stringify({ hooks: { stop: [{ command: "echo" }] } }));
+    await runGenerate({ target: "openhands", features: "hooks" });
+    expect(await fileExists(outputPath)).toBe(true);
+
+    // An empty project file would still hide ~/.openhands/hooks.json, so it is
+    // removed rather than rewritten as `{}`.
+    await writeFileContent(
+      hooksPath,
+      JSON.stringify({ hooks: { preCompact: [{ command: "echo" }] } }),
+    );
+    await runGenerate({ target: "openhands", features: "hooks" });
+    expect(await fileExists(outputPath)).toBe(false);
   });
 
   it("should generate hooks from hooks.jsonc (preferred over hooks.json)", async () => {
@@ -622,11 +662,15 @@ describe("E2E: hooks", () => {
 
     await runGenerate({ target: "devin-plugin", features: "hooks" });
 
-    // Same bare event map as `.devin/hooks.v1.json`, at the plugin root.
+    // Same bare event map as `.devin/hooks.v1.json`, at the plugin root, with
+    // the relative command anchored to the plugin install directory.
     const parsed = JSON.parse(await readFileContent(join(testDir, "hooks.json")));
     expect(parsed).toEqual({
       PreToolUse: [
-        { matcher: "exec", hooks: [{ type: "command", command: "./scripts/audit.sh" }] },
+        {
+          matcher: "exec",
+          hooks: [{ type: "command", command: '"$DEVIN_PLUGIN_ROOT"/scripts/audit.sh' }],
+        },
       ],
     });
     expect(await fileExists(join(testDir, ".devin", "hooks.v1.json"))).toBe(false);
@@ -637,6 +681,7 @@ describe("E2E: hooks", () => {
     const importedContent = await readFileContent(join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH));
     expect(importedContent).toContain("preToolUse");
     expect(importedContent).toContain("./scripts/audit.sh");
+    expect(importedContent).not.toContain("DEVIN_PLUGIN_ROOT");
   });
 
   it("should generate codewhale hooks into .codewhale/hooks.toml", async () => {
@@ -938,6 +983,7 @@ describe("E2E: hooks", () => {
     { target: "omp", orphanPath: join(".omp", "extensions", "rulesync-hooks.ts") },
     { target: "codexcli", orphanPath: join(".codex", "hooks.json") },
     { target: "openbitfun", orphanPath: join(".openbitfun", "config", "hooks.json") },
+    { target: "openhands", orphanPath: join(".openhands", "hooks.json") },
     { target: "copilot", orphanPath: join(".github", "hooks", "copilot-hooks.json") },
     { target: "factorydroid", orphanPath: join(".factory", "hooks.json") },
     { target: "gitlabduo", orphanPath: join(".gitlab", "duo", "hooks.json") },
@@ -1025,11 +1071,13 @@ describe("E2E: hooks (import)", () => {
       },
     },
     {
+      // The tool reads only its PascalCase event names; a camelCase key is
+      // ignored there and skipped on import.
       target: "codexcli",
       sourcePath: join(".codex", "hooks.json"),
       sourceContent: {
         hooks: {
-          sessionStart: [
+          SessionStart: [
             { matcher: "", hooks: [{ type: "command", command: "echo session started" }] },
           ],
         },
@@ -1042,6 +1090,13 @@ describe("E2E: hooks (import)", () => {
         hooks: {
           SessionStart: [{ hooks: [{ type: "command", command: "echo session started" }] }],
         },
+      },
+    },
+    {
+      target: "openhands",
+      sourcePath: join(".openhands", "hooks.json"),
+      sourceContent: {
+        session_start: [{ hooks: [{ type: "command", command: "echo session started" }] }],
       },
     },
     {
@@ -1067,11 +1122,13 @@ describe("E2E: hooks (import)", () => {
       },
     },
     {
+      // The tool reads only its PascalCase event names; a camelCase key is
+      // ignored there and skipped on import.
       target: "factorydroid",
       sourcePath: join(".factory", "hooks.json"),
       sourceContent: {
         hooks: {
-          sessionStart: [
+          SessionStart: [
             { matcher: "", hooks: [{ type: "command", command: "echo session started" }] },
           ],
         },
@@ -1311,6 +1368,22 @@ describe("E2E: hooks (import)", () => {
         },
       },
     },
+    {
+      // Zero's flat list: rulesync's `sh -c` wrapper is unwrapped on import.
+      target: "zero",
+      sourcePath: join(".zero", "hooks.json"),
+      sourceContent: {
+        enabled: true,
+        hooks: [
+          {
+            id: "log-session",
+            event: "sessionStart",
+            command: "sh",
+            args: ["-c", "echo session started"],
+          },
+        ],
+      },
+    },
   ])(
     "should import $target hooks",
     async ({ target, sourcePath, sourceContent, expectedEvent }) => {
@@ -1366,12 +1439,14 @@ const hooksGlobalTargets = [
   { target: "continue", outputPath: join(".continue", "settings.json") },
   { target: "lettacode", outputPath: join(".letta", "settings.json") },
   { target: "qoder", outputPath: join(".qoder", "settings.json") },
+  { target: "qodercn", outputPath: join(".qoder-cn", "settings.json") },
   { target: "kiro-ide", outputPath: join(".kiro", "hooks", "rulesync.json") },
   { target: "kiro-cli", outputPath: join(".kiro", "hooks", "rulesync.json") },
   { target: "gitlabduo", outputPath: join(".gitlab", "duo", "hooks.json") },
   { target: "grokcli", outputPath: join(".grok", "hooks", "rulesync.json") },
   { target: "cline", outputPath: join("Documents", "Cline", "Hooks", "rulesync-hooks.json") },
   { target: "zcode", outputPath: join(".zcode", "cli", "config.json") },
+  { target: "zero", outputPath: join(zeroGlobalConfigDir(), "hooks.json") },
 ] as const;
 
 // Global targets exercised by dedicated `it`s (bespoke per-tool serialization).
@@ -1384,6 +1459,7 @@ const hooksGlobalStandaloneTargets = [
   "devin",
   "vibe",
   "hermesagent",
+  "jcode",
   "kimi-code",
   "reasonix",
   "pool",
@@ -1452,6 +1528,19 @@ describe("E2E: hooks (global mode)", () => {
         const parsed = JSON.parse(generatedContent);
         expect(parsed.hooks.sessionStart).toBeDefined();
         expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
+      } else if (target === "zero") {
+        // The user layer gets `user`-scoped ids, so Zero's id-keyed merge of
+        // the user and project layers never lets one replace the other.
+        const parsed = JSON.parse(generatedContent);
+        expect(parsed.hooks).toEqual([
+          {
+            id: "rulesync-user-sessionStart-001",
+            event: "sessionStart",
+            command: "sh",
+            args: ["-c", ".rulesync/hooks/session-start.sh"],
+            enabled: true,
+          },
+        ]);
       } else if (target === "zcode") {
         // In global mode the `hooks` block (with `enabled: true`) goes to
         // ~/.zcode/cli/config.json. See CANONICAL_TO_ZCODE_EVENT_NAMES in
@@ -1809,6 +1898,65 @@ describe("E2E: hooks (global mode)", () => {
       hooks: [{ event: "turn_end", command: ".rulesync/hooks/audit.sh" }],
     });
     expect(await fileExists(join(homeDir, ".codewhale", "hooks.toml"))).toBe(false);
+  });
+
+  it("should generate jcode hooks into the [hooks] table of the user config", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(homeDir, ".jcode", "config.toml"),
+      ['model = "claude"', "", "[hooks]", "pre_tool_timeout_ms = 5000", ""].join("\n"),
+    );
+    await writeFileContent(
+      join(projectDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH),
+      JSON.stringify({
+        version: 1,
+        hooks: {
+          preToolUse: [{ command: ".rulesync/hooks/guard.sh", matcher: "Bash" }],
+          stop: [{ command: ".rulesync/hooks/notify.sh" }],
+        },
+      }),
+    );
+
+    await runGenerate({
+      target: "jcode",
+      features: "hooks",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const parsed = smolToml.parse(await readFileContent(join(homeDir, ".jcode", "config.toml")));
+    expect(parsed.model).toBe("claude");
+    // jcode has no matcher, so the Bash guard runs before every tool call.
+    expect(parsed.hooks).toEqual({
+      pre_tool_timeout_ms: 5000,
+      pre_tool: ".rulesync/hooks/guard.sh",
+      turn_end: ".rulesync/hooks/notify.sh",
+    });
+  });
+
+  it("should import jcode hooks, keeping native-only keys in the jcode block", async () => {
+    const homeDir = getHomeDir();
+    await writeFileContent(
+      join(homeDir, ".jcode", "config.toml"),
+      ["[hooks]", 'session_start = "start.sh"', 'post_tool_feedback = ["vale.sh"]', ""].join("\n"),
+    );
+
+    await runImport({
+      target: "jcode",
+      features: "hooks",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const imported = JSON.parse(
+      await readFileContent(join(homeDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH)),
+    );
+    expect(imported.hooks.sessionStart).toEqual([{ type: "command", command: "start.sh" }]);
+    expect(imported.jcode.hooks.post_tool_feedback).toEqual([
+      { type: "command", command: "vale.sh" },
+    ]);
   });
 
   it("should generate vibe hooks in home directory", async () => {

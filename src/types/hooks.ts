@@ -123,7 +123,7 @@ export const HookDefinitionSchema = z.looseObject({
   // an `Execute` matcher group, e.g. `"^git "`. It belongs to the matcher group
   // rather than to a single hook, but is stored per definition so it survives
   // the canonical, flat list of definitions.
-  // https://docs.factory.ai/reference/hooks-reference
+  // https://docs.factory.com/harness/hooks
   commandRegex: z.optional(safeString),
   // Qwen Code: when true, the hooks within this matcher group run sequentially
   // instead of in parallel (the default). Stored per-definition so it can be
@@ -236,6 +236,11 @@ export const HookDefinitionSchema = z.looseObject({
   // hooks). Defaults to false upstream.
   // https://junie.jetbrains.com/docs/junie-cli-hooks.html
   strictJsonOutput: z.optional(z.boolean()),
+  // Factory Droid PreToolUse hooks: when the hook rewrites an `Execute` command
+  // through `updatedInput`, keep the model's `riskLevel` instead of
+  // re-assessing it. Defaults to false upstream.
+  // https://docs.factory.com/harness/hooks
+  preserveRiskLevel: z.optional(z.boolean()),
 });
 
 export type HookDefinition = z.infer<typeof HookDefinitionSchema>;
@@ -299,6 +304,7 @@ export const HOOK_EVENTS = [
   "sessionDelete",
   "preModelSwitch",
   "postModelSwitch",
+  "preSkillShellCommand",
 ] as const;
 
 /** All canonical hook event names. */
@@ -1177,6 +1183,36 @@ export const HERMESAGENT_TO_CANONICAL_EVENT_NAMES: Record<string, string> = inve
   CANONICAL_TO_HERMESAGENT_EVENT_NAMES,
 );
 
+/**
+ * Map canonical camelCase event names to jcode's `[hooks]` keys in
+ * `~/.jcode/config.toml`. `pre_tool` is a gate (exit 2 or a `deny` JSON
+ * decision blocks the call); the others are fire-and-forget observers.
+ * @see https://github.com/1jehuang/jcode/blob/master/docs/HOOKS.md
+ */
+export const CANONICAL_TO_JCODE_EVENT_NAMES: Record<string, string> = {
+  sessionStart: "session_start",
+  sessionEnd: "session_end",
+  preToolUse: "pre_tool",
+  postToolUse: "post_tool",
+  beforeSubmitPrompt: "turn_start",
+  stop: "turn_end",
+} satisfies Partial<Record<HookEvent, string>>;
+
+/** Canonical hook events the jcode adapter emits. */
+export const JCODE_HOOK_EVENTS: readonly HookEvent[] = eventsOf(CANONICAL_TO_JCODE_EVENT_NAMES);
+
+/** Map jcode's `[hooks]` keys back to canonical camelCase. */
+export const JCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
+  CANONICAL_TO_JCODE_EVENT_NAMES,
+);
+
+/**
+ * jcode hook keys with no canonical counterpart. They are authored, and
+ * imported, under the `jcode.hooks` override block by their native name.
+ * @see https://github.com/1jehuang/jcode/blob/master/docs/HOOKS.md
+ */
+export const JCODE_NATIVE_ONLY_HOOK_EVENTS = ["pre_tool_transform", "post_tool_feedback"] as const;
+
 const hooksRecordSchema = z.record(z.string(), z.array(HookDefinitionSchema));
 
 const HOOK_EVENT_SET: ReadonlySet<string> = new Set(HOOK_EVENTS);
@@ -1232,6 +1268,7 @@ export const HooksConfigSchema = z.looseObject({
   factorydroid: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   codexcli: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   openbitfun: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  openhands: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   goose: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   deepagents: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   kiro: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
@@ -1242,6 +1279,7 @@ export const HooksConfigSchema = z.looseObject({
   "antigravity-ide": z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   "antigravity-cli": z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   hermesagent: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  jcode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   junie: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   gitlabduo: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   vibe: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
@@ -1257,6 +1295,7 @@ export const HooksConfigSchema = z.looseObject({
     }),
   ),
   zcode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  zero: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   crush: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   pool: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   bob: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
@@ -1324,6 +1363,12 @@ export const CANONICAL_TO_CLAUDE_EVENT_NAMES: Record<string, string> = {
   // https://code.claude.com/docs/en/hooks
   preModelSwitch: "PreModelSwitch",
   postModelSwitch: "PostModelSwitch",
+  // Added in 2.1.332. Runs before a shell command injected by a loading skill
+  // (`!`<command>``) and can block it; `PreToolUse` does not fire for those.
+  // The matcher selects the tool that runs the command (`Bash`, `PowerShell`).
+  // Older Claude Code versions show an "Unknown hook event" dialog for it.
+  // https://code.claude.com/docs/en/hooks#preskillshellcommand
+  preSkillShellCommand: "PreSkillShellCommand",
 } satisfies Partial<Record<HookEvent, string>>;
 
 /**
@@ -1526,7 +1571,7 @@ export const CANONICAL_TO_FACTORYDROID_EVENT_NAMES: Record<string, string> = {
  * Matches the documented 9-event set (PreToolUse, PostToolUse, UserPromptSubmit,
  * Notification, Stop, SubagentStop, PreCompact, SessionStart, SessionEnd).
  * `Setup` and `PermissionRequest` are NOT valid Droid events and were removed
- * to avoid emitting dead keys. https://docs.factory.ai/reference/hooks-reference
+ * to avoid emitting dead keys. https://docs.factory.com/harness/hooks
  */
 export const FACTORYDROID_HOOK_EVENTS: readonly HookEvent[] = eventsOf(
   CANONICAL_TO_FACTORYDROID_EVENT_NAMES,
@@ -1591,11 +1636,18 @@ export const CANONICAL_TO_KILO_EVENT_NAMES: Record<string, string> =
  *
  * The shell events reuse the tool hooks gated on the `shell` tool (V1 named it
  * `bash`), and `postToolUse` / `postToolUseFailure` split `execute.after` by
- * its `status`; see `opencode-v2-plugin-generator.ts`. `stop` maps to
- * `session.execution.succeeded` because V2 deprecated `session.idle` and no
- * longer publishes it.
+ * its `status`; see `opencode-v2-plugin-generator.ts`. `stop` maps to the
+ * `experimental.idle` session hook (OpenCode 2.2.1+), which runs when a
+ * Session finishes model work with no pending input, just before it goes idle,
+ * and lets a plugin admit input that continues the same execution. That makes
+ * it an actionable stop boundary like Pi's `agent_before_settle`: a stop
+ * command exiting with code 2 continues the agent once. Before 2.2.1 the hook
+ * never runs, so the generated plugin falls back to the observe-only
+ * `session.execution.succeeded` event earlier versions mapped `stop` to, until
+ * the idle hook has run once (see `opencode-v2-plugin-generator.ts`).
  *
  * @see https://opencode.ai/v2/docs/build/plugins/
+ * @see https://github.com/anomalyco/opencode/blob/v2.4.2/packages/plugin/src/README.md
  */
 export const CANONICAL_TO_OPENCODE_V2_EVENT_NAMES: Record<string, string> = {
   sessionStart: "event:session.created",
@@ -1610,7 +1662,7 @@ export const CANONICAL_TO_OPENCODE_V2_EVENT_NAMES: Record<string, string> = {
   preModelInvocation: "session:context",
   preCompact: "session:compaction",
   postCompact: "event:session.compaction.ended",
-  stop: "event:session.execution.succeeded",
+  stop: "session:experimental.idle",
   afterError: "event:session.execution.failed",
   permissionRequest: "event:permission.asked",
   // `permission.replied` fires for every reply; the handler gates on `reject`.
@@ -1710,7 +1762,9 @@ export const PI_HOOK_EVENTS: readonly HookEvent[] = eventsOf(CANONICAL_TO_PI_EVE
 /**
  * Map canonical camelCase event names to oh-my-pi extension event names. They
  * are Pi's names (see CANONICAL_TO_PI_EVENT_NAMES) for the events oh-my-pi
- * kept, plus `session_stop` for `stop`. Note that oh-my-pi runs
+ * kept, plus `session_stop` for `stop`. `sessionStart` handlers also
+ * subscribe to `session_clear` (see `OMP_EXTENSION_DIALECT.extraEventNames`),
+ * since oh-my-pi fires no `session_start` after `/clear`. Note that oh-my-pi runs
  * `session_shutdown` handlers with a 2-second budget, and fails a `tool_call`
  * closed when its handler exceeds `extensionHandlers.toolCallTimeoutMs`
  * (30 seconds by default).
@@ -1978,6 +2032,39 @@ export const CODEXCLI_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertR
 );
 
 /**
+ * Map canonical camelCase event names to Zero's camelCase events. Zero fires
+ * `beforeTool` / `afterTool` (matcher = tool name), `sessionStart` /
+ * `sessionEnd` (no matcher) and `specialistStart` / `specialistStop`
+ * (matcher = specialist name).
+ * @see https://github.com/Twigpine/zero/blob/main/docs/EXTENDING.md#4-hooks
+ * @see https://github.com/Twigpine/zero/blob/main/internal/hooks/hooks.go
+ */
+export const CANONICAL_TO_ZERO_EVENT_NAMES: Record<string, string> = {
+  preToolUse: "beforeTool",
+  postToolUse: "afterTool",
+  sessionStart: "sessionStart",
+  sessionEnd: "sessionEnd",
+  subagentStart: "specialistStart",
+  subagentStop: "specialistStop",
+} satisfies Partial<Record<HookEvent, string>>;
+
+/** Hook events supported by Zero. */
+export const ZERO_HOOK_EVENTS: readonly HookEvent[] = eventsOf(CANONICAL_TO_ZERO_EVENT_NAMES);
+
+/** Canonical events on which Zero accepts a matcher. */
+export const ZERO_MATCHER_EVENTS: readonly HookEvent[] = [
+  "preToolUse",
+  "postToolUse",
+  "subagentStart",
+  "subagentStop",
+];
+
+/** Map Zero event names to canonical camelCase. */
+export const ZERO_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
+  CANONICAL_TO_ZERO_EVENT_NAMES,
+);
+
+/**
  * Map canonical camelCase event names to OpenBitFun PascalCase. OpenBitFun
  * implements the Codex hook contract with Codex's event names, minus the
  * events it does not dispatch (`Interrupt`, `PreModelRequest`,
@@ -2008,6 +2095,33 @@ export const OPENBITFUN_HOOK_EVENTS: readonly HookEvent[] = eventsOf(
  */
 export const OPENBITFUN_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
   CANONICAL_TO_OPENBITFUN_EVENT_NAMES,
+);
+
+/**
+ * Map canonical camelCase event names to the snake_case keys of OpenHands'
+ * `.openhands/hooks.json` (its documented native spelling; the PascalCase
+ * Claude Code names are accepted too and folded back on import).
+ * @see https://docs.openhands.dev/openhands/usage/customization/hooks
+ */
+export const CANONICAL_TO_OPENHANDS_EVENT_NAMES: Record<string, string> = {
+  preToolUse: "pre_tool_use",
+  postToolUse: "post_tool_use",
+  beforeSubmitPrompt: "user_prompt_submit",
+  stop: "stop",
+  sessionStart: "session_start",
+  sessionEnd: "session_end",
+} satisfies Partial<Record<HookEvent, string>>;
+
+/** Hook events supported by OpenHands. */
+export const OPENHANDS_HOOK_EVENTS: readonly HookEvent[] = eventsOf(
+  CANONICAL_TO_OPENHANDS_EVENT_NAMES,
+);
+
+/**
+ * Map OpenHands snake_case event keys to canonical camelCase.
+ */
+export const OPENHANDS_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
+  CANONICAL_TO_OPENHANDS_EVENT_NAMES,
 );
 
 /**

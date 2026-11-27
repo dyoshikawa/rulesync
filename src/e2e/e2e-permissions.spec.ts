@@ -55,6 +55,7 @@ const permissionsGenerateTargets = [
   "kilo",
   "lettacode",
   "qoder",
+  "qodercn",
   "antigravity-ide",
   "augmentcode",
   "cline",
@@ -69,6 +70,7 @@ const permissionsGenerateTargets = [
   "rovodev",
   "roo",
   "zoocode",
+  "deepcode",
 ] as const;
 
 // Permissions targets exercised by the global-scope generate `it`s below.
@@ -113,9 +115,11 @@ const permissionsGlobalTargets = [
   "junie",
   "lettacode",
   "qoder",
+  "qodercn",
   "trae",
   "kiro-cli",
   "kiro-ide",
+  "deepcode",
 ] as const;
 
 describe("E2E: permissions", () => {
@@ -145,6 +149,7 @@ describe("E2E: permissions", () => {
     { target: "commandcode", relativePaths: [[".commandcode", "settings.json"]] },
     { target: "lettacode", relativePaths: [[".letta", "settings.json"]] },
     { target: "qoder", relativePaths: [[".qoder", "settings.json"]] },
+    { target: "qodercn", relativePaths: [[".qoder", "settings.json"]] },
     // opencode writes the `.jsonc` twin when neither file exists yet, so both
     // spellings must stay absent.
     { target: "opencode", relativePaths: [["opencode.json"], ["opencode.jsonc"]] },
@@ -1680,6 +1685,51 @@ web_search_request = true
     expect(content.permission.read["*"]).toBe("ask");
   });
 
+  it("should generate deepcode permissions into deepcode_config.json and import them back", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, "deepcode_config.json"),
+      JSON.stringify({
+        security: { accessPreset: "ask" },
+        mcpServers: { local: { type: "stdio", command: "srv" } },
+      }),
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "*": "ask", "git *": "allow", "git push*": "deny" },
+            webfetch: { "*": "ask" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({ target: "deepcode", features: "permissions" });
+
+    const parsed = JSON.parse(await readFileContent(join(testDir, "deepcode_config.json")));
+    expect(parsed.security).toEqual({
+      accessPreset: "ask",
+      permissions: {
+        bash: { "*": "ask", "git *": "allow", "git push*": "deny" },
+        web_fetch: { "*": "ask" },
+      },
+    });
+    expect(parsed.mcpServers).toEqual({ local: { type: "stdio", command: "srv" } });
+
+    await runImport({ target: "deepcode", features: "permissions" });
+
+    const imported = JSON.parse(
+      await readFileContent(join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
+    );
+    expect(imported.permission.bash).toEqual({ "*": "ask", "git *": "allow", "git push*": "deny" });
+    expect(imported.permission.webfetch).toEqual({ "*": "ask" });
+  });
+
   it("should import reasonix permissions from reasonix.toml", async () => {
     const testDir = getTestDir();
 
@@ -2928,6 +2978,41 @@ describe("E2E: permissions (global mode)", () => {
       allow: ["Bash(git *)"],
       deny: ["Bash(rm -rf *)"],
     });
+  });
+
+  it("should generate qodercn permissions into ~/.qoder-cn/settings.json with --global, reading the qoder block", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: { bash: { "ls *": "allow" } },
+          // The tool-scoped category replaces the shared one for qoder/qodercn.
+          qoder: { permission: { bash: { "git *": "allow", "rm -rf *": "deny" } } },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({
+      target: "qodercn",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const generated = JSON.parse(
+      await readFileContent(join(homeDir, ".qoder-cn", "settings.json")),
+    );
+    expect(generated.permissions).toEqual({
+      allow: ["Bash(git *)"],
+      deny: ["Bash(rm -rf *)"],
+    });
+    // Qoder's own user settings are left untouched.
+    expect(await fileExists(join(homeDir, ".qoder", "settings.json"))).toBe(false);
   });
 
   it("should generate trae permissions into ~/.trae/permission/global.json (global-only)", async () => {
@@ -4574,6 +4659,35 @@ describe("E2E: permissions (global mode)", () => {
     );
     expect(parsed.defaultTools).toEqual(["bash"]);
     expect(parsed.theme).toBe("light");
+  });
+
+  it("should generate deepcode permissions in home directory with --global", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify({ root: true, permission: { bash: { "rm -rf *": "deny" } } }, null, 2),
+    );
+    await writeFileContent(
+      join(homeDir, ".deepcode", "deepcode_config.json"),
+      JSON.stringify({ security: { accessPreset: "ask" } }),
+    );
+
+    await runGenerate({
+      target: "deepcode",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const parsed = JSON.parse(
+      await readFileContent(join(homeDir, ".deepcode", "deepcode_config.json")),
+    );
+    expect(parsed.security).toEqual({
+      accessPreset: "ask",
+      permissions: { bash: { "rm -rf *": "deny" } },
+    });
   });
 
   it("should generate reasonix permissions in home directory with --global", async () => {

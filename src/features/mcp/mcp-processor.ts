@@ -32,15 +32,18 @@ import { CortexcodeMcp } from "./cortexcode-mcp.js";
 import { CrushMcp } from "./crush-mcp.js";
 import { CursorMcp } from "./cursor-mcp.js";
 import { DeepagentsMcp } from "./deepagents-mcp.js";
+import { DeepcodeMcp } from "./deepcode-mcp.js";
 import { DevinMcp } from "./devin-mcp.js";
 import { DevinPluginMcp } from "./devin-plugin-mcp.js";
 import { DshMcp } from "./dsh-mcp.js";
 import { FactorydroidMcp } from "./factorydroid-mcp.js";
 import { FirebenderMcp } from "./firebender-mcp.js";
+import { GajaecodeMcp } from "./gajaecode-mcp.js";
 import { GitlabduoMcp } from "./gitlabduo-mcp.js";
 import { GooseMcp } from "./goose-mcp.js";
 import { GrokcliMcp } from "./grokcli-mcp.js";
 import { HermesagentMcp } from "./hermesagent-mcp.js";
+import { JcodeMcp } from "./jcode-mcp.js";
 import { JunieMcp } from "./junie-mcp.js";
 import { KiloMcp } from "./kilo-mcp.js";
 import { KimiCodeMcp } from "./kimi-code-mcp.js";
@@ -51,9 +54,11 @@ import { OmpMcp } from "./omp-mcp.js";
 import { OpenclawMcp } from "./openclaw-mcp.js";
 import { OpencodeMcp } from "./opencode-mcp.js";
 import { Opencodev1Mcp } from "./opencodev1-mcp.js";
+import { OpenhandsMcp } from "./openhands-mcp.js";
 import { PiMcp } from "./pi-mcp.js";
 import { PoolMcp } from "./pool-mcp.js";
 import { QoderMcp } from "./qoder-mcp.js";
+import { QodercnMcp } from "./qodercn-mcp.js";
 import { QwencodeMcp } from "./qwencode-mcp.js";
 import { ReasonixMcp } from "./reasonix-mcp.js";
 import { RooMcp } from "./roo-mcp.js";
@@ -61,6 +66,7 @@ import { RovodevMcp } from "./rovodev-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import { TabnineMcp } from "./tabnine-mcp.js";
 import { TaktMcp } from "./takt-mcp.js";
+import { TheiaMcp } from "./theia-mcp.js";
 import {
   ToolMcp,
   ToolMcpForDeletionParams,
@@ -77,6 +83,7 @@ import { XumMcp } from "./xum-mcp.js";
 import { ZcodeMcp } from "./zcode-mcp.js";
 import { ZcodePluginMcp } from "./zcode-plugin-mcp.js";
 import { ZedMcp } from "./zed-mcp.js";
+import { ZeroMcp } from "./zero-mcp.js";
 
 /**
  * Supported tool targets for McpProcessor.
@@ -606,6 +613,22 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
     },
   ],
   [
+    "openhands",
+    {
+      // OpenHands reads MCP servers only from the user-level
+      // `~/.openhands/mcp.json` (`mcpServers`, FastMCP format); it has no
+      // project-scoped MCP file and no per-server tool allow/deny lists.
+      // https://docs.openhands.dev/openhands/usage/cli/mcp-servers
+      class: OpenhandsMcp,
+      meta: {
+        supportsProject: false,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
     "kimi-code",
     {
       class: KimiCodeMcp,
@@ -722,6 +745,20 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
     },
   ],
   [
+    "gajaecode",
+    {
+      // `.gjc/mcp.json` (project) and `~/.gjc/agent/mcp.json` (global).
+      // https://github.com/Yeachan-Heo/gajae-code/blob/main/docs/standalone-mcp.md
+      class: GajaecodeMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
     "omp",
     {
       class: OmpMcp,
@@ -793,6 +830,21 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
       // filters are not documented for these files.
       // https://docs.qoder.com/en/cli/04-extending-qoder-cli/mcp-servers
       class: QoderMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    "qodercn",
+    {
+      // Qoder CN reads the same project `.mcp.json`; user servers live under
+      // the `mcpServers` key of `~/.qoder-cn/settings.json`.
+      // https://docs.qoder.cn/cli/mcp-reference
+      class: QodercnMcp,
       meta: {
         supportsProject: true,
         supportsGlobal: true,
@@ -921,6 +973,23 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
     },
   ],
   [
+    "theia",
+    {
+      // Theia AI reads MCP servers from the `ai-features.mcp.mcpServers`
+      // preference; workspace preferences live in `.theia/settings.json`. The
+      // user settings path differs per Theia-based product and is not
+      // documented, and the server entry has no tool allow/deny list.
+      // https://theia-ide.org/docs/user_ai/#mcp-integration
+      class: TheiaMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: false,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
     "trae",
     {
       // Trae reads project MCP servers from `.trae/mcp.json` (`mcpServers`);
@@ -1015,6 +1084,23 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
     },
   ],
   [
+    "jcode",
+    {
+      // jcode reads `~/.jcode/mcp.json` (user) and, per project,
+      // `.jcode/mcp.json` before `.mcp.json`: a Claude Code style
+      // `mcpServers` map (stdio, Streamable HTTP and SSE servers). There is no
+      // per-server tool allow or deny list.
+      // https://github.com/1jehuang/jcode/blob/master/docs/MCP_REMOTE.md
+      class: JcodeMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
     "devin",
     {
       class: DevinMcp,
@@ -1064,6 +1150,21 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
     },
   ],
   [
+    "zero",
+    {
+      class: ZeroMcp,
+      meta: {
+        // Zero reads `mcp.servers` from `.zero/config.json` and
+        // `<user config dir>/zero/config.json` (stdio and http documented).
+        // https://github.com/Twigpine/zero/blob/main/docs/EXTENDING.md
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
     "zcode-plugin",
     {
       // A ZCode plugin declares its servers in `.mcp.json` (`mcpServers`) at
@@ -1086,6 +1187,22 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
         supportsGlobal: true,
         supportsEnabledTools: false,
         supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    "deepcode",
+    {
+      class: DeepcodeMcp,
+      meta: {
+        // DeepCode reads top-level `mcpServers` from the project
+        // `deepcode_config.json` and `~/.deepcode/deepcode_config.json`, with
+        // per-server `enabledTools` / `disabledTools` filters.
+        // https://github.com/HKUDS/DeepCode/blob/main/docs/integrations/MCP.md
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: true,
+        supportsDisabledTools: true,
       },
     },
   ],

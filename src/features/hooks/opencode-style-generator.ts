@@ -830,13 +830,23 @@ export function buildPayloadClosureLines({
 }
 
 /**
+ * A handler's command and stdin expressions as the run helpers take them. The
+ * command keeps the escaping it had in the template literal earlier versions
+ * emitted, so `bun exec` parses the same text.
+ */
+export function commandAndInputOf(handler: RunnableHandler): { command: string; input: string } {
+  return {
+    command: JSON.stringify(escapeForTemplateLiteral(handler.command)),
+    input: handler.payload ? `${stdinPayloadVariable(handler.payload.name)}()` : '""',
+  };
+}
+
+/**
  * The statement that runs a handler's command with its stdin payload, or an
- * empty stdin. The command keeps the escaping it had in the template literal
- * earlier versions emitted, so `bun exec` parses the same text.
+ * empty stdin (see `commandAndInputOf`).
  */
 export function buildRunStatement(handler: RunnableHandler): string {
-  const command = JSON.stringify(escapeForTemplateLiteral(handler.command));
-  const input = handler.payload ? `${stdinPayloadVariable(handler.payload.name)}()` : '""';
+  const { command, input } = commandAndInputOf(handler);
   if (handler.payload?.name === "PreToolUse") {
     // An unset `failClosed` is left out: the helper denies on a timeout unless it is `false`.
     const failClosed = handler.failClosed === undefined ? "" : `, ${handler.failClosed}`;

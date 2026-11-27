@@ -13,10 +13,14 @@ jobs:
   publish:
     name: Publish to NPM
     runs-on: ubuntu-latest
-    # Bind the trigger to this repository's own Publish Assets workflow file:
-    # a fork PR could otherwise add a workflow named "Publish Assets" on a
-    # `release/v*` branch, or open such a branch from a fork, and complete a
-    # run that reaches this job.
+    # Bind the trigger to this repository's own Publish Assets run. The
+    # `head_repository` check is what blocks forks: a fork PR could otherwise
+    # add a workflow named "Publish Assets", or edit publish-assets.yml in
+    # place on a `release/v*` branch, and complete a run that reaches this job.
+    # The `path` check is a secondary guard against another same-repo workflow
+    # named "Publish Assets"; a fork editing publish-assets.yml keeps the same
+    # `path`. A same-repo PR closed without merging is stopped by the "Verify
+    # the release PR was merged" step below.
     if: >-
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'pull_request' &&
@@ -25,6 +29,29 @@ jobs:
       startsWith(github.event.workflow_run.head_branch, 'release/v')
 
     steps:
+      # `Publish Assets` runs on `pull_request: closed` with the PR's own
+      # workflow definition, so its `merged` check can be rewritten by anyone
+      # who can push a `release/v*` branch and then close the PR unmerged.
+      # Require the triggering commit to be reachable from `main` before
+      # anything else runs. Release PRs are merged with a merge commit (the
+      # `goal-release` skill uses `gh pr merge --merge`); a squash or rebase
+      # merge rewrites the commit, so this step fails closed and the release
+      # has to be published by hand.
+      - name: Verify the release PR was merged
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          if ! echo "$HEAD_SHA" | grep -qE '^[0-9a-f]{40}$'; then
+            echo "::error::Invalid head SHA: $HEAD_SHA"
+            exit 1
+          fi
+          STATUS="$(gh api "repos/${GITHUB_REPOSITORY}/compare/main...${HEAD_SHA}" --jq '.status')"
+          if [ "$STATUS" != "behind" ] && [ "$STATUS" != "identical" ]; then
+            echo "::error::$HEAD_SHA is not on main (compare status: $STATUS); the release PR was not merged"
+            exit 1
+          fi
+
       - name: Checkout code
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
@@ -36,7 +63,7 @@ jobs:
           bot-id: ${{ vars.SHISHO_BOT_ID }}
 
       - name: Setup mise
-        uses: jdx/mise-action@90f833d396d0cc3674b631d2d225e306476c303a # v5.2.10
+        uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5.3.0
         with:
           experimental: true
 

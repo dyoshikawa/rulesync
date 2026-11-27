@@ -15,6 +15,7 @@ import {
   stringifyFrontmatter,
   validateFrontmatterSchema,
 } from "../../utils/frontmatter.js";
+import type { Logger } from "../../utils/logger.js";
 import { warnOpenbitfunXdgOverride } from "../../utils/openbitfun.js";
 import { RulesyncSubagent, RulesyncSubagentFrontmatter } from "./rulesync-subagent.js";
 import {
@@ -193,6 +194,25 @@ export class OpenbitfunSubagent extends ToolSubagent {
       rulesyncSubagent,
       toolTarget: "openbitfun",
     });
+  }
+
+  /**
+   * OpenBitFun defines no subagents outside its agent files; this import-only
+   * hook is used to warn, on `import --global`, about a moved user tree, which
+   * the import would otherwise silently find empty.
+   */
+  static async loadAdditionalImportFiles({
+    global = false,
+    logger,
+  }: {
+    outputRoot?: string;
+    global?: boolean;
+    logger?: Logger;
+  } = {}): Promise<OpenbitfunSubagent[]> {
+    if (global) {
+      warnOpenbitfunXdgOverride({ kind: "config", logger });
+    }
+    return [];
   }
 
   static async fromFile({

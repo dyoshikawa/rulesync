@@ -42,6 +42,7 @@ import { AntigravityIdeSkill } from "./antigravity-ide-skill.js";
 import { AntigravityPluginSkill } from "./antigravity-plugin-skill.js";
 import { AugmentcodePluginSkill } from "./augmentcode-plugin-skill.js";
 import { AugmentcodeSkill } from "./augmentcode-skill.js";
+import { BbSkill } from "./bb-skill.js";
 import { BobSkill } from "./bob-skill.js";
 import { ClaudecodePluginSkill } from "./claudecode-plugin-skill.js";
 import { ClaudecodeSkill } from "./claudecode-skill.js";
@@ -57,15 +58,18 @@ import { CortexcodeSkill } from "./cortexcode-skill.js";
 import { CrushSkill } from "./crush-skill.js";
 import { CursorSkill } from "./cursor-skill.js";
 import { DeepagentsSkill } from "./deepagents-skill.js";
+import { DeepcodeSkill } from "./deepcode-skill.js";
 import { DevinPluginSkill } from "./devin-plugin-skill.js";
 import { DevinSkill } from "./devin-skill.js";
 import { DshSkill } from "./dsh-skill.js";
 import { FactorydroidSkill } from "./factorydroid-skill.js";
 import { FirebenderSkill } from "./firebender-skill.js";
+import { GajaecodeSkill } from "./gajaecode-skill.js";
 import { GitlabduoSkill } from "./gitlabduo-skill.js";
 import { GooseSkill } from "./goose-skill.js";
 import { GrokcliSkill } from "./grokcli-skill.js";
 import { HermesagentSkill } from "./hermesagent-skill.js";
+import { JcodeSkill } from "./jcode-skill.js";
 import { JunieSkill } from "./junie-skill.js";
 import { KiloSkill } from "./kilo-skill.js";
 import { KimiCodePluginSkill } from "./kimi-code-plugin-skill.js";
@@ -84,6 +88,7 @@ import { Opencodev1Skill } from "./opencodev1-skill.js";
 import { PiSkill } from "./pi-skill.js";
 import { PoolSkill } from "./pool-skill.js";
 import { QoderSkill } from "./qoder-skill.js";
+import { QodercnSkill } from "./qodercn-skill.js";
 import { QwencodeSkill } from "./qwencode-skill.js";
 import { ReasonixSkill } from "./reasonix-skill.js";
 import { ReplitSkill } from "./replit-skill.js";
@@ -94,6 +99,7 @@ import { SimulatedSkill } from "./simulated-skill.js";
 import { getLocalSkillDirNames, isAddressableSkillName } from "./skills-utils.js";
 import { TabnineSkill } from "./tabnine-skill.js";
 import { TaktSkill } from "./takt-skill.js";
+import { TheiaSkill } from "./theia-skill.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -113,6 +119,7 @@ import { XumSkill } from "./xum-skill.js";
 import { ZcodePluginSkill } from "./zcode-plugin-skill.js";
 import { ZcodeSkill } from "./zcode-skill.js";
 import { ZedSkill } from "./zed-skill.js";
+import { ZeroSkill } from "./zero-skill.js";
 import { ZoocodeSkill } from "./zoocode-skill.js";
 
 /**
@@ -510,7 +517,7 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     {
       // Factory Droid skills are native SKILL.md files under .factory/skills/
       // (project) and ~/.factory/skills/ (global).
-      // https://docs.factory.ai/cli/configuration/skills
+      // https://docs.factory.com/harness/skills
       class: FactorydroidSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
@@ -663,6 +670,16 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     },
   ],
   [
+    "gajaecode",
+    {
+      // `.gjc/skills/<name>/SKILL.md` (project) and
+      // `~/.gjc/agent/skills/<name>/SKILL.md` (global).
+      // https://github.com/Yeachan-Heo/gajae-code/blob/main/docs/skills.md
+      class: GajaecodeSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
     "omp",
     {
       class: OmpSkill,
@@ -708,6 +725,16 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
       // (project) / `~/.qoder/skills/` (user), shared by the IDE and the CLI.
       // https://docs.qoder.com/en/cli/04-extending-qoder-cli/Skills
       class: QoderSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "qodercn",
+    {
+      // Qoder CN shares Qoder's `.qoder/skills/` project directory; user skills
+      // live under `~/.qoder-cn/skills/`.
+      // https://docs.qoder.cn/user-guide/skills
+      class: QodercnSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],
@@ -783,6 +810,19 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     },
   ],
   [
+    "theia",
+    {
+      // Theia AI reads workspace skills from `.prompts/skills/` and the shared
+      // `.agents/skills/` root, and user skills from its product-specific
+      // configuration folder and `~/.agents/skills/`. Rulesync writes the
+      // shared roots, read by every Theia-based product: `.agents/skills/`
+      // (project) and `~/.agents/skills/` (global).
+      // https://theia-ide.org/docs/user_ai/#agent-skills
+      class: TheiaSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
     "trae",
     {
       // Trae reads Agent Skills from `.trae/skills/` (project) and
@@ -839,6 +879,16 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     },
   ],
   [
+    "jcode",
+    {
+      // jcode skills are directories (`<name>/SKILL.md`) under
+      // `.jcode/skills/` (project) / `~/.jcode/skills/` (user).
+      // https://github.com/1jehuang/jcode/blob/master/crates/jcode-app-core/src/tool/skill.rs
+      class: JcodeSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
     "devin",
     {
       class: DevinSkill,
@@ -859,6 +909,17 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     {
       class: ZcodeSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "zero",
+    {
+      // Zero reads skills (`<name>/SKILL.md`) from its user skills root
+      // `~/.local/share/zero/skills/`; project skill directories are not
+      // supported, so the target is global-only.
+      // https://github.com/Twigpine/zero/blob/main/docs/EXTENDING.md#3-skills
+      class: ZeroSkill,
+      meta: { supportsProject: false, supportsSimulated: false, supportsGlobal: true },
     },
   ],
   [
@@ -890,6 +951,26 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
       // the managed/local `~/.openclaw/skills/` root (global).
       // https://docs.openclaw.ai/tools/skills
       class: OpenclawSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "bb",
+    {
+      // bb skills are directories (`<name>/SKILL.md`) under `.bb/skills/`
+      // (project) and `<dataDir>/skills/` (global, `~/.bb/skills/` by default).
+      // https://github.com/get-bb/bb/blob/main/docs/configuration.md#skills
+      class: BbSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "deepcode",
+    {
+      // DeepCode skills are directories (`<name>/SKILL.md`) under the
+      // cross-tool `.agents/skills/` (project) / `~/.agents/skills/` (user).
+      // https://github.com/HKUDS/DeepCode/blob/main/docs/guide/skills-and-memory.md
+      class: DeepcodeSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],
@@ -948,7 +1029,9 @@ export class SkillsProcessor extends DirFeatureProcessor {
       outputRoot,
       inputRoots,
       dryRun,
-      avoidBlockScalars: toolTarget === "cursor",
+      // Zero (like Cursor) reads skill frontmatter line by line, so a value
+      // folded onto several lines would be cut short.
+      avoidBlockScalars: toolTarget === "cursor" || toolTarget === "zero",
       logger,
     });
     const result = SkillsProcessorToolTargetSchema.safeParse(toolTarget);

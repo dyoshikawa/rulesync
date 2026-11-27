@@ -4,6 +4,8 @@ import { z } from "zod/mini";
 
 import { POOL_SETTINGS_FILE_NAME } from "../../constants/pool-paths.js";
 import {
+  CURATED_SUBAGENTS_FEATURE_SUBDIR,
+  RULESYNC_CURATED_SUBAGENTS_RELATIVE_DIR_PATH,
   RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
   SUBAGENTS_FEATURE_SUBDIR,
 } from "../../constants/rulesync-paths.js";
@@ -11,6 +13,7 @@ import {
   caseFoldIdentity,
   ClaimedIdentities,
   FeatureProcessor,
+  filterCuratedShadowedByLocal,
   mergeByCaseInsensitiveIdentity,
 } from "../../types/feature-processor.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
@@ -18,6 +21,10 @@ import { ToolFile } from "../../types/tool-file.js";
 import { subagentsProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { quoteForLog, stripControlCharacters } from "../../utils/control-characters.js";
+import {
+  CURATED_SUBAGENT_FRONTMATTER_KEYS,
+  keepCuratedFrontmatterKeys,
+} from "../../utils/curated-frontmatter.js";
 import { formatError } from "../../utils/error.js";
 import {
   assertWritablePathInsideRoot,
@@ -25,6 +32,8 @@ import {
   directoryExistsStrict,
   findFilesByGlobs,
   isFileSystemError,
+  splitPathSegments,
+  subdirectoryDepthOf,
 } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { AgentsmdSubagent } from "./agentsmd-subagent.js";
@@ -46,10 +55,13 @@ import { CopilotcliSubagent } from "./copilotcli-subagent.js";
 import { CortexcodeSubagent } from "./cortexcode-subagent.js";
 import { CursorSubagent } from "./cursor-subagent.js";
 import { DeepagentsSubagent } from "./deepagents-subagent.js";
+import { DeepcodeSubagent } from "./deepcode-subagent.js";
 import { DevinPluginSubagent } from "./devin-plugin-subagent.js";
 import { DevinSubagent } from "./devin-subagent.js";
 import { FactorydroidSubagent } from "./factorydroid-subagent.js";
 import { FirebenderSubagent } from "./firebender-subagent.js";
+import { GajaecodeSubagent } from "./gajaecode-subagent.js";
+import { GitlabduoSubagent, GITLABDUO_MAX_SUBAGENTS } from "./gitlabduo-subagent.js";
 import { GooseSubagent } from "./goose-subagent.js";
 import { GrokcliSubagent } from "./grokcli-subagent.js";
 import { HermesagentSubagent } from "./hermesagent-subagent.js";
@@ -69,6 +81,7 @@ import { OpenCodeSubagent } from "./opencode-subagent.js";
 import { Opencodev1Subagent } from "./opencodev1-subagent.js";
 import { PoolSubagent } from "./pool-subagent.js";
 import { QoderSubagent } from "./qoder-subagent.js";
+import { QodercnSubagent } from "./qodercn-subagent.js";
 import { QwencodeSubagent } from "./qwencode-subagent.js";
 import { ReasonixSubagent } from "./reasonix-subagent.js";
 import { RooSubagent } from "./roo-subagent.js";
@@ -77,6 +90,7 @@ import { RulesyncSubagent } from "./rulesync-subagent.js";
 import { SimulatedSubagent } from "./simulated-subagent.js";
 import { TabnineSubagent } from "./tabnine-subagent.js";
 import { TaktSubagent } from "./takt-subagent.js";
+import { TheiaSubagent } from "./theia-subagent.js";
 import {
   ToolSubagent,
   ToolSubagentForDeletionParams,
@@ -84,11 +98,13 @@ import {
   ToolSubagentFromRulesyncSubagentParams,
   ToolSubagentSettablePaths,
 } from "./tool-subagent.js";
+import { TraeSubagent } from "./trae-subagent.js";
 import { VibePluginSubagent } from "./vibe-plugin-subagent.js";
 import { VibeSubagent } from "./vibe-subagent.js";
 import { XumSubagent } from "./xum-subagent.js";
 import { ZcodePluginSubagent } from "./zcode-plugin-subagent.js";
 import { ZcodeSubagent } from "./zcode-subagent.js";
+import { ZeroSubagent } from "./zero-subagent.js";
 import { ZoocodeSubagent } from "./zoocode-subagent.js";
 
 /**
@@ -182,8 +198,11 @@ type ToolSubagentFactory = {
      * `/` literally rather than joined with `node:path`'s `join`: on Windows
      * `join` would separate the segments with a backslash, which only works by
      * accident because `findFilesByGlobs` rewrites backslashes.
+     *
+     * Several patterns cover a bounded nesting depth (Junie's `*.md` plus
+     * `*\/*.md`), which a single `**` glob would overshoot.
      */
-    filePattern: string;
+    filePattern: string | string[];
     /**
      * Patterns that replace {@link filePattern} for import only, for a tool
      * that reads more layouts than Rulesync writes (e.g. Devin's flat
@@ -205,8 +224,41 @@ type ToolSubagentFactory = {
      * only read a flat directory and skip nested sources with a warning.
      */
     supportsNestedPaths?: boolean;
+    /**
+     * With {@link supportsNestedPaths}, the deepest directory level the tool
+     * reads: `1` means `<dir>/<name>.md` but not `<dir>/<sub>/<name>.md`
+     * (Junie reads only immediate subdirectories). Deeper rulesync sources are
+     * skipped with a warning. Unset means no limit.
+     */
+    maxNestingDepth?: number;
+    /**
+     * Top-level subdirectories the tool does not read as agents (Junie skips
+     * `skills/`, which is the shared Agent Skills tree in `.agents/`). Sources
+     * under them are skipped on generation with a warning, and files under
+     * them are left out of imports and orphan sweeps.
+     */
+    excludedSubdirectories?: string[];
+    /**
+     * Import pattern for the import-only discovery roots (`importDirPaths`),
+     * replacing the canonical root's patterns there. Junie reads one nested
+     * level in the shared `.agents/` root too, but that root also holds other
+     * tools' trees (`.agents/commands/`, `.agents/workflows/`, ...), so it is
+     * imported flat: only `.junie/agents/` is read one level deep.
+     */
+    importOnlyRootFilePattern?: string;
+    /**
+     * The most subagents the tool loads before it refuses to start. When a run
+     * targets more than this, the processor warns; every file is still written.
+     */
+    maxSubagents?: number;
   };
 };
+
+/** The top-level directory of a nested relative path, or `undefined` for a flat one. */
+function topLevelDirOf(relativeFilePath: string): string | undefined {
+  const segments = splitPathSegments(relativeFilePath);
+  return segments.length > 1 ? segments[0] : undefined;
+}
 
 /**
  * The globs import scans for a tool: its import-only patterns when it reads
@@ -214,6 +266,28 @@ type ToolSubagentFactory = {
  */
 function importFilePatternsOf(meta: ToolSubagentFactory["meta"]): string | string[] {
   return meta.importFilePatterns ?? meta.filePattern;
+}
+
+/**
+ * The globs one discovery root is scanned with: the generation pattern for the
+ * orphan sweep, otherwise the import patterns, or, for an import-only root,
+ * {@link ToolSubagentFactory} `importOnlyRootFilePattern` when the tool sets it.
+ */
+function rootFilePatternsOf(
+  meta: ToolSubagentFactory["meta"],
+  { forDeletion, canonical }: { forDeletion: boolean; canonical: boolean },
+): string | string[] {
+  if (forDeletion) return meta.filePattern;
+  if (!canonical && meta.importOnlyRootFilePattern !== undefined) {
+    return meta.importOnlyRootFilePattern;
+  }
+  return importFilePatternsOf(meta);
+}
+
+/** `findFilesByGlobs` options that leave a tool's excluded subdirectories out of a scan. */
+function excludedSubdirectoryIgnoreOf(meta: ToolSubagentFactory["meta"]): { ignore?: string[] } {
+  const dirs = meta.excludedSubdirectories;
+  return dirs === undefined ? {} : { ignore: dirs.map((dir) => `${dir}/**`) };
 }
 
 /** Whether unparseable files are left out of this import or orphan sweep. */
@@ -566,7 +640,7 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
     {
       // Factory Droid custom droids are native Markdown files under
       // .factory/droids/ (project) and ~/.factory/droids/ (global).
-      // https://docs.factory.ai/cli/configuration/custom-droids
+      // https://docs.factory.com/harness/subagents
       class: FactorydroidSubagent,
       meta: {
         supportsProject: true,
@@ -594,6 +668,23 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         emitsEmptyAggregate: true,
         emitsEmptyAggregateOnDelete: true,
         filePattern: "*.md",
+      },
+    },
+  ],
+  [
+    "gitlabduo",
+    {
+      // GitLab Duo workspace subagents (Developer Flow, GA in GitLab 19.6):
+      // Markdown + YAML frontmatter under the shared project `.agents/agents/`.
+      // No user-level location is documented, so project scope only.
+      // https://docs.gitlab.com/user/duo_agent_platform/customize/workspace_subagents/
+      class: GitlabduoSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: false,
+        filePattern: "*.md",
+        maxSubagents: GITLABDUO_MAX_SUBAGENTS,
       },
     },
   ],
@@ -644,7 +735,15 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsProject: true,
         supportsSimulated: false,
         supportsGlobal: true,
-        filePattern: "*.md",
+        // Junie reads `.md` and `.agent.md` files in its agent directories and
+        // their immediate subdirectories, except `skills/`. The name comes from
+        // frontmatter or the file name, never the directory.
+        // https://junie.jetbrains.com/docs/junie-cli-subagents.html
+        filePattern: ["*.md", "*/*.md"],
+        supportsNestedPaths: true,
+        maxNestingDepth: 1,
+        excludedSubdirectories: ["skills"],
+        importOnlyRootFilePattern: "*.md",
       },
     },
   ],
@@ -775,6 +874,20 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
     },
   ],
   [
+    "gajaecode",
+    {
+      // `.gjc/agents/*.md` (project) and `~/.gjc/agent/agents/*.md` (global).
+      // https://github.com/Yeachan-Heo/gajae-code/blob/main/docs/customization.md
+      class: GajaecodeSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.md",
+      },
+    },
+  ],
+  [
     "omp",
     {
       class: OmpSubagent,
@@ -837,6 +950,21 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
       // `.qoder/agents/` (project) and `~/.qoder/agents/` (user/global).
       // https://docs.qoder.com/en/cli/04-extending-qoder-cli/subagent
       class: QoderSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.md",
+      },
+    },
+  ],
+  [
+    "qodercn",
+    {
+      // Qoder CN shares Qoder's `.qoder/agents/` project directory; user
+      // subagents live under `~/.qoder-cn/agents/`.
+      // https://docs.qoder.cn/user-guide/custom-agent
+      class: QodercnSubagent,
       meta: {
         supportsProject: true,
         supportsSimulated: false,
@@ -949,6 +1077,46 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
     },
   ],
   [
+    "theia",
+    {
+      // Theia AI custom agents: `.agents/agents/<id>/agent.md`, one folder per
+      // agent (the folder name is the id). Theia reads only the immediate
+      // subfolders, so the flat `<name>.md` files the agentsmd and Antigravity
+      // targets write into the same root are left alone by this pattern, and
+      // theirs (`*.md`) never reach into these folders. Global agents live in a
+      // product-specific prompt directory that is not documented.
+      // https://theia-ide.org/docs/user_ai/#custom-agents
+      class: TheiaSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: false,
+        filePattern: "*/agent.md",
+        // Theia skips an `agent.md` without string `name`, `description` and
+        // `defaultLLM`, so import does too (with a warning) instead of
+        // aborting on one hand-written file.
+        skipInvalidImportFiles: true,
+      },
+    },
+  ],
+  [
+    "trae",
+    {
+      // Trae subagents are native Markdown + YAML frontmatter under
+      // `.trae/agents/` (project only); Trae reads them once Settings > Beta >
+      // "Enable Subagents Directory" is on. The documented user directory is
+      // `~/.trae-cn/agents/` (CN build), so global scope is not written.
+      // https://docs.trae.ai/ide/subagents?_lang=en
+      class: TraeSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: false,
+        filePattern: "*.md",
+      },
+    },
+  ],
+  [
     "vibe",
     {
       class: VibeSubagent,
@@ -1023,6 +1191,21 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
     },
   ],
   [
+    "zero",
+    {
+      // Zero specialists are Markdown manifests under `.zero/specialists/`
+      // (project) and `<user config dir>/zero/specialists/` (global).
+      // https://github.com/Twigpine/zero/blob/main/docs/SPECIALISTS.md
+      class: ZeroSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.md",
+      },
+    },
+  ],
+  [
     "zcode-plugin",
     {
       // `<plugin>/agents/*.md`, parsed like `~/.zcode/agents/` ones.
@@ -1032,6 +1215,21 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsProject: true,
         supportsSimulated: false,
         supportsGlobal: false,
+        filePattern: "*.md",
+      },
+    },
+  ],
+  [
+    "deepcode",
+    {
+      // DeepCode agent presets are Markdown + YAML front matter under
+      // `.agents/presets/` (project) and `~/.deepcode/agent-presets/` (global).
+      // https://github.com/HKUDS/DeepCode/blob/main/docs/guide/configuration.md#agent-presets
+      class: DeepcodeSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
         filePattern: "*.md",
       },
     },
@@ -1170,6 +1368,20 @@ export class SubagentsProcessor extends FeatureProcessor {
         );
         return false;
       }
+      const { maxNestingDepth, excludedSubdirectories } = factory.meta;
+      if (maxNestingDepth !== undefined && subdirectoryDepthOf(path) > maxNestingDepth) {
+        this.logger.warn(
+          `Skipping nested subagent "${path}" for ${this.toolTarget}, which only reads subagents up to ${maxNestingDepth} subdirectory level(s) deep.`,
+        );
+        return false;
+      }
+      const topLevelDir = topLevelDirOf(path);
+      if (topLevelDir !== undefined && excludedSubdirectories?.includes(topLevelDir)) {
+        this.logger.warn(
+          `Skipping subagent "${path}" for ${this.toolTarget}, which does not read subagents from a "${topLevelDir}/" directory.`,
+        );
+        return false;
+      }
       return true;
     });
 
@@ -1208,6 +1420,12 @@ export class SubagentsProcessor extends FeatureProcessor {
     );
     if (factory.meta.supportsNestedPaths === true) {
       this.warnAboutDuplicateNames(toolSubagents);
+    }
+    const { maxSubagents } = factory.meta;
+    if (maxSubagents !== undefined && toolSubagents.length > maxSubagents) {
+      this.logger.warn(
+        `${toolSubagents.length} subagents target ${this.toolTarget}, which refuses to start a session with more than ${maxSubagents}; narrow their \`targets\` to stay within the limit.`,
+      );
     }
     return toolSubagents;
   }
@@ -1301,7 +1519,9 @@ export class SubagentsProcessor extends FeatureProcessor {
     const treeParent = dirname(sourceTree);
     const treeName = basename(sourceTree);
     const treeSubagentsDirPath = join(treeName, SUBAGENTS_FEATURE_SUBDIR);
+    const treeCuratedSubagentsDirPath = join(treeName, CURATED_SUBAGENTS_FEATURE_SUBDIR);
     const subagentsDir = join(sourceTree, SUBAGENTS_FEATURE_SUBDIR);
+    const curatedSubagentsDir = join(sourceTree, CURATED_SUBAGENTS_FEATURE_SUBDIR);
 
     // Strict: a source directory symlinked at a tree that is missing must not
     // read as "this feature has no sources", which would let `--delete` sweep
@@ -1313,7 +1533,7 @@ export class SubagentsProcessor extends FeatureProcessor {
     }
     this.rulesyncSourceDirFound = true;
 
-    const mdFiles = (
+    const localMdFiles = (
       await findFilesByGlobs("**/*.md", {
         cwd: subagentsDir,
         followSymbolicLinks: true,
@@ -1321,6 +1541,33 @@ export class SubagentsProcessor extends FeatureProcessor {
     )
       .map((file) => relative(subagentsDir, file))
       .toSorted(compareRelativePathsShallowestFirst);
+    // `subagents/.curated/` holds the subagents `rulesync install` fetched from
+    // declared sources; the glob above leaves dot-directories out. A local
+    // subagent of the same name takes precedence, as for rules and skills.
+    const curatedMdFiles = (await directoryExistsStrict(curatedSubagentsDir))
+      ? filterCuratedShadowedByLocal({
+          localRelativePaths: localMdFiles,
+          curatedRelativePaths: (await findFilesByGlobs("**/*.md", { cwd: curatedSubagentsDir }))
+            .map((file) => relative(curatedSubagentsDir, file))
+            .toSorted(compareRelativePathsShallowestFirst),
+          artifactKind: "subagent",
+          entryNoun: "file",
+          treeDirPath: treeSubagentsDirPath,
+          logger: this.logger,
+        })
+      : [];
+    const mdFiles = [
+      ...localMdFiles.map((relativeFilePath) => ({
+        relativeDirPath: treeSubagentsDirPath,
+        dirPath: subagentsDir,
+        relativeFilePath,
+      })),
+      ...curatedMdFiles.map((relativeFilePath) => ({
+        relativeDirPath: treeCuratedSubagentsDirPath,
+        dirPath: curatedSubagentsDir,
+        relativeFilePath,
+      })),
+    ];
 
     if (mdFiles.length === 0) {
       this.logger.debug(`No markdown files found in rulesync subagents directory: ${subagentsDir}`);
@@ -1331,16 +1578,20 @@ export class SubagentsProcessor extends FeatureProcessor {
 
     const rulesyncSubagents: RulesyncSubagent[] = [];
 
-    for (const mdFile of mdFiles) {
-      const filepath = join(subagentsDir, mdFile);
+    for (const { relativeDirPath, dirPath, relativeFilePath: mdFile } of mdFiles) {
+      const filepath = join(dirPath, mdFile);
 
       try {
-        const rulesyncSubagent = await RulesyncSubagent.fromFile({
+        const loaded = await RulesyncSubagent.fromFile({
           outputRoot: treeParent,
-          relativeDirPath: treeSubagentsDirPath,
+          relativeDirPath,
           relativeFilePath: mdFile,
           validate: true,
         });
+        const rulesyncSubagent =
+          relativeDirPath === treeCuratedSubagentsDirPath
+            ? this.withCanonicalFrontmatterOnly(loaded)
+            : loaded;
 
         rulesyncSubagents.push(rulesyncSubagent);
         this.logger.debug(`Successfully loaded subagent: ${mdFile}`);
@@ -1368,6 +1619,33 @@ export class SubagentsProcessor extends FeatureProcessor {
     }
 
     return rulesyncSubagents;
+  }
+
+  /**
+   * A subagent fetched from a declared source, keeping only the canonical,
+   * tool-neutral frontmatter fields and dropping every tool section, since
+   * those are copied into the generated files and can grant tools,
+   * permissions, hooks or MCP servers. A local subagent of the same name keeps
+   * its tool-specific settings.
+   */
+  private withCanonicalFrontmatterOnly(subagent: RulesyncSubagent): RulesyncSubagent {
+    const { frontmatter, droppedKeys } = keepCuratedFrontmatterKeys({
+      frontmatter: subagent.getFrontmatter(),
+      allowedKeys: CURATED_SUBAGENT_FRONTMATTER_KEYS,
+    });
+    if (droppedKeys.length === 0) {
+      return subagent;
+    }
+    this.logger.warn(
+      `Dropped frontmatter from source-installed subagent ${quoteForLog(join(subagent.getRelativeDirPath(), subagent.getRelativeFilePath()))}: ${droppedKeys.map(stripControlCharacters).join(", ")}. A subagent installed from a source keeps only these frontmatter fields: ${CURATED_SUBAGENT_FRONTMATTER_KEYS.join(", ")}. It cannot grant tools, permissions, hooks or MCP servers; copy it into .rulesync/ locally to keep tool-specific settings.`,
+    );
+    return new RulesyncSubagent({
+      outputRoot: subagent.getOutputRoot(),
+      relativeDirPath: subagent.getRelativeDirPath(),
+      relativeFilePath: subagent.getRelativeFilePath(),
+      frontmatter,
+      body: subagent.getBody(),
+    });
   }
 
   /**
@@ -1418,9 +1696,11 @@ export class SubagentsProcessor extends FeatureProcessor {
     const roots = forDeletion
       ? [paths.relativeDirPath]
       : [paths.relativeDirPath, ...(paths.importDirPaths ?? [])];
-    const filePatterns = forDeletion
-      ? factory.meta.filePattern
-      : importFilePatternsOf(factory.meta);
+    const filePatternsFor = (root: (typeof roots)[number]): string | string[] =>
+      rootFilePatternsOf(factory.meta, {
+        forDeletion,
+        canonical: root === paths.relativeDirPath,
+      });
 
     const toolSubagents: ToolFile[] = [];
     // Track both destination paths and tool-specific logical identities. Claude
@@ -1452,9 +1732,10 @@ export class SubagentsProcessor extends FeatureProcessor {
         }
       }
       const subagentFilePaths = (
-        await findFilesByGlobs(filePatterns, {
+        await findFilesByGlobs(filePatternsFor(root), {
           cwd: baseDir,
           followSymbolicLinks: !forDeletion,
+          ...excludedSubdirectoryIgnoreOf(factory.meta),
         })
       ).toSorted((left, right) =>
         compareRelativePathsShallowestFirst(relative(baseDir, left), relative(baseDir, right)),
@@ -1738,7 +2019,7 @@ export class SubagentsProcessor extends FeatureProcessor {
 
 Simulated subagents are specialized AI assistants that can be invoked to handle specific types of tasks. In this case, it can be appear something like custom slash commands simply. Simulated subagents can be called by custom slash commands.
 
-When users call a simulated subagent, it will look for the corresponding markdown file, \`${join(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "{subagent}.md")}\`, and execute its contents as the block of operations.
+When users call a simulated subagent, it will look for the corresponding markdown file, \`${join(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "{subagent}.md")}\` (or, for a subagent installed from a declared source, \`${join(RULESYNC_CURATED_SUBAGENTS_RELATIVE_DIR_PATH, "{subagent}.md")}\`), and execute its contents as the block of operations.
 
 For example, if the user instructs \`Call planner subagent to plan the refactoring\`, you have to look for the markdown file, \`${join(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md")}\`, and execute its contents as the block of operations.`;
   }

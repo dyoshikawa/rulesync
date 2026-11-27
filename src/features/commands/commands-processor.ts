@@ -4,12 +4,15 @@ import { z } from "zod/mini";
 
 import {
   COMMANDS_FEATURE_SUBDIR,
+  CURATED_COMMANDS_FEATURE_SUBDIR,
   RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+  RULESYNC_CURATED_COMMANDS_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
 import { AiFile } from "../../types/ai-file.js";
 import {
   ClaimedIdentities,
   FeatureProcessor,
+  filterCuratedShadowedByLocal,
   mergeByCaseInsensitiveIdentity,
 } from "../../types/feature-processor.js";
 import type { FlattenedCommandNaming } from "../../types/features.js";
@@ -18,11 +21,16 @@ import { ToolFile } from "../../types/tool-file.js";
 import { commandsProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { quoteForLog, stripControlCharacters } from "../../utils/control-characters.js";
+import {
+  CURATED_COMMAND_FRONTMATTER_KEYS,
+  keepCuratedFrontmatterKeys,
+} from "../../utils/curated-frontmatter.js";
 import { formatError } from "../../utils/error.js";
 import {
   checkPathTraversal,
   directoryExistsStrict,
   findFilesByGlobs,
+  subdirectoryDepthOf,
   toPosixPath,
 } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
@@ -45,6 +53,7 @@ import { CursorCommand } from "./cursor-command.js";
 import { DevinCommand } from "./devin-command.js";
 import { FactorydroidCommand } from "./factorydroid-command.js";
 import { FirebenderCommand } from "./firebender-command.js";
+import { GajaecodeCommand } from "./gajaecode-command.js";
 import { GitlabduoCommand } from "./gitlabduo-command.js";
 import { GooseCommand } from "./goose-command.js";
 import { GrokcliCommand } from "./grokcli-command.js";
@@ -63,6 +72,7 @@ import { OpenCodeCommand } from "./opencode-command.js";
 import { Opencodev1Command } from "./opencodev1-command.js";
 import { PiCommand } from "./pi-command.js";
 import { QoderCommand } from "./qoder-command.js";
+import { QodercnCommand } from "./qodercn-command.js";
 import { QwencodeCommand } from "./qwencode-command.js";
 import { ReasonixCommand } from "./reasonix-command.js";
 import { RooCommand } from "./roo-command.js";
@@ -70,9 +80,11 @@ import { RovodevCommand } from "./rovodev-command.js";
 import { RulesyncCommand } from "./rulesync-command.js";
 import { TabnineCommand } from "./tabnine-command.js";
 import { TaktCommand } from "./takt-command.js";
+import { TheiaCommand } from "./theia-command.js";
 import {
   ToolCommand,
   ToolCommandAfterOrphanSweepParams,
+  ToolCommandAfterOrphanSweepResult,
   ToolCommandForDeletionParams,
   ToolCommandFromFileParams,
   ToolCommandFromRulesyncCommandParams,
@@ -117,8 +129,18 @@ type ToolCommandFactory = {
       global?: boolean;
       forDeletion?: boolean;
     }): Promise<ToolFile[]> | ToolFile[];
+    /**
+     * Optional import-only filter: whether a file found in the commands
+     * directory is a command at all. Set by a tool whose commands directory
+     * also holds files that are not commands (Theia's `.prompts/` keeps plain
+     * prompt fragments beside the `isCommand: true` templates); the rest are
+     * left out of the import. Absent means every file is a command.
+     */
+    isImportable?(toolCommand: ToolCommand): boolean;
     /** See {@link ToolCommand.afterOrphanSweep}. */
-    afterOrphanSweep?(params: ToolCommandAfterOrphanSweepParams): Promise<number>;
+    afterOrphanSweep?(
+      params: ToolCommandAfterOrphanSweepParams,
+    ): Promise<ToolCommandAfterOrphanSweepResult>;
     canDeleteAuxiliaryFiles?(params: {
       outputRoot: string;
       global?: boolean;
@@ -147,7 +169,7 @@ type ToolCommandFactory = {
   };
   meta: {
     /** File extension for the command file */
-    extension: "json" | "md" | "mdc" | "toml" | "prompt.md" | "yaml";
+    extension: "json" | "md" | "mdc" | "toml" | "prompt.md" | "prompttemplate" | "yaml";
     /** Whether the tool supports project-level commands */
     supportsProject: boolean;
     /** Whether the tool supports global (user-level) commands */
@@ -156,6 +178,14 @@ type ToolCommandFactory = {
     isSimulated: boolean;
     /** Whether the tool supports subdirectory paths in commands */
     supportsSubdirectory: boolean;
+    /**
+     * With {@link supportsSubdirectory}, the deepest directory level the tool
+     * reads: `1` means `git/commit.md` but not `git/sub/commit.md` (Junie
+     * reads only immediate subdirectories). Deeper rulesync sources are
+     * skipped with a warning, and import scans only that deep. Unset means no
+     * limit.
+     */
+    maxSubdirectoryDepth?: number;
     /**
      * When true, {@link CommandsProcessor.loadToolFiles} never scans the
      * tool's output tree: the commands surface is emitted into a directory
@@ -461,7 +491,7 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
       meta: {
         // Factory Droid custom slash commands are native Markdown files under
         // .factory/commands/ (project) and ~/.factory/commands/ (personal/global).
-        // https://docs.factory.ai/cli/configuration/custom-slash-commands
+        // https://docs.factory.com/harness/custom-slash-commands
         extension: "md",
         supportsProject: true,
         supportsGlobal: true,
@@ -559,7 +589,13 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
         supportsProject: true,
         supportsGlobal: true,
         isSimulated: false,
-        supportsSubdirectory: false,
+        // Junie reads Markdown files in its command directories and their
+        // immediate subdirectories; "the file name supplies the command name",
+        // with no namespacing by directory (see JunieCommand's
+        // `validateRulesyncCommands` for the clash warning).
+        // https://junie.jetbrains.com/docs/custom-slash-commands.html
+        supportsSubdirectory: true,
+        maxSubdirectoryDepth: 1,
       },
     },
   ],
@@ -693,6 +729,21 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
     },
   ],
   [
+    "gajaecode",
+    {
+      // `.gjc/commands/` (project) and `~/.gjc/agent/commands/` (global).
+      // https://github.com/Yeachan-Heo/gajae-code/blob/main/docs/customization.md
+      class: GajaecodeCommand,
+      meta: {
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: true,
+        isSimulated: false,
+        supportsSubdirectory: false,
+      },
+    },
+  ],
+  [
     "omp",
     {
       class: OmpCommand,
@@ -752,6 +803,22 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
       // the command (`git/commit.md` -> `/git:commit`).
       // https://docs.qoder.com/en/cli/04-extending-qoder-cli/command
       class: QoderCommand,
+      meta: {
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: true,
+        isSimulated: false,
+        supportsSubdirectory: true,
+      },
+    },
+  ],
+  [
+    "qodercn",
+    {
+      // Qoder CN shares Qoder's `.qoder/commands/` project directory; user
+      // commands live under `~/.qoder-cn/commands/`.
+      // https://docs.qoder.cn/qoder/commands
+      class: QodercnCommand,
       meta: {
         extension: "md",
         supportsProject: true,
@@ -875,6 +942,28 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
     },
   ],
   [
+    "theia",
+    {
+      // Theia AI slash commands are prompt templates with `isCommand: true`
+      // frontmatter in the workspace template directory (default `.prompts/`,
+      // read at its top level only). User template directories differ per
+      // Theia-based product and are undocumented, so project scope only.
+      // https://theia-ide.org/docs/user_ai/#slash-commands
+      class: TheiaCommand,
+      meta: {
+        extension: "prompttemplate",
+        supportsProject: true,
+        supportsGlobal: false,
+        isSimulated: false,
+        supportsSubdirectory: false,
+        // `.prompts/` also holds hand-written prompt fragments and agent
+        // prompt overrides that no `.rulesync/commands/` source accounts for:
+        // not gitignored, and never swept by `--delete`.
+        committedOutput: true,
+      },
+    },
+  ],
+  [
     "trae",
     {
       // Trae custom commands are Markdown files under `.trae/commands/`
@@ -962,6 +1051,20 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
     },
   ],
 ]);
+
+/**
+ * The globs that find a tool's command files: flat only, every depth, or up to
+ * `maxSubdirectoryDepth` levels (`*.md` and `*\/*.md` for a depth of 1).
+ */
+function toolCommandGlobs(meta: ToolCommandFactory["meta"]): string | string[] {
+  const filePattern = `*.${meta.extension}`;
+  if (!meta.supportsSubdirectory) return filePattern;
+  if (meta.maxSubdirectoryDepth === undefined) return `**/${filePattern}`;
+  return Array.from(
+    { length: meta.maxSubdirectoryDepth + 1 },
+    (_, depth) => `${"*/".repeat(depth)}${filePattern}`,
+  );
+}
 
 /**
  * Factory retrieval function type for dependency injection.
@@ -1057,6 +1160,18 @@ export class CommandsProcessor extends FeatureProcessor {
         continue;
       }
       const originalRelativePath = rulesyncCommand.getRelativeFilePath();
+      const { maxSubdirectoryDepth } = factory.meta;
+      if (
+        factory.meta.supportsSubdirectory &&
+        maxSubdirectoryDepth !== undefined &&
+        subdirectoryDepthOf(originalRelativePath) > maxSubdirectoryDepth
+      ) {
+        this.logger.warn(
+          `Skipping command ${quoteForLog(originalRelativePath)} for ` +
+            `'${this.toolTarget}', which only reads commands up to ${maxSubdirectoryDepth} subdirectory level(s) deep.`,
+        );
+        continue;
+      }
       const commandToConvert = factory.meta.supportsSubdirectory
         ? rulesyncCommand
         : this.flattenRelativeFilePath(rulesyncCommand);
@@ -1144,31 +1259,93 @@ export class CommandsProcessor extends FeatureProcessor {
   }
 
   /**
-   * Load rulesync command files from a single source-tree's `commands/`
-   * subtree. `sourceTree` is the source tree itself (e.g.
-   * `/repo/.rulesync` or `/repo/.rulesync.local`).
+   * Load rulesync command files from a single source-tree's `commands/` (and
+   * `commands/.curated/`) subtree. `sourceTree` is the source tree itself
+   * (e.g. `/repo/.rulesync` or `/repo/.rulesync.local`).
+   *
+   * `commands/.curated/` holds the commands `rulesync install` fetched from
+   * declared sources. A local command of the same name takes precedence, as
+   * for rules and skills.
    */
   private async loadRulesyncFilesForRoot(sourceTree: string): Promise<RulesyncCommand[]> {
     const treeParent = dirname(sourceTree);
     const treeName = basename(sourceTree);
     const treeCommandsDirPath = join(treeName, COMMANDS_FEATURE_SUBDIR);
+    const treeCuratedCommandsDirPath = join(treeName, CURATED_COMMANDS_FEATURE_SUBDIR);
     const basePath = join(sourceTree, COMMANDS_FEATURE_SUBDIR);
+    const curatedBasePath = join(sourceTree, CURATED_COMMANDS_FEATURE_SUBDIR);
     // Strict for the same reason as the rules loader: a source directory whose
     // symlink no longer resolves must not glob to nothing and read as "every
     // command was deleted".
-    const rulesyncCommandPaths = (await directoryExistsStrict(basePath))
-      ? await findFilesByGlobs("**/*.md", { cwd: basePath })
-      : [];
+    const [baseExists, curatedExists] = await Promise.all([
+      directoryExistsStrict(basePath),
+      directoryExistsStrict(curatedBasePath),
+    ]);
+    // The local glob leaves out dot-directories, so `.curated/` is only read
+    // through the second glob.
+    const [rulesyncCommandPaths, curatedCommandPaths] = await Promise.all([
+      baseExists ? findFilesByGlobs("**/*.md", { cwd: basePath }) : [],
+      curatedExists ? findFilesByGlobs("**/*.md", { cwd: curatedBasePath }) : [],
+    ]);
+    const localRelativePaths = rulesyncCommandPaths.map((path) =>
+      this.safeRelativePath(basePath, path),
+    );
+    const curatedRelativePaths = filterCuratedShadowedByLocal({
+      localRelativePaths,
+      curatedRelativePaths: curatedCommandPaths.map((path) =>
+        this.safeRelativePath(curatedBasePath, path),
+      ),
+      artifactKind: "command",
+      entryNoun: "file",
+      treeDirPath: treeCommandsDirPath,
+      logger: this.logger,
+    });
 
-    return await Promise.all(
-      rulesyncCommandPaths.map((path) =>
+    return await Promise.all([
+      ...localRelativePaths.map((relativeFilePath) =>
         RulesyncCommand.fromFile({
           outputRoot: treeParent,
           relativeDirPath: treeCommandsDirPath,
-          relativeFilePath: this.safeRelativePath(basePath, path),
+          relativeFilePath,
         }),
       ),
+      ...curatedRelativePaths.map(async (relativeFilePath) =>
+        this.withCanonicalFrontmatterOnly(
+          await RulesyncCommand.fromFile({
+            outputRoot: treeParent,
+            relativeDirPath: treeCuratedCommandsDirPath,
+            relativeFilePath,
+          }),
+        ),
+      ),
+    ]);
+  }
+
+  /**
+   * A command fetched from a declared source, keeping only the canonical,
+   * tool-neutral frontmatter fields and dropping every tool section, since
+   * those are copied into the generated files and can grant tools,
+   * permissions, hooks or MCP servers. A local command of the same name keeps
+   * its tool-specific settings.
+   */
+  private withCanonicalFrontmatterOnly(command: RulesyncCommand): RulesyncCommand {
+    const { frontmatter, droppedKeys } = keepCuratedFrontmatterKeys({
+      frontmatter: command.getFrontmatter(),
+      allowedKeys: CURATED_COMMAND_FRONTMATTER_KEYS,
+    });
+    if (droppedKeys.length === 0) {
+      return command;
+    }
+    this.logger.warn(
+      `Dropped frontmatter from source-installed command ${quoteForLog(join(command.getRelativeDirPath(), command.getRelativeFilePath()))}: ${droppedKeys.map(stripControlCharacters).join(", ")}. A command installed from a source keeps only these frontmatter fields: ${CURATED_COMMAND_FRONTMATTER_KEYS.join(", ")}. It cannot grant tools, permissions, hooks or MCP servers; copy it into .rulesync/ locally to keep tool-specific settings.`,
     );
+    return new RulesyncCommand({
+      outputRoot: command.getOutputRoot(),
+      relativeDirPath: command.getRelativeDirPath(),
+      relativeFilePath: command.getRelativeFilePath(),
+      frontmatter,
+      body: command.getBody(),
+    });
   }
 
   /**
@@ -1232,15 +1409,10 @@ export class CommandsProcessor extends FeatureProcessor {
     // `.augment/commands/team -> ../../shared-prompts` link would otherwise put
     // files outside the project on the orphan list. Matches the subagents,
     // skills and rules processors.
-    const commandFilePaths = await findFilesByGlobs(
-      factory.meta.supportsSubdirectory
-        ? `**/*.${factory.meta.extension}`
-        : `*.${factory.meta.extension}`,
-      {
-        cwd: outputRootFull,
-        followSymbolicLinks: !forDeletion,
-      },
-    );
+    const commandFilePaths = await findFilesByGlobs(toolCommandGlobs(factory.meta), {
+      cwd: outputRootFull,
+      followSymbolicLinks: !forDeletion,
+    });
 
     if (forDeletion) {
       const toolCommands = commandFilePaths
@@ -1275,15 +1447,17 @@ export class CommandsProcessor extends FeatureProcessor {
       return [...toolCommands, ...(auxiliaryFiles ?? [])].filter((file) => file.isDeletable());
     }
 
-    const toolCommands = await Promise.all(
-      commandFilePaths.map((path) =>
-        factory.class.fromFile({
-          outputRoot: this.outputRoot,
-          relativeFilePath: this.safeRelativePath(outputRootFull, path),
-          global: this.global,
-        }),
-      ),
-    );
+    const toolCommands = (
+      await Promise.all(
+        commandFilePaths.map((path) =>
+          factory.class.fromFile({
+            outputRoot: this.outputRoot,
+            relativeFilePath: this.safeRelativePath(outputRootFull, path),
+            global: this.global,
+          }),
+        ),
+      )
+    ).filter((command) => factory.class.isImportable?.(command) ?? true);
 
     // Import-only: merge in commands defined outside the standalone-file layout
     // (e.g. OpenCode's inline `command` block in `opencode.json`). A standalone
@@ -1379,17 +1553,19 @@ export class CommandsProcessor extends FeatureProcessor {
     const removedBefore = this.getRemovedPaths().length;
     const changedCount = await super.removeOrphanAiFiles(existingFiles, generatedFiles);
     const factory = this.getFactory(this.toolTarget);
-    const auxiliaryChangedCount =
-      (await factory.class.afterOrphanSweep?.({
-        outputRoot: this.outputRoot,
-        global: this.global,
-        dryRun: this.dryRun,
-        logger: this.logger,
-        existingFiles,
-        generatedFiles,
-        removedPaths: this.getRemovedPaths().slice(removedBefore),
-      })) ?? 0;
-    return changedCount + auxiliaryChangedCount;
+    const auxiliaryWrites = await factory.class.afterOrphanSweep?.({
+      outputRoot: this.outputRoot,
+      global: this.global,
+      dryRun: this.dryRun,
+      logger: this.logger,
+      existingFiles,
+      generatedFiles,
+      removedPaths: this.getRemovedPaths().slice(removedBefore),
+    });
+    if (auxiliaryWrites === undefined) return changedCount;
+    this.sweepWrites.paths.push(...auxiliaryWrites.paths);
+    this.sweepWrites.keyOperations.push(...auxiliaryWrites.keyOperations);
+    return changedCount + auxiliaryWrites.paths.length;
   }
 
   /**
@@ -1438,7 +1614,7 @@ s/<command> [arguments]
 This syntax employs a double slash (\`s/\`) to prevent conflicts with built-in slash commands.
 The \`s\` in \`s/\` stands for *simulate*. Because custom slash commands are not built-in, this syntax provides a pseudo way to invoke them.
 
-When users call a custom slash command, you have to look for the markdown file, \`${join(RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "{command}.md")}\`, then execute the contents of that file as the block of operations.`;
+When users call a custom slash command, you have to look for the markdown file, \`${join(RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "{command}.md")}\` (or, for a command installed from a declared source, \`${join(RULESYNC_CURATED_COMMANDS_RELATIVE_DIR_PATH, "{command}.md")}\`), then execute the contents of that file as the block of operations.`;
   }
 
   /**

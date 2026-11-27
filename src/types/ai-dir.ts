@@ -793,6 +793,20 @@ export abstract class AiDir {
     return this.outputRoot;
   }
 
+  /**
+   * A copy of this directory that is written under `outputRoot` instead, with
+   * every other field unchanged. `import` uses it to send the converted
+   * rulesync sources to the project's `.rulesync/` whichever output root the
+   * tool files were read from.
+   */
+  withOutputRoot(outputRoot: string): this {
+    if (outputRoot === this.outputRoot) {
+      return this;
+    }
+    const copy: this = Object.create(Object.getPrototypeOf(this));
+    return Object.assign(copy, this, { outputRoot });
+  }
+
   getRelativeDirPath(): string {
     return this.relativeDirPath;
   }

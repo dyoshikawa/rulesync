@@ -13,6 +13,7 @@ import {
 } from "../constants/rulesync-paths.js";
 import { warpcliConfigDir } from "../constants/warp-paths.js";
 import { getZedGlobalDir } from "../constants/zed-paths.js";
+import { zeroGlobalConfigDir } from "../constants/zero-paths.js";
 import { McpProcessor } from "../features/mcp/mcp-processor.js";
 import { fileExists, readFileContent, removeFile, writeFileContent } from "../utils/file.js";
 import { getHermesagentGlobalDir } from "../utils/hermesagent.js";
@@ -44,13 +45,16 @@ const mcpGenerateTargets = [
   { target: "codebuff", outputPath: join(".agents", "mcp.json") },
   { target: "cursor", outputPath: join(".cursor", "mcp.json") },
   { target: "trae", outputPath: join(".trae", "mcp.json") },
+  { target: "theia", outputPath: join(".theia", "settings.json") },
   { target: "qwencode", outputPath: join(".qwen", "settings.json") },
   { target: "codexcli", outputPath: join(".codex", "config.toml") },
   { target: "codewhale", outputPath: join(".codewhale", "mcp.json") },
   { target: "codebuddy", outputPath: ".mcp.json" },
   { target: "commandcode", outputPath: ".mcp.json" },
   { target: "qoder", outputPath: ".mcp.json" },
+  { target: "qodercn", outputPath: ".mcp.json" },
   { target: "xum", outputPath: join(".xum", "mcp.jsonc") },
+  { target: "jcode", outputPath: join(".jcode", "mcp.json") },
   { target: "gitlabduo", outputPath: join(".gitlab", "duo", "mcp.json") },
   { target: "grokcli", outputPath: join(".grok", "config.toml") },
   { target: "copilot", outputPath: join(".vscode", "mcp.json") },
@@ -58,6 +62,7 @@ const mcpGenerateTargets = [
   { target: "crush", outputPath: "crush.json" },
   { target: "mimocode", outputPath: join(".mimocode", "mimocode.jsonc") },
   { target: "omp", outputPath: join(".omp", "mcp.json") },
+  { target: "gajaecode", outputPath: join(".gjc", "mcp.json") },
   { target: "opencode", outputPath: "opencode.jsonc" },
   { target: "opencodev1", outputPath: "opencode.jsonc" },
   { target: "pi", outputPath: join(".pi", "mcp.json") },
@@ -84,6 +89,8 @@ const mcpGenerateTargets = [
   { target: "reasonix", outputPath: "reasonix.toml" },
   { target: "rovodev", outputPath: join(".rovodev", "mcp.json") },
   { target: "zcode", outputPath: join(".zcode", "config.json") },
+  { target: "zero", outputPath: join(".zero", "config.json") },
+  { target: "deepcode", outputPath: "deepcode_config.json" },
 ] as const;
 
 describe("E2E: mcp", () => {
@@ -644,6 +651,17 @@ describe("E2E: mcp", () => {
       outputPath: "firebender.json",
       content: JSON.stringify({ useCursorRules: false }, null, 2),
     },
+    {
+      target: "theia",
+      outputPath: join(".theia", "settings.json"),
+      content: JSON.stringify({ "editor.fontSize": 14 }, null, 2),
+    },
+    {
+      // `gjc mcp add --project` writes here too, so the file is never deleted.
+      target: "gajaecode",
+      outputPath: join(".gjc", "mcp.json"),
+      content: JSON.stringify({ mcpServers: { added: { command: "echo" } } }, null, 2),
+    },
   ])(
     "should succeed in check mode when a $target mcp file is non-deletable",
     async ({ target, outputPath, content }) => {
@@ -663,6 +681,131 @@ describe("E2E: mcp", () => {
       expect(stdout).toContain("All files are up to date.");
     },
   );
+
+  it("should merge theia MCP servers into .theia/settings.json and import them back", async () => {
+    const testDir = getTestDir();
+    const settingsPath = join(testDir, ".theia", "settings.json");
+
+    await writeFileContent(
+      settingsPath,
+      [
+        "{",
+        "  // Hand-written workspace preference",
+        '  "editor.fontSize": 14,',
+        '  "ai-features.mcp.mcpServers": {',
+        '    "remote": {',
+        '      "serverUrl": "https://old.example.com/mcp",',
+        '      "autostart": false,',
+        '      "registryMetadata": { "serverId": "example" }',
+        "    },",
+        '    "stale": { "command": "stale" }',
+        "  }",
+        "}",
+      ].join("\n"),
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH),
+      JSON.stringify({
+        mcpServers: {
+          local: { type: "stdio", command: "npx", args: ["-y", "server"], env: { KEY: "v" } },
+          remote: {
+            type: "http",
+            url: "https://example.com/mcp",
+            headers: { "X-Team": "a" },
+            deferLoading: true,
+          },
+        },
+      }),
+    );
+
+    await runGenerate({ target: "theia", features: "mcp" });
+
+    const content = await readFileContent(settingsPath);
+    expect(content).toContain("// Hand-written workspace preference");
+    const generated = parseJson5(content) as Record<string, unknown>;
+    expect(generated["editor.fontSize"]).toBe(14);
+    expect(generated["ai-features.mcp.mcpServers"]).toEqual({
+      local: { command: "npx", args: ["-y", "server"], env: { KEY: "v" } },
+      remote: {
+        // Theia-managed keys of an existing server survive; the documented
+        // configuration keys (`autostart` here) follow the rulesync source.
+        registryMetadata: { serverId: "example" },
+        deferLoading: true,
+        serverUrl: "https://example.com/mcp",
+        headers: { "X-Team": "a" },
+      },
+    });
+
+    await removeFile(join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH));
+    await runImport({ target: "theia", features: "mcp" });
+
+    const imported = JSON.parse(
+      await readFileContent(join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH)),
+    ) as {
+      mcpServers: Record<string, Record<string, unknown>>;
+      theia?: { mcpServers: Record<string, Record<string, unknown>> };
+    };
+    // `deferLoading` is Theia-specific, so the server goes to the tool-scoped
+    // block; generating from the imported source yields the same file.
+    expect(imported.theia?.mcpServers.remote).toEqual({
+      deferLoading: true,
+      url: "https://example.com/mcp",
+      headers: { "X-Team": "a" },
+    });
+    expect(imported.mcpServers.remote).toBeUndefined();
+    expect(imported.mcpServers.local?.command).toBe("npx");
+
+    await runGenerate({ target: "theia", features: "mcp" });
+    expect(parseJson5(await readFileContent(settingsPath))).toEqual(generated);
+  });
+
+  it("should keep gajaecode servers added outside rulesync and their credentials", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".rulesync", "mcp.json"),
+      JSON.stringify({ mcpServers: { managed: { command: "managed-server" } } }),
+    );
+    await writeFileContent(
+      join(testDir, ".gjc", "mcp.json"),
+      JSON.stringify({
+        disabledServers: ["other"],
+        mcpServers: {
+          managed: {
+            command: "managed-server",
+            autoload: false,
+            auth: { type: "oauth", credentialId: "cred" },
+          },
+          added: { type: "http", url: "https://example.com/mcp" },
+        },
+      }),
+    );
+
+    await runGenerate({ target: "gajaecode", features: "mcp", deleteFiles: true });
+
+    expect(JSON.parse(await readFileContent(join(testDir, ".gjc", "mcp.json")))).toEqual({
+      disabledServers: ["other"],
+      mcpServers: {
+        // `autoload` follows the source; the credential binding stays
+        // because the server still runs the same command.
+        managed: {
+          type: "stdio",
+          command: "managed-server",
+          auth: { type: "oauth", credentialId: "cred" },
+        },
+        added: { type: "http", url: "https://example.com/mcp" },
+      },
+    });
+
+    // Importing and generating again rewrites each server in place.
+    await runImport({ target: "gajaecode", features: "mcp" });
+    await runGenerate({ target: "gajaecode", features: "mcp" });
+    const servers = JSON.parse(await readFileContent(join(testDir, ".gjc", "mcp.json"))).mcpServers;
+    expect(Object.keys(servers).toSorted()).toEqual(["added", "managed"]);
+    expect(servers.managed.auth).toEqual({ type: "oauth", credentialId: "cred" });
+    // The credential binding is never copied into the rulesync source.
+    expect(await readFileContent(join(testDir, ".rulesync", "mcp.json"))).not.toContain("cred");
+  });
 
   it("should run mcp command as daemon without errors", async () => {
     const testDir = getTestDir();
@@ -924,6 +1067,7 @@ describe("E2E: mcp (import)", () => {
     { target: "trae", sourcePath: join(".trae", "mcp.json") },
     { target: "codewhale", sourcePath: join(".codewhale", "mcp.json") },
     { target: "omp", sourcePath: join(".omp", "mcp.json") },
+    { target: "gajaecode", sourcePath: join(".gjc", "mcp.json") },
     { target: "pi", sourcePath: join(".pi", "mcp.json") },
     // copilot MCP uses VS Code-specific format — excluded from import test
     { target: "copilotcli", sourcePath: join(".github", "mcp.json") },
@@ -963,6 +1107,7 @@ describe("E2E: mcp (import)", () => {
     { target: "antigravity-ide", sourcePath: join(".agents", "mcp_config.json") },
     { target: "antigravity-cli", sourcePath: join(".agents", "mcp_config.json") },
     { target: "warp", sourcePath: join(".warp", ".mcp.json") },
+    { target: "jcode", sourcePath: join(".jcode", "mcp.json") },
     // Xum keys its servers by `servers` and writes a stdio server as one shell
     // command string.
     {
@@ -985,9 +1130,38 @@ describe("E2E: mcp (import)", () => {
         2,
       ),
     },
+    // Zero keeps its servers under `mcp.servers` of `.zero/config.json`,
+    // beside provider settings that must not be imported.
+    {
+      target: "zero",
+      sourcePath: join(".zero", "config.json"),
+      sourceContent: JSON.stringify(
+        {
+          defaultModel: "example-model",
+          mcp: { servers: { "test-server": { type: "stdio", command: "echo", args: ["hello"] } } },
+        },
+        null,
+        2,
+      ),
+    },
     // Legacy pre-v3000.3 location: import must fall back to config.json's
     // mcpServers key when no mcp_config.json exists.
     { target: "devin", sourcePath: join(".devin", "config.json") },
+    // DeepCode requires an explicit `type` on every server.
+    {
+      target: "deepcode",
+      sourcePath: "deepcode_config.json",
+      sourceContent: JSON.stringify(
+        {
+          security: { accessPreset: "ask" },
+          mcpServers: {
+            "test-server": { type: "stdio", command: "echo", args: ["hello"] },
+          },
+        },
+        null,
+        2,
+      ),
+    },
   ])("should import $target mcp", async ({ target, sourcePath, sourceContent }) => {
     const testDir = getTestDir();
 
@@ -1120,7 +1294,9 @@ const mcpGlobalTargets = [
   { target: "hermesagent", outputPath: join(getHermesagentGlobalDir(), "config.yaml") },
   { target: "mimocode", outputPath: join(".config", "mimocode", "mimocode.jsonc") },
   { target: "omp", outputPath: join(".omp", "agent", "mcp.json") },
+  { target: "gajaecode", outputPath: join(".gjc", "agent", "mcp.json") },
   { target: "openclaw", outputPath: join(".openclaw", "openclaw.json") },
+  { target: "openhands", outputPath: join(".openhands", "mcp.json") },
   { target: "opencode", outputPath: join(".config", "opencode", "opencode.jsonc") },
   { target: "opencodev1", outputPath: join(".config", "opencode", "opencode.jsonc") },
   { target: "pi", outputPath: join(".pi", "agent", "mcp.json") },
@@ -1142,7 +1318,9 @@ const mcpGlobalTargets = [
   { target: "codebuddy", outputPath: join(".codebuddy", ".mcp.json") },
   { target: "commandcode", outputPath: join(".commandcode", "mcp.json") },
   { target: "qoder", outputPath: join(".qoder", "settings.json") },
+  { target: "qodercn", outputPath: join(".qoder-cn", "settings.json") },
   { target: "xum", outputPath: join(".xum", "mcp.jsonc") },
+  { target: "jcode", outputPath: join(".jcode", "mcp.json") },
   { target: "musecode", outputPath: join(".config", "muse", "settings.json") },
   { target: "kilo", outputPath: join(".config", "kilo", "kilo.jsonc") },
   { target: "kimi-code", outputPath: join(".kimi-code", "mcp.json") },
@@ -1170,7 +1348,9 @@ const mcpGlobalTargets = [
   { target: "kiro-cli", outputPath: join(".kiro", "settings", "mcp.json") },
   { target: "kiro-ide", outputPath: join(".kiro", "settings", "mcp.json") },
   { target: "zcode", outputPath: join(".zcode", "cli", "config.json") },
+  { target: "zero", outputPath: join(zeroGlobalConfigDir(), "config.json") },
   { target: "dsh", outputPath: join(".dsh", "cordis.patch.yml") },
+  { target: "deepcode", outputPath: join(".deepcode", "deepcode_config.json") },
 ] as const;
 
 describe("E2E: mcp (global mode)", () => {

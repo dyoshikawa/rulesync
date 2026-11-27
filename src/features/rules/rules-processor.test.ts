@@ -1383,7 +1383,105 @@ describe("RulesProcessor", () => {
       ]);
     });
 
-    it("should warn when an oh-my-pi .md and .mdc rule import to the same rulesync rule", async () => {
+    it("should import AugmentCode .mdc rules as .md but never delete them", async () => {
+      await writeFileContent(
+        join(testDir, ".augment", "rules", "style.md"),
+        "---\ntype: always_apply\n---\n# Style",
+      );
+      await writeFileContent(
+        join(testDir, ".augment", "rules", "frontend", "legacy.mdc"),
+        "---\ntype: agent_requested\ndescription: Legacy\n---\n# Legacy",
+      );
+
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "augmentcode",
+      });
+
+      // Auggie loads `.augment/rules/**/*.{md,mdc}`.
+      const imported = await processor.loadToolFiles();
+      expect(imported.map((file) => file.getRelativeFilePath()).toSorted()).toEqual([
+        join("frontend", "legacy.mdc"),
+        "style.md",
+      ]);
+      const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(imported);
+      expect(rulesyncFiles.map((file) => file.getRelativeFilePath()).toSorted()).toEqual([
+        join("frontend", "legacy.md"),
+        "style.md",
+      ]);
+      const legacy = rulesyncFiles.find((file) => file.getRelativeFilePath().endsWith("legacy.md"));
+      expect((legacy as RulesyncRule).getFrontmatter().augmentcode).toEqual({
+        type: "agent_requested",
+        description: "Legacy",
+      });
+      // The original stays on disk after generate, so the user is told.
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("legacy.mdc"));
+
+      // Rulesync never writes `.mdc`, so `--delete` must not remove one.
+      const forDeletion = await processor.loadToolFiles({ forDeletion: true });
+      expect(forDeletion.map((file) => file.getRelativeFilePath())).toEqual(["style.md"]);
+    });
+
+    it("should import AugmentCode .mdc rules in global mode", async () => {
+      await writeFileContent(join(testDir, ".augment", "rules", "global.mdc"), "# Global");
+
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "augmentcode",
+        global: true,
+      });
+
+      const imported = await processor.loadToolFiles();
+      const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(imported);
+      expect(rulesyncFiles.map((file) => file.getRelativeFilePath())).toEqual(["global.md"]);
+      const forDeletion = await processor.loadToolFiles({ forDeletion: true });
+      expect(forDeletion).toEqual([]);
+    });
+
+    it("should keep the AugmentCode .md rule and skip a same-named .mdc one", async () => {
+      await writeFileContent(
+        join(testDir, ".augment", "rules", "foo.md"),
+        "---\ntype: always_apply\n---\n# Md",
+      );
+      await writeFileContent(
+        join(testDir, ".augment", "rules", "foo.mdc"),
+        "---\ntype: always_apply\n---\n# Mdc",
+      );
+
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "augmentcode",
+      });
+      const imported = await processor.loadToolFiles();
+
+      expect(imported.map((file) => file.getRelativeFilePath())).toEqual(["foo.md"]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(`Not importing ${join(".augment", "rules", "foo.mdc")}`),
+      );
+    });
+
+    it("should skip an AugmentCode .mdc rule whose .md twin differs only in case", async () => {
+      // `Foo.md` and `foo.mdc` import to one rulesync file on macOS and Windows.
+      await writeFileContent(join(testDir, ".augment", "rules", "Foo.md"), "# Md");
+      await writeFileContent(join(testDir, ".augment", "rules", "foo.mdc"), "# Mdc");
+
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "augmentcode",
+      });
+      const imported = await processor.loadToolFiles();
+
+      expect(imported.map((file) => file.getRelativeFilePath())).toEqual(["Foo.md"]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(`Not importing ${join(".augment", "rules", "foo.mdc")}`),
+      );
+    });
+
+    it("should keep the oh-my-pi .md rule and skip a same-named .mdc one", async () => {
       await writeFileContent(
         join(testDir, ".omp", "rules", "foo.md"),
         "---\nalwaysApply: true\n---\n# Md",
@@ -1394,10 +1492,12 @@ describe("RulesProcessor", () => {
       );
 
       const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "omp" });
-      await processor.convertToolFilesToRulesyncFiles(await processor.loadToolFiles());
+      const imported = await processor.loadToolFiles();
 
+      // Both import to `foo.md`; the `.md` one wins deterministically.
+      expect(imported.map((file) => file.getRelativeFilePath())).toEqual(["foo.md"]);
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining(`import to ${join(RULESYNC_RULES_RELATIVE_DIR_PATH, "foo.md")}`),
+        expect.stringContaining(`Not importing ${join(".omp", "rules", "foo.mdc")}`),
       );
     });
 
@@ -1444,6 +1544,130 @@ describe("RulesProcessor", () => {
         forDeletion.map((file) => join(file.getRelativeDirPath(), file.getRelativeFilePath())),
       ).not.toContain(join("packages", "api", "AGENTS.md"));
     });
+
+    it.each([false, true])(
+      "should import qwencode output styles but never enumerate them for deletion (global: %s)",
+      async (global) => {
+        const rulesDir = join(".qwen", "rules");
+        await writeFileContent(join(testDir, rulesDir, "plain.md"), "Plain rule.");
+        await writeFileContent(
+          join(testDir, ".qwen", "output-styles", "reviewer.md"),
+          "Start with findings.",
+        );
+        await writeFileContent(
+          join(testDir, ".qwen", "output-styles", "nested", "deep.md"),
+          "# Nested",
+        );
+        await writeFileContent(join(testDir, ".qwen", "output-styles", "notes.txt"), "text");
+
+        const processor = new RulesProcessor({
+          logger,
+          outputRoot: testDir,
+          toolTarget: "qwencode",
+          global,
+        });
+
+        // Qwen Code loads only the `*.md` files directly in `output-styles/`.
+        const imported = await processor.loadToolFiles();
+        const importedPaths = imported.map((file) =>
+          join(file.getRelativeDirPath(), file.getRelativeFilePath()),
+        );
+        expect(importedPaths).toContain(join(".qwen", "output-styles", "reviewer.md"));
+        expect(importedPaths).not.toContain(join(".qwen", "output-styles", "nested", "deep.md"));
+        expect(importedPaths).not.toContain(join(".qwen", "output-styles", "notes.txt"));
+        const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(imported);
+        const style = rulesyncFiles.find((file) => file.getRelativeFilePath() === "reviewer.md");
+        expect((style as RulesyncRule).getFrontmatter().qwencode).toEqual({
+          channel: "output-style",
+        });
+
+        // The directory also holds hand-written styles, so `--delete` never
+        // sweeps it, while `.qwen/rules/` stays a deletion target.
+        const forDeletion = await processor.loadToolFiles({ forDeletion: true });
+        const deletionPaths = forDeletion.map((file) =>
+          join(file.getRelativeDirPath(), file.getRelativeFilePath()),
+        );
+        expect(deletionPaths).not.toContain(join(".qwen", "output-styles", "reviewer.md"));
+        expect(deletionPaths).toContain(join(rulesDir, "plain.md"));
+      },
+    );
+
+    it("should skip a hand-written qwencode output style Qwen Code would skip instead of failing the import", async () => {
+      await writeFileContent(
+        join(testDir, ".qwen", "output-styles", "reviewer.md"),
+        "Start with findings.",
+      );
+      await writeFileContent(
+        join(testDir, ".qwen", "output-styles", "long.md"),
+        `---\nname: ${"a".repeat(65)}\n---\nBody.\n`,
+      );
+      await writeFileContent(join(testDir, ".qwen", "output-styles", "default.md"), "Body.");
+      const warnSpy = vi.spyOn(logger, "warn");
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "qwencode" });
+      const imported = await processor.loadToolFiles();
+      const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(imported);
+
+      expect(rulesyncFiles.map((file) => file.getRelativeFilePath())).toEqual(["reviewer.md"]);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringMatching(
+          /Skipping \.qwen\/output-styles\/long\.md on import: .*longer than 64/,
+        ),
+      );
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringMatching(/Skipping \.qwen\/output-styles\/default\.md on import: .*reserved/),
+      );
+
+      // The imported style generates back without error.
+      const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
+      expect(
+        toolFiles.map((file) => join(file.getRelativeDirPath(), file.getRelativeFilePath())),
+      ).toContain(join(".qwen", "output-styles", "reviewer.md"));
+    });
+
+    it.each([false, true])(
+      "should generate qwencode output-style rules into .qwen/output-styles instead of .qwen/rules (global: %s)",
+      async (global) => {
+        await writeFileContent(
+          join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "root.md"),
+          `---
+root: true
+targets: ["qwencode"]
+---
+# Root`,
+        );
+        await writeFileContent(
+          join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "reviewer.md"),
+          `---
+targets: ["qwencode"]
+description: Put findings first
+qwencode:
+  channel: output-style
+  keep-coding-instructions: true
+---
+Start with findings.`,
+        );
+
+        const processor = new RulesProcessor({
+          logger,
+          outputRoot: testDir,
+          toolTarget: "qwencode",
+          global,
+        });
+
+        const rulesyncFiles = await processor.loadRulesyncFiles();
+        const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
+        const paths = toolFiles.map((file) =>
+          join(file.getRelativeDirPath(), file.getRelativeFilePath()),
+        );
+        expect(paths).toContain(join(".qwen", "output-styles", "reviewer.md"));
+        expect(paths).not.toContain(join(".qwen", "rules", "reviewer.md"));
+        const style = toolFiles.find((file) => file.getRelativeFilePath() === "reviewer.md");
+        expect(style?.getFileContent()).toBe(
+          "---\ndescription: Put findings first\nkeep-coding-instructions: true\n---\nStart with findings.\n",
+        );
+      },
+    );
 
     it.each([false, true])(
       "should import factorydroid output styles but never enumerate them for deletion (global: %s)",
@@ -2705,6 +2929,7 @@ Content that would fail parsing`;
         "deepagents",
         "factorydroid",
         "firebender",
+        "jcode",
         "goose",
         "gitlabduo",
         "grokcli",
@@ -2715,6 +2940,7 @@ Content that would fail parsing`;
         "kiro-cli",
         "kiro-ide",
         "mimocode",
+        "gajaecode",
         "omp",
         "opencode",
         "opencodev1",
@@ -2722,6 +2948,7 @@ Content that would fail parsing`;
         "pi",
         "pool",
         "qoder",
+        "qodercn",
         "qwencode",
         "reasonix",
         "roo",
@@ -2734,8 +2961,11 @@ Content that would fail parsing`;
         "xum",
         "devin",
         "zcode",
+        "zero",
         "zed",
         "dsh",
+        "bb",
+        "deepcode",
       ]);
     });
 
@@ -2800,12 +3030,16 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("warp");
       expect(globalTargets).toContain("pool");
       expect(globalTargets).toContain("dsh");
+      expect(globalTargets).toContain("bb");
       expect(globalTargets).toContain("continue");
       expect(globalTargets).toContain("commandcode");
       expect(globalTargets).toContain("openclaw");
       expect(globalTargets).toContain("qoder");
       expect(globalTargets).toContain("xum");
-      expect(globalTargets.length).toBe(51);
+      expect(globalTargets).toContain("jcode");
+      expect(globalTargets).toContain("gajaecode");
+      expect(globalTargets).toContain("deepcode");
+      expect(globalTargets.length).toBe(57);
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");
@@ -5996,6 +6230,7 @@ targets: ["factorydroid"]
         "commandcode",
         "crush",
         "deepagents",
+        "jcode",
         "goose",
         "gitlabduo",
         // `grokcli` left this list when it gained `.grok/rules/`.
@@ -6009,7 +6244,10 @@ targets: ["factorydroid"]
         "warp",
         "xum",
         "zcode",
+        "zero",
         "dsh",
+        "bb",
+        "deepcode",
       ]);
     });
 

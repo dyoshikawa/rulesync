@@ -10,6 +10,7 @@ import {
   RULESYNC_SKILLS_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
 import { getZedGlobalDir } from "../constants/zed-paths.js";
+import { zeroGlobalConfigDir } from "../constants/zero-paths.js";
 import { RulesProcessor } from "../features/rules/rules-processor.js";
 import { buildLanguageInstruction } from "../types/language.js";
 import { fileExists, readFileContent, removeFile, writeFileContent } from "../utils/file.js";
@@ -35,13 +36,16 @@ const rulesRootTargets = [
   { target: "codexcli", outputPath: "AGENTS.md" },
   { target: "commandcode", outputPath: "AGENTS.md" },
   { target: "qoder", outputPath: "AGENTS.md" },
+  { target: "qodercn", outputPath: "AGENTS.md" },
   { target: "xum", outputPath: join(".xum", "AGENTS.md") },
+  { target: "jcode", outputPath: join(".jcode", "prompt-overlay.md") },
   { target: "grokcli", outputPath: "AGENTS.md" },
   { target: "gitlabduo", outputPath: join(".gitlab", "duo", "chat-rules.md") },
   { target: "hermesagent", outputPath: ".hermes.md" },
   { target: "copilot", outputPath: join(".github", "copilot-instructions.md") },
   { target: "mimocode", outputPath: "AGENTS.md" },
   { target: "omp", outputPath: join(".omp", "AGENTS.md") },
+  { target: "gajaecode", outputPath: join(".gjc", "AGENTS.md") },
   { target: "opencode", outputPath: "AGENTS.md" },
   { target: "opencodev1", outputPath: "AGENTS.md" },
   { target: "antigravity-cli", outputPath: "AGENTS.md" },
@@ -70,15 +74,19 @@ const rulesRootTargets = [
   { target: "reasonix", outputPath: "REASONIX.md" },
   { target: "musecode", outputPath: "AGENTS.md" },
   { target: "zcode", outputPath: "AGENTS.md" },
+  { target: "zero", outputPath: "ZERO.md" },
   { target: "openclaw", outputPath: "AGENTS.md" },
   { target: "bob", outputPath: "AGENTS.md" },
   { target: "tabnine", outputPath: "TABNINE.md" },
   { target: "cortexcode", outputPath: "AGENTS.md" },
+  { target: "theia", outputPath: "AGENTS.md" },
   { target: "codewhale", outputPath: "AGENTS.md" },
   { target: "continue", outputPath: "AGENTS.md" },
   { target: "pool", outputPath: "AGENTS.md" },
   { target: "dsh", outputPath: "AGENTS.md" },
+  { target: "deepcode", outputPath: "AGENTS.md" },
   { target: "firebender", outputPath: join(".firebender", "AGENTS.md") },
+  { target: "bb", outputPath: join(".bb", "AGENTS.md") },
 ] as const;
 
 // Tools that emit every rule as a directory entry.
@@ -103,6 +111,7 @@ const rulesNonRootTargets = [
   { target: "codewhale", outputPath: join(".codewhale", "rules", "overview.md") },
   { target: "takt", outputPath: join(".takt", "facets", "policies", "overview.md") },
   { target: "omp", outputPath: join(".omp", "rules", "overview.md") },
+  { target: "gajaecode", outputPath: join(".gjc", "rules", "overview.md") },
   { target: "firebender", outputPath: join(".firebender", "rules", "overview.mdc") },
 ] as const;
 
@@ -672,6 +681,59 @@ Start with actionable findings, ordered by severity.
     );
     expect(importedStyle).toContain("channel: output-style");
     expect(importedStyle).toContain("name: Review Notes");
+    expect(importedStyle).toContain("Start with actionable findings, ordered by severity.");
+  });
+
+  it("should write qwencode.channel:output-style rules to .qwen/output-styles/ and round-trip", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+      `---
+root: true
+targets: ["qwencode"]
+description: "Root rule"
+globs: ["**/*"]
+---
+
+# Qwen Code Root Rule
+`,
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "reviewer.md"),
+      `---
+targets: ["qwencode"]
+description: "Put findings before the summary"
+qwencode:
+  channel: output-style
+  name: "Reviewer"
+  keep-coding-instructions: true
+---
+
+Start with actionable findings, ordered by severity.
+`,
+    );
+
+    await runGenerate({ target: "qwencode", features: "rules" });
+
+    // The style gets its own file, not a `.qwen/rules/` context rule.
+    expect(await fileExists(join(testDir, ".qwen", "rules", "reviewer.md"))).toBe(false);
+    const styleContent = await readFileContent(
+      join(testDir, ".qwen", "output-styles", "reviewer.md"),
+    );
+    expect(styleContent).toContain("name: Reviewer");
+    expect(styleContent).toContain("description: Put findings before the summary");
+    expect(styleContent).toContain("keep-coding-instructions: true");
+    expect(styleContent).toContain("Start with actionable findings, ordered by severity.");
+
+    await runImport({ target: "qwencode", features: "rules" });
+
+    const importedStyle = await readFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "reviewer.md"),
+    );
+    expect(importedStyle).toContain("channel: output-style");
+    expect(importedStyle).toContain("name: Reviewer");
+    expect(importedStyle).toContain("keep-coding-instructions: true");
     expect(importedStyle).toContain("Start with actionable findings, ordered by severity.");
   });
 
@@ -1783,9 +1845,15 @@ describe("E2E: rules (import)", () => {
     },
     { target: "amp", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "codexcli", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
+    { target: "zero", sourcePath: "ZERO.md", importedFileName: "overview.md" },
     { target: "commandcode", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "qoder", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "xum", sourcePath: join(".xum", "AGENTS.md"), importedFileName: "overview.md" },
+    {
+      target: "jcode",
+      sourcePath: join(".jcode", "prompt-overlay.md"),
+      importedFileName: "overview.md",
+    },
     {
       target: "copilot",
       sourcePath: join(".github", "copilot-instructions.md"),
@@ -1793,6 +1861,7 @@ describe("E2E: rules (import)", () => {
     },
     { target: "mimocode", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "omp", sourcePath: join(".omp", "AGENTS.md"), importedFileName: "overview.md" },
+    { target: "gajaecode", sourcePath: join(".gjc", "AGENTS.md"), importedFileName: "overview.md" },
     {
       target: "gitlabduo",
       sourcePath: join(".gitlab", "duo", "chat-rules.md"),
@@ -1835,9 +1904,12 @@ describe("E2E: rules (import)", () => {
     { target: "pi", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "pool", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "cortexcode", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
+    { target: "theia", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "codewhale", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "continue", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "dsh", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
+    { target: "bb", sourcePath: join(".bb", "AGENTS.md"), importedFileName: "overview.md" },
+    { target: "deepcode", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "vibe", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     {
       target: "cline",
@@ -2024,6 +2096,62 @@ This is a test project for E2E testing.
     expect(generated).toContain("description: API rules");
     expect(await fileExists(join(testDir, ".trae", "rules", "api.md"))).toBe(false);
   });
+
+  // Qoder loads `.qoder/rules/` in any project subdirectory on demand.
+  // https://docs.qoder.com/cli/memory
+  it("should import nested qoder rules and round-trip their subproject scope", async () => {
+    const testDir = getTestDir();
+
+    // The entry `rulesync gitignore` writes for Qoder must not hide the nested
+    // rules directories from the import scan.
+    await writeFileContent(join(testDir, ".gitignore"), "**/.qoder/rules/\nvendored/\n");
+    await writeFileContent(
+      join(testDir, "vendored", "dep", ".qoder", "rules", "dep.md"),
+      "# Vendored\n",
+    );
+
+    await writeFileContent(join(testDir, "AGENTS.md"), "# Project Overview\n");
+    await writeFileContent(
+      join(testDir, "packages", "app", ".qoder", "rules", "app.md"),
+      "---\ntrigger: model_decision\ndescription: App rules\n---\n# App Instructions\n",
+    );
+    // A glob rule in a subfolder: its glob is relative to `packages/app`.
+    await writeFileContent(
+      join(testDir, "packages", "app", ".qoder", "rules", "sub", "lint.md"),
+      "---\ntrigger: glob\nglob:\n  - src/**/*.ts\n---\n# Lint Instructions\n",
+    );
+
+    await runImport({ target: "qoder", features: "rules" });
+
+    const importedGlob = await readFileContent(
+      join(testDir, ".rulesync", "rules", "sub", "lint.md"),
+    );
+    expect(importedGlob).toContain("packages/app/src/**/*.ts");
+    expect(importedGlob).toContain("subprojectPath: packages/app");
+
+    const importedNested = await readFileContent(join(testDir, ".rulesync", "rules", "app.md"));
+    expect(importedNested).toContain("App Instructions");
+    expect(importedNested).toContain("subprojectPath: packages/app");
+    expect(await fileExists(join(testDir, ".rulesync", "rules", "dep.md"))).toBe(false);
+
+    await removeFile(join(testDir, "packages", "app", ".qoder", "rules", "app.md"));
+    await removeFile(join(testDir, "packages", "app", ".qoder", "rules", "sub", "lint.md"));
+    await runGenerate({ target: "qoder", features: "rules" });
+
+    const generatedGlob = await readFileContent(
+      join(testDir, "packages", "app", ".qoder", "rules", "sub", "lint.md"),
+    );
+    expect(generatedGlob).toContain("trigger: glob");
+    expect(generatedGlob).toContain("src/**/*.ts");
+    expect(generatedGlob).not.toContain("packages/app/src");
+
+    const generated = await readFileContent(
+      join(testDir, "packages", "app", ".qoder", "rules", "app.md"),
+    );
+    expect(generated).toContain("App Instructions");
+    expect(generated).toContain("trigger: model_decision");
+    expect(await fileExists(join(testDir, ".qoder", "rules", "app.md"))).toBe(false);
+  });
 });
 
 const rulesGlobalTargets = [
@@ -2033,12 +2161,15 @@ const rulesGlobalTargets = [
   { target: "copilot", outputPath: join(".copilot", "copilot-instructions.md") },
   { target: "mimocode", outputPath: join(".config", "mimocode", "AGENTS.md") },
   { target: "omp", outputPath: join(".omp", "agent", "AGENTS.md") },
+  { target: "gajaecode", outputPath: join(".gjc", "agent", "AGENTS.md") },
   { target: "opencode", outputPath: join(".config", "opencode", "AGENTS.md") },
   { target: "opencodev1", outputPath: join(".config", "opencode", "AGENTS.md") },
   { target: "codexcli", outputPath: join(".codex", "AGENTS.md") },
   { target: "commandcode", outputPath: join(".commandcode", "AGENTS.md") },
   { target: "qoder", outputPath: join(".qoder", "AGENTS.md") },
+  { target: "qodercn", outputPath: join(".qoder-cn", "AGENTS.md") },
   { target: "xum", outputPath: join(".xum", "AGENTS.md") },
+  { target: "jcode", outputPath: join(".jcode", "prompt-overlay.md") },
   { target: "grokcli", outputPath: join(".grok", "AGENTS.md") },
   { target: "gitlabduo", outputPath: join(".gitlab", "duo", "chat-rules.md") },
   { target: "amp", outputPath: join(".config", "amp", "AGENTS.md") },
@@ -2071,13 +2202,16 @@ const rulesGlobalTargets = [
   { target: "kiro-ide", outputPath: join(".kiro", "steering", "product.md") },
   { target: "reasonix", outputPath: join(".reasonix", "REASONIX.md") },
   { target: "zcode", outputPath: join(".zcode", "AGENTS.md") },
+  { target: "zero", outputPath: join(zeroGlobalConfigDir(), "ZERO.md") },
   { target: "openclaw", outputPath: join(".openclaw", "workspace", "AGENTS.md") },
   { target: "bob", outputPath: join(".bob", "AGENTS.md") },
   { target: "tabnine", outputPath: join(".tabnine", "agent", "TABNINE.md") },
   { target: "continue", outputPath: join(".continue", "rules", "AGENTS.md") },
   { target: "pool", outputPath: join(".config", "poolside", "AGENTS.md") },
   { target: "dsh", outputPath: join(".dsh", "AGENTS.md") },
+  { target: "deepcode", outputPath: join(".deepcode", "AGENTS.md") },
   { target: "firebender", outputPath: join(".firebender", "AGENTS.md") },
+  { target: "bb", outputPath: join(".bb", "AGENTS.md") },
 ] as const;
 
 describe("E2E: rules (global mode)", () => {
@@ -2246,6 +2380,7 @@ globs: ["src/**/*"]
     { target: "junie", outputPath: join(".junie", "AGENTS.md") },
     { target: "pi", outputPath: join(".pi", "agent", "AGENTS.md") },
     { target: "xum", outputPath: join(".xum", "AGENTS.md") },
+    { target: "jcode", outputPath: join(".jcode", "prompt-overlay.md") },
   ] as const)(
     "should fold $target non-root rules into its global root file",
     async ({ target, outputPath }) => {
@@ -2380,11 +2515,16 @@ globs: ["src/**/*.ts"]
     expect(nonRootContent).toContain("src/**/*.ts");
   });
 
-  it("should generate qoder non-root rules into ~/.qoder/rules in global mode", async () => {
-    const projectDir = getProjectDir();
-    const homeDir = getHomeDir();
+  it.each([
+    { target: "qoder", homeDirName: ".qoder" },
+    { target: "qodercn", homeDirName: ".qoder-cn" },
+  ])(
+    "should generate $target non-root rules into ~/$homeDirName/rules in global mode",
+    async ({ target, homeDirName }) => {
+      const projectDir = getProjectDir();
+      const homeDir = getHomeDir();
 
-    const rootRuleContent = `---
+      const rootRuleContent = `---
 root: true
 targets: ["*"]
 description: "Root rule"
@@ -2393,7 +2533,7 @@ globs: ["**/*"]
 
 # Root Rule Content
 `;
-    const nonRootRuleContent = `---
+      const nonRootRuleContent = `---
 targets: ["*"]
 description: "Global coding guidelines"
 globs: ["src/**/*.ts"]
@@ -2401,34 +2541,35 @@ globs: ["src/**/*.ts"]
 
 # Global Non-Root Rule
 `;
-    await writeFileContent(
-      join(projectDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
-      rootRuleContent,
-    );
-    await writeFileContent(
-      join(projectDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "coding-guidelines.md"),
-      nonRootRuleContent,
-    );
+      await writeFileContent(
+        join(projectDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+        rootRuleContent,
+      );
+      await writeFileContent(
+        join(projectDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "coding-guidelines.md"),
+        nonRootRuleContent,
+      );
 
-    await runGenerate({
-      target: "qoder",
-      features: "rules",
-      global: true,
-      env: { HOME_DIR: homeDir },
-    });
+      await runGenerate({
+        target,
+        features: "rules",
+        global: true,
+        env: { HOME_DIR: homeDir },
+      });
 
-    // Root memory file -> ~/.qoder/AGENTS.md
-    const rootContent = await readFileContent(join(homeDir, ".qoder", "AGENTS.md"));
-    expect(rootContent).toContain("Root Rule Content");
+      // Root memory file -> ~/<home>/AGENTS.md
+      const rootContent = await readFileContent(join(homeDir, homeDirName, "AGENTS.md"));
+      expect(rootContent).toContain("Root Rule Content");
 
-    // Non-root rule -> ~/.qoder/rules/*.md with `trigger: glob` frontmatter
-    const nonRootContent = await readFileContent(
-      join(homeDir, ".qoder", "rules", "coding-guidelines.md"),
-    );
-    expect(nonRootContent).toContain("Global Non-Root Rule");
-    expect(nonRootContent).toContain("trigger: glob");
-    expect(nonRootContent).toContain("src/**/*.ts");
-  });
+      // Non-root rule -> ~/<home>/rules/*.md with `trigger: glob` frontmatter
+      const nonRootContent = await readFileContent(
+        join(homeDir, homeDirName, "rules", "coding-guidelines.md"),
+      );
+      expect(nonRootContent).toContain("Global Non-Root Rule");
+      expect(nonRootContent).toContain("trigger: glob");
+      expect(nonRootContent).toContain("src/**/*.ts");
+    },
+  );
 
   it.each(["antigravity-cli", "antigravity-ide"])(
     "should generate %s non-root rules into ~/.gemini/config/rules in global mode",

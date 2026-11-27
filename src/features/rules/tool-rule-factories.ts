@@ -8,6 +8,7 @@ import { QODER_LOCAL_RULE_FILE_NAME } from "../../constants/qoder-paths.js";
 import { QWENCODE_LOCAL_RULE_FILE_NAME } from "../../constants/qwencode-paths.js";
 import { REASONIX_LOCAL_RULE_FILE_NAME } from "../../constants/reasonix-paths.js";
 import { XUM_LOCAL_RULE_FILE_NAME } from "../../constants/xum-paths.js";
+import { ZERO_INSTRUCTION_FILE_MAX_BYTES } from "../../constants/zero-paths.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { rulesProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import { type Logger } from "../../utils/logger.js";
@@ -27,6 +28,7 @@ import { AntigravityPluginRule } from "./antigravity-plugin-rule.js";
 import { AugmentcodeLegacyRule } from "./augmentcode-legacy-rule.js";
 import { AugmentcodePluginRule } from "./augmentcode-plugin-rule.js";
 import { AugmentcodeRule } from "./augmentcode-rule.js";
+import { BbRule } from "./bb-rule.js";
 import { BobRule } from "./bob-rule.js";
 import { ClaudecodeLegacyRule } from "./claudecode-legacy-rule.js";
 import { ClaudecodeRule } from "./claudecode-rule.js";
@@ -43,16 +45,19 @@ import { CortexcodeRule } from "./cortexcode-rule.js";
 import { CrushRule } from "./crush-rule.js";
 import { CursorRule } from "./cursor-rule.js";
 import { DeepagentsRule } from "./deepagents-rule.js";
+import { DeepcodeRule } from "./deepcode-rule.js";
 import { DevinPluginRule } from "./devin-plugin-rule.js";
 import { DevinRule } from "./devin-rule.js";
 import { DshRule } from "./dsh-rule.js";
 import { FactorydroidRule } from "./factorydroid-rule.js";
 import { FirebenderRule } from "./firebender-rule.js";
+import { GajaecodeRule } from "./gajaecode-rule.js";
 import { GitlabduoRule } from "./gitlabduo-rule.js";
 import { GooseRule } from "./goose-rule.js";
 import { GrokcliRule } from "./grokcli-rule.js";
 import { HermesagentRule } from "./hermesagent-rule.js";
 import { ProjectInstructionBudget } from "./instruction-budget.js";
+import { JcodeRule } from "./jcode-rule.js";
 import { JunieRule } from "./junie-rule.js";
 import { KiloRule } from "./kilo-rule.js";
 import { KimiCodePluginRule } from "./kimi-code-plugin-rule.js";
@@ -69,6 +74,7 @@ import { Opencodev1Rule } from "./opencodev1-rule.js";
 import { PiRule } from "./pi-rule.js";
 import { PoolRule } from "./pool-rule.js";
 import { QoderRule } from "./qoder-rule.js";
+import { QodercnRule } from "./qodercn-rule.js";
 import { QwencodeRule } from "./qwencode-rule.js";
 import { ReasonixRule } from "./reasonix-rule.js";
 import { ReplitRule } from "./replit-rule.js";
@@ -77,6 +83,7 @@ import { RovodevRule } from "./rovodev-rule.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import { TabnineRule } from "./tabnine-rule.js";
 import { TaktRule } from "./takt-rule.js";
+import { TheiaRule } from "./theia-rule.js";
 import {
   ToolRule,
   ToolRuleBuildLocalRootFileParams,
@@ -94,6 +101,7 @@ import { WarpRule } from "./warp-rule.js";
 import { XumRule } from "./xum-rule.js";
 import { ZcodeRule } from "./zcode-rule.js";
 import { ZedRule } from "./zed-rule.js";
+import { ZeroRule } from "./zero-rule.js";
 import { ZoocodeRule } from "./zoocode-rule.js";
 
 export type RulesProcessorToolTarget = (typeof rulesProcessorToolTargetTuple)[number];
@@ -430,6 +438,11 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
       class: AugmentcodeRule,
       meta: {
         extension: "md",
+        // Auggie loads `.md` and `.mdc` files from `.augment/rules/` and
+        // `~/.augment/rules/`, recursively. Import reads both; generation and
+        // deletion stay on `.md`, so a hand-written `.mdc` is never removed.
+        // https://docs.augmentcode.com/cli/rules
+        nonRootImportGlob: "**/*.{md,mdc}",
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
       },
@@ -759,6 +772,23 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
     },
   ],
   [
+    "jcode",
+    {
+      // jcode appends `.jcode/prompt-overlay.md` (project) and
+      // `~/.jcode/prompt-overlay.md` (user) to its system prompt after
+      // `AGENTS.md`. There is no rules directory, so topic rules fold into
+      // that single file.
+      // https://github.com/1jehuang/jcode/blob/master/docs/SYSTEM_PROMPT_CONFIG.md
+      class: JcodeRule,
+      meta: {
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
+        collisionPolicy: "fold",
+      },
+    },
+  ],
+  [
     "goose",
     {
       // Goose reads the `.goosehints` / `AGENTS.md` instruction-file family
@@ -958,6 +988,22 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
     },
   ],
   [
+    "gajaecode",
+    {
+      class: GajaecodeRule,
+      meta: {
+        // Gajae-Code loads `.gjc/AGENTS.md` plus `.gjc/rules/*.{md,mdc}`
+        // natively, and `~/.gjc/agent/AGENTS.md` plus
+        // `~/.gjc/agent/rules/*.{md,mdc}` globally, like oh-my-pi.
+        // https://github.com/Yeachan-Heo/gajae-code/blob/main/docs/rulebook-matching-pipeline.md
+        extension: "md",
+        nonRootImportGlob: "*.{md,mdc}",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
+      },
+    },
+  ],
+  [
     "omp",
     {
       class: OmpRule,
@@ -1069,9 +1115,27 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         // Qoder reads the project-root `AGENTS.md` (plus the per-machine
         // `AGENTS.local.md` overlay) and auto-loads `.qoder/rules/**/*.md` by
         // their `trigger` frontmatter; the user scope mirrors it under
-        // `~/.qoder/`. Commands, subagents and skills are native, so no
+        // `~/.qoder/`. Directory-scoped rules (`agentsmd.subprojectPath`) go to
+        // `<dir>/.qoder/rules/` (imported back via `getNestedFilePatterns`).
+        // Commands, subagents and skills are native, so no
         // simulated additionalConventions are needed.
         // https://docs.qoder.com/en/cli/04-extending-qoder-cli/memory
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
+        localRootMode: "separate-local-file",
+        localRootFileName: QODER_LOCAL_RULE_FILE_NAME,
+      },
+    },
+  ],
+  [
+    "qodercn",
+    {
+      class: QodercnRule,
+      meta: {
+        // Qoder CN (CLI CN and the desktop app) reads the same project files as
+        // Qoder; the user scope lives under `~/.qoder-cn/` instead.
+        // https://docs.qoder.cn/cli/memory
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
@@ -1228,6 +1292,23 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
     },
   ],
   [
+    "theia",
+    {
+      class: TheiaRule,
+      meta: {
+        // Theia AI reads the workspace-root AGENTS.md only (no nested files,
+        // no CLAUDE.md fallback, no user-scoped rule file), so rules are
+        // project-only and topic rules fold into the root file (mirrors
+        // cortexcode).
+        // https://theia-ide.org/docs/user_ai/
+        extension: "md",
+        supportsGlobal: false,
+        ruleDiscoveryMode: "auto",
+        collisionPolicy: "fold",
+      },
+    },
+  ],
+  [
     "trae",
     {
       // Trae auto-loads every `.trae/rules/*.md` file by its Cursor-style
@@ -1235,8 +1316,8 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
       // rule file, so every rule lands there (mirrors cursor) — except
       // directory-scoped rules (`agentsmd.subprojectPath`), which go to
       // `<dir>/.trae/rules/` (imported back via `getNestedFilePatterns`). Commands,
-      // subagents and skills need no simulation: Trae has native skills and
-      // no file-based commands or subagents. Global rules (`~/.trae/user_rules`)
+      // subagents and skills need no simulation: Trae has native commands,
+      // subagents and skills. Global rules (`~/.trae/user_rules`)
       // are not written because their on-disk format is undocumented.
       // https://docs.trae.ai/ide/rules?_lang=en
       class: TraeRule,
@@ -1371,6 +1452,29 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
     },
   ],
   [
+    "zero",
+    {
+      class: ZeroRule,
+      meta: {
+        // Zero reads the first of `AGENTS.md`, `ZERO.md` and `.zero/AGENTS.md`
+        // per directory (git root to cwd) and a user `<config dir>/zero/ZERO.md`.
+        // rulesync writes `ZERO.md`; topic rules and `localRoot` rules fold into
+        // it, since `.zero/AGENTS.md` is shadowed by `ZERO.md` on the same level.
+        // https://github.com/Twigpine/zero/blob/main/docs/EXTENDING.md
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
+        collisionPolicy: "fold",
+        projectInstructionBudget: {
+          bytes: ZERO_INSTRUCTION_FILE_MAX_BYTES,
+          remedy:
+            "Zero caps each instruction file at 8 KiB and silently drops everything past the cap. " +
+            "Trim the rules or exclude some from the `zero` target.",
+        },
+      },
+    },
+  ],
+  [
     "zed",
     {
       class: ZedRule,
@@ -1406,6 +1510,42 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         // neither user-global root has a local overlay.
         localRootMode: "separate-local-file",
         localRootFileName: "AGENTS.local.md",
+      },
+    },
+  ],
+  [
+    "bb",
+    {
+      // bb appends `<workspace>/.bb/AGENTS.md` and `<dataDir>/AGENTS.md`
+      // (`~/.bb/AGENTS.md` by default) to every provider-backed thread's system
+      // prompt. It reads only these two files and has no rules directory, so
+      // topic rules fold into the root file.
+      // https://github.com/get-bb/bb/blob/main/docs/configuration.md#agent-instructions
+      class: BbRule,
+      meta: {
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
+        collisionPolicy: "fold",
+      },
+    },
+  ],
+  [
+    "deepcode",
+    {
+      class: DeepcodeRule,
+      meta: {
+        // DeepCode reads the project-root AGENTS.md plus per-package AGENTS.md
+        // files (the one closer to the working directory wins on conflicts) and
+        // a personal `~/.deepcode/AGENTS.md`. There is no modular rules
+        // directory, so topic rules fold into the root file, while
+        // directory-scoped rules (`agentsmd.subprojectPath`) are emitted as
+        // nested `<dir>/AGENTS.md` files (mirrors dsh/warp).
+        // https://github.com/HKUDS/DeepCode/blob/main/docs/guide/skills-and-memory.md
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
+        collisionPolicy: "fold",
       },
     },
   ],

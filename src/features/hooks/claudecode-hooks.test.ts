@@ -702,6 +702,153 @@ describe("ClaudecodeHooks", () => {
       expect(parsed.hooks.postModelSwitch?.[0]).toMatchObject({ command: "log-model.sh" });
     });
 
+    it("should skip hook types Claude Code does not run on an event, with a warning", async () => {
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));
+
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            permissionRequest: [
+              { type: "agent", prompt: "Decide" },
+              { type: "prompt", prompt: "Allow?" },
+            ],
+            notification: [{ type: "prompt", prompt: "Summarize" }, { command: "notify.sh" }],
+            sessionStart: [
+              { type: "mcp_tool", server: "memory", tool: "load" },
+              { type: "prompt", prompt: "Greet" },
+            ],
+            setup: [{ type: "http", url: "https://example.com/setup" }, { command: "setup.sh" }],
+            preToolUse: [{ type: "agent", prompt: "Verify" }],
+          },
+        }),
+        validate: false,
+      });
+
+      const claudecodeHooks = await ClaudecodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+        logger,
+      });
+
+      const parsed = JSON.parse(claudecodeHooks.getFileContent());
+      const typesOf = (event: string) =>
+        parsed.hooks[event].flatMap((group: { hooks: Array<{ type: string }> }) =>
+          group.hooks.map((hook) => hook.type),
+        );
+      expect(typesOf("PermissionRequest")).toEqual(["prompt"]);
+      expect(typesOf("Notification")).toEqual(["command"]);
+      expect(typesOf("SessionStart")).toEqual(["mcp_tool"]);
+      expect(typesOf("Setup")).toEqual(["command"]);
+      expect(typesOf("PreToolUse")).toEqual(["agent"]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("does not run http hooks on this event (supported types: command)"),
+      );
+      for (const [event, type] of [
+        ["permissionRequest", "agent"],
+        ["notification", "prompt"],
+        ["sessionStart", "prompt"],
+        ["setup", "http"],
+      ]) {
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining(`Skipping a "${event}" ${type} hook`),
+        );
+      }
+    });
+
+    it("should drop an event whose only hooks Claude Code would not run on it", async () => {
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));
+
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: { sessionEnd: [{ type: "agent", prompt: "Wrap up" }] },
+          claudecode: {
+            hooks: { PreCompact: [{ type: "prompt", prompt: "Keep the plan" }] },
+          },
+        }),
+        validate: false,
+      });
+
+      const claudecodeHooks = await ClaudecodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+        logger,
+      });
+
+      const parsed = JSON.parse(claudecodeHooks.getFileContent());
+      expect(parsed.hooks ?? {}).not.toHaveProperty("SessionEnd");
+      expect(parsed.hooks ?? {}).not.toHaveProperty("PreCompact");
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(`Skipping a "PreCompact" prompt hook`),
+      );
+    });
+
+    it("should round-trip PreSkillShellCommand with its tool matcher, keeping a fail-closed prompt hook", async () => {
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));
+
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            preSkillShellCommand: [
+              { matcher: "Bash|PowerShell", command: "block-rm.sh", failClosed: true },
+              { matcher: "Bash|PowerShell", type: "prompt", prompt: "Is this safe?" },
+            ],
+          },
+        }),
+        validate: false,
+      });
+
+      const claudecodeHooks = await ClaudecodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+        logger,
+      });
+
+      const parsed = JSON.parse(claudecodeHooks.getFileContent());
+      // Claude Code blocks every command a prompt/agent hook matches on this
+      // event, so the hook is kept (dropping it would leave commands unchecked).
+      expect(parsed.hooks.PreSkillShellCommand).toEqual([
+        {
+          matcher: "Bash|PowerShell",
+          hooks: [
+            { type: "command", command: "block-rm.sh", onFailure: "block" },
+            { type: "prompt", prompt: "Is this safe?" },
+          ],
+        },
+      ]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          `Keeping a "preSkillShellCommand" prompt hook ("Is this safe?") although this tool cannot run prompt hooks`,
+        ),
+      );
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining(`Skipping a "preSkillShellCommand"`),
+      );
+
+      const imported = claudecodeHooks.toRulesyncHooks().getJson();
+      expect(imported.hooks.preSkillShellCommand).toEqual([
+        { type: "command", matcher: "Bash|PowerShell", command: "block-rm.sh", failClosed: true },
+        { type: "prompt", matcher: "Bash|PowerShell", prompt: "Is this safe?" },
+      ]);
+    });
+
     it("should only prefix dot-relative commands with $CLAUDE_PROJECT_DIR", async () => {
       await ensureDir(join(testDir, ".claude"));
       await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));
